@@ -1,0 +1,97 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/player.gd" id="2_player"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat_main"]
+sky_horizon_color = Color(0.74, 0.82, 0.89, 1)
+ground_horizon_color = Color(0.74, 0.82, 0.89, 1)
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("SkyMat_main")
+
+[sub_resource type="Environment" id="Env_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 3
+ambient_light_sky_contribution = 1.0
+tonemap_mode = 3
+
+[sub_resource type="StandardMaterial3D" id="Mat_ground"]
+albedo_color = Color(0.36, 0.5, 0.3, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+material = SubResource("Mat_ground")
+size = Vector2(200, 200)
+
+[sub_resource type="BoxShape3D" id="BoxShape_ground"]
+size = Vector3(200, 1, 200)
+
+[sub_resource type="StandardMaterial3D" id="Mat_pigeon"]
+albedo_color = Color(0.55, 0.57, 0.62, 1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_pigeon"]
+material = SubResource("Mat_pigeon")
+radius = 0.3
+height = 0.6
+
+[sub_resource type="SphereShape3D" id="SphereShape_pigeon"]
+radius = 0.3
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 20, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_main")
+
+[node name="Ground" type="StaticBody3D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("PlaneMesh_ground")
+
+[node name="GroundShape" type="CollisionShape3D" parent="Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+shape = SubResource("BoxShape_ground")
+
+[node name="Player" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 8)
+collision_layer = 2
+collision_mask = 1
+script = ExtResource("2_player")
+
+[node name="Mesh" type="MeshInstance3D" parent="Player"]
+mesh = SubResource("SphereMesh_pigeon")
+
+[node name="Shape" type="CollisionShape3D" parent="Player"]
+shape = SubResource("SphereShape_pigeon")
+
+[node name="Camera3D" type="Camera3D" parent="Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 6)
+current = true
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="StatsLabel" type="Label" parent="HUD"]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 12.0
+offset_right = 500.0
+offset_bottom = 44.0
+theme_override_font_sizes/font_size = 22
+text = "Score: 0    Hunger: 100%"
+
+[node name="HintLabel" type="Label" parent="HUD"]
+offset_left = 16.0
+offset_top = 46.0
+offset_right = 500.0
+offset_bottom = 66.0
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(1, 1, 1, 0.75)
+text = "W/S pitch · A/D turn · Space flap · F poop (soon)"
