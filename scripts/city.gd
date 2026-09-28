@@ -82,6 +82,16 @@ var buildings: Array[Dictionary] = []
 ## Summary of the last generation — the sim harness asserts the guarantees on it.
 var last_report: Dictionary = {}
 
+## Emitted at the end of every generate() — the bread service (T-005) re-seeds
+## its pickups so they always sit on the current layout.
+signal regenerated
+
+## Surface points (city-local) where a bread crumb can sit (T-005): bench
+## seats, the sidewalk ring of every block, plaza and park slabs. Purely
+## derived from the layout — no RNG of its own — so it is deterministic per
+## seed and never shifts the building RNG sequence.
+var bread_spots: Array[Vector3] = []
+
 ## Center-to-center distance between neighboring blocks (m).
 var block_pitch: float:
 	get: return block_size + road_width
@@ -120,6 +130,7 @@ func generate(new_seed: int = seed_value) -> void:
 	_max_roof = 0.0
 	_plaza_clear = true
 	buildings = []
+	bread_spots = []
 	_static_root = Node3D.new()
 	_static_root.name = "Static"
 	add_child(_static_root)
@@ -142,6 +153,7 @@ func generate(new_seed: int = seed_value) -> void:
 			+ Vector3(block_size * 0.5 + road_width * 0.5, spawn_drop_height, 0.0))
 	fingerprint = _fp.hash()
 	last_report = _make_report()
+	regenerated.emit()
 
 
 func _clear() -> void:
@@ -161,6 +173,20 @@ func _block_center(ix: int, iz: int) -> Vector3:
 
 
 ## --- construction --------------------------------------------------------
+
+
+## Four sidewalk spots per block for bread crumbs (T-005), placed at the
+## diagonal corners of the sidewalk ring: off the bench line (benches slide
+## ±4 m along each edge plus their seat length) and clear of the corner lamps
+## and bins, so a crumb never spawns inside a prop.
+func _bread_ring_spots(center: Vector3) -> void:
+	var ring := block_size * 0.5 - sidewalk_width * 0.5
+	var mid := block_size * 0.5 - 4.5
+	var y := block_slab_height + 0.06
+	for sx: float in [ring, -ring]:
+		for sz: float in [mid, -mid]:
+			bread_spots.append(center + Vector3(sx, y, sz))
+			bread_spots.append(center + Vector3(sz, y, sx))
 
 
 ## One shared unit BoxMesh per visual key; instances scale it via their transform.
@@ -232,6 +258,7 @@ func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 	_add_mm("slab", _box_xf(center + Vector3(0.0, block_slab_height * 0.5, 0.0), slab_size), slab_color)
 	_add_collider("Blocks", slab_size, center + Vector3(0.0, block_slab_height * 0.5, 0.0))
 	_fp.append(["slab", center.x, center.z, is_plaza, is_park])
+	_bread_ring_spots(center)
 	if is_plaza:
 		_build_plaza(center)
 	elif is_park:
@@ -334,6 +361,7 @@ func _build_block_props(center: Vector3, is_plaza: bool) -> void:
 func _add_bench(pos: Vector3, yaw: float) -> void:
 	var base := Vector3(pos.x, block_slab_height, pos.z)
 	var xf := Transform3D(Basis(Vector3.UP, yaw), base)
+	bread_spots.append(base + Vector3(0.0, 0.60, 0.0)) ## Seat top — crumb sits on the bench (T-005).
 	_add_mm("bench_seat", xf * _box_xf(Vector3(0.0, 0.5, 0.0), Vector3(1.8, 0.08, 0.5)))
 	_add_mm("bench_leg", xf * _box_xf(Vector3(-0.75, 0.25, 0.0), Vector3(0.1, 0.5, 0.44)))
 	_add_mm("bench_leg", xf * _box_xf(Vector3(0.75, 0.25, 0.0), Vector3(0.1, 0.5, 0.44)))

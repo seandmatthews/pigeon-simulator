@@ -7,6 +7,7 @@ extends Node3D
 
 const PLAYER_SCENE: PackedScene = preload("res://scenes/player.tscn")
 const CITY_SCENE: PackedScene = preload("res://scenes/city.tscn")
+const CRUMB_SCENE: PackedScene = preload("res://scenes/bread_crumb.tscn")
 
 ## Set SIM_DEBUG=1 to print per-scenario trajectory samples.
 var _debug: bool = OS.get_environment("SIM_DEBUG") == "1"
@@ -14,6 +15,7 @@ var _debug: bool = OS.get_environment("SIM_DEBUG") == "1"
 var _player: Player
 var _city: City
 var _failures: int = 0
+var _game_over_fires: int = 0 ## Signal counters survive inside lambdas only as members.
 
 
 func _ready() -> void:
@@ -67,6 +69,10 @@ func _run_scenarios() -> void:
 	await _scenario_city_street_flyover()
 	await _scenario_city_roof()
 	await _scenario_city_sidewalk()
+	await _scenario_hunger_drain()
+	await _scenario_hunger_game_over()
+	await _scenario_bread_eating()
+	await _scenario_bread_respawn()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -490,3 +496,107 @@ func _scenario_city_sidewalk() -> void:
 			and absf(y - (_city.block_slab_height + 0.3)) < 0.05,
 			"walked %.2f m west, grounded=%s at y=%.2f (slab top %.2f)" % [
 					walked, _player.is_grounded, y, _city.block_slab_height])
+
+
+## --- scenarios (T-005 bread & hunger) --------------------------------------
+
+
+## The hunger clock ticks in flight, visibly faster while flapping than while
+## gliding, and slowest of all while resting grounded.
+func _scenario_hunger_drain() -> void:
+	var hunger := Hunger.new()
+	hunger.player = _player
+	add_child(hunger)
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	var v0: float = hunger.value
+	await _wait_frames(90)
+	var glide_loss: float = v0 - hunger.value
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	v0 = hunger.value
+	for _i in 3: ## Paced taps keep the flap-heat window alive for the whole leg.
+		await _tap("flap")
+		await _wait_frames(29)
+	var flap_loss: float = v0 - hunger.value
+	await _set_up(true, Vector3(0.0, 0.4, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	v0 = hunger.value
+	await _wait_frames(90)
+	var rest_loss: float = v0 - hunger.value
+	_check("hunger_drain_flap_vs_glide",
+			glide_loss > 0.2 and flap_loss > glide_loss * 1.4 and rest_loss < glide_loss,
+			"lost %.2f gliding, %.2f flapping, %.2f resting in 1.5 s each" % [
+					glide_loss, flap_loss, rest_loss])
+	hunger.free()
+
+
+## Hunger empties, clamps at zero and fires game_over EXACTLY once — eating
+## afterwards refills the bar but the latch holds (T-010 builds on this).
+func _scenario_hunger_game_over() -> void:
+	var hunger := Hunger.new()
+	hunger.player = _player
+	hunger.drain_per_second = 60.0 ## Time-compressed: zero crossed ~1.7 s in.
+	_game_over_fires = 0
+	hunger.game_over.connect(func() -> void: _game_over_fires += 1)
+	add_child(hunger)
+	await _set_up(true, Vector3(0.0, 25.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	await _wait_frames(150) ## 2.5 s at 60/s: long past zero.
+	var crossed_once: bool = _game_over_fires == 1 and hunger.value == 0.0
+	hunger.eat(30.0)
+	var restored: bool = hunger.value == 30.0
+	await _wait_frames(30) ## Drains right back to zero — a second fire would prove the latch broken.
+	_check("hunger_game_over_once",
+			crossed_once and restored and _game_over_fires == 1 and hunger.value <= 0.5,
+			"fires=%d crossed=%s restored=%s value=%.1f" % [
+					_game_over_fires, crossed_once, restored, hunger.value])
+	hunger.free()
+
+
+## Eating is land-and-peck only: a low pass OVER a crumb never feeds, but a
+## grounded pigeon that waddles into it eats it — hunger restored, crumb gone.
+func _scenario_bread_eating() -> void:
+	var hunger := Hunger.new()
+	hunger.player = _player
+	add_child(hunger)
+	var crumb: BreadCrumb = CRUMB_SCENE.instantiate()
+	crumb.position = Vector3(0.0, 0.16, 0.0)
+	add_child(crumb)
+	crumb.eaten.connect(hunger.eat)
+	await _set_up(true, Vector3(0.0, 2.4, 4.0), Vector3(0.0, 0.0, -8.0)) ## Overfly.
+	var overfly_start: float = hunger.value
+	await _wait_frames(40)
+	var flew_over_uneaten: bool = is_instance_valid(crumb) and hunger.value < overfly_start - 0.05
+	await _set_up(true, Vector3(0.0, 0.4, 1.8), Vector3.ZERO) ## Drop beside it…
+	await _await_grounded(90)
+	hunger.value = 40.0 ## Mid-bar so the +30 restore is measurable (a full bar would just clamp).
+	var waddle_start: float = hunger.value
+	await _hold("pitch_up", 90) ## …and waddle in (facing -Z, crumb ahead).
+	var ate: bool = not is_instance_valid(crumb) and hunger.value > waddle_start + 10.0
+	_check("crumb_eaten_grounded_only", flew_over_uneaten and ate,
+			"overfly kept crumb=%s (hunger %.1f→%.1f), waddle ate=%s (hunger %.1f→%.1f)" % [
+					flew_over_uneaten, overfly_start, waddle_start, ate, waddle_start, hunger.value])
+	hunger.free()
+
+
+## The bread service keeps `target_count` crumbs alive: eaten crumbs are
+## forgotten, then replaced somewhere within one respawn interval.
+func _scenario_bread_respawn() -> void:
+	var spawner := BreadSpawner.new()
+	spawner.city = _city
+	spawner.target_count = 6
+	spawner.respawn_interval = 0.5
+	add_child(spawner)
+	await _wait_frames(4)
+	var initial: int = spawner.living_crumbs().size()
+	var eaten_batch := spawner.living_crumbs().slice(0, 3)
+	for crumb in eaten_batch:
+		crumb.eaten.emit(crumb.restore) ## Same path a grounded pigeon triggers.
+		crumb.free()
+	await _wait_frames(2)
+	var after_eating: int = spawner.living_crumbs().size()
+	await _wait_frames(45) ## 0.75 s > respawn_interval.
+	var respawned: int = spawner.living_crumbs().size()
+	_check("crumbs_respawn",
+			initial == 6 and after_eating == 3 and respawned == 6 and spawner.eaten_count == 3,
+			"initial %d → eaten down to %d → topped back up to %d (eaten_count %d)" % [
+					initial, after_eating, respawned, spawner.eaten_count])
+	spawner.free()

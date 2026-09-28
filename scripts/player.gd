@@ -10,6 +10,10 @@ extends CharacterBody3D
 ## Emitted when the pigeon lands or takes off — the HUD swaps its control hint.
 signal grounding_changed(grounded: bool)
 
+## Emitted every time a flap impulse actually fires — hunger (T-005) drains
+## faster while flapping, and the juice pass (T-013) hooks into it too.
+signal flapped
+
 ## AIR covers flying *and* the skid after a hard touchdown; GROUND is the waddle.
 enum State { AIR, GROUND }
 
@@ -214,6 +218,7 @@ func _flap() -> void:
 	_time_since_flap = 0.0
 	if state == State.GROUND:
 		_set_state(State.AIR) ## Takeoff.
+	flapped.emit()
 
 
 func _steer(delta: float) -> void:

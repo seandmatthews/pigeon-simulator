@@ -65,6 +65,10 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | city_roof_landable | a generated building roof is landable and walkable | T-004 |
 | city_roof_takeoff | flapping off a generated roof returns to flight | T-004 |
 | city_sidewalk_walkable | the pigeon waddles up a curb from the road onto the sidewalk ring | T-004 |
+| hunger_drain_flap_vs_glide | hunger ticks in flight — visibly faster while flapping than gliding, slowest resting grounded | T-005 |
+| hunger_game_over_once | hunger empties, clamps at zero and fires game_over exactly once; eating restores a chunk but the latch holds | T-005 |
+| crumb_eaten_grounded_only | flying over a crumb never feeds; a grounded pigeon waddling into it eats it and frees it | T-005 |
+| crumbs_respawn | eaten crumbs are topped back up to the target count within one respawn interval | T-005 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -77,7 +81,9 @@ plaza — the one spot the generator guarantees is clear of buildings — and
 beyond 60 m from the plaza it steers home. From 11 s in the pilot also makes a
 ground visit (T-003 + T-004): arc to the plaza, bleed speed in a wide orbit,
 spiral down inside the building-free ring, touchdown, waddle across the
-pavement, take-off. Saves a screenshot every 5 s to `.godot/autoplay/`:
+pavement, take-off. While landed it waddles toward the nearest breadcrumb and
+pecks it up when it reaches one (T-005) — the DONE line reports the hunger bar
+and how many crumbs were eaten. Saves a screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
 godot --path . res://tests/autoplay.tscn
@@ -125,6 +131,11 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-004) Roofs, sidewalks and the spawn plaza are landable and walkable in a normal run
 - [ ] (T-004) Restarting the game twice regenerates the identical city
 - [ ] (T-004) Flying across the whole city holds ~60 fps on the dev machine
+- [ ] (T-005) The hunger bar ticks down while flying — visibly faster while flapping, slower while resting
+- [ ] (T-005) Landing near crumbs and waddling into them pecks them up and restores a chunk of the bar
+- [ ] (T-005) Flying low over crumbs does nothing — only grounded contact feeds
+- [ ] (T-005) Hunger reaching zero shows the starved hint exactly once (full game-over screen arrives with T-010)
+- [ ] (T-005) Eaten crumbs come back somewhere else within a few seconds
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -139,5 +150,9 @@ Playtest checklist (grows as tickets land):
 - City blockout (T-004) is machine-verified (Gate 1b layout/flyover/landing
   scenarios) and flown by the autoplay pilot; a human pass over the T-004 lines
   (city readability, restart determinism, full-city 60 fps flyover) is still pending.
+- Bread & hunger (T-005) is machine-verified (Gate 1b drain/game-over/eating/
+  respawn scenarios) and exercised by the autoplay ground visit; a human pass
+  over the T-005 lines (playing until game over once, drain-timing fairness) is
+  still pending.
 - Placeholder art everywhere: the pigeon is a gray sphere and buildings are tinted
   boxes with a procedural window texture (pigeon look tracked in T-011).

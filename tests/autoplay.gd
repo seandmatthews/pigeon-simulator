@@ -13,16 +13,21 @@ const RUN_SECONDS: float = 30.0
 const SHOT_INTERVAL: float = 5.0
 const GROUND_VISIT_START: float = 8.0 ## T-003 excursion: descend to the plaza, land, waddle, take off.
 const GROUND_VISIT_END: float = 29.0
-const WADDLE_UNTIL: float = 27.8
+const WADDLE_UNTIL: float = 28.6
 ## City-aware cruising (T-004): the cruise floor sits above every generated
 ## roof, so the only way to meet a wall is to stop believing in it.
 const CRUISE_FLOOR: float = 23.0
 const CRUISE_CEIL: float = 30.0
 const DIVE_GATE: float = 29.0
 const HOME_RADIUS: float = 40.0
+## T-005: while grounded the waddle homes in on the nearest living crumb within
+## this radius, so the land-and-peck eat path is actually exercised.
+const CRUMB_SEEK_RADIUS: float = 22.0
 
 var _game: Node
 var _player: Player
+var _hunger: Hunger
+var _spawner: BreadSpawner
 var _elapsed: float = 0.0
 var _next_shot: float = 1.0
 var _shot_dir: String = ""
@@ -37,6 +42,8 @@ func _ready() -> void:
 	_game = MAIN_SCENE.instantiate()
 	add_child(_game)
 	_player = _game.get_node("Player") as Player
+	_hunger = _game.get_node("Hunger") as Hunger
+	_spawner = _game.get_node("BreadSpawner") as BreadSpawner
 
 
 func _physics_process(delta: float) -> void:
@@ -50,12 +57,14 @@ func _physics_process(delta: float) -> void:
 		_capture(int(_elapsed))
 	if _elapsed >= RUN_SECONDS:
 		var alive: bool = _player != null and is_instance_valid(_player) \
-				and _player.velocity.is_finite() and _player.position.y > -10.0
+				and _player.velocity.is_finite() and _player.position.y > -10.0 \
+				and _hunger != null and is_instance_valid(_hunger)
 		var where: Vector3 = _player.position if _player != null and is_instance_valid(_player) else Vector3.ZERO
 		var fps: float = _fps_sum / maxf(_fps_samples, 1)
-		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f" % [
+		var eaten: int = _spawner.eaten_count if _spawner != null and is_instance_valid(_spawner) else -1
+		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d" % [
 				alive, _elapsed, fps, where.x, where.y, where.z,
-				_player.velocity.length() if alive else 0.0])
+				_player.velocity.length() if alive else 0.0, _hunger.value, eaten])
 		get_tree().quit(0 if alive else 1)
 
 
@@ -63,9 +72,10 @@ func _physics_process(delta: float) -> void:
 func _trace(t: float) -> void:
 	if fmod(t, 1.0) >= (1.0 / 60.0):
 		return
-	print("AUTOPLAY t=%02.0f pos=(%.0f, %.0f, %.0f) speed=%.0f vy=%.1f nose=%.2f grounded=%s" % [
+	print("AUTOPLAY t=%02.0f pos=(%.0f, %.0f, %.0f) speed=%.0f vy=%.1f nose=%.2f grounded=%s hunger=%.0f" % [
 			t, _player.position.x, _player.position.y, _player.position.z,
-			_player.velocity.length(), _player.velocity.y, _nose_y(), _player.is_grounded])
+			_player.velocity.length(), _player.velocity.y, _nose_y(), _player.is_grounded,
+			_hunger.value if _hunger != null and is_instance_valid(_hunger) else -1.0])
 
 
 ## City-aware flight pattern (T-004). The pilot flies state-based, never
@@ -140,13 +150,55 @@ func _drive(t: float, delta: float) -> void:
 
 
 ## Banks toward the plaza center (the generator's one guaranteed-clear spot).
-func _steer_toward(flat: Vector2) -> void:
-	var to_home := -flat.normalized()
+func _steer_toward(_flat: Vector2) -> void:
+	_steer_toward_point(Vector2.ZERO)
+
+
+## Banks (or waddle-turns) toward a world XZ point — one bang-bang convention
+## shared by the plaza steering and the T-005 crumb homing.
+func _steer_toward_point(target_flat: Vector2) -> void:
+	var flat := Vector2(_player.position.x, _player.position.z)
+	var to_target := (target_flat - flat).normalized()
 	var fwd := Vector2(-_player.transform.basis.z.x, -_player.transform.basis.z.z)
-	if fwd.cross(to_home) < 0.0:
+	if fwd.cross(to_target) < 0.0:
 		Input.action_press("turn_left")
 	else:
 		Input.action_press("turn_right")
+
+
+## Nearest living breadcrumb within max_dist, or null — the ground-visit
+## waddle homes in on it so the eat path is exercised, not just walked.
+func _nearest_crumb(max_dist: float) -> BreadCrumb:
+	if _spawner == null or not is_instance_valid(_spawner):
+		return null
+	var best: BreadCrumb = null
+	var best_d := max_dist
+	for crumb in _spawner.living_crumbs():
+		var d := _player.position.distance_to(crumb.global_position)
+		if d < best_d:
+			best_d = d
+			best = crumb
+	return best
+
+
+## Nearest crumb INSIDE the plaza block footprint (flat radius ≤ 13 m — the
+## generator's guaranteed building-free zone), or null. Landing-aim targets
+## only ever come from here, so the descent can never be dragged toward a
+## neighboring block's walls.
+func _plaza_crumb() -> BreadCrumb:
+	if _spawner == null or not is_instance_valid(_spawner):
+		return null
+	var best: BreadCrumb = null
+	var best_d := INF
+	for crumb in _spawner.living_crumbs():
+		var crumb_flat := Vector2(crumb.global_position.x, crumb.global_position.z)
+		if crumb_flat.length() > 13.0:
+			continue
+		var d := _player.position.distance_to(crumb.global_position)
+		if d < best_d:
+			best_d = d
+			best = crumb
+	return best
 
 
 ## Sine of the nose pitch (positive = nose above the horizon). Every pitch
@@ -176,19 +228,32 @@ func _governor_pitch(vy: float, speed: float) -> float:
 ## bird can orbit the building-free ring instead of flying through it), then
 ## hold a ~20° glide down to the pavement. The only climbs are safety nets:
 ## under the roof-line floor outside the ring, and the final climb-out at
-## t >= 27. Touchdown may skid, which is acceptable; then waddle and flap
-## back out. All pitch is nose-bounded via the attitude holds.
+## t >= 27. Touchdown may skid, which is acceptable; then waddle — homing in
+## on the nearest breadcrumb (T-005) so the land-and-peck loop runs for real —
+## and flap back out. All pitch is nose-bounded via the attitude holds.
 func _drive_ground_visit(t: float, delta: float) -> void:
 	if _player.is_grounded:
 		_visit_gliding = false
 		if t < WADDLE_UNTIL:
-			Input.action_press("pitch_up") ## Waddle forward while landed.
+			var crumb := _nearest_crumb(CRUMB_SEEK_RADIUS)
+			if crumb != null:
+				_steer_toward_point(Vector2(crumb.global_position.x, crumb.global_position.z))
+			Input.action_press("pitch_up") ## Waddle forward — toward the crumb when one is near.
 		elif fmod(t, 0.4) < delta:
 			Input.action_press("flap") ## Take off again.
 		return
 	var flat := Vector2(_player.position.x, _player.position.z)
 	var vy := _player.velocity.y
-	_steer_toward(flat) ## The whole visit arcs toward the plaza center.
+	## Landing target: a crumb inside the building-free plaza block when one
+	## exists (T-005), else the plaza center. Every range gate below is
+	## relative to THIS target, so the orbit-bleed and glide latch agree with
+	## wherever the bird is actually aimed.
+	var land_crumb := _plaza_crumb()
+	var target := Vector2.ZERO
+	if land_crumb != null:
+		target = Vector2(land_crumb.global_position.x, land_crumb.global_position.z)
+	_steer_toward_point(target)
+	var target_dist := flat.distance_to(target)
 	if t >= 27.0:
 		## Climb back out (missed landing or just took off) — nose- and
 		## flap-capped so the climb eases into the cruise band.
@@ -198,11 +263,11 @@ func _drive_ground_visit(t: float, delta: float) -> void:
 			Input.action_press("flap")
 		return
 	var speed := _player.velocity.length()
-	if speed <= 16.0 and flat.length() <= 21.0 and _player.position.y > 8.0:
+	if speed <= 16.0 and target_dist <= 21.0 and _player.position.y > 8.0:
 		_visit_gliding = true ## Committed: inside the ring and slow enough
 		## that the steering radius stays inside it — fly the glide down.
 	var target_nose: float
-	if flat.length() > 21.0 and _player.position.y < 18.5:
+	if target_dist > 21.0 and _player.position.y < 18.5:
 		target_nose = 0.10 ## Outside the ring, under the roof line: climb.
 		if vy < 5.0 and fmod(t, 0.4) < delta:
 			Input.action_press("flap")

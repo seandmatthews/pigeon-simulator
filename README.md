@@ -4,7 +4,8 @@ A third-person pigeon flight sim built with Godot 4. Wander the city, eat bread 
 survive, and earn points by pooping on tourists and their cars.
 
 > **Status:** pre-alpha scaffold. A gray placeholder pigeon flies over a procedural
-> gray-box city, lands on roofs, sidewalks and the spawn plaza, and waddles around.
+> gray-box city, lands on roofs, sidewalks and the spawn plaza, waddles around, and
+> runs on a hunger clock fed by breadcrumbs — land and walk into a crumb to eat.
 > The roadmap lives in [`docs/tickets/`](docs/tickets/README.md).
 
 ## Run it

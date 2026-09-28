@@ -1,8 +1,10 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
-[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3_player"]
-[ext_resource type="PackedScene" path="res://scenes/city.tscn" id="4_city"]
+[ext_resource type="Script" path="res://scripts/hunger.gd" id="2_hunger"]
+[ext_resource type="Script" path="res://scripts/bread_spawner.gd" id="3_spawner"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="4_player"]
+[ext_resource type="PackedScene" path="res://scenes/city.tscn" id="5_city"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_main"]
 sky_horizon_color = Color(0.74, 0.82, 0.89, 1)
@@ -30,10 +32,18 @@ shadow_enabled = true
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Env_main")
 
-[node name="City" parent="." instance=ExtResource("4_city")]
+[node name="City" parent="." instance=ExtResource("5_city")]
 
-[node name="Player" parent="." instance=ExtResource("3_player")]
+[node name="Player" parent="." instance=ExtResource("4_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 8)
+
+[node name="Hunger" type="Node" parent="."]
+script = ExtResource("2_hunger")
+player_path = NodePath("../Player")
+
+[node name="BreadSpawner" type="Node3D" parent="."]
+script = ExtResource("3_spawner")
+city_path = NodePath("../City")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
@@ -46,12 +56,22 @@ offset_bottom = 44.0
 theme_override_font_sizes/font_size = 22
 text = "Score: 0    Hunger: 100%"
 
+[node name="HungerBar" type="ProgressBar" parent="HUD"]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 48.0
+offset_right = 216.0
+offset_bottom = 62.0
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
 [node name="HintLabel" type="Label" parent="HUD"]
 unique_name_in_owner = true
 offset_left = 16.0
-offset_top = 46.0
+offset_top = 68.0
 offset_right = 500.0
-offset_bottom = 66.0
+offset_bottom = 88.0
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(1, 1, 1, 0.75)
 text = "W/S pitch · A/D turn · Space flap · F poop (soon)"
