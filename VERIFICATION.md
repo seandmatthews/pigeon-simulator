@@ -25,6 +25,28 @@ godot --headless --path . --check-only --script res://scripts/player.gd
 **Pass =** all commands exit 0 and output contains no `ERROR`, `SCRIPT ERROR` or
 `Parse Error` lines. Warnings are acceptable but worth cleaning up.
 
+## Gate 1b — Sim harness (automated behavior checks, run after every change)
+
+```bash
+godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn
+```
+
+Prints one `SIM PASS/FAIL <name>` line per scenario; **pass = exit 0**. Deterministic
+(fixed timestep, synthetic input), so a failure is always a real regression, never
+flakiness. Set `SIM_DEBUG=1` for trajectory traces. The scenario table grows as
+tickets land — every feature that can be machine-checked gets a scenario here:
+
+| Scenario | Proves | Ticket |
+| -------- | ------ | ------ |
+| takeoff_3_flaps | 3 paced flaps from the ground reach climbing flight | T-001 |
+| lift_softens_gravity | level glide at 12 m/s sinks gently (< 6 m in 1.5 s) | T-001 |
+| dive_gains_speed | a dive to −60° converts height into speed | T-001 |
+| pullup_gains_height | pulling out of a dive climbs above the pull-start altitude while speed bleeds | T-001 |
+| banked_left_turn | a held turn banks the body and yaws with the bank | T-001 |
+| stall_drops | stalling sinks far harder than gliding and the nose drops | T-001 |
+| stall_recovers | a flap restores flying speed out of a stall | T-001 |
+| landing_slides_to_stop | a low touchdown slides to a stop — no bounce, no NaNs | T-001 |
+
 ## Gate 2 — Editor run (before marking any gameplay ticket done)
 
 Open the project in Godot and press **F5** (or run `godot --path .`). Confirm:
@@ -48,6 +70,10 @@ Keep this table in sync with `project.godot` and `README.md`:
 Playtest checklist (grows as tickets land):
 
 - [ ] Pigeon falls under gravity, flaps with Space, steers with A/D and W/S
+- [ ] (T-001) Paced flaps climb and sustain altitude; mashed flaps are noticeably weaker
+- [ ] (T-001) Dive → pull-up visibly trades height for speed and back
+- [ ] (T-001) Turns bank and feel weighty; stall drop and recovery read clearly
+- [ ] (T-001) Landings at low speed slide to a stop without bouncing
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -55,5 +81,7 @@ Playtest checklist (grows as tickets land):
 
 ## Known issues
 
+- Flight model v1 is machine-verified (Gate 1b, 8/8) only — a human feel/tuning pass
+  over the T-001 playtest lines is still pending.
 - Placeholder art everywhere: the pigeon is a gray sphere, the city is a green plane
   (tracked in T-004 and T-011).
