@@ -4,7 +4,7 @@ extends Node3D
 ## autoload arrives with the scoring ticket (T-009); the fail state (T-010)
 ## listens to Hunger.game_over.
 
-const HINT_AIR := "W/S pitch · A/D turn · Space flap · F poop (soon) · land by bread to eat"
+const HINT_AIR := "W/S pitch · A/D turn · Space flap · F poop · land by bread to eat"
 const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off · walk into crumbs to eat"
 
 @onready var stats_label: Label = %StatsLabel

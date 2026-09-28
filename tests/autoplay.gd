@@ -23,6 +23,10 @@ const HOME_RADIUS: float = 40.0
 ## T-005: while grounded the waddle homes in on the nearest living crumb within
 ## this radius, so the land-and-peck eat path is actually exercised.
 const CRUMB_SEEK_RADIUS: float = 22.0
+## T-006: while airborne the pilot drops a poop every POOP_PERIOD seconds from
+## POOP_START on — live splat projectiles now, counted for the DONE line.
+const POOP_START: float = 4.0
+const POOP_PERIOD: float = 2.0
 
 var _game: Node
 var _player: Player
@@ -33,6 +37,7 @@ var _next_shot: float = 1.0
 var _shot_dir: String = ""
 var _fps_sum: float = 0.0
 var _fps_samples: int = 0
+var _splats: int = 0 ## Poop splats that landed during the run (T-006 evidence).
 var _visit_gliding: bool = false ## Latched once the landing glide begins.
 
 
@@ -44,6 +49,12 @@ func _ready() -> void:
 	_player = _game.get_node("Player") as Player
 	_hunger = _game.get_node("Hunger") as Hunger
 	_spawner = _game.get_node("BreadSpawner") as BreadSpawner
+	_player.pooped.connect(_on_pilot_pooped)
+
+
+## Every drop the pilot releases reports its splats back to the DONE line.
+func _on_pilot_pooped(poop: Poop) -> void:
+	poop.splatted.connect(func(_target: Node, _impact: Vector3) -> void: _splats += 1)
 
 
 func _physics_process(delta: float) -> void:
@@ -62,9 +73,9 @@ func _physics_process(delta: float) -> void:
 		var where: Vector3 = _player.position if _player != null and is_instance_valid(_player) else Vector3.ZERO
 		var fps: float = _fps_sum / maxf(_fps_samples, 1)
 		var eaten: int = _spawner.eaten_count if _spawner != null and is_instance_valid(_spawner) else -1
-		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d" % [
+		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d" % [
 				alive, _elapsed, fps, where.x, where.y, where.z,
-				_player.velocity.length() if alive else 0.0, _hunger.value, eaten])
+				_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats])
 		get_tree().quit(0 if alive else 1)
 
 
@@ -81,16 +92,23 @@ func _trace(t: float) -> void:
 ## City-aware flight pattern (T-004). The pilot flies state-based, never
 ## timed-into-a-loop: below the cruise band it climbs hard (the spawn faces up
 ## the road corridor, clear of buildings at every height); at cruise it holds a
-## 24–30 m band — above every generated roof — with paced flaps, a banked
-## zigzag, one bounded dive pulse and poop taps (inert until T-006); beyond
-## HOME_RADIUS it arcs home; and from GROUND_VISIT_START it makes a ground
-## visit: arc to the plaza, descend at a governed rate, touch down, waddle,
-## take off again. All pitch commands are vy-bounded so the nose can never
-## ratchet into a loop or a stall-mush.
+## 24–30 m band — above every generated roof — with paced flaps and a banked
+## zigzag plus one bounded dive pulse; beyond HOME_RADIUS it arcs home; and from
+## GROUND_VISIT_START it makes a ground visit: arc to the plaza, descend at a
+## governed rate, touch down, waddle, take off again. On top of any airborne
+## branch it drops a poop every POOP_PERIOD seconds (T-006 — the lob is live,
+## splats are counted for the DONE line). All pitch commands are vy-bounded so
+## the nose can never ratchet into a loop or a stall-mush.
 func _drive(t: float, delta: float) -> void:
 	for action in ["flap", "poop", "turn_left", "turn_right", "pitch_up", "pitch_down"]:
 		if Input.is_action_pressed(action):
 			Input.action_release(action)
+
+	# T-006: air-only dropping, released wherever the bird happens to be
+	# flying — over the roofs, over the plaza, on the way down to land.
+	# Grounded taps are skipped (the pigeon doesn't poop on the ground).
+	if t >= POOP_START and not _player.is_grounded and fmod(t - POOP_START, POOP_PERIOD) < delta:
+		Input.action_press("poop")
 
 	if t >= GROUND_VISIT_START and t < GROUND_VISIT_END:
 		_drive_ground_visit(t, delta)
@@ -128,9 +146,9 @@ func _drive(t: float, delta: float) -> void:
 		return
 
 	# Cruise governor: hold the 24–30 m band, keep airspeed up, garnish with a
-	# bank, a bounded dive pulse and poop taps. The steep-dive pull-out has
-	# priority, and every pitch command is nose-bounded, so nothing can ratchet
-	# the attitude into a loop or a sustained dive.
+	# bank and a bounded dive pulse. The steep-dive pull-out has priority, and
+	# every pitch command is nose-bounded, so nothing can ratchet the attitude
+	# into a loop or a sustained dive.
 	var phase := fmod(t, 15.0)
 	var turn := "turn_left" if int(t / 15.0) % 2 == 0 else "turn_right"
 	var pitch := _governor_pitch(vy, speed)
@@ -145,8 +163,6 @@ func _drive(t: float, delta: float) -> void:
 		Input.action_press(turn) ## Alternate the bank each loop so it zigzags.
 	if _player.position.y < CRUISE_CEIL and speed < 28.0 and fmod(t, 0.5) < delta:
 		Input.action_press("flap")
-	if phase >= 9.1 and fmod(t, 2.0) < delta:
-		Input.action_press("poop")
 
 
 ## Banks toward the plaza center (the generator's one guaranteed-clear spot).

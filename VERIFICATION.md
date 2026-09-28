@@ -69,6 +69,12 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | hunger_game_over_once | hunger empties, clamps at zero and fires game_over exactly once; eating restores a chunk but the latch holds | T-005 |
 | crumb_eaten_grounded_only | flying over a crumb never feeds; a grounded pigeon waddling into it eats it and frees it | T-005 |
 | crumbs_respawn | eaten crumbs are topped back up to the target count within one respawn interval | T-005 |
+| poop_inherits_and_arcs | an airborne drop inherits the pigeon's velocity, keeps the horizontal lead and only ever falls | T-006 |
+| poop_grounded_no_drop | F does nothing while grounded — droppings exist only in the air | T-006 |
+| poop_cooldown_blocks_stream | mashing F yields one dropping; the next comes only after the cooldown elapses | T-006 |
+| poop_splats_ground_and_fades | a floor hit fires splatted(target, impact_velocity), sticks an up-facing splat to the hit body and fades it away | T-006 |
+| poop_splats_wall | a wall hit sticks a splat facing along the wall's horizontal normal | T-006 |
+| poop_event_reaches_any_body | a plain body on the hit layers receives the hit duck-typed (on_splatted) with no player import anywhere in poop.gd | T-006 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -76,14 +82,16 @@ Boots the **real** game (`scenes/main.tscn`) in a window and plays it with a
 scripted, city-aware pilot for 30 s: cruise above the skyline (every generated
 roof stays under 18.3 m, the pilot's floor is 23 m), flap-climb, bank, a short
 dive pulse that only starts high enough to stay over the roofs, pull-up, glide,
-poop taps. Below the cruise floor the pilot climbs hard while circling the spawn
-plaza — the one spot the generator guarantees is clear of buildings — and
-beyond 60 m from the plaza it steers home. From 11 s in the pilot also makes a
-ground visit (T-003 + T-004): arc to the plaza, bleed speed in a wide orbit,
-spiral down inside the building-free ring, touchdown, waddle across the
-pavement, take-off. While landed it waddles toward the nearest breadcrumb and
-pecks it up when it reaches one (T-005) — the DONE line reports the hunger bar
-and how many crumbs were eaten. Saves a screenshot every 5 s to `.godot/autoplay/`:
+and airborne poop taps (T-006 — every 2 s in flight the pilot lobs a real
+dropping; grounded taps are skipped). Below the cruise floor the pilot climbs
+hard while circling the spawn plaza — the one spot the generator guarantees is
+clear of buildings — and beyond 60 m from the plaza it steers home. From 11 s in
+the pilot also makes a ground visit (T-003 + T-004): arc to the plaza, bleed
+speed in a wide orbit, spiral down inside the building-free ring, touchdown,
+waddle across the pavement, take-off. While landed it waddles toward the
+nearest breadcrumb and pecks it up when it reaches one (T-005) — the DONE line
+reports the hunger bar, how many crumbs were eaten and how many poop splats
+landed. Saves a screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
 godot --path . res://tests/autoplay.tscn
@@ -108,7 +116,7 @@ Keep this table in sync with `project.godot` and `README.md`:
 | W / S | pitch up / down · waddle fwd / back while grounded |
 | A / D | turn left / right · turn while waddling |
 | Space | flap · takes off when grounded |
-| F | poop *(not implemented — T-006)* |
+| F | poop — lobs a splat dropping while airborne (T-006) |
 | Shift | boost *(not implemented)* |
 | Esc | pause *(not implemented — T-010)* |
 
@@ -136,6 +144,10 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-005) Flying low over crumbs does nothing — only grounded contact feeds
 - [ ] (T-005) Hunger reaching zero shows the starved hint exactly once (full game-over screen arrives with T-010)
 - [ ] (T-005) Eaten crumbs come back somewhere else within a few seconds
+- [ ] (T-006) Tapping F in flight lobs a dropping that visibly inherits momentum and arcs down
+- [ ] (T-006) Droppings splat on streets, walls and roofs, stick to the surface, and fade out after a few seconds
+- [ ] (T-006) Mashing F while flying yields about one dropping per second — no stream
+- [ ] (T-006) F does nothing while grounded — the dropping only exists in the air
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -154,5 +166,9 @@ Playtest checklist (grows as tickets land):
   respawn scenarios) and exercised by the autoplay ground visit; a human pass
   over the T-005 lines (playing until game over once, drain-timing fairness) is
   still pending.
+- Poop mechanic (T-006) is machine-verified (Gate 1b lob/cooldown/splat/event
+  scenarios) and exercised by the autoplay pilot's poop taps; a human pass over
+  the T-006 lines (leading a moving target once real ones exist, splat look and
+  fade timing) is still pending.
 - Placeholder art everywhere: the pigeon is a gray sphere and buildings are tinted
   boxes with a procedural window texture (pigeon look tracked in T-011).

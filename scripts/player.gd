@@ -14,6 +14,10 @@ signal grounding_changed(grounded: bool)
 ## faster while flapping, and the juice pass (T-013) hooks into it too.
 signal flapped
 
+## Emitted every time a poop drop leaves the pigeon (T-006) — tests and the
+## autoplay pilot count drops through it; HUD/ammo readouts may later too.
+signal pooped(poop: Poop)
+
 ## AIR covers flying *and* the skid after a hard touchdown; GROUND is the waddle.
 enum State { AIR, GROUND }
 
@@ -57,6 +61,11 @@ enum State { AIR, GROUND }
 @export var waddle_bob_height: float = 0.03 ## Vertical bob amplitude (m).
 @export var waddle_sway: float = 0.1 ## Cosmetic roll amplitude of the waddle bob (rad).
 
+@export_group("Poop")
+@export var poop_scene: PackedScene = preload("res://scenes/poop.tscn") ## Projectile the poop action spawns.
+@export var poop_cooldown: float = 1.0 ## Seconds between drops — mashing F stays at one dropping per second.
+@export var poop_drop_offset: float = 0.3 ## Spawn distance below the body (m).
+
 var forward_speed: float
 var stalled: bool
 var state: State = State.AIR
@@ -75,6 +84,7 @@ var is_grounded: bool:
 
 var _flap_timer: float = 0.0
 var _time_since_flap: float = 10.0
+var _poop_timer: float = 0.0
 var _roll: float = 0.0
 var _air_grace: int = 0 ## Frames after a teleport where is_on_floor() is stale and must not trigger a landing.
 var _waddle_phase: float = 0.0
@@ -87,6 +97,7 @@ func reset_flight(pos: Vector3, yaw_deg: float = 0.0) -> void:
 	velocity = Vector3.ZERO
 	_roll = 0.0
 	_flap_timer = 0.0
+	_poop_timer = 0.0
 	_time_since_flap = 10.0
 	forward_speed = 0.0
 	stalled = false
@@ -100,6 +111,7 @@ func reset_flight(pos: Vector3, yaw_deg: float = 0.0) -> void:
 
 func _physics_process(delta: float) -> void:
 	_flap_timer = maxf(_flap_timer - delta, 0.0)
+	_poop_timer = maxf(_poop_timer - delta, 0.0)
 	_time_since_flap += delta
 	if _air_grace > 0:
 		_air_grace -= 1
@@ -124,6 +136,7 @@ func _air_physics(delta: float) -> void:
 	else:
 		_level_attitude(delta)
 	_flap()
+	_try_poop()
 	_apply_flight_forces(delta, was_on_floor)
 	var pre_vy := velocity.y
 	var pre_speed := velocity.length()
@@ -219,6 +232,21 @@ func _flap() -> void:
 	if state == State.GROUND:
 		_set_state(State.AIR) ## Takeoff.
 	flapped.emit()
+
+
+## The poop action (T-006): air-only. The dropping inherits the pigeon's full
+## velocity — the pilot leads moving targets with it — and gravity does the
+## rest. Grounded pigeons don't drop; mashing is throttled by the cooldown.
+func _try_poop() -> void:
+	if not Input.is_action_just_pressed("poop") or _poop_timer > 0.0:
+		return
+	var poop: Poop = poop_scene.instantiate()
+	add_child(poop)
+	poop.top_level = true
+	poop.global_position = global_position - global_transform.basis.y * poop_drop_offset
+	poop.linear_velocity = velocity
+	_poop_timer = poop_cooldown
+	pooped.emit(poop)
 
 
 func _steer(delta: float) -> void:

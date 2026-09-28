@@ -12,7 +12,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-003 | [Land, walk, take off](T-003-land-walk-takeoff.md) | P1 | M | T-001 | done |
 | T-004 | [City blockout v1](T-004-city-blockout.md) | P0 | L | — | done |
 | T-005 | [Bread & hunger](T-005-bread-and-hunger.md) | P0 | M | T-003, T-004 | done |
-| T-006 | [Poop mechanic](T-006-poop-mechanic.md) | P0 | M | T-001 | todo |
+| T-006 | [Poop mechanic](T-006-poop-mechanic.md) | P0 | M | T-001 | done |
 | T-007 | [Tourists v1](T-007-tourists.md) | P0 | M | T-004, T-006 | todo |
 | T-008 | [Cars v1](T-008-cars.md) | P0 | M | T-004, T-006 | todo |
 | T-009 | [Scoring & combos](T-009-scoring-and-combos.md) | P0 | M | T-006, T-007, T-008 | todo |

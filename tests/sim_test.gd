@@ -1,6 +1,7 @@
 extends Node3D
 ## Headless sim harness (VERIFICATION.md Gate 1b): drives the Player with synthetic
-## input and asserts flight-model and ground-game behavior one scenario at a time.
+## input and asserts flight, ground, city, hunger and poop behavior one scenario
+## at a time.
 ## Run from the repo root:
 ##   godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn
 ## Prints one "SIM PASS/FAIL <name>" line per scenario; exits 0 only when all pass.
@@ -8,20 +9,25 @@ extends Node3D
 const PLAYER_SCENE: PackedScene = preload("res://scenes/player.tscn")
 const CITY_SCENE: PackedScene = preload("res://scenes/city.tscn")
 const CRUMB_SCENE: PackedScene = preload("res://scenes/bread_crumb.tscn")
+const SPLAT_TARGET_SCRIPT := preload("res://tests/splat_target.gd")
 
 ## Set SIM_DEBUG=1 to print per-scenario trajectory samples.
 var _debug: bool = OS.get_environment("SIM_DEBUG") == "1"
 
 var _player: Player
 var _city: City
+var _ground: StaticBody3D ## The flat test-world floor — poop splat scenarios assert hits on it.
 var _failures: int = 0
 var _game_over_fires: int = 0 ## Signal counters survive inside lambdas only as members.
+var _dropped: Array[Poop] = [] ## Poops the test player released (T-006).
+var _splat_events: Array[Dictionary] = [] ## {target, velocity} per splatted hit of the poop under test.
 
 
 func _ready() -> void:
 	_build_world()
 	_player = PLAYER_SCENE.instantiate()
 	add_child(_player)
+	_player.pooped.connect(_on_test_pooped)
 	_run_scenarios()
 
 
@@ -30,7 +36,7 @@ func _ready() -> void:
 ## joins them far away (T-004); its scenarios teleport the pigeon over there, so
 ## the flight-model scenarios above keep their clean flat world.
 func _build_world() -> void:
-	_add_box("Ground", Vector3(200.0, 1.0, 200.0), Vector3(0.0, -0.5, 0.0))
+	_ground = _add_box("Ground", Vector3(200.0, 1.0, 200.0), Vector3(0.0, -0.5, 0.0))
 	_add_box("Roof", Vector3(8.0, 1.0, 8.0), Vector3(12.0, 5.0, -12.0)) ## top at y 5.5
 	_add_box("Bench", Vector3(1.8, 0.1, 0.5), Vector3(0.0, 0.55, -8.0)) ## top at y 0.6
 	_city = CITY_SCENE.instantiate() as City
@@ -38,7 +44,7 @@ func _build_world() -> void:
 	add_child(_city)
 
 
-func _add_box(box_name: String, size: Vector3, pos: Vector3) -> void:
+func _add_box(box_name: String, size: Vector3, pos: Vector3) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.name = box_name
 	body.collision_layer = 1
@@ -50,6 +56,7 @@ func _add_box(box_name: String, size: Vector3, pos: Vector3) -> void:
 	body.add_child(shape)
 	body.position = pos
 	add_child(body)
+	return body
 
 
 func _run_scenarios() -> void:
@@ -73,6 +80,12 @@ func _run_scenarios() -> void:
 	await _scenario_hunger_game_over()
 	await _scenario_bread_eating()
 	await _scenario_bread_respawn()
+	await _scenario_poop_lob()
+	await _scenario_poop_grounded()
+	await _scenario_poop_cooldown()
+	await _scenario_poop_splat_ground()
+	await _scenario_poop_splat_wall()
+	await _scenario_poop_event_target()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -600,3 +613,197 @@ func _scenario_bread_respawn() -> void:
 			"initial %d → eaten down to %d → topped back up to %d (eaten_count %d)" % [
 					initial, after_eating, respawned, spawner.eaten_count])
 	spawner.free()
+
+
+## --- scenarios (T-006 poop mechanic) ----------------------------------------
+
+
+## The harness listens to every drop the test player releases.
+func _on_test_pooped(poop: Poop) -> void:
+	_dropped.append(poop)
+
+
+## The harness listens to the splat of the one poop a scenario is tracking.
+func _on_test_splatted(target: Node, impact_velocity: Vector3) -> void:
+	_splat_events.append({"target": target, "velocity": impact_velocity})
+
+
+## An airborne drop inherits the pigeon's full velocity: the lob keeps the
+## horizontal lead (moving targets can be led) and only ever falls — it can
+## never hit anything above the pigeon.
+func _scenario_poop_lob() -> void:
+	_dropped.clear()
+	_splat_events.clear()
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	var drop_y: float = _player.position.y - _player.poop_drop_offset
+	await _tap("poop")
+	await _wait_frames(2)
+	var spawned := _dropped.size() == 1
+	var poop: Poop = _dropped[0] if spawned else null
+	var inherited := false
+	var start_y := 0.0
+	var start_flat := Vector2.ZERO
+	if poop != null:
+		var hv := poop.linear_velocity
+		inherited = hv.is_finite() and Vector2(hv.x, hv.z).length() > 10.0
+		start_y = poop.position.y
+		start_flat = Vector2(poop.position.x, poop.position.z)
+	var peak_y := start_y
+	var fell := 0.0
+	var led := 0.0
+	for _i in 45: ## 0.75 s of ballistics.
+		await get_tree().physics_frame
+		if poop == null or not is_instance_valid(poop):
+			break
+		peak_y = maxf(peak_y, poop.position.y)
+	if poop != null and is_instance_valid(poop):
+		fell = start_y - poop.position.y
+		led = Vector2(poop.position.x, poop.position.z).distance_to(start_flat)
+	var air_only := peak_y <= start_y + 0.05
+	_check("poop_inherits_and_arcs", spawned and inherited and fell > 2.0 and led > 5.0 and air_only,
+			"spawned=%s inherited=%s fell %.1f m, led %.1f m sideways, peak vs drop %+0.2f m" % [
+					spawned, inherited, fell, led, peak_y - start_y])
+
+
+## F while grounded does nothing — droppings exist only in the air.
+func _scenario_poop_grounded() -> void:
+	_dropped.clear()
+	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	await _tap("poop")
+	await _wait_frames(10)
+	await _tap("poop")
+	await _wait_frames(10)
+	_check("poop_grounded_no_drop", _player.is_grounded and _dropped.is_empty(),
+			"%d drops while grounded=%s" % [_dropped.size(), _player.is_grounded])
+
+
+## Mashing F yields exactly one dropping; the next one comes only after the
+## cooldown has fully elapsed.
+func _scenario_poop_cooldown() -> void:
+	_dropped.clear()
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	await _tap("poop")
+	await _tap("poop") ## Mash: lands inside the cooldown window.
+	await _wait_frames(3)
+	var mashed: int = _dropped.size()
+	await _wait_frames(70) ## 1.17 s > poop_cooldown.
+	await _tap("poop")
+	await _wait_frames(3)
+	var after: int = _dropped.size()
+	_check("poop_cooldown_blocks_stream", mashed == 1 and after == 2,
+			"mash spawned %d, next tap made %d total" % [mashed, after])
+
+
+## A drop onto the floor resolves the hit: splatted fires once with the floor
+## as target and a falling impact velocity, the splat sticks to the hit body
+## face-up at the surface, fades, and cleans itself up.
+func _scenario_poop_splat_ground() -> void:
+	_dropped.clear()
+	_splat_events.clear()
+	await _set_up(true, Vector3(0.0, 4.0, 0.0), Vector3(1.5, 0.0, 0.0))
+	await _tap("poop")
+	await _wait_frames(2)
+	var dropped := _dropped.size() == 1
+	var poop: Poop = _dropped[0] if dropped else null
+	var splat: MeshInstance3D = null
+	if poop != null:
+		poop.fade_seconds = 1.5 ## Time-compressed fade.
+		poop.splatted.connect(_on_test_splatted)
+		splat = poop.splat_mesh
+	await _wait_frames(90) ## Fall (~0.8 s) plus part of the fade.
+	var fired := _splat_events.size() == 1
+	var target: Node = _splat_events[0].target if fired else null
+	var impact: Vector3 = _splat_events[0].velocity if fired else Vector3.ZERO
+	var stuck := false
+	var placed := false
+	var fading := false
+	if splat != null and is_instance_valid(splat):
+		stuck = splat.get_parent() == _ground
+		placed = absf(splat.global_position.y) < 0.1 \
+				and splat.global_transform.basis.y.dot(Vector3.UP) > 0.95
+		var mat := splat.material_override as StandardMaterial3D
+		fading = mat != null and mat.albedo_color.a < 0.85 and mat.albedo_color.a >= 0.0
+	await _wait_frames(90) ## Past the end of the fade.
+	var cleaned := (splat == null or not is_instance_valid(splat)) \
+			and (poop == null or not is_instance_valid(poop))
+	var impact_ok := fired and impact.is_finite() and impact.y < -1.0
+	_check("poop_splats_ground_and_fades",
+			dropped and fired and target == _ground and impact_ok and stuck and placed and fading and cleaned,
+			"dropped=%s fired=%s floor_target=%s impact_y=%.1f stuck=%s placed=%s fading=%s cleaned=%s" % [
+					dropped, fired, target == _ground, impact.y, stuck, placed, fading, cleaned])
+
+
+## A drop onto a vertical wall sticks to the wall: the splat faces along the
+## wall's horizontal normal, proving splats read the surface they hit.
+func _scenario_poop_splat_wall() -> void:
+	_dropped.clear()
+	_splat_events.clear()
+	await _set_up(true, Vector3(6.2, 6.2, -12.0), Vector3(7.0, -3.0, 0.0)) ## Dive past the roof box's west face.
+	await _tap("poop")
+	await _wait_frames(2)
+	var splat: MeshInstance3D = null
+	if _dropped.size() == 1:
+		_dropped[0].splatted.connect(_on_test_splatted)
+		splat = _dropped[0].splat_mesh
+	await _wait_frames(40) ## The wall is ~0.27 s of flight away.
+	var fired := _splat_events.size() == 1
+	var faced := false
+	var on_wall := false
+	var nx := 9.9
+	var ny := 9.9
+	var nz := 9.9
+	var sx := 999.0
+	var sy := 999.0
+	var sz := 999.0
+	if splat != null and is_instance_valid(splat):
+		var n := splat.global_transform.basis.y
+		nx = n.x
+		ny = n.y
+		nz = n.z
+		sx = splat.global_position.x
+		sy = splat.global_position.y
+		sz = splat.global_position.z
+		faced = n.x < -0.8 and absf(n.y) < 0.3
+		## On the west face (x 8, y 4.5–5.5, z −16..−8). The z band allows for
+		## the small −Z drift inherited from the player's nose-steering during
+		## the settle frames — inheritance is the mechanic working, not noise.
+		on_wall = splat.global_position.x < 8.15 \
+				and absf(splat.global_position.y - 5.0) < 0.5 \
+				and absf(splat.global_position.z + 12.0) < 0.8
+	_check("poop_splats_wall", fired and faced and on_wall,
+			"fired=%s normal=(%.2f, %.2f, %.2f) splat=(%.2f, %.2f, %.2f) on_wall=%s" % [
+					fired, nx, ny, nz, sx, sy, sz, on_wall])
+
+
+## Any body on the projectile's layers can receive the hit duck-typed
+## (on_splatted) without importing the pigeon — and poop.gd references no
+## player type at all, so targets and scoring stay decoupled.
+func _scenario_poop_event_target() -> void:
+	_dropped.clear()
+	_splat_events.clear()
+	var pad := SPLAT_TARGET_SCRIPT.new() ## Untyped: its script is a test asset, not a static type.
+	pad.name = "SplatPad"
+	pad.collision_layer = 1
+	pad.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(4.0, 1.0, 4.0)
+	shape.shape = box
+	pad.add_child(shape)
+	pad.position = Vector3(40.0, 0.5, 0.0)
+	add_child(pad)
+	await _set_up(true, Vector3(40.0, 4.5, 0.0), Vector3.ZERO)
+	await _tap("poop")
+	await _wait_frames(2)
+	if _dropped.size() == 1:
+		_dropped[0].splatted.connect(_on_test_splatted)
+	await _wait_frames(120) ## Fall (~0.75 s) plus margin.
+	var fired: bool = _splat_events.size() == 1 and _splat_events[0].target == pad
+	var pad_hits: int = pad.hits.size()
+	var duck_typed: bool = pad_hits == 1 and pad.hits[0].y < -1.0
+	var decoupled: bool = not (load("res://scripts/poop.gd") as GDScript).source_code.contains("Player")
+	pad.queue_free()
+	_check("poop_event_reaches_any_body", fired and duck_typed and decoupled,
+			"signal_hit_pad=%s duck_typed=%s (hits %d) no_player_import=%s" % [
+					fired, duck_typed, pad_hits, decoupled])
