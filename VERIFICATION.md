@@ -50,9 +50,22 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | camera_fov_kick | FOV widens measurably with speed | T-002 |
 | camera_tucks_in_grounded | arm shortens while grounded | T-002 |
 
-## Gate 2 — Editor run (before marking any gameplay ticket done)
+## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
-Open the project in Godot and press **F5** (or run `godot --path .`). Confirm:
+Boots the **real** game (`scenes/main.tscn`) in a window and plays it with a
+scripted pilot for 30 s: flap-climb, bank, dive pulse, pull-up, glide, poop taps,
+with reflexes to pull up near the ground and steer home when drifting. Saves a
+screenshot every 5 s to `.godot/autoplay/`:
+
+```bash
+godot --path . res://tests/autoplay.tscn
+```
+
+**Pass =** exit 0, output contains `AUTOPLAY DONE ok=true`, and no `SCRIPT ERROR`
+lines. A game window appears on the desktop for ~35 s — that is the game being
+played; the screenshots are the evidence.
+
+Then confirm in a normal editor run (F5):
 
 - [ ] Boots straight into the playable scene; Debugger → Errors tab is empty
 - [ ] No warning spam on boot or during ~30 s of play
