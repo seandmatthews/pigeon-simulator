@@ -57,22 +57,36 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | bench_landing | a thin bench seat is landable and walkable | T-003 |
 | bench_takeoff | flapping off a bench returns to flight | T-003 |
 | hard_landing_skids | a steep fast dive skids to a stop — no instant ground, no tunneling, no NaNs | T-003 |
+| city_same_seed_deterministic | regenerating with the same seed reproduces the identical layout fingerprint | T-004 |
+| city_new_seed_guarantees | a different seed still yields a clear spawn plaza, flyable street widths, capped roof heights and enough bread-capable surfaces | T-004 |
+| city_regenerate_restores_layout | after regenerating a foreign seed, the default seed rebuilds the original city exactly | T-004 |
+| city_plaza_spawn | a drop into the spawn plaza settles grounded on the pavement | T-004 |
+| city_street_flyover | a flap-assisted flight crosses the whole city along a street without touching anything | T-004 |
+| city_roof_landable | a generated building roof is landable and walkable | T-004 |
+| city_roof_takeoff | flapping off a generated roof returns to flight | T-004 |
+| city_sidewalk_walkable | the pigeon waddles up a curb from the road onto the sidewalk ring | T-004 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
 Boots the **real** game (`scenes/main.tscn`) in a window and plays it with a
-scripted pilot for 30 s: flap-climb, bank, dive pulse, pull-up, glide, poop taps,
-with reflexes to pull up near the ground and steer home when drifting. From 20 s
-in the pilot also makes a ground visit (T-003): staircase descent, touchdown,
-waddle, take-off. Saves a screenshot every 5 s to `.godot/autoplay/`:
+scripted, city-aware pilot for 30 s: cruise above the skyline (every generated
+roof stays under 18.3 m, the pilot's floor is 23 m), flap-climb, bank, a short
+dive pulse that only starts high enough to stay over the roofs, pull-up, glide,
+poop taps. Below the cruise floor the pilot climbs hard while circling the spawn
+plaza — the one spot the generator guarantees is clear of buildings — and
+beyond 60 m from the plaza it steers home. From 11 s in the pilot also makes a
+ground visit (T-003 + T-004): arc to the plaza, bleed speed in a wide orbit,
+spiral down inside the building-free ring, touchdown, waddle across the
+pavement, take-off. Saves a screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
 godot --path . res://tests/autoplay.tscn
 ```
 
 **Pass =** exit 0, output contains `AUTOPLAY DONE ok=true`, and no `SCRIPT ERROR`
-lines. A game window appears on the desktop for ~35 s — that is the game being
-played; the screenshots are the evidence.
+lines. The `DONE` line also reports the average rendered fps over the run —
+the T-004 60 fps criterion is measured with it. A game window appears on the
+desktop for ~35 s — that is the game being played; the screenshots are the evidence.
 
 Then confirm in a normal editor run (F5):
 
@@ -106,6 +120,11 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-003) Waddling is slow and comedic; A/D turns in place; Space takes off again
 - [ ] (T-003) A steep fast dive into the pavement skids to a stop — no crash, no falling through the world
 - [ ] (T-003) Landing and taking off on a roof and a bench works the same as on the pavement
+- [ ] (T-004) The city reads as a street grid from the air — roads with lane marks, sidewalks, varied facades, flat roofs, benches/lamps/bins
+- [ ] (T-004) Flying end-to-end along streets and between roofs never clips through a building
+- [ ] (T-004) Roofs, sidewalks and the spawn plaza are landable and walkable in a normal run
+- [ ] (T-004) Restarting the game twice regenerates the identical city
+- [ ] (T-004) Flying across the whole city holds ~60 fps on the dev machine
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -117,5 +136,8 @@ Playtest checklist (grows as tickets land):
   over the T-001 playtest lines is still pending.
 - Land/waddle/take-off (T-003) is machine-verified (Gate 1b) and exercised by the
   autoplay ground visit; a human feel pass over the T-003 lines is still pending.
-- Placeholder art everywhere: the pigeon is a gray sphere, the city is a green plane
-  (tracked in T-004 and T-011).
+- City blockout (T-004) is machine-verified (Gate 1b layout/flyover/landing
+  scenarios) and flown by the autoplay pilot; a human pass over the T-004 lines
+  (city readability, restart determinism, full-city 60 fps flyover) is still pending.
+- Placeholder art everywhere: the pigeon is a gray sphere and buildings are tinted
+  boxes with a procedural window texture (pigeon look tracked in T-011).

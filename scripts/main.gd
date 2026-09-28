@@ -9,6 +9,7 @@ const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off"
 @onready var stats_label: Label = %StatsLabel
 @onready var hint_label: Label = %HintLabel
 @onready var player: Player = $Player
+@onready var city: City = $City
 
 var score: int = 0
 var hunger: float = 100.0
@@ -16,6 +17,10 @@ var hunger: float = 100.0
 func _ready() -> void:
 	$Sun.rotation_degrees = Vector3(-50.0, -30.0, 0.0)
 	player.grounding_changed.connect(_on_grounding_changed)
+	## Spawn on the road corridor by the plaza (T-004): a short drop onto the
+	## asphalt, in the one corridor the generator guarantees is clear of
+	## buildings at every height.
+	player.reset_flight(city.spawn_point)
 
 func _process(delta: float) -> void:
 	hunger = maxf(hunger - 1.0 * delta, 0.0)

@@ -6,11 +6,13 @@ extends Node3D
 ## Prints one "SIM PASS/FAIL <name>" line per scenario; exits 0 only when all pass.
 
 const PLAYER_SCENE: PackedScene = preload("res://scenes/player.tscn")
+const CITY_SCENE: PackedScene = preload("res://scenes/city.tscn")
 
 ## Set SIM_DEBUG=1 to print per-scenario trajectory samples.
 var _debug: bool = OS.get_environment("SIM_DEBUG") == "1"
 
 var _player: Player
+var _city: City
 var _failures: int = 0
 
 
@@ -22,11 +24,16 @@ func _ready() -> void:
 
 
 ## Flat ground plus a raised roof and a thin bench seat — the three landable
-## surface types of T-003, all plain layer-1 world boxes.
+## surface types of T-003, all plain layer-1 world boxes. A full generated city
+## joins them far away (T-004); its scenarios teleport the pigeon over there, so
+## the flight-model scenarios above keep their clean flat world.
 func _build_world() -> void:
 	_add_box("Ground", Vector3(200.0, 1.0, 200.0), Vector3(0.0, -0.5, 0.0))
 	_add_box("Roof", Vector3(8.0, 1.0, 8.0), Vector3(12.0, 5.0, -12.0)) ## top at y 5.5
 	_add_box("Bench", Vector3(1.8, 0.1, 0.5), Vector3(0.0, 0.55, -8.0)) ## top at y 0.6
+	_city = CITY_SCENE.instantiate() as City
+	_city.position = Vector3(2000.0, 0.0, 2000.0)
+	add_child(_city)
 
 
 func _add_box(box_name: String, size: Vector3, pos: Vector3) -> void:
@@ -55,6 +62,11 @@ func _run_scenarios() -> void:
 	await _scenario_roof_landing()
 	await _scenario_bench_landing()
 	await _scenario_hard_landing()
+	await _scenario_city_layout()
+	await _scenario_city_plaza()
+	await _scenario_city_street_flyover()
+	await _scenario_city_roof()
+	await _scenario_city_sidewalk()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -356,3 +368,125 @@ func _scenario_hard_landing() -> void:
 	_check("hard_landing_skids", ok,
 			"fast touch stayed AIR=%s, min y %.2f, finite=%s, rest %.2f m/s grounded=%s" % [
 					skid_was_air, min_y, all_finite, _player.velocity.length(), _player.is_grounded])
+
+
+## --- scenarios (T-004 city blockout) ---------------------------------------
+
+
+## The seed-independent guarantees of `City.report()`: a clear spawn plaza,
+## flyable street widths, roof heights under the cruise ceiling and enough
+## bread-capable surfaces — for the default seed and for a foreign one.
+func _report_holds(report: Dictionary) -> bool:
+	return report.plaza_clear \
+			and report.street_width >= _city.min_flyable_street \
+			and report.max_roof_height <= _city.max_roof_height \
+			and report.bread_surfaces >= _city.min_bread_surfaces \
+			and report.buildings > 0 and report.benches > 0
+
+
+## Determinism: the same seed regenerates the identical layout, a foreign seed
+## changes it without breaking the guarantees, and the default seed comes back
+## byte-for-byte afterwards (the "restart twice" check, machine-shaped).
+func _scenario_city_layout() -> void:
+	var default_seed: int = _city.seed_value ## generate() overwrites seed_value — capture first.
+	var fp_first: int = _city.fingerprint
+	var report_a: Dictionary = _city.last_report
+	_city.generate(default_seed)
+	_check("city_same_seed_deterministic", _city.fingerprint == fp_first,
+			"fingerprint %d vs %d" % [fp_first, _city.fingerprint])
+	_city.generate(424242)
+	var foreign: Dictionary = _city.last_report
+	_check("city_new_seed_guarantees", _report_holds(foreign) and _city.fingerprint != fp_first,
+			"foreign-seed report %s" % [foreign])
+	_city.generate(default_seed)
+	_check("city_regenerate_restores_layout",
+			_city.fingerprint == fp_first and _report_holds(report_a)
+					and _report_holds(_city.last_report),
+			"fingerprint %d vs %d after foreign-seed regen" % [fp_first, _city.fingerprint])
+
+
+## The spawn plaza: a short straight drop settles grounded on the pavement.
+func _scenario_city_plaza() -> void:
+	var plaza := _city.spawn_point - Vector3.UP * _city.spawn_drop_height
+	await _set_up(true, plaza + Vector3.UP * 3.0, Vector3.ZERO)
+	await _await_grounded(150)
+	var y := _player.position.y
+	var ok := _player.is_grounded and y > 0.3 and y < 0.6 and _player.velocity.is_finite()
+	_check("city_plaza_spawn", ok, "grounded=%s at y=%.2f (slab top %.2f)" % [
+			_player.is_grounded, y, _city.block_slab_height])
+
+
+## Fly the length of an entire street corridor without touching anything —
+## the "end-to-end across the city" acceptance criterion, machine-shaped.
+func _scenario_city_street_flyover() -> void:
+	var road_x := _city.position.x + _city.block_size * 0.5 + _city.road_width * 0.5
+	var z_start := _city.position.z - _city.city_span * 0.5 + 4.0
+	var z_end := _city.position.z + _city.city_span * 0.5 - 4.0
+	await _set_up(true, Vector3(road_x, 26.0, z_start), Vector3(0.0, 0.0, 14.0), 180.0)
+	var min_y := 1000.0
+	var max_drift := 0.0
+	var finite := true
+	var crossed := false
+	for i in 1500:
+		await get_tree().physics_frame
+		if i % 24 == 0 and _player.position.y < 28.0:
+			await _tap("flap") ## Paced pulses keep it in the 24–30 m cruise band.
+		min_y = minf(min_y, _player.position.y)
+		max_drift = maxf(max_drift, absf(_player.position.x - road_x))
+		finite = finite and _player.velocity.is_finite() and _player.position.is_finite()
+		if _player.position.z >= z_end:
+			crossed = true
+			break
+	_check("city_street_flyover", crossed and min_y > 5.0 and max_drift < 6.0 and finite,
+			"crossed=%s, min y %.1f, max drift %.1f m, finite=%s" % [crossed, min_y, max_drift, finite])
+
+
+## A generated building roof is landable and walkable (pairs with T-003), and
+## flapping off it works like off any other floor.
+func _scenario_city_roof() -> void:
+	var roof: Dictionary = {}
+	for info in _city.buildings:
+		var c: Vector3 = info.center
+		var dist := Vector2(c.x - _city.position.x, c.z - _city.position.z).length()
+		if info.top <= 12.0 and dist > 20.0 and dist < 90.0:
+			roof = info
+			break
+	if roof.is_empty():
+		_check("city_roof_landable", false, "no low building generated near the plaza")
+		_check("city_roof_takeoff", false, "no low building generated near the plaza")
+		return
+	var top: float = roof.top
+	await _set_up(true, Vector3(roof.center.x, top + 0.35, roof.center.z), Vector3.ZERO)
+	await _await_grounded(120)
+	var y := _player.position.y
+	var on_roof := _player.is_grounded and absf(y - (top + 0.3)) < 0.2
+	await _wait_frames(10)
+	var pos0: Vector3 = _player.position
+	await _hold("pitch_up", 14)
+	var walked := _player.position.distance_to(pos0)
+	_check("city_roof_landable", on_roof and _player.is_grounded and walked > 0.15
+			and absf(_player.position.y - (top + 0.3)) < 0.3,
+			"grounded at y=%.2f (roof top %.2f), walked %.2f m" % [y, top, walked])
+	await _tap("flap")
+	var peak := _player.position.y
+	for _i in 60:
+		await get_tree().physics_frame
+		peak = maxf(peak, _player.position.y)
+	_check("city_roof_takeoff", not _player.is_grounded and peak > top + 0.6,
+			"airborne again, peaked at %.2f m (roof top %.2f)" % [peak, top])
+
+
+## The sidewalk ring: the pigeon waddles up the low curb from the road and
+## along the raised pavement.
+func _scenario_city_sidewalk() -> void:
+	var road_x := _city.position.x + _city.block_size * 0.5 + _city.road_width * 0.5
+	await _set_up(true, Vector3(road_x, 1.2, _city.position.z), Vector3.ZERO, 90.0) ## face the curb
+	await _await_grounded(120)
+	await _wait_frames(10)
+	await _hold("pitch_up", 180) ## 3 s of waddling west across the curb
+	var walked := road_x - _player.position.x
+	var y := _player.position.y
+	_check("city_sidewalk_walkable", _player.is_grounded and walked > 5.0
+			and absf(y - (_city.block_slab_height + 0.3)) < 0.05,
+			"walked %.2f m west, grounded=%s at y=%.2f (slab top %.2f)" % [
+					walked, _player.is_grounded, y, _city.block_slab_height])

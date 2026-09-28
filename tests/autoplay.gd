@@ -11,14 +11,24 @@ extends Node3D
 const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 const RUN_SECONDS: float = 30.0
 const SHOT_INTERVAL: float = 5.0
-const GROUND_VISIT_START: float = 20.0 ## T-003 excursion: descend, land, waddle, take off.
-const GROUND_VISIT_END: float = 28.0
+const GROUND_VISIT_START: float = 8.0 ## T-003 excursion: descend to the plaza, land, waddle, take off.
+const GROUND_VISIT_END: float = 29.0
+const WADDLE_UNTIL: float = 27.8
+## City-aware cruising (T-004): the cruise floor sits above every generated
+## roof, so the only way to meet a wall is to stop believing in it.
+const CRUISE_FLOOR: float = 23.0
+const CRUISE_CEIL: float = 30.0
+const DIVE_GATE: float = 29.0
+const HOME_RADIUS: float = 40.0
 
 var _game: Node
 var _player: Player
 var _elapsed: float = 0.0
 var _next_shot: float = 1.0
 var _shot_dir: String = ""
+var _fps_sum: float = 0.0
+var _fps_samples: int = 0
+var _visit_gliding: bool = false ## Latched once the landing glide begins.
 
 
 func _ready() -> void:
@@ -31,6 +41,9 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_elapsed += delta
+	_fps_sum += Engine.get_frames_per_second()
+	_fps_samples += 1
+	_trace(_elapsed)
 	_drive(_elapsed, delta)
 	if _elapsed >= _next_shot:
 		_next_shot += SHOT_INTERVAL
@@ -39,17 +52,31 @@ func _physics_process(delta: float) -> void:
 		var alive: bool = _player != null and is_instance_valid(_player) \
 				and _player.velocity.is_finite() and _player.position.y > -10.0
 		var where: Vector3 = _player.position if _player != null and is_instance_valid(_player) else Vector3.ZERO
-		print("AUTOPLAY DONE ok=%s t=%.1f player=(%.1f, %.1f, %.1f) speed=%.2f" % [
-				alive, _elapsed, where.x, where.y, where.z, _player.velocity.length() if alive else 0.0])
+		var fps: float = _fps_sum / maxf(_fps_samples, 1)
+		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f" % [
+				alive, _elapsed, fps, where.x, where.y, where.z,
+				_player.velocity.length() if alive else 0.0])
 		get_tree().quit(0 if alive else 1)
 
 
-## A repeating flight pattern: flap-climb, bank, a short dive pulse, pull up,
-## glide and drop the occasional poop (inert until T-006 wires it up), plus a
-## one-per-run ground visit (T-003): staircase descent, touchdown, waddle and
-## take-off again. Safety reflexes keep it alive: below 5 m and descending it
-## pulls up and flaps, and beyond 40 m from the origin it steers home — so it
-## never leaves the finite placeholder ground.
+## One-line-per-second progress trace — evidence for the gate log.
+func _trace(t: float) -> void:
+	if fmod(t, 1.0) >= (1.0 / 60.0):
+		return
+	print("AUTOPLAY t=%02.0f pos=(%.0f, %.0f, %.0f) speed=%.0f vy=%.1f nose=%.2f grounded=%s" % [
+			t, _player.position.x, _player.position.y, _player.position.z,
+			_player.velocity.length(), _player.velocity.y, _nose_y(), _player.is_grounded])
+
+
+## City-aware flight pattern (T-004). The pilot flies state-based, never
+## timed-into-a-loop: below the cruise band it climbs hard (the spawn faces up
+## the road corridor, clear of buildings at every height); at cruise it holds a
+## 24–30 m band — above every generated roof — with paced flaps, a banked
+## zigzag, one bounded dive pulse and poop taps (inert until T-006); beyond
+## HOME_RADIUS it arcs home; and from GROUND_VISIT_START it makes a ground
+## visit: arc to the plaza, descend at a governed rate, touch down, waddle,
+## take off again. All pitch commands are vy-bounded so the nose can never
+## ratchet into a loop or a stall-mush.
 func _drive(t: float, delta: float) -> void:
 	for action in ["flap", "poop", "turn_left", "turn_right", "pitch_up", "pitch_down"]:
 		if Input.is_action_pressed(action):
@@ -58,60 +85,152 @@ func _drive(t: float, delta: float) -> void:
 	if t >= GROUND_VISIT_START and t < GROUND_VISIT_END:
 		_drive_ground_visit(t, delta)
 		return
-
-	if _player.position.y < 5.0 and _player.velocity.y < -2.0:
-		Input.action_press("pitch_up")
-		if fmod(t, 0.4) < delta:
-			Input.action_press("flap")
-		return
+	_visit_gliding = false
 
 	var flat := Vector2(_player.position.x, _player.position.z)
-	if flat.length() > 40.0:
-		var to_origin := -flat.normalized()
-		var fwd := Vector2(-_player.transform.basis.z.x, -_player.transform.basis.z.z)
-		if fwd.cross(to_origin) < 0.0:
-			Input.action_press("turn_left")
-		else:
-			Input.action_press("turn_right")
-		if fmod(t, 0.5) < delta:
+	var vy := _player.velocity.y
+	var speed := _player.velocity.length()
+
+	# Low mode: below the cruise band, climb. Straight ahead is the road
+	# corridor; near the plaza at roof height it also pulls toward the center.
+	# Nose capped at ~27° up and flaps capped at vy 8, so the climb eases into
+	# the band instead of zooming or looping.
+	if _player.position.y < CRUISE_FLOOR:
+		if _nose_y() < 0.45:
+			Input.action_press("pitch_up")
+		if _player.position.y < 18.0 and flat.length() > 12.0:
+			_steer_toward(flat)
+		if vy < 5.0 and fmod(t, 0.4) < delta:
 			Input.action_press("flap")
 		return
 
-	var phase := fmod(t, 15.0)
-	# Alternate the bank each loop so the pigeon zigzags while near the middle.
-	var turn := "turn_left" if int(t / 15.0) % 2 == 0 else "turn_right"
-	if phase < 5.0:
-		if fmod(t, 0.5) < delta:
+	# Drifted too far — arc home above the skyline, with the same pitch
+	# discipline as the cruise governor so the arc never zooms or dives.
+	if flat.length() > HOME_RADIUS:
+		_steer_toward(flat)
+		var arc_pitch := _governor_pitch(vy, speed)
+		if arc_pitch > 0.0:
+			Input.action_press("pitch_up")
+		elif arc_pitch < 0.0:
+			Input.action_press("pitch_down")
+		if _player.position.y < CRUISE_CEIL and vy < 6.0 and fmod(t, 0.5) < delta:
 			Input.action_press("flap")
-	elif phase < 7.0:
-		Input.action_press(turn)
-	elif phase < 7.6:
-		Input.action_press("pitch_down")
-	elif phase < 9.1:
+		return
+
+	# Cruise governor: hold the 24–30 m band, keep airspeed up, garnish with a
+	# bank, a bounded dive pulse and poop taps. The steep-dive pull-out has
+	# priority, and every pitch command is nose-bounded, so nothing can ratchet
+	# the attitude into a loop or a sustained dive.
+	var phase := fmod(t, 15.0)
+	var turn := "turn_left" if int(t / 15.0) % 2 == 0 else "turn_right"
+	var pitch := _governor_pitch(vy, speed)
+	if phase >= 7.0 and phase < 7.6 and _player.position.y > DIVE_GATE \
+			and vy > -6.0 and _nose_y() > -0.55:
+		pitch = -1.0 ## The showy pulse — bounded, from over the roofs.
+	if pitch > 0.0:
 		Input.action_press("pitch_up")
+	elif pitch < 0.0:
+		Input.action_press("pitch_down")
+	if phase >= 5.0 and phase < 7.0:
+		Input.action_press(turn) ## Alternate the bank each loop so it zigzags.
+	if _player.position.y < CRUISE_CEIL and speed < 28.0 and fmod(t, 0.5) < delta:
+		Input.action_press("flap")
+	if phase >= 9.1 and fmod(t, 2.0) < delta:
+		Input.action_press("poop")
+
+
+## Banks toward the plaza center (the generator's one guaranteed-clear spot).
+func _steer_toward(flat: Vector2) -> void:
+	var to_home := -flat.normalized()
+	var fwd := Vector2(-_player.transform.basis.z.x, -_player.transform.basis.z.z)
+	if fwd.cross(to_home) < 0.0:
+		Input.action_press("turn_left")
 	else:
-		if fmod(t, 2.0) < delta:
-			Input.action_press("poop")
+		Input.action_press("turn_right")
 
 
-## The T-003 excursion: staircase down from cruise, level off, touch down,
-## waddle forward, then flap back into the sky. Ground behavior is state-driven
-## (waddle until 26 s, then tap flap) so a late touchdown still gets its turn.
-## A hard touchdown is acceptable — it just skids — but an imminent vertical
-## slam is softened.
+## Sine of the nose pitch (positive = nose above the horizon). Every pitch
+## command in the pilot is gated on this: the flight model has no attitude
+## limits of its own, so an unbounded pitch_up would just loop the pigeon.
+func _nose_y() -> float:
+	return (-_player.transform.basis.z).y
+
+
+## Cruise pitch decision shared by the governor and the arc-home branch:
+## pull out of steep dives first, then keep the 24–30 m band, then keep
+## airspeed up, then arrest zooms. All branches are nose-bounded.
+func _governor_pitch(vy: float, speed: float) -> float:
+	if vy < -6.0 and _nose_y() < 0.45:
+		return 1.0 ## Pull out of any steep dive — always.
+	if _player.position.y < 28.0 and vy < 1.0 and _nose_y() < 0.45:
+		return 1.0 ## Keep the band.
+	if speed < 15.0 and vy > -6.0 and _nose_y() > -0.55:
+		return -1.0 ## Too slow: trade a little height for airspeed.
+	if vy > 4.0 and _nose_y() > -0.55:
+		return -1.0 ## Arrest zooms (the vy −6 pull-out bounds the resulting dive).
+	return 0.0
+
+
+## The T-003 excursion onto the spawn plaza, run as ONE attitude-target
+## controller: always steer toward the plaza, bleed speed while fast (a slow
+## bird can orbit the building-free ring instead of flying through it), then
+## hold a ~20° glide down to the pavement. The only climbs are safety nets:
+## under the roof-line floor outside the ring, and the final climb-out at
+## t >= 27. Touchdown may skid, which is acceptable; then waddle and flap
+## back out. All pitch is nose-bounded via the attitude holds.
 func _drive_ground_visit(t: float, delta: float) -> void:
 	if _player.is_grounded:
-		if t < 26.0:
+		_visit_gliding = false
+		if t < WADDLE_UNTIL:
 			Input.action_press("pitch_up") ## Waddle forward while landed.
 		elif fmod(t, 0.4) < delta:
 			Input.action_press("flap") ## Take off again.
 		return
-	if _player.position.y < 2.0 and _player.velocity.y < -5.0:
+	var flat := Vector2(_player.position.x, _player.position.z)
+	var vy := _player.velocity.y
+	_steer_toward(flat) ## The whole visit arcs toward the plaza center.
+	if t >= 27.0:
+		## Climb back out (missed landing or just took off) — nose- and
+		## flap-capped so the climb eases into the cruise band.
+		if _nose_y() < 0.45 and vy < 6.0:
+			Input.action_press("pitch_up")
+		if vy < 5.0 and fmod(t, 0.4) < delta:
+			Input.action_press("flap")
+		return
+	var speed := _player.velocity.length()
+	if speed <= 16.0 and flat.length() <= 21.0 and _player.position.y > 8.0:
+		_visit_gliding = true ## Committed: inside the ring and slow enough
+		## that the steering radius stays inside it — fly the glide down.
+	var target_nose: float
+	if flat.length() > 21.0 and _player.position.y < 18.5:
+		target_nose = 0.10 ## Outside the ring, under the roof line: climb.
+		if vy < 5.0 and fmod(t, 0.4) < delta:
+			Input.action_press("flap")
+	elif _player.position.y < 4.0:
+		target_nose = -0.02 ## Flare the last metres: the skid eats the speed.
+	elif _visit_gliding:
+		target_nose = -0.35 ## The ~20° glide, all the way down; the dive gains
+		## speed and the touchdown skid eats it — by design.
+	elif speed > 14.0:
+		target_nose = 0.02 ## Level orbit-bleed: circle the plaza, no flaps, no
+		## thrust — the turn radius shrinks with speed until the spiral in.
+	else:
+		target_nose = -0.35
+	if vy < -10.0:
+		Input.action_press("pitch_up") ## Safety pull-up beats any target.
+	else:
+		_hold_nose(target_nose)
+
+
+## Bang-bang attitude hold around `target` (sine of the nose pitch). Holding
+## the nose steady is what keeps vy steady — chasing vy directly with a 2.2
+## rad/s actuator just oscillates.
+func _hold_nose(target: float) -> void:
+	var nose := _nose_y()
+	if nose > target + 0.03:
+		Input.action_press("pitch_down")
+	elif nose < target - 0.03:
 		Input.action_press("pitch_up")
-	elif t < 21.8:
-		if fmod(t, 0.6) < 0.3:
-			Input.action_press("pitch_down") ## Staircase descent.
-	# else: level glide — lift, drag and gravity settle it onto the pavement.
 
 
 func _capture(at_seconds: int) -> void:
