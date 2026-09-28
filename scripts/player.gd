@@ -32,6 +32,12 @@ extends CharacterBody3D
 var forward_speed: float
 var stalled: bool
 
+## Current bank angle in radians — the chase camera and later HUD read this.
+var bank_angle: float:
+	get: return _roll
+
+@onready var chase_camera: ChaseCamera = $ChaseCamera
+
 var _flap_timer: float = 0.0
 var _time_since_flap: float = 10.0
 var _roll: float = 0.0

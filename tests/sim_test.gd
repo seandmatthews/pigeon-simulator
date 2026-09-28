@@ -41,6 +41,7 @@ func _run_scenarios() -> void:
 	await _scenario_banking()
 	await _scenario_stall()
 	await _scenario_landing_slide()
+	await _scenario_chase_camera()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -211,3 +212,32 @@ func _scenario_landing_slide() -> void:
 			and pos.y > -0.5 and pos.y < 0.6
 	_check("landing_slides_to_stop", ok,
 			"rest at y=%.2f, speed %.2f m/s" % [pos.y, vel.length()])
+
+
+## --- scenarios (T-002 chase camera) --------------------------------------
+
+
+## The rig swings around behind a turning pigeon, kicks FOV with speed and
+## tucks in while grounded.
+func _scenario_chase_camera() -> void:
+	var cam: ChaseCamera = _player.chase_camera
+	await _set_up(true, Vector3(0.0, 15.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	await _wait_frames(30)
+	await _hold("turn_left", 90)
+	await _wait_frames(30)
+	var fwd := -_player.transform.basis.z
+	var player_yaw := atan2(-fwd.x, -fwd.z)
+	var gap := absf(angle_difference(cam.rotation.y, player_yaw))
+	_check("camera_follows_yaw", gap < deg_to_rad(25.0),
+			"rig trails heading by %.1f deg after a 1.5 s turn" % [rad_to_deg(gap)])
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -8.0))
+	await _wait_frames(60)
+	var fov_cruise := cam.fov
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -26.0))
+	await _wait_frames(60)
+	_check("camera_fov_kick", cam.fov > fov_cruise + 4.0,
+			"fov %.1f at 8 m/s vs %.1f at 26 m/s" % [fov_cruise, cam.fov])
+	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO)
+	await _wait_frames(60)
+	_check("camera_tucks_in_grounded", cam.arm_length < 4.5,
+			"arm length %.2f m while grounded" % cam.arm_length)

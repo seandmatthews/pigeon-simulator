@@ -46,6 +46,9 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | stall_drops | stalling sinks far harder than gliding and the nose drops | T-001 |
 | stall_recovers | a flap restores flying speed out of a stall | T-001 |
 | landing_slides_to_stop | a low touchdown slides to a stop — no bounce, no NaNs | T-001 |
+| camera_follows_yaw | the rig swings around behind a turning pigeon | T-002 |
+| camera_fov_kick | FOV widens measurably with speed | T-002 |
+| camera_tucks_in_grounded | arm shortens while grounded | T-002 |
 
 ## Gate 2 — Editor run (before marking any gameplay ticket done)
 
@@ -74,6 +77,9 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-001) Dive → pull-up visibly trades height for speed and back
 - [ ] (T-001) Turns bank and feel weighty; stall drop and recovery read clearly
 - [ ] (T-001) Landings at low speed slide to a stop without bouncing
+- [ ] (T-002) Camera never clips ground or buildings when landing or hugging walls
+- [ ] (T-002) No visible jitter during fast turns and dives; FOV kick noticeable but not nauseating
+- [ ] (T-002) The pigeon never leaves the frame at max speed
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing

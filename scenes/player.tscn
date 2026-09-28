@@ -1,6 +1,7 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
+[ext_resource type="Script" path="res://scripts/chase_camera.gd" id="2_chase_cam"]
 
 [sub_resource type="StandardMaterial3D" id="Mat_pigeon"]
 albedo_color = Color(0.55, 0.57, 0.62, 1)
@@ -13,6 +14,9 @@ height = 0.6
 [sub_resource type="SphereShape3D" id="SphereShape_pigeon"]
 radius = 0.3
 
+[sub_resource type="SphereShape3D" id="SphereShape_arm"]
+radius = 0.2
+
 [node name="Player" type="CharacterBody3D"]
 collision_layer = 2
 collision_mask = 1
@@ -24,6 +28,16 @@ mesh = SubResource("SphereMesh_pigeon")
 [node name="Shape" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape_pigeon")
 
-[node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 6)
+[node name="ChaseCamera" type="Node3D" parent="."]
+top_level = true
+script = ExtResource("2_chase_cam")
+
+[node name="SpringArm3D" type="SpringArm3D" parent="ChaseCamera"]
+shape = SubResource("SphereShape_arm")
+spring_length = 6.5
+margin = 0.25
+collision_mask = 1
+
+[node name="Camera3D" type="Camera3D" parent="ChaseCamera/SpringArm3D"]
+fov = 72.0
 current = true
