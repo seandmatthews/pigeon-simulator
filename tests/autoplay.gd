@@ -11,6 +11,8 @@ extends Node3D
 const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 const RUN_SECONDS: float = 30.0
 const SHOT_INTERVAL: float = 5.0
+const GROUND_VISIT_START: float = 20.0 ## T-003 excursion: descend, land, waddle, take off.
+const GROUND_VISIT_END: float = 28.0
 
 var _game: Node
 var _player: Player
@@ -43,14 +45,19 @@ func _physics_process(delta: float) -> void:
 
 
 ## A repeating flight pattern: flap-climb, bank, a short dive pulse, pull up,
-## glide and drop the occasional poop (inert until T-006 wires it up). Safety
-## reflexes keep it alive: below 5 m and descending it pulls up and flaps, and
-## beyond 40 m from the origin it steers home — so it never leaves the finite
-## placeholder ground.
+## glide and drop the occasional poop (inert until T-006 wires it up), plus a
+## one-per-run ground visit (T-003): staircase descent, touchdown, waddle and
+## take-off again. Safety reflexes keep it alive: below 5 m and descending it
+## pulls up and flaps, and beyond 40 m from the origin it steers home — so it
+## never leaves the finite placeholder ground.
 func _drive(t: float, delta: float) -> void:
 	for action in ["flap", "poop", "turn_left", "turn_right", "pitch_up", "pitch_down"]:
 		if Input.is_action_pressed(action):
 			Input.action_release(action)
+
+	if t >= GROUND_VISIT_START and t < GROUND_VISIT_END:
+		_drive_ground_visit(t, delta)
+		return
 
 	if _player.position.y < 5.0 and _player.velocity.y < -2.0:
 		Input.action_press("pitch_up")
@@ -85,6 +92,26 @@ func _drive(t: float, delta: float) -> void:
 	else:
 		if fmod(t, 2.0) < delta:
 			Input.action_press("poop")
+
+
+## The T-003 excursion: staircase down from cruise, level off, touch down,
+## waddle forward, then flap back into the sky. Ground behavior is state-driven
+## (waddle until 26 s, then tap flap) so a late touchdown still gets its turn.
+## A hard touchdown is acceptable — it just skids — but an imminent vertical
+## slam is softened.
+func _drive_ground_visit(t: float, delta: float) -> void:
+	if _player.is_grounded:
+		if t < 26.0:
+			Input.action_press("pitch_up") ## Waddle forward while landed.
+		elif fmod(t, 0.4) < delta:
+			Input.action_press("flap") ## Take off again.
+		return
+	if _player.position.y < 2.0 and _player.velocity.y < -5.0:
+		Input.action_press("pitch_up")
+	elif t < 21.8:
+		if fmod(t, 0.6) < 0.3:
+			Input.action_press("pitch_down") ## Staircase descent.
+	# else: level glide — lift, drag and gravity settle it onto the pavement.
 
 
 func _capture(at_seconds: int) -> void:

@@ -49,13 +49,22 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | camera_follows_yaw | the rig swings around behind a turning pigeon | T-002 |
 | camera_fov_kick | FOV widens measurably with speed | T-002 |
 | camera_tucks_in_grounded | arm shortens while grounded | T-002 |
+| waddles_on_ground | a gentle drop settles grounded and W walks forward at waddle pace | T-003 |
+| waddle_turns | A/D turn the pigeon in place while grounded | T-003 |
+| flap_takes_off_ground | a grounded flap returns to climbing flight | T-003 |
+| roof_landing | a raised roof is landable — the pigeon settles grounded on top | T-003 |
+| roof_takeoff | flapping off a roof works like off the pavement | T-003 |
+| bench_landing | a thin bench seat is landable and walkable | T-003 |
+| bench_takeoff | flapping off a bench returns to flight | T-003 |
+| hard_landing_skids | a steep fast dive skids to a stop — no instant ground, no tunneling, no NaNs | T-003 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
 Boots the **real** game (`scenes/main.tscn`) in a window and plays it with a
 scripted pilot for 30 s: flap-climb, bank, dive pulse, pull-up, glide, poop taps,
-with reflexes to pull up near the ground and steer home when drifting. Saves a
-screenshot every 5 s to `.godot/autoplay/`:
+with reflexes to pull up near the ground and steer home when drifting. From 20 s
+in the pilot also makes a ground visit (T-003): staircase descent, touchdown,
+waddle, take-off. Saves a screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
 godot --path . res://tests/autoplay.tscn
@@ -76,9 +85,9 @@ Keep this table in sync with `project.godot` and `README.md`:
 
 | Input | Action |
 | ----- | ------ |
-| W / S | pitch up / down |
-| A / D | turn left / right |
-| Space | flap |
+| W / S | pitch up / down · waddle fwd / back while grounded |
+| A / D | turn left / right · turn while waddling |
+| Space | flap · takes off when grounded |
 | F | poop *(not implemented — T-006)* |
 | Shift | boost *(not implemented)* |
 | Esc | pause *(not implemented — T-010)* |
@@ -93,6 +102,10 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-002) Camera never clips ground or buildings when landing or hugging walls
 - [ ] (T-002) No visible jitter during fast turns and dives; FOV kick noticeable but not nauseating
 - [ ] (T-002) The pigeon never leaves the frame at max speed
+- [ ] (T-003) A gentle glide touchdown settles into the waddle and the HUD hint swaps to the grounded controls
+- [ ] (T-003) Waddling is slow and comedic; A/D turns in place; Space takes off again
+- [ ] (T-003) A steep fast dive into the pavement skids to a stop — no crash, no falling through the world
+- [ ] (T-003) Landing and taking off on a roof and a bench works the same as on the pavement
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -102,5 +115,7 @@ Playtest checklist (grows as tickets land):
 
 - Flight model v1 is machine-verified (Gate 1b, 8/8) only — a human feel/tuning pass
   over the T-001 playtest lines is still pending.
+- Land/waddle/take-off (T-003) is machine-verified (Gate 1b) and exercised by the
+  autoplay ground visit; a human feel pass over the T-003 lines is still pending.
 - Placeholder art everywhere: the pigeon is a gray sphere, the city is a green plane
   (tracked in T-004 and T-011).

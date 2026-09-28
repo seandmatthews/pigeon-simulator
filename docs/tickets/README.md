@@ -9,7 +9,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | -- | ------ | -------- | ---- | ---------- | ------ |
 | T-001 | [Flight feel v1](T-001-flight-feel.md) | P0 | L | — | done |
 | T-002 | [Chase camera v1](T-002-chase-camera.md) | P0 | S | T-001 | done |
-| T-003 | [Land, walk, take off](T-003-land-walk-takeoff.md) | P1 | M | T-001 | todo |
+| T-003 | [Land, walk, take off](T-003-land-walk-takeoff.md) | P1 | M | T-001 | done |
 | T-004 | [City blockout v1](T-004-city-blockout.md) | P0 | L | — | todo |
 | T-005 | [Bread & hunger](T-005-bread-and-hunger.md) | P0 | M | T-003, T-004 | todo |
 | T-006 | [Poop mechanic](T-006-poop-mechanic.md) | P0 | M | T-001 | todo |

@@ -1,7 +1,7 @@
 extends Node3D
 ## Headless sim harness (VERIFICATION.md Gate 1b): drives the Player with synthetic
-## input and asserts flight-model behavior one scenario at a time. Run from the
-## repo root:
+## input and asserts flight-model and ground-game behavior one scenario at a time.
+## Run from the repo root:
 ##   godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn
 ## Prints one "SIM PASS/FAIL <name>" line per scenario; exits 0 only when all pass.
 
@@ -15,22 +15,31 @@ var _failures: int = 0
 
 
 func _ready() -> void:
-	_build_ground()
+	_build_world()
 	_player = PLAYER_SCENE.instantiate()
 	add_child(_player)
 	_run_scenarios()
 
 
-func _build_ground() -> void:
+## Flat ground plus a raised roof and a thin bench seat — the three landable
+## surface types of T-003, all plain layer-1 world boxes.
+func _build_world() -> void:
+	_add_box("Ground", Vector3(200.0, 1.0, 200.0), Vector3(0.0, -0.5, 0.0))
+	_add_box("Roof", Vector3(8.0, 1.0, 8.0), Vector3(12.0, 5.0, -12.0)) ## top at y 5.5
+	_add_box("Bench", Vector3(1.8, 0.1, 0.5), Vector3(0.0, 0.55, -8.0)) ## top at y 0.6
+
+
+func _add_box(box_name: String, size: Vector3, pos: Vector3) -> void:
 	var body := StaticBody3D.new()
+	body.name = box_name
 	body.collision_layer = 1
 	body.collision_mask = 0
-	var box := BoxShape3D.new()
-	box.size = Vector3(200.0, 1.0, 200.0)
 	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
 	shape.shape = box
-	shape.position = Vector3(0.0, -0.5, 0.0)
 	body.add_child(shape)
+	body.position = pos
 	add_child(body)
 
 
@@ -42,6 +51,10 @@ func _run_scenarios() -> void:
 	await _scenario_stall()
 	await _scenario_landing_slide()
 	await _scenario_chase_camera()
+	await _scenario_ground_waddle()
+	await _scenario_roof_landing()
+	await _scenario_bench_landing()
+	await _scenario_hard_landing()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -62,10 +75,10 @@ func _wait_frames(count: int) -> void:
 		await get_tree().physics_frame
 
 
-## Resets the pigeon, optionally hands it an initial velocity, then lets the
-## physics settle for a couple of frames.
-func _set_up(airborne: bool, pos: Vector3, vel: Vector3) -> void:
-	_player.reset_flight(pos)
+## Resets the pigeon, optionally hands it an initial velocity and heading, then
+## lets the physics settle for a couple of frames.
+func _set_up(airborne: bool, pos: Vector3, vel: Vector3, yaw_deg: float = 0.0) -> void:
+	_player.reset_flight(pos, yaw_deg)
 	if airborne:
 		_player.velocity = vel
 	await _wait_frames(2)
@@ -95,6 +108,15 @@ func _pitch_until(action: String, target_pitch: float, max_frames: int) -> void:
 		if (rising and nose >= target_pitch) or (not rising and nose <= target_pitch):
 			break
 	Input.action_release(action)
+
+
+## Waits until the pigeon settles into the grounded waddle state, with a frame
+## budget so a broken landing can't hang the harness.
+func _await_grounded(max_frames: int) -> void:
+	for _i in max_frames:
+		await get_tree().physics_frame
+		if _player.is_grounded:
+			return
 
 
 func _dbg(msg: String) -> void:
@@ -241,3 +263,96 @@ func _scenario_chase_camera() -> void:
 	await _wait_frames(60)
 	_check("camera_tucks_in_grounded", cam.arm_length < 4.5,
 			"arm length %.2f m while grounded" % cam.arm_length)
+
+
+## --- scenarios (T-003 land, walk, take off) -------------------------------
+
+
+## A gentle drop onto flat ground settles into the waddle; W walks forward at
+## waddle pace and A turns in place.
+func _scenario_ground_waddle() -> void:
+	await _set_up(true, Vector3(0.0, 3.0, 0.0), Vector3.ZERO)
+	await _await_grounded(120)
+	var pos0: Vector3 = _player.position
+	var landed := _player.is_grounded and absf(_player.position.y - 0.3) < 0.15
+	await _hold("pitch_up", 20)
+	var walked: Vector3 = _player.position - pos0
+	var hspeed := Vector2(_player.velocity.x, _player.velocity.z).length()
+	_check("waddles_on_ground",
+			landed and _player.is_grounded and walked.length() > 0.2
+					and hspeed < _player.walk_speed + 0.6,
+			"landed=%s walked %.2f m at %.2f m/s horizontal" % [landed, walked.length(), hspeed])
+	await _hold("turn_left", 30)
+	var yaw := _player.rotation.y
+	_check("waddle_turns", _player.is_grounded and absf(angle_difference(yaw, 0.0)) > deg_to_rad(25.0),
+			"turned %.0f deg in 0.5 s, grounded=%s" % [rad_to_deg(angle_difference(yaw, 0.0)), _player.is_grounded])
+	await _tap("flap")
+	var peak_y := _player.position.y
+	for _i in 60:
+		await get_tree().physics_frame
+		peak_y = maxf(peak_y, _player.position.y)
+		if not _player.is_grounded and peak_y > 0.8:
+			break
+	_check("flap_takes_off_ground", not _player.is_grounded and peak_y > 0.8,
+			"airborne again, peaked at %.2f m after a grounded flap" % peak_y)
+
+
+## A raised box models a building roof: the pigeon lands on it and flaps off it
+## — takeoff from a roof works the same as from the pavement.
+func _scenario_roof_landing() -> void:
+	await _set_up(true, Vector3(12.0, 6.3, -12.0), Vector3.ZERO)
+	await _await_grounded(150)
+	_check("roof_landing", _player.is_grounded and absf(_player.position.y - 5.8) < 0.25,
+			"grounded at y=%.2f on the roof (top 5.5)" % _player.position.y)
+	await _tap("flap")
+	var peak_y := _player.position.y
+	for _i in 60:
+		await get_tree().physics_frame
+		peak_y = maxf(peak_y, _player.position.y)
+	_check("roof_takeoff", not _player.is_grounded and peak_y > 6.4,
+			"airborne again, peaked at %.2f m (roof top 5.5)" % peak_y)
+
+
+## A thin raised box models a bench seat: land on it, walk along it, flap off.
+func _scenario_bench_landing() -> void:
+	await _set_up(true, Vector3(0.0, 1.4, -8.0), Vector3.ZERO, 90.0) ## face along the bench
+	await _await_grounded(150)
+	await _wait_frames(15) ## let the touchdown slide bleed before the walk leg
+	var pos0: Vector3 = _player.position
+	var on_bench := _player.is_grounded and absf(_player.position.y - 0.9) < 0.2
+	await _hold("pitch_up", 14)
+	var walked: Vector3 = _player.position - pos0
+	_check("bench_landing", on_bench and _player.is_grounded and walked.length() > 0.15
+			and absf(_player.position.y - 0.9) < 0.2,
+			"grounded on the bench at y=%.2f, walked %.2f m" % [_player.position.y, walked.length()])
+	await _tap("flap")
+	var peak_y := _player.position.y
+	for _i in 60:
+		await get_tree().physics_frame
+		peak_y = maxf(peak_y, _player.position.y)
+	_check("bench_takeoff", not _player.is_grounded and peak_y > 1.5,
+			"airborne again, peaked at %.2f m (bench top 0.6)" % peak_y)
+
+
+## A steep, fast dive into the pavement must never instantly ground, never
+## tunnel through the world and never NaN — it skids, bleeds speed, settles.
+func _scenario_hard_landing() -> void:
+	await _set_up(true, Vector3(0.0, 35.0, 0.0), Vector3(0.0, 0.0, -14.0))
+	await _pitch_until("pitch_down", -0.85, 90)
+	var min_y := 100.0
+	var all_finite := true
+	var skid_was_air := false
+	for _i in 360:
+		await get_tree().physics_frame
+		min_y = minf(min_y, _player.position.y)
+		all_finite = all_finite and _player.velocity.is_finite() and _player.position.is_finite()
+		if _player.is_on_floor() and not _player.is_grounded \
+				and _player.velocity.length() > _player.max_land_speed:
+			skid_was_air = true
+		if _player.is_grounded and _player.velocity.length() < 0.8:
+			break
+	var ok := skid_was_air and min_y > 0.1 and all_finite \
+			and _player.is_grounded and _player.velocity.length() < 0.8
+	_check("hard_landing_skids", ok,
+			"fast touch stayed AIR=%s, min y %.2f, finite=%s, rest %.2f m/s grounded=%s" % [
+					skid_was_air, min_y, all_finite, _player.velocity.length(), _player.is_grounded])

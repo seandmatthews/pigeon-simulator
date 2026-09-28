@@ -3,8 +3,8 @@
 A third-person pigeon flight sim built with Godot 4. Wander the city, eat bread to
 survive, and earn points by pooping on tourists and their cars.
 
-> **Status:** pre-alpha scaffold. A gray placeholder pigeon flies over an empty green
-> world. The roadmap lives in [`docs/tickets/`](docs/tickets/README.md).
+> **Status:** pre-alpha scaffold. A gray placeholder pigeon flies, lands and waddles
+> around an empty green world. The roadmap lives in [`docs/tickets/`](docs/tickets/README.md).
 
 ## Run it
 
@@ -16,9 +16,9 @@ survive, and earn points by pooping on tourists and their cars.
 
 | Input | Action |
 | ----- | ------ |
-| W / S | pitch up / down |
-| A / D | turn left / right |
-| Space | flap |
+| W / S | pitch up / down · waddle fwd / back while grounded |
+| A / D | turn left / right · turn while waddling |
+| Space | flap · takes off when grounded |
 | F | poop *(not implemented yet)* |
 | Shift | boost *(not implemented yet)* |
 | Esc | pause *(not implemented yet)* |

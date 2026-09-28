@@ -64,6 +64,7 @@ theme_override_font_sizes/font_size = 22
 text = "Score: 0    Hunger: 100%"
 
 [node name="HintLabel" type="Label" parent="HUD"]
+unique_name_in_owner = true
 offset_left = 16.0
 offset_top = 46.0
 offset_right = 500.0
