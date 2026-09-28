@@ -25,6 +25,7 @@ Design rationale lives in [`docs/DESIGN.md`](docs/DESIGN.md); work is tracked in
 project.godot   engine config: input actions, physics layer names, main scene
 scenes/         .tscn files, snake_case, one gameplay entity per scene
 scripts/        .gd files, snake_case
+tests/          headless sim harness (VERIFICATION.md Gate 1b)
 assets/         art / audio / fonts; third-party credits in assets/CREDITS.md
 docs/           DESIGN.md and tickets/
 ```
@@ -72,6 +73,22 @@ docs/           DESIGN.md and tickets/
 - A ticket is **done** when: all acceptance criteria are checked off, the
   [`VERIFICATION.md`](VERIFICATION.md) gates pass, and the ticket's status/checkboxes
   are updated in the same commit.
+
+### The ticket loop
+
+Work one ticket at a time, in the build order from the backlog index:
+
+1. Flip the ticket to `doing` in its file and the index table.
+2. Implement it (conventions above).
+3. **Extend `VERIFICATION.md` in the same change-set.** Every feature, input or
+   mechanic that lands gets a matching verification entry: an automated scenario in
+   the sim harness (`tests/`, Gate 1b) where one is possible, otherwise a Gate 3
+   playtest line. Never ship a feature without a way to re-verify it later.
+4. Run the gates from `VERIFICATION.md` and fix until green. Machine-verified
+   acceptance criteria get checked off; anything needing human judgement (feel,
+   look, sound) is recorded in the ticket as a pending human playtest note.
+5. Record tuned values in the ticket, flip it to `done`, commit (one commit per
+   ticket, ID in the message) — then pick the next ticket.
 
 ## Commit style
 
