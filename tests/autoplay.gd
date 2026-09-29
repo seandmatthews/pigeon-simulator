@@ -33,6 +33,7 @@ var _player: Player
 var _hunger: Hunger
 var _spawner: BreadSpawner
 var _tourists: TouristSpawner
+var _cars: CarSpawner
 var _elapsed: float = 0.0
 var _next_shot: float = 1.0
 var _shot_dir: String = ""
@@ -51,6 +52,7 @@ func _ready() -> void:
 	_hunger = _game.get_node("Hunger") as Hunger
 	_spawner = _game.get_node("BreadSpawner") as BreadSpawner
 	_tourists = _game.get_node("TouristSpawner") as TouristSpawner
+	_cars = _game.get_node("CarSpawner") as CarSpawner
 	_player.pooped.connect(_on_pilot_pooped)
 
 
@@ -77,10 +79,11 @@ func _physics_process(delta: float) -> void:
 		var eaten: int = _spawner.eaten_count if _spawner != null and is_instance_valid(_spawner) else -1
 		var tourists: int = _tourists.living_tourists().size() if _tourists != null and is_instance_valid(_tourists) else -1
 		var panics: int = _tourists.splat_count if _tourists != null and is_instance_valid(_tourists) else -1
-		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d" % [
+		var honks: int = _cars.honk_count if _cars != null and is_instance_valid(_cars) else -1
+		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d" % [
 				alive, _elapsed, fps, where.x, where.y, where.z,
 				_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
-				tourists, panics])
+				tourists, panics, honks])
 		get_tree().quit(0 if alive else 1)
 
 
@@ -112,10 +115,12 @@ func _drive(t: float, delta: float) -> void:
 	# T-006: air-only dropping, released wherever the bird happens to be
 	# flying — over the roofs, over the plaza, on the way down to land —
 	# with the T-007 addition that the pilot pulls the trigger early when a
-	# walking tourist lines up under the predicted impact point. Grounded
-	# taps are skipped (the pigeon doesn't poop on the ground).
+	# walking tourist lines up under the predicted impact point, and the T-008
+	# addition that cars count too (bigger tolerance — the easy targets).
+	# Grounded taps are skipped (the pigeon doesn't poop on the ground).
 	if t >= POOP_START and not _player.is_grounded \
-			and (_tourist_in_lead() or fmod(t - POOP_START, POOP_PERIOD) < delta):
+			and (_tourist_in_lead() or _car_in_lead()
+					or fmod(t - POOP_START, POOP_PERIOD) < delta):
 		Input.action_press("poop")
 
 	if t >= GROUND_VISIT_START and t < GROUND_VISIT_END:
@@ -196,6 +201,28 @@ func _tourist_in_lead() -> bool:
 		var spot := Vector2(tourist.global_position.x, tourist.global_position.z) \
 				+ Vector2(tourist.velocity.x, tourist.velocity.z) * fall
 		if impact.distance_to(spot) < 1.5:
+			return true
+	return false
+
+
+## T-008: the car version of the lead shot — same prediction, wider tolerance,
+## because cars are the deliberately bigger, easier target (pillar 3). Only
+## TRAFFIC cars move to lead; parked ones get hit whenever the impact drifts
+## over them. The DONE line reports `honks`.
+func _car_in_lead() -> bool:
+	if _cars == null or not is_instance_valid(_cars):
+		return false
+	if _player.position.y > 14.0:
+		return false ## High lobs drift too far for a chance shot.
+	var v := _player.velocity
+	if Vector2(v.x, v.z).length() < 5.0:
+		return false ## No lead to speak of — the cadence taps cover this.
+	var fall := sqrt(2.0 * maxf(_player.position.y - 1.5, 0.0) / 12.0)
+	var impact := Vector2(_player.position.x, _player.position.z) + Vector2(v.x, v.z) * fall
+	for car in _cars.living_cars():
+		var spot := Vector2(car.global_position.x, car.global_position.z) \
+				+ Vector2(car.velocity.x, car.velocity.z) * fall
+		if impact.distance_to(spot) < 2.2:
 			return true
 	return false
 

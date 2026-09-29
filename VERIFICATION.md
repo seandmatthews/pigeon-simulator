@@ -79,6 +79,8 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | tourist_splat_panics_scores | a real lobbed splat panics its tourist (sprint + arms) and fires the splatted score event; a sideways hit makes the panic flee along the impact's horizontal mirror | T-007 |
 | tourist_buzz_flinch | a slow pass through the buzz zone earns nothing; a fast one earns a flinch duck, never a panic | T-007 |
 | tourists_recycle_around_player | moving the player recycles the same tourist nodes into the spawn band around the new position | T-007 |
+| cars_traffic_loops_blocks | 20 traffic cars loop their block rings at lane speed — every car covers ground, the fleet rounds corners, no two cars ever overlap — while the parked fleet sits exactly where it was seeded | T-008 |
+| car_splat_honk_and_continue | a parked car takes a real lobbed splat (honk + score event relayed, stays parked) and a traffic car hit through the same duck-typed entry keeps driving its loop | T-008 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -88,7 +90,11 @@ roof stays under 18.3 m, the pilot's floor is 23 m), flap-climb, bank, a short
 dive pulse that only starts high enough to stay over the roofs, pull-up, glide,
 and airborne poop taps (T-006 — every 2 s in flight the pilot lobs a real
 dropping; grounded taps are skipped; since T-007 it pulls the trigger early
-whenever a strolling tourist lines up under the predicted impact point).
+whenever a strolling tourist lines up under the predicted impact point, and
+since T-008 also for cars — same prediction, wider tolerance, because cars are
+the deliberately easier target). Cars themselves are live in the run: 20 traffic
+cars loop the ring roads and 16 sit parked at curbs, all visible in the
+screenshots.
 Below the cruise floor the pilot climbs
 hard while circling the spawn plaza — the one spot the generator guarantees is
 clear of buildings — and beyond 60 m from the plaza it steers home. From 11 s in
@@ -98,7 +104,8 @@ waddle across the pavement, take-off. While landed it waddles toward the
 nearest breadcrumb and pecks it up when it reaches one (T-005) — the DONE line
 reports the hunger bar, how many crumbs were eaten, how many poop splats
 landed, how many tourists are alive and how many took a splat (`panics`,
-T-007). Saves a screenshot every 5 s to `.godot/autoplay/`:
+T-007), and how many car honks the run earned (`honks`, T-008). Saves a
+screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
 godot --path . res://tests/autoplay.tscn
@@ -123,7 +130,7 @@ Keep this table in sync with `project.godot` and `README.md`:
 | W / S | pitch up / down · waddle fwd / back while grounded |
 | A / D | turn left / right · turn while waddling |
 | Space | flap · takes off when grounded |
-| F | poop — lobs a splat dropping while airborne (T-006) |
+| F | poop — lobs a splat dropping while airborne (T-006) · a direct hit panics a tourist (T-007) or honks a car for 30 pts (T-008) |
 | Shift | boost *(not implemented)* |
 | Esc | pause *(not implemented — T-010)* |
 
@@ -160,6 +167,10 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-007) Manual skill run: splat at least 3 tourists and buzz 3 more; watch one full panic cycle (sprint, fist shake, stroll resumes) through to the tourist eventually recycling
 - [ ] (T-007) A close fast flyby makes nearby tourists flinch (a quick duck) without full panic
 - [ ] (T-007) At full density the framerate holds; tourists only ever appear/disappear well away from the camera
+- [ ] (T-008) Parked cars line the curbs and traffic loops the blocks; cars never overlap or gridlock at corners
+- [ ] (T-008) A splat on a parked car and on a moving car both honk (body flash) and tick the score by 30
+- [ ] (T-008) Cars read as visibly bigger, easier targets than tourists; a moving car is hittable with modest lead
+- [ ] (T-008) Follow one car for a full block circuit — it keeps looping normally after being splatted
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -186,5 +197,10 @@ Playtest checklist (grows as tickets land):
   scenarios) and live in the autoplay city at full density; a human pass over
   the T-007 lines (walk believability, panic readability, splat-the-3-buzz-the-3
   manual run, pop-in visibility) is still pending.
+- Cars (T-008) are machine-verified (Gate 1b traffic/splat-honk scenarios) and
+  live in the autoplay city (the DONE line reports `honks`); the honk is a body
+  flash only until T-012 wires audio; a human pass over the T-008 lines (parked
+  + moving splat, one full traffic circuit, bigger-target readability, corner
+  flow at full density) is still pending.
 - Placeholder art everywhere: the pigeon is a gray sphere and buildings are tinted
   boxes with a procedural window texture (pigeon look tracked in T-011).

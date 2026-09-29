@@ -1,0 +1,78 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://scripts/car.gd" id="1_car"]
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(1.9, 1.45, 4.4)
+
+[sub_resource type="StandardMaterial3D" id="Mat_body"]
+albedo_color = Color(0.85, 0.25, 0.22, 1)
+metallic = 0.3
+roughness = 0.5
+
+[sub_resource type="BoxMesh" id="Mesh_body"]
+material = SubResource("Mat_body")
+size = Vector3(1.9, 0.65, 4.4)
+
+[sub_resource type="StandardMaterial3D" id="Mat_cabin"]
+albedo_color = Color(0.2, 0.25, 0.32, 1)
+metallic = 0.4
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="Mesh_cabin"]
+material = SubResource("Mat_cabin")
+size = Vector3(1.7, 0.5, 2.2)
+
+[sub_resource type="StandardMaterial3D" id="Mat_tire"]
+albedo_color = Color(0.12, 0.12, 0.13, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="Mesh_wheel"]
+material = SubResource("Mat_tire")
+size = Vector3(0.25, 0.5, 0.55)
+
+[sub_resource type="BoxShape3D" id="Shape_front"]
+size = Vector3(2.0, 1.6, 6.0)
+
+[node name="Car" type="CharacterBody3D"]
+collision_layer = 8
+collision_mask = 1
+script = ExtResource("1_car")
+
+[node name="Shape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.725, 0)
+shape = SubResource("Shape_body")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, 0)
+mesh = SubResource("Mesh_body")
+
+[node name="Cabin" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0.3)
+mesh = SubResource("Mesh_cabin")
+
+[node name="WheelFL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.25, -1.45)
+mesh = SubResource("Mesh_wheel")
+
+[node name="WheelFR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.25, -1.45)
+mesh = SubResource("Mesh_wheel")
+
+[node name="WheelRL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.25, 1.45)
+mesh = SubResource("Mesh_wheel")
+
+[node name="WheelRR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.25, 1.45)
+mesh = SubResource("Mesh_wheel")
+
+[node name="FrontZone" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 14
+
+[node name="Shape" type="CollisionShape3D" parent="FrontZone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, -5.2)
+shape = SubResource("Shape_front")

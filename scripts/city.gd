@@ -72,6 +72,15 @@ const COLOR_LAMP_GLOW := Color(1.0, 0.9, 0.6)
 @export var bench_chance: float = 0.75 ## Chance each block edge gets a bench.
 @export var bin_chance: float = 0.6 ## Chance each block gets a trash bin.
 
+@export_group("Traffic")
+## Driving-lane center beyond the block edge (m) — ring-road corners sit at
+## this offset. With the 1.9 m car width this keeps ~0.55 m to the parked
+## cars and a ~1.1 m center gap to the oncoming lane.
+@export var traffic_lane_offset: float = 3.5
+## Parking-lane center beyond the block edge (m) — parked cars sit a hand's
+## width off the curb, outside the driving lane.
+@export var parking_offset: float = 1.05
+
 ## Where the pigeon starts: plaza center plus the spawn drop (global coords).
 var spawn_point: Vector3
 ## Hash of the whole generated layout; equal fingerprints mean an identical city.
@@ -214,6 +223,47 @@ func _bread_ring_spots(center: Vector3) -> void:
 			bread_spots.append(center + Vector3(sz, y, sx))
 
 
+## Corner waypoints (city-local) for one block's traffic loop (T-008): the
+## ring road around the block, right-hand traffic. The traversal order turns
+## right at every corner, so of the four loops meeting at an intersection each
+## cuts a disjoint corner (offsets ±traffic_lane_offset sit 3 m apart against
+## a 1.9 m car width) — cross traffic can never meet, it can only queue.
+func traffic_loop(center: Vector3) -> PackedVector3Array:
+	var o := block_size * 0.5 + traffic_lane_offset
+	var y := road_slab_height
+	return PackedVector3Array([
+		center + Vector3(o, y, o),
+		center + Vector3(-o, y, o),
+		center + Vector3(-o, y, -o),
+		center + Vector3(o, y, -o),
+	])
+
+
+## Eight curb parking spots (city-local) for one block (T-008): two per edge,
+## well clear of the intersection corners, each yaw-aligned with the adjacent
+## driving lane so parked cars face with the traffic. Purely derived from the
+## layout — no RNG — so it is deterministic per seed.
+func parking_spots(center: Vector3) -> Array[Dictionary]:
+	var edge := block_size * 0.5
+	var p := edge + parking_offset
+	var y := road_slab_height
+	var spots: Array[Dictionary] = []
+	for a: float in [edge * 0.5, -edge * 0.5]:
+		spots.append({ ## South edge — its lane flows -x.
+			"pos": center + Vector3(a, y, p), "yaw": PI * 0.5,
+		})
+		spots.append({ ## North edge — its lane flows +x.
+			"pos": center + Vector3(a, y, -p), "yaw": -PI * 0.5,
+		})
+		spots.append({ ## East edge — its lane flows +z.
+			"pos": center + Vector3(p, y, a), "yaw": PI,
+		})
+		spots.append({ ## West edge — its lane flows -z.
+			"pos": center + Vector3(-p, y, a), "yaw": 0.0,
+		})
+	return spots
+
+
 ## One shared unit BoxMesh per visual key; instances scale it via their transform.
 func _make_meshes() -> void:
 	_meshes = {
@@ -256,7 +306,10 @@ func _build_roads() -> void:
 		_add_collider("Roads", v_size, Vector3(c, road_slab_height * 0.5, 0.0))
 		var h_size := Vector3(city_span, road_slab_height, road_width)
 		_add_mm("road", _box_xf(Vector3(0.0, road_slab_height * 0.5 - 0.005, c), h_size))
-		_add_collider("Roads", h_size, Vector3(0.0, road_slab_height * 0.5 - 0.005, c))
+		## Colliders stay flush with the vertical slabs: the 5 mm visual offset
+		## (z-fighting) must not become a physical lip at every crossing — the
+		## box-shaped car collider (T-008) can't climb even a 5 mm seam.
+		_add_collider("Roads", h_size, Vector3(0.0, road_slab_height * 0.5, c))
 		var z := -half + 3.0
 		while z < half - 3.0:
 			if not _near_road(z, centers):

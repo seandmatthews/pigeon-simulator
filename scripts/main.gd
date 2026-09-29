@@ -15,6 +15,7 @@ const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off · walk
 @onready var hunger: Hunger = $Hunger
 @onready var bread_spawner: BreadSpawner = $BreadSpawner
 @onready var tourist_spawner: TouristSpawner = $TouristSpawner
+@onready var car_spawner: CarSpawner = $CarSpawner
 
 var score: int = 0
 
@@ -23,6 +24,7 @@ func _ready() -> void:
 	player.grounding_changed.connect(_on_grounding_changed)
 	bread_spawner.crumb_eaten.connect(hunger.eat)
 	tourist_spawner.tourist_splatted.connect(_on_tourist_splatted)
+	car_spawner.car_splatted.connect(_on_car_splatted)
 	hunger.changed.connect(_on_hunger_changed)
 	hunger.game_over.connect(_on_game_over)
 	## Spawn on the road corridor by the plaza (T-004): a short drop onto the
@@ -43,6 +45,11 @@ func _on_hunger_changed(value: float, max_value: float) -> void:
 ## HUD; T-009 replaces this with the real score table and combos.
 func _on_tourist_splatted(_tourist: Tourist) -> void:
 	score += 1
+
+## The car splat's 30 base points straight from the DESIGN table (pillar 3:
+## cars are the cheap target); T-009 folds this into the real table.
+func _on_car_splatted(car: Car) -> void:
+	score += car.points_value
 
 ## T-010 replaces this with the real game-over screen; until then the signal
 ## still fires exactly once at zero and the HUD says so.

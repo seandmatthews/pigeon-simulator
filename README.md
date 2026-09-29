@@ -7,8 +7,9 @@ survive, and earn points by pooping on tourists and their cars.
 > gray-box city, lands on roofs, sidewalks and the spawn plaza, waddles around,
 > runs on a hunger clock fed by breadcrumbs — land and walk into a crumb to eat —
 > and lobs poop splats over the city with **F** while flying, past the tourists
-> strolling the sidewalks (a direct hit triggers a panic). The roadmap lives in
-> [`docs/tickets/`](docs/tickets/README.md).
+> strolling the sidewalks (a direct hit triggers a panic) and the cars parked at
+> the curbs and looping the blocks (a direct hit earns a honk and 30 points).
+> The roadmap lives in [`docs/tickets/`](docs/tickets/README.md).
 
 ## Run it
 
@@ -23,7 +24,7 @@ survive, and earn points by pooping on tourists and their cars.
 | W / S | pitch up / down · waddle fwd / back while grounded |
 | A / D | turn left / right · turn while waddling |
 | Space | flap · takes off when grounded |
-| F | poop — lobs a splat dropping while airborne · a direct hit panics a tourist *(cars: T-008)* |
+| F | poop — lobs a splat dropping while airborne · a direct hit panics a tourist · honks a car (30 pts) |
 | Shift | boost *(not implemented yet)* |
 | Esc | pause *(not implemented yet)* |
 

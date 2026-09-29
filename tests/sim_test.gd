@@ -22,6 +22,7 @@ var _game_over_fires: int = 0 ## Signal counters survive inside lambdas only as 
 var _dropped: Array[Poop] = [] ## Poops the test player released (T-006).
 var _splat_events: Array[Dictionary] = [] ## {target, velocity} per splatted hit of the poop under test.
 var _tourist_relay: int = 0 ## tourist_splatted relays caught from the spawner under test (T-007).
+var _car_relay: int = 0 ## car_splatted relays caught from the spawner under test (T-008).
 
 
 func _ready() -> void:
@@ -91,6 +92,8 @@ func _run_scenarios() -> void:
 	await _scenario_tourist_splat()
 	await _scenario_tourist_buzz()
 	await _scenario_tourists_recycle()
+	await _scenario_cars_traffic()
+	await _scenario_car_splat_honk()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -1006,4 +1009,183 @@ func _scenario_tourists_recycle() -> void:
 			full and after.size() == spawner.target_count and reused and placed,
 			"full=%s count %d reused=%s placed=%s" % [
 					full, after.size(), reused, placed])
+	spawner.free()
+
+
+## --- scenarios (T-008 cars) --------------------------------------------------
+
+
+## Full density: the traffic fleet loops its block rings at lane speed — every
+## car covers ground (nothing gridlocks), the fleet rounds corners (waypoints
+## advance, the right-turn-only cuts work) and no two cars ever overlap —
+## while the parked fleet sits exactly where it was seeded. The test pigeon
+## settles GROUNDED on the plaza first: a standing bird pins the spawner's
+## recycle anchor in place, so nothing recycles mid-scenario and a parked car
+## drifting would be a real bug, not the anchor wandering.
+func _scenario_cars_traffic() -> void:
+	await _set_up(true, _city.position + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	add_child(spawner)
+	await _wait_frames(4)
+	var cars := spawner.living_cars()
+	var moving: Array[Car] = []
+	var parked: Array[Car] = []
+	for car in cars:
+		if car.mode == Car.Mode.TRAFFIC:
+			moving.append(car)
+		else:
+			parked.append(car)
+	if cars.is_empty() or moving.size() != spawner.target_moving \
+			or parked.size() != spawner.target_parked or cars[0].collision_layer != 8:
+		_check("cars_traffic_loops_blocks", false,
+				"fleet %d (moving %d, parked %d, want %d/%d), layer %s" % [
+						cars.size(), moving.size(), parked.size(),
+						spawner.target_moving, spawner.target_parked,
+						str(cars[0].collision_layer) if not cars.is_empty() else "?"])
+		spawner.free()
+		return
+	var last: Array[Vector3] = []
+	var start: Array[Vector3] = []
+	var travel: Array[float] = []
+	var corners: Array[int] = []
+	var last_index: Array[int] = []
+	for car in cars:
+		last.append(car.global_position)
+		start.append(car.global_position)
+		travel.append(0.0)
+		corners.append(0)
+		last_index.append(car.waypoint_index)
+	var min_gap := 100.0
+	var gap_pair := Vector2i(-1, -1)
+	for f in 480: ## 8 s of traffic.
+		await get_tree().physics_frame
+		for i in cars.size():
+			var car: Car = cars[i]
+			if not is_instance_valid(car):
+				continue
+			travel[i] += last[i].distance_to(car.global_position)
+			if _debug and last[i].distance_to(car.global_position) > 5.0:
+				_dbg("car %d TELEPORTED %s -> %s (player at %s)" % [
+						i, last[i], car.global_position, _player.global_position])
+			last[i] = car.global_position
+			if car.waypoint_index != last_index[i]:
+				corners[i] += 1
+				last_index[i] = car.waypoint_index
+		if f % 8 == 0: ## Sampled pairwise gaps — no transient car overlap.
+			for i in cars.size():
+				for j in range(i + 1, cars.size()):
+					var a := cars[i].global_position
+					var b := cars[j].global_position
+					var gap := Vector2(a.x - b.x, a.z - b.z).length()
+					if gap < min_gap:
+						min_gap = gap
+						gap_pair = Vector2i(i, j)
+	var cruised := true
+	var finite := true
+	var corner_sum := 0
+	for i in moving.size():
+		## Path length over the run, not end speed: a car queued behind another
+		## still accumulates travel — only a gridlock leaves it short.
+		cruised = cruised and travel[i] > 8.0
+		finite = finite and moving[i].velocity.is_finite()
+		corner_sum += corners[i]
+	var parked_ok := true
+	for i in parked.size():
+		var p := moving.size() + i
+		parked_ok = parked_ok and travel[p] < 0.05 \
+				and start[p].distance_to(parked[i].global_position) < 0.05
+		if _debug and (travel[p] >= 0.05 or start[p].distance_to(parked[i].global_position) >= 0.05):
+			_dbg("parked %d moved: travel %.3f drift %.3f start %s now %s" % [
+					i, travel[p], start[p].distance_to(parked[i].global_position),
+					start[p], parked[i].global_position])
+	if _debug:
+		for i in moving.size():
+			_dbg("car %d: travel %.1f corners %d pos %s block %s" % [
+					i, travel[i], corners[i], moving[i].global_position,
+					moving[i].block_center])
+			if travel[i] < 8.0:
+				var self_hits := 0
+				for body in moving[i].get_node("FrontZone").get_overlapping_bodies():
+					if body == moving[i]:
+						self_hits += 1
+					else:
+						_dbg("  car %d blocked by %s (%s) at %s layer %d" % [
+								i, body.name, body.get_class(), body.global_position,
+								body.collision_layer])
+				_dbg("  car %d mode=%d vel=%s yaw=%.2f wp=%d/%d target=%s blocker_d=%.2f self_in_zone=%d" % [
+						i, moving[i].mode, moving[i].velocity, moving[i].rotation.y,
+						moving[i].waypoint_index, moving[i].path.size(),
+						moving[i].path[moving[i].waypoint_index] if moving[i].path.size() > 0 else Vector3.INF,
+						moving[i]._blocker_distance(), self_hits])
+		_dbg("min gap %.2f between %d and %d" % [min_gap, gap_pair.x, gap_pair.y])
+	_check("cars_traffic_loops_blocks",
+			cruised and finite and corner_sum >= moving.size() and parked_ok and min_gap > 2.0,
+			"moving %d cruised=%s finite=%s corners=%d (want ≥%d) parked_ok=%s min gap %.2f m (cars %d/%d)" % [
+					moving.size(), cruised, finite, corner_sum, moving.size(),
+					parked_ok, min_gap, gap_pair.x, gap_pair.y])
+	spawner.free()
+
+
+## A parked car takes a real lobbed splat — the duck-typed honk fires, the
+## score event relays and the car stays parked. A traffic car hit through the
+## same entry keeps driving its loop — getting splatted never derails traffic.
+func _scenario_car_splat_honk() -> void:
+	_dropped.clear()
+	_splat_events.clear()
+	_car_relay = 0
+	## The pigeon grounds on the plaza first so the spawner's recycle anchor
+	## stays put while the cars seed and drive.
+	await _set_up(true, _city.position + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	spawner.target_moving = 1
+	spawner.target_parked = 1
+	spawner.spawn_min_dist = 0.0
+	spawner.spawn_max_dist = 10.0 ## Pin both cars to the plaza block, under the drop.
+	add_child(spawner)
+	await _wait_frames(4)
+	spawner.car_splatted.connect(func(_car: Car) -> void: _car_relay += 1)
+	var parked: Car = null
+	var traffic: Car = null
+	for car in spawner.living_cars():
+		if car.mode == Car.Mode.PARKED:
+			parked = car
+		else:
+			traffic = car
+	if parked == null or traffic == null:
+		_check("car_splat_honk_and_continue", false,
+				"parked=%s traffic=%s" % [parked != null, traffic != null])
+		spawner.free()
+		return
+	var parked_start := parked.global_position
+	await _set_up(true, parked_start + Vector3(0.0, 5.0, 0.0), Vector3.ZERO)
+	await _tap("poop")
+	await _wait_frames(2)
+	if _dropped.size() == 1:
+		_dropped[0].splatted.connect(_on_test_splatted)
+	await _wait_frames(120) ## The drop falls ~0.5 s; margin for the honk.
+	var fired: bool = _splat_events.size() == 1 and _splat_events[0].target == parked
+	var parked_honked := parked.honk_count == 1
+	var stayed := parked.global_position.distance_to(parked_start) < 0.05
+	await _set_up(true, _city.position + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90) ## Back to the plaza — off the ring, anchor pinned.
+	traffic.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The same duck-typed entry the dropping calls.
+	var drove := 0.0
+	var last := traffic.global_position
+	for _i in 120: ## 2 s after the splat.
+		await get_tree().physics_frame
+		drove += last.distance_to(traffic.global_position)
+		last = traffic.global_position
+	var traffic_honked := traffic.honk_count == 1
+	var kept_driving := drove > 2.0 and traffic.velocity.is_finite()
+	_check("car_splat_honk_and_continue",
+			fired and parked_honked and stayed and traffic_honked and _car_relay == 2
+					and kept_driving,
+			"parked fired=%s honk=%d stayed=%s · traffic honked=%s relay=%d drove %.1f m after" % [
+					fired, parked.honk_count, stayed, traffic_honked, _car_relay, drove])
 	spawner.free()
