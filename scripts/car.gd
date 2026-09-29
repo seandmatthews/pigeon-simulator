@@ -9,11 +9,12 @@ extends CharacterBody3D
 ## at the curb (`City.parking_spots`) and never move. Either mode takes a poop
 ## splat through the duck-typed `on_splatted` convention (T-006): the car
 ## honks — a bright body flash until T-012 wires the horn — and fires
-## `splatted`, the cheap-points score event (30 base per DESIGN pillar 3) that
-## the spawner relays. Getting splatted never derails the drive.
+## `splatted`, the cheap-points score event (30 base via the Game autoload's
+## table, DESIGN pillar 3) that the spawner relays. Getting splatted never
+## derails the drive.
 
-## Fired on every splat this car takes — the spawner relays it (Main's score
-## stub adds `points_value` today, T-009's real table later).
+## Fired on every splat this car takes — the spawner relays it into the Game
+## autoload's score table (T-009).
 signal splatted(car: Car)
 
 ## PARKED sits at the curb · TRAFFIC loops its block ring.
@@ -39,7 +40,6 @@ const HONK_TINT := Color(1.0, 0.85, 0.2)
 @export var rejoin_dist: float = 5.0 ## Distance (m) down the new leg of the on-lane rejoin point steered through after each corner.
 
 @export_group("Honk")
-@export var points_value: int = 30 ## Base score per splat — cars are the deliberately cheap target (DESIGN pillar 3).
 @export var honk_flash_seconds: float = 0.8 ## Seconds the honk flash stays lit before fading.
 
 ## Ring-road corner loop (global coords) this car patrols — assigned by the

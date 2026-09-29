@@ -76,11 +76,14 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | poop_splats_wall | a wall hit sticks a splat facing along the wall's horizontal normal | T-006 |
 | poop_event_reaches_any_body | a plain body on the hit layers receives the hit duck-typed (on_splatted) with no player import anywhere in poop.gd | T-006 |
 | tourists_walk_loose_groups | 18 tourists stroll their sidewalk loops at slab level, seeded in loose groups | T-007 |
-| tourist_splat_panics_scores | a real lobbed splat panics its tourist (sprint + arms) and fires the splatted score event; a sideways hit makes the panic flee along the impact's horizontal mirror | T-007 |
+| tourist_splat_panics_scores | a real lobbed splat panics its tourist (sprint + arms) and fires the splatted score event, scored end to end through the Game autoload (100, then the chain's ×2 → 300); a sideways hit makes the panic flee along the impact's horizontal mirror | T-007 |
 | tourist_buzz_flinch | a slow pass through the buzz zone earns nothing; a fast one earns a flinch duck, never a panic | T-007 |
 | tourists_recycle_around_player | moving the player recycles the same tourist nodes into the spawn band around the new position | T-007 |
 | cars_traffic_loops_blocks | 20 traffic cars loop their block rings at lane speed — every car covers ground, the fleet rounds corners, no two cars ever overlap — while the parked fleet sits exactly where it was seeded | T-008 |
-| car_splat_honk_and_continue | a parked car takes a real lobbed splat (honk + score event relayed, stays parked) and a traffic car hit through the same duck-typed entry keeps driving its loop | T-008 |
+| car_splat_honk_and_continue | a parked car takes a real lobbed splat (honk + score event relayed, stays parked, 30 scored through the Game autoload; the synthetic traffic hit is the ×2 → 90) and a traffic car hit through the same duck-typed entry keeps driving its loop | T-008 |
+| score_combo_style_values | the Game autoload pays DESIGN values (tourist 100 · car 30), the chain escalates ×1 → ×2 → ×3 across target kinds and resets on landing and on the 20 s window, and the +50% style bonus demands a release that is fast, low and fresh | T-009 |
+| score_high_score_persists | beating the record writes user:// at once and a fresh Game loads it back | T-009 |
+| score_popup_floats_and_fades | the world-space popup shows "+100 ×2" at the hit position, floats up, fades and cleans itself up | T-009 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -92,7 +95,11 @@ and airborne poop taps (T-006 — every 2 s in flight the pilot lobs a real
 dropping; grounded taps are skipped; since T-007 it pulls the trigger early
 whenever a strolling tourist lines up under the predicted impact point, and
 since T-008 also for cars — same prediction, wider tolerance, because cars are
-the deliberately easier target). Cars themselves are live in the run: 20 traffic
+the deliberately easier target; since T-009 the ground-visit window raises the
+lead-shot ceiling to 18 m — the descent is a steady approach, so the
+fall-time prediction holds there — and a car-length pursuit trigger joins
+them, so target hits stay chance shots with better odds). Cars themselves are
+live in the run: 20 traffic
 cars loop the ring roads and 16 sit parked at curbs, all visible in the
 screenshots.
 Below the cruise floor the pilot climbs
@@ -104,7 +111,10 @@ waddle across the pavement, take-off. While landed it waddles toward the
 nearest breadcrumb and pecks it up when it reaches one (T-005) — the DONE line
 reports the hunger bar, how many crumbs were eaten, how many poop splats
 landed, how many tourists are alive and how many took a splat (`panics`,
-T-007), and how many car honks the run earned (`honks`, T-008). Saves a
+T-007), how many car honks the run earned (`honks`, T-008), and the score the
+run built plus the persisted high score (`score` / `high`, T-009 — every real
+splat and honk now pays the DESIGN table through the Game autoload, with
+floating "+100 ×2" popups at the hits). Saves a
 screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
@@ -171,6 +181,10 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-008) A splat on a parked car and on a moving car both honk (body flash) and tick the score by 30
 - [ ] (T-008) Cars read as visibly bigger, easier targets than tourists; a moving car is hittable with modest lead
 - [ ] (T-008) Follow one car for a full block circuit — it keeps looping normally after being splatted
+- [ ] (T-009) Splats pay the DESIGN points — 100 per tourist, 30 per car — and a popup at the hit reads clearly at flight speed
+- [ ] (T-009) Chained hits without landing escalate ×2, ×3… and reset when you land or after ~20 s
+- [ ] (T-009) A fast low dive hit pays the +50% style bonus — visible as a bigger popup number
+- [ ] (T-009) Beating the high score, then quitting and relaunching, shows the record survived
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -202,5 +216,9 @@ Playtest checklist (grows as tickets land):
   flash only until T-012 wires audio; a human pass over the T-008 lines (parked
   + moving splat, one full traffic circuit, bigger-target readability, corner
   flow at full density) is still pending.
+- Scoring & combos (T-009) are machine-verified (Gate 1b values/combo/style,
+  high-score persistence and popup scenarios) and live in the autoplay run (the
+  DONE line reports `score`/`high`); a human pass over the T-009 lines (popup
+  readability at speed, combo rhythm, style-bonus feel) is still pending.
 - Placeholder art everywhere: the pigeon is a gray sphere and buildings are tinted
   boxes with a procedural window texture (pigeon look tracked in T-011).

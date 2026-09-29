@@ -8,7 +8,10 @@ survive, and earn points by pooping on tourists and their cars.
 > runs on a hunger clock fed by breadcrumbs — land and walk into a crumb to eat —
 > and lobs poop splats over the city with **F** while flying, past the tourists
 > strolling the sidewalks (a direct hit triggers a panic) and the cars parked at
-> the curbs and looping the blocks (a direct hit earns a honk and 30 points).
+> the curbs and looping the blocks (a direct hit earns a honk). Every splat
+> scores: tourists 100, cars 30, consecutive hits without landing multiply
+> (×1 → ×2 → ×3…), fast low dive hits pay +50%, and the high score persists
+> between runs.
 > The roadmap lives in [`docs/tickets/`](docs/tickets/README.md).
 
 ## Run it

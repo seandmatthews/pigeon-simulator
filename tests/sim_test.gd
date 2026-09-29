@@ -9,7 +9,12 @@ extends Node3D
 const PLAYER_SCENE: PackedScene = preload("res://scenes/player.tscn")
 const CITY_SCENE: PackedScene = preload("res://scenes/city.tscn")
 const CRUMB_SCENE: PackedScene = preload("res://scenes/bread_crumb.tscn")
+const POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const SPLAT_TARGET_SCRIPT := preload("res://tests/splat_target.gd")
+
+## The Game autoload's high score file is redirected here for the scoring
+## scenarios, so a sim run never touches the real record in user://.
+const SIM_SAVE_PATH := "user://sim_highscore.cfg"
 
 ## Set SIM_DEBUG=1 to print per-scenario trajectory samples.
 var _debug: bool = OS.get_environment("SIM_DEBUG") == "1"
@@ -23,9 +28,14 @@ var _dropped: Array[Poop] = [] ## Poops the test player released (T-006).
 var _splat_events: Array[Dictionary] = [] ## {target, velocity} per splatted hit of the poop under test.
 var _tourist_relay: int = 0 ## tourist_splatted relays caught from the spawner under test (T-007).
 var _car_relay: int = 0 ## car_splatted relays caught from the spawner under test (T-008).
+var _score_events: Array[Dictionary] = [] ## hit_scored payloads caught from the Game autoload (T-009).
 
 
 func _ready() -> void:
+	## Redirect the Game autoload's high-score file for the WHOLE run: several
+	## scenarios score real hits through it, and none of them may ever touch
+	## the player's actual record in user://highscore.cfg.
+	Game.save_path = SIM_SAVE_PATH
 	_build_world()
 	_player = PLAYER_SCENE.instantiate()
 	add_child(_player)
@@ -94,6 +104,9 @@ func _run_scenarios() -> void:
 	await _scenario_tourists_recycle()
 	await _scenario_cars_traffic()
 	await _scenario_car_splat_honk()
+	await _scenario_scoring_values()
+	await _scenario_high_score_persists()
+	await _scenario_score_popup()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -903,6 +916,12 @@ func _scenario_tourist_splat() -> void:
 		return
 	var tourist: Tourist = tourists[0]
 	spawner.tourist_splatted.connect(func(_t: Tourist) -> void: _tourist_relay += 1)
+	## T-009: Main's exact wiring — the spawner relay feeds the Game autoload —
+	## so the real lob below scores end to end: the first (real) hit pays 100
+	## at ×1 and the synthetic second hit is the chain's ×2 → 300 total.
+	Game.reset_run()
+	spawner.tourist_splatted.connect(func(t: Tourist) -> void:
+			Game.add_tourist_hit(t.global_position))
 	tourist.path = PackedVector3Array() ## Freeze the target under the drop.
 	await _set_up(true, tourist.global_position + Vector3(0.0, 4.0, 0.0), Vector3.ZERO)
 	await _tap("poop")
@@ -929,9 +948,11 @@ func _scenario_tourist_splat() -> void:
 	await _wait_frames(2)
 	var flees_impact := tourist._panic_dir.dot(Vector3(-1.0, 0.0, 0.0)) > 0.95
 	_check("tourist_splat_panics_scores",
-			dropped and fired and _tourist_relay == 2 and sprinted and flees_impact,
-			"dropped=%s fired=%s relay=%d panicked=%s sprint %.1f m/s flees=%s" % [
-					dropped, fired, _tourist_relay, panicked, max_hspeed, flees_impact])
+			dropped and fired and _tourist_relay == 2 and sprinted and flees_impact
+					and Game.score == 300,
+			"dropped=%s fired=%s relay=%d panicked=%s sprint %.1f m/s flees=%s score=%d" % [
+					dropped, fired, _tourist_relay, panicked, max_hspeed, flees_impact,
+					Game.score])
 	spawner.free()
 
 
@@ -1150,6 +1171,12 @@ func _scenario_car_splat_honk() -> void:
 	add_child(spawner)
 	await _wait_frames(4)
 	spawner.car_splatted.connect(func(_car: Car) -> void: _car_relay += 1)
+	## T-009: Main's exact wiring on the car relay too — the real lob on the
+	## parked car pays 30 at ×1 and the synthetic traffic hit is the chain's
+	## ×2 → 90 total through the Game autoload.
+	Game.reset_run()
+	spawner.car_splatted.connect(func(car: Car) -> void:
+			Game.add_car_hit(car.global_position))
 	var parked: Car = null
 	var traffic: Car = null
 	for car in spawner.living_cars():
@@ -1185,7 +1212,106 @@ func _scenario_car_splat_honk() -> void:
 	var kept_driving := drove > 2.0 and traffic.velocity.is_finite()
 	_check("car_splat_honk_and_continue",
 			fired and parked_honked and stayed and traffic_honked and _car_relay == 2
-					and kept_driving,
-			"parked fired=%s honk=%d stayed=%s · traffic honked=%s relay=%d drove %.1f m after" % [
-					fired, parked.honk_count, stayed, traffic_honked, _car_relay, drove])
+					and kept_driving and Game.score == 90,
+			"parked fired=%s honk=%d stayed=%s · traffic honked=%s relay=%d drove %.1f m after score=%d" % [
+					fired, parked.honk_count, stayed, traffic_honked, _car_relay, drove,
+					Game.score])
 	spawner.free()
+
+
+## --- scenarios (T-009 scoring & combos) -------------------------------------
+
+
+## The harness listens to every hit the Game autoload resolves.
+func _on_test_hit_scored(points: int, multiplier: int, pos: Vector3, style: bool) -> void:
+	_score_events.append({"points": points, "multiplier": multiplier, "pos": pos, "style": style})
+
+
+## The scoring state machine (T-009), driven straight through the Game
+## autoload's public surface: DESIGN values (tourist 100, car 30), the chain
+## escalating ×1 → ×2 → ×3 across target kinds, landing and window resets, and
+## the +50% style bonus gated on a release that is fast, low and fresh.
+func _scenario_scoring_values() -> void:
+	Game.save_path = SIM_SAVE_PATH ## Never touch the real record.
+	Game.reset_run()
+	Game.high_score = 0
+	_score_events.clear()
+	Game.hit_scored.connect(_on_test_hit_scored)
+	var p1: int = Game.add_tourist_hit(Vector3(1.0, 0.5, 2.0)) ## No release recorded yet — plain ×1.
+	var p2: int = Game.add_car_hit(Vector3(2.0, 0.5, 3.0)) ## The chain crosses target kinds: 30 × 2.
+	var p3: int = Game.add_tourist_hit(Vector3(3.0, 0.5, 4.0)) ## ×3.
+	var chain := p1 == 100 and p2 == 60 and p3 == 300 and Game.score == 460
+	Game.on_grounding_changed(true) ## Landing always resets the chain.
+	var p4: int = Game.add_car_hit(Vector3.ZERO) ## Back to base: the DESIGN car value, ×1.
+	var landed := p4 == 30 and Game.score == 490
+	Game.on_poop_released(Vector3(0.0, 3.0, 0.0), Vector3(0.0, 0.0, -18.0)) ## Fast AND low.
+	var p5: int = Game.add_tourist_hit(Vector3.ZERO) ## 100 × 2 × 1.5.
+	var p6: int = Game.add_tourist_hit(Vector3.ZERO) ## 100 × 3 × 1.5.
+	var styled := p5 == 300 and p6 == 450
+	Game.on_poop_released(Vector3(0.0, 10.0, 0.0), Vector3(0.0, 0.0, -18.0)) ## Fast but high.
+	var p7: int = Game.add_tourist_hit(Vector3.ZERO)
+	Game.on_poop_released(Vector3(0.0, 3.0, 0.0), Vector3(0.0, 0.0, -5.0)) ## Low but slow.
+	var p8: int = Game.add_tourist_hit(Vector3.ZERO)
+	var gated := p7 == 400 and p8 == 500 ## Neither gate alone earns the bonus.
+	Game.style_release_window = 0.4
+	Game.on_poop_released(Vector3(0.0, 3.0, 0.0), Vector3(0.0, 0.0, -18.0))
+	await _wait_frames(35) ## 0.58 s — the release goes stale.
+	var p9: int = Game.add_tourist_hit(Vector3.ZERO)
+	Game.style_release_window = 3.0
+	var stale_ok := p9 == 600 ## ×6, no style — too old to count as "the dive".
+	Game.combo_window = 0.2
+	await _wait_frames(15) ## 0.25 s — the chain times out.
+	Game.combo_window = 20.0
+	Game.on_poop_released(Vector3(0.0, 3.0, 0.0), Vector3(0.0, 0.0, -18.0)) ## A fresh dive.
+	var p10: int = Game.add_tourist_hit(Vector3.ZERO) ## The reset chain's first hit, styled: 150.
+	var timed_out := p10 == 150 and Game.combo_multiplier() == 1
+	var events_ok: bool = _score_events.size() == 10 \
+			and _score_events[0].points == 100 and _score_events[0].multiplier == 1 \
+			and _score_events[0].pos == Vector3(1.0, 0.5, 2.0) \
+			and _score_events[4].style and _score_events[5].style \
+			and not _score_events[6].style and not _score_events[8].style \
+			and _score_events[9].style
+	Game.hit_scored.disconnect(_on_test_hit_scored)
+	_check("score_combo_style_values",
+			chain and landed and styled and gated and stale_ok and timed_out and events_ok
+					and Game.score == 2890 and Game.high_score == 2890,
+			"chain=%s landed=%s styled=%s gated=%s stale=%s timed_out=%s events=%s score=%d high=%d" % [
+					chain, landed, styled, gated, stale_ok, timed_out, events_ok,
+					Game.score, Game.high_score])
+
+
+## The high score (T-009) persists: beating the record writes user:// at once
+## (an Alt-F4 keeps it), and a fresh Game — what a relaunch constructs — loads
+## it back.
+func _scenario_high_score_persists() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SIM_SAVE_PATH))
+	Game.reset_run()
+	Game.high_score = 0
+	Game.add_tourist_hit(Vector3.ZERO)
+	var wrote := Game.high_score == 100 and FileAccess.file_exists(SIM_SAVE_PATH)
+	Game.reset_run() ## A fresh boot starts scoreless…
+	Game.high_score = 0
+	Game.load_high_score() ## …but reads the persisted record back.
+	var reloaded := Game.high_score == 100
+	_check("score_high_score_persists", wrote and reloaded,
+			"wrote=%s reloaded=%s (high %d)" % [wrote, reloaded, Game.high_score])
+
+
+## The popup (T-009): the ticket's "+100 ×2" format at the hit position, then
+## float up, fade out and clean itself up after its lifetime.
+func _scenario_score_popup() -> void:
+	var popup: ScorePopup = POPUP_SCENE.instantiate()
+	popup.lifetime = 0.5 ## Time-compressed.
+	popup.setup(100, 2, Vector3(3.0, 2.0, 4.0))
+	add_child(popup) ## _ready applies the setup and starts the tween from _pos.
+	var text_ok := popup.label.text == "+100 ×2"
+	var at_pos := popup.global_position.distance_to(Vector3(3.0, 2.0, 4.0)) < 0.01
+	await _wait_frames(16) ## 0.27 s in — risen, fade under way.
+	var risen := popup.global_position.y > 2.6
+	var fading := popup.label.modulate.a < 1.0
+	await _wait_frames(30) ## Past the 0.5 s lifetime.
+	var cleaned := not is_instance_valid(popup)
+	_check("score_popup_floats_and_fades", text_ok and at_pos and risen and fading and cleaned,
+			"text=%s at_pos=%s risen=%s fading=%s cleaned=%s" % [
+					text_ok, at_pos, risen, fading, cleaned])

@@ -3,9 +3,10 @@ extends Node
 ## The survival clock (T-005). Hunger drains every physics tick — faster for a
 ## flap-paced climb, slowest while resting on the ground — and hits game over
 ## exactly once at zero (T-010 turns the signal into a screen). Eating bread
-## (T-005 crumbs) restores a chunk. Lives on Main as a child node until the
-## Game autoload arrives with the scoring ticket (T-009); the sim harness
-## instantiates it directly.
+## (T-005 crumbs) restores a chunk. Owned by the Game autoload since T-009
+## (score, combo and high score live there too); Main and the sim harness
+## attach a player to it — attach_player() for late wiring, or plain
+## assignment before add_child.
 
 ## Emitted on every value change — the HUD bar (and later the game-over flow)
 ## listens to this.
@@ -51,8 +52,17 @@ func _ready() -> void:
 	if player == null and not player_path.is_empty():
 		player = get_node(player_path) as Player
 	if player != null:
-		player.flapped.connect(_on_player_flapped)
+		attach_player(player)
 	value = start_value
+
+
+## Hooks the drain clock up to a player — safe to call again (idempotent) and
+## safe to call after _ready, which is how Main attaches the player to the
+## autoload-owned clock.
+func attach_player(new_player: Player) -> void:
+	player = new_player
+	if new_player != null and not new_player.flapped.is_connected(_on_player_flapped):
+		new_player.flapped.connect(_on_player_flapped)
 
 
 func _physics_process(delta: float) -> void:

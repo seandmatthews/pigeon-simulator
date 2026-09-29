@@ -15,7 +15,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-006 | [Poop mechanic](T-006-poop-mechanic.md) | P0 | M | T-001 | done |
 | T-007 | [Tourists v1](T-007-tourists.md) | P0 | M | T-004, T-006 | done |
 | T-008 | [Cars v1](T-008-cars.md) | P0 | M | T-004, T-006 | done |
-| T-009 | [Scoring & combos](T-009-scoring-and-combos.md) | P0 | M | T-006, T-007, T-008 | todo |
+| T-009 | [Scoring & combos](T-009-scoring-and-combos.md) | P0 | M | T-006, T-007, T-008 | done |
 | T-010 | [Game flow](T-010-game-flow.md) | P0 | S | T-005 | todo |
 | T-011 | [Pigeon presentation v1](T-011-pigeon-presentation.md) | P1 | M | T-001, T-003 | todo |
 | T-012 | [Audio v1](T-012-audio.md) | P1 | M | T-005, T-006, T-007, T-008 | todo |

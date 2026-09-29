@@ -8,11 +8,11 @@ extends Node3D
 ## band — the same nodes, no allocation, and never inside `spawn_min_dist`,
 ## so nothing pops into view. Seeded from the city's seed and re-seeded on
 ## city regeneration, like the tourist (T-007) and bread (T-005) services.
-## Every car splat relays as `car_splatted` (Main's score stub today, T-009
-## brings the real table).
+## Every car splat relays as `car_splatted` — Main wires it into the Game
+## autoload's score table (T-009).
 
-## Relayed from each car's `splatted` — Main wires it to the score stub
-## (T-009's real table and combos later).
+## Relayed from each car's `splatted` — Main wires it into the Game autoload's
+## score table (T-009).
 signal car_splatted(car: Car)
 
 @export_group("Population")

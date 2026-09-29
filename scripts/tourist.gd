@@ -9,8 +9,8 @@ extends CharacterBody3D
 ## without full panic. Every splat emits `splatted` — the score event the
 ## spawner relays (T-009 scoring listens later). All tunables are @export.
 
-## Fired on every splat this tourist takes — the spawner relays it (Main's
-## score stub today, T-009's real table later).
+## Fired on every splat this tourist takes — the spawner relays it into the
+## Game autoload's score table (T-009).
 signal splatted(tourist: Tourist)
 
 ## WALK strolls the loop · PANIC sprints away from a splat · FLINCH ducks a

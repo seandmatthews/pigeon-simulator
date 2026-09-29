@@ -9,8 +9,8 @@ extends Node3D
 ## nothing pops into view. The initial spread is seeded from the city's seed
 ## and re-seeds on city regeneration, like the bread service (T-005).
 
-## Relayed from each tourist's `splatted` — Main wires it to the score stub
-## (T-009 brings the real table and combos).
+## Relayed from each tourist's `splatted` — Main wires it into the Game
+## autoload's score table (T-009).
 signal tourist_splatted(tourist: Tourist)
 
 @export_group("Population")

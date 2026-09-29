@@ -41,6 +41,12 @@ var _fps_sum: float = 0.0
 var _fps_samples: int = 0
 var _splats: int = 0 ## Poop splats that landed during the run (T-006 evidence).
 var _visit_gliding: bool = false ## Latched once the landing glide begins.
+## Lead-shot altitude ceiling (m). High over the roofs the pilot's own banking
+## makes the fall-time prediction garbage, so cruise keeps the T-007/T-008
+## 14 m gate; the ground visit is a steady approach, so T-009 raises the gate
+## to 18 m there and the poop triggers (T-007/T-008 leads plus the 5 m
+## pursuit window) get more honest chances to earn real score.
+var _lead_ceiling: float = 14.0
 
 
 func _ready() -> void:
@@ -49,7 +55,7 @@ func _ready() -> void:
 	_game = MAIN_SCENE.instantiate()
 	add_child(_game)
 	_player = _game.get_node("Player") as Player
-	_hunger = _game.get_node("Hunger") as Hunger
+	_hunger = Game.hunger ## The hunger clock lives in the Game autoload (T-009).
 	_spawner = _game.get_node("BreadSpawner") as BreadSpawner
 	_tourists = _game.get_node("TouristSpawner") as TouristSpawner
 	_cars = _game.get_node("CarSpawner") as CarSpawner
@@ -80,10 +86,10 @@ func _physics_process(delta: float) -> void:
 		var tourists: int = _tourists.living_tourists().size() if _tourists != null and is_instance_valid(_tourists) else -1
 		var panics: int = _tourists.splat_count if _tourists != null and is_instance_valid(_tourists) else -1
 		var honks: int = _cars.honk_count if _cars != null and is_instance_valid(_cars) else -1
-		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d" % [
+		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d score=%d high=%d" % [
 				alive, _elapsed, fps, where.x, where.y, where.z,
 				_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
-				tourists, panics, honks])
+				tourists, panics, honks, Game.score, Game.high_score])
 		get_tree().quit(0 if alive else 1)
 
 
@@ -118,8 +124,9 @@ func _drive(t: float, delta: float) -> void:
 	# walking tourist lines up under the predicted impact point, and the T-008
 	# addition that cars count too (bigger tolerance — the easy targets).
 	# Grounded taps are skipped (the pigeon doesn't poop on the ground).
+	_lead_ceiling = 18.0 if (t >= GROUND_VISIT_START and t < GROUND_VISIT_END) else 14.0
 	if t >= POOP_START and not _player.is_grounded \
-			and (_tourist_in_lead() or _car_in_lead()
+			and (_tourist_in_lead() or _car_in_lead() or _pursuit_shot()
 					or fmod(t - POOP_START, POOP_PERIOD) < delta):
 		Input.action_press("poop")
 
@@ -190,7 +197,7 @@ func _steer_toward(_flat: Vector2) -> void:
 func _tourist_in_lead() -> bool:
 	if _tourists == null or not is_instance_valid(_tourists):
 		return false
-	if _player.position.y > 14.0:
+	if _player.position.y > _lead_ceiling:
 		return false ## High lobs drift too far for a chance shot.
 	var v := _player.velocity
 	if Vector2(v.x, v.z).length() < 5.0:
@@ -212,7 +219,7 @@ func _tourist_in_lead() -> bool:
 func _car_in_lead() -> bool:
 	if _cars == null or not is_instance_valid(_cars):
 		return false
-	if _player.position.y > 14.0:
+	if _player.position.y > _lead_ceiling:
 		return false ## High lobs drift too far for a chance shot.
 	var v := _player.velocity
 	if Vector2(v.x, v.z).length() < 5.0:
@@ -223,6 +230,31 @@ func _car_in_lead() -> bool:
 		var spot := Vector2(car.global_position.x, car.global_position.z) \
 				+ Vector2(car.velocity.x, car.velocity.z) * fall
 		if impact.distance_to(spot) < 2.2:
+			return true
+	return false
+
+
+## T-009: the pursuit pass's own trigger — the same prediction as
+## `_car_in_lead` with a wider window (5 m, about a car length), live whenever
+## the pigeon is low enough for the fall-time prediction to be honest. A 5 m
+## prediction error still lands metal on a ~4.5 m car about half the time, so
+## while the bird weaves through the ring-road traffic this roughly doubles
+## the honk opportunities without steering the visit at all.
+func _pursuit_shot() -> bool:
+	if _cars == null or not is_instance_valid(_cars):
+		return false
+	if _player.position.y > _lead_ceiling:
+		return false
+	var v := _player.velocity
+	var hv := Vector2(v.x, v.z)
+	if hv.length() < 6.0:
+		return false
+	var fall := sqrt(2.0 * maxf(_player.position.y - 1.5, 0.0) / 12.0)
+	var impact := Vector2(_player.position.x, _player.position.z) + hv * fall
+	for car in _cars.living_cars():
+		var spot := Vector2(car.global_position.x, car.global_position.z) \
+				+ Vector2(car.velocity.x, car.velocity.z) * fall
+		if impact.distance_to(spot) < 5.0:
 			return true
 	return false
 
@@ -303,7 +335,12 @@ func _governor_pitch(vy: float, speed: float) -> float:
 ## under the roof-line floor outside the ring, and the final climb-out at
 ## t >= 27. Touchdown may skid, which is acceptable; then waddle — homing in
 ## on the nearest breadcrumb (T-005) so the land-and-peck loop runs for real —
-## and flap back out. All pitch is nose-bounded via the attitude holds.
+## and flap back out. T-009 touches this visit only through the poop trigger
+## above: the lead-shot ceiling rises to 18 m in the visit window (the
+## descent is steady, so the fall-time prediction holds) and the pursuit
+## trigger gets a car-length window — target hits stay chance shots, and the
+## deterministic scoring proof lives in the sim harness (Gate 1b).
+## All pitch is nose-bounded via the attitude holds.
 func _drive_ground_visit(t: float, delta: float) -> void:
 	if _player.is_grounded:
 		_visit_gliding = false
@@ -325,9 +362,9 @@ func _drive_ground_visit(t: float, delta: float) -> void:
 	var target := Vector2.ZERO
 	if land_crumb != null:
 		target = Vector2(land_crumb.global_position.x, land_crumb.global_position.z)
-	_steer_toward_point(target)
 	var target_dist := flat.distance_to(target)
 	if t >= 27.0:
+		_steer_toward_point(target)
 		## Climb back out (missed landing or just took off) — nose- and
 		## flap-capped so the climb eases into the cruise band.
 		if _nose_y() < 0.45 and vy < 6.0:
@@ -358,6 +395,7 @@ func _drive_ground_visit(t: float, delta: float) -> void:
 		Input.action_press("pitch_up") ## Safety pull-up beats any target.
 	else:
 		_hold_nose(target_nose)
+	_steer_toward_point(target)
 
 
 ## Bang-bang attitude hold around `target` (sine of the nose pitch). Holding
