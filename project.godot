@@ -25,6 +25,7 @@ window/size/viewport_height=720
 
 Game="*res://scripts/game.gd"
 Sfx="*res://scripts/sfx.gd"
+CaptureRecorder="*res://tests/capture_recorder.gd"
 
 [audio]
 

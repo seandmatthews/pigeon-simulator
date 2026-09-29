@@ -21,3 +21,6 @@ desktop.ini
 # Editor cruft
 *.tmp
 *.bak
+
+# Capture runs (agent playtesting)
+.captures/
