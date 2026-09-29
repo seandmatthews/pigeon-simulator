@@ -8,7 +8,7 @@ extends CharacterBody3D
 ## vehicle) is occupied, so cars queue instead of overlapping. Parked cars sit
 ## at the curb (`City.parking_spots`) and never move. Either mode takes a poop
 ## splat through the duck-typed `on_splatted` convention (T-006): the car
-## honks — a bright body flash until T-012 wires the horn — and fires
+## honks — a bright body flash plus the horn (T-012) — and fires
 ## `splatted`, the cheap-points score event (30 base via the Game autoload's
 ## table, DESIGN pillar 3) that the spawner relays. Getting splatted never
 ## derails the drive.
@@ -171,9 +171,11 @@ func on_splatted(_impact_velocity: Vector3) -> void:
 	splatted.emit(self)
 
 
-## The horn: for now a bright flash on the body — the audio arrives with T-012.
+## The horn: a bright flash on the body plus the honk itself (T-012 wires the
+## audio) — a comedic bike-horn blast from the car's position.
 func honk() -> void:
 	honk_count += 1
+	Sfx.play_at("honk", global_position)
 	var mat := _body_mesh.material_override as StandardMaterial3D
 	if mat == null:
 		return

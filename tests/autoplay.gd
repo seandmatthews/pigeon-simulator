@@ -111,8 +111,8 @@ func _physics_process(delta: float) -> void:
 				_finish()
 
 
-## The DONE line: alive + a clean T-010 restart both gate the exit code; the
-## restart stats join the reported run stats.
+## The DONE line: alive + a clean T-010 restart + live audio (T-012) all gate
+## the exit code; the restart stats join the reported run stats.
 func _finish() -> void:
 	var alive: bool = _player != null and is_instance_valid(_player) \
 			and _player.velocity.is_finite() and _player.position.y > -10.0 \
@@ -123,14 +123,24 @@ func _finish() -> void:
 	var tourists: int = _tourists.living_tourists().size() if _tourists != null and is_instance_valid(_tourists) else -1
 	var panics: int = _tourists.splat_count if _tourists != null and is_instance_valid(_tourists) else -1
 	var honks: int = _cars.honk_count if _cars != null and is_instance_valid(_cars) else -1
-	var ok: bool = alive and _restart_ok
+	## T-012: every event the pilot drove should have fired its sound. The bed
+	## must be looping and at least the flap whoosh must have played — the pilot
+	## flaps on every climb, so zero whooshes means the wiring is dead.
+	var sfx_bits := PackedStringArray()
+	for sound_name in Sfx.played_counts:
+		sfx_bits.append("%s:%d" % [sound_name, Sfx.played_counts[sound_name]])
+	sfx_bits.sort()
+	var audio_ok: bool = Sfx.ambience_playing \
+			and int(Sfx.played_counts.get("flap", 0)) >= 1
+	var ok: bool = alive and _restart_ok and audio_ok
 	var poses := _poses_seen.keys()
 	poses.sort()
-	print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d poses=%s" % [
+	print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d poses=%s sfx=%s ambience=%s" % [
 			ok, _elapsed, fps, where.x, where.y, where.z,
 			_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
 			tourists, panics, honks, Game.score, Game.high_score,
-			_restart_ok, _pre_score, _pre_tourists, _pre_cars, ",".join(poses)])
+			_restart_ok, _pre_score, _pre_tourists, _pre_cars, ",".join(poses),
+			",".join(sfx_bits), Sfx.ambience_playing])
 	get_tree().quit(0 if ok else 1)
 
 

@@ -115,6 +115,11 @@ func _run_scenarios() -> void:
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
+	await _scenario_audio_buses()
+	await _scenario_audio_flap_effort()
+	await _scenario_audio_peck()
+	await _scenario_audio_hit_sounds()
+	await _scenario_ambience_bed()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -1529,3 +1534,189 @@ func _scenario_pigeon_peck() -> void:
 			"ate=%s pecked=%s beak_down=%s ended=%s (head pitch %.2f)" % [
 					ate, pecked, beak_down, peck_ended, bird.head_pitch])
 	hunger.free()
+
+
+## --- scenarios (T-012 audio) -------------------------------------------------
+
+
+## The bus mix exists (Master · SFX · Ambience, the bed quieter than effects)
+## and every sound the ticket lists loads as a real, positive-length stream;
+## the two ambience beds are flagged to loop forever.
+func _scenario_audio_buses() -> void:
+	var buses := {}
+	for i in AudioServer.get_bus_count():
+		buses[AudioServer.get_bus_name(i)] = i
+	var present: bool = buses.has("Master") and buses.has("SFX") and buses.has("Ambience")
+	var mix_sane: bool = present \
+			and AudioServer.get_bus_volume_db(buses["Ambience"]) \
+					< AudioServer.get_bus_volume_db(buses["SFX"])
+	var sfx_streams := true
+	for sound_name in Sfx.SOUNDS:
+		var stream: AudioStream = Sfx.SOUNDS[sound_name].stream
+		sfx_streams = sfx_streams and stream != null and stream.get_length() > 0.05
+	var beds_loop := true
+	for bed_name in Sfx.AMBIENCE:
+		var bed_stream: AudioStream = Sfx.AMBIENCE[bed_name].stream
+		beds_loop = beds_loop and bed_stream != null and Sfx.stream_is_looping(bed_stream)
+	_check("audio_buses_and_assets", present and mix_sane and sfx_streams and beds_loop,
+			"buses=%s ambience_quieter=%s sfx_streams=%s beds_loop=%s" % [
+					present, mix_sane, sfx_streams, beds_loop])
+
+
+## The wing sounds ride the real flap impulses: a grounded takeoff flap whooshes
+## but doesn't strain, a flap mid-climb adds the effort beat, and a flap past
+## the apex (falling, not climbing) stays quiet.
+func _scenario_audio_flap_effort() -> void:
+	Sfx.reset_counts()
+	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	Sfx.reset_counts()
+	await _tap("flap")
+	await _wait_frames(6)
+	var flap_n: int = Sfx.played_counts.get("flap", 0)
+	var effort_n: int = Sfx.played_counts.get("effort", 0)
+	var took_off := not _player.is_grounded
+	for _i in 60: ## Still rising? Tap again — this flap comes on a real climb.
+		await get_tree().physics_frame
+		if _player.velocity.y > _player.effort_climb_speed:
+			break
+	Sfx.reset_counts()
+	await _tap("flap")
+	await _wait_frames(6)
+	var climb_flap: int = Sfx.played_counts.get("flap", 0)
+	var climb_effort: int = Sfx.played_counts.get("effort", 0)
+	for _i in 120: ## Past the apex: falling now.
+		await get_tree().physics_frame
+		if _player.velocity.y < 0.5:
+			break
+	Sfx.reset_counts()
+	await _tap("flap")
+	await _wait_frames(6)
+	var fall_flap: int = Sfx.played_counts.get("flap", 0)
+	var fall_effort: int = Sfx.played_counts.get("effort", 0)
+	_check("sfx_flap_effort_fires",
+			flap_n == 1 and effort_n == 0 and took_off \
+					and climb_flap == 1 and climb_effort == 1 \
+					and fall_flap == 1 and fall_effort == 0,
+			"takeoff flap=%d effort=%d off=%s · climb flap=%d effort=%d · fall flap=%d effort=%d" % [
+					flap_n, effort_n, took_off, climb_flap, climb_effort,
+					fall_flap, fall_effort])
+
+
+## The bread peck is audible through Main's exact eat wiring (crumb.eaten →
+## Player.peck): a grounded pigeon waddling into a crumb plays exactly one peck.
+func _scenario_audio_peck() -> void:
+	Sfx.reset_counts()
+	var hunger := Hunger.new()
+	hunger.player = _player
+	add_child(hunger)
+	var crumb: BreadCrumb = CRUMB_SCENE.instantiate()
+	crumb.position = Vector3(0.0, 0.16, 0.0)
+	add_child(crumb)
+	crumb.eaten.connect(hunger.eat)
+	crumb.eaten.connect(_player.peck) ## Main's exact wiring.
+	await _set_up(true, Vector3(0.0, 0.4, 1.8), Vector3.ZERO) ## Drop ahead of the crumb…
+	await _await_grounded(90)
+	await _wait_frames(10)
+	Input.action_press("pitch_up") ## …and waddle in.
+	for _i in 120:
+		await get_tree().physics_frame
+		if not is_instance_valid(crumb):
+			break
+	Input.action_release("pitch_up")
+	await _wait_frames(2) ## Let the eaten flush settle.
+	var ate := not is_instance_valid(crumb)
+	var peck_n: int = Sfx.played_counts.get("peck", 0)
+	_check("sfx_peck_plays_on_eat", ate and peck_n == 1,
+			"ate=%s peck plays=%d" % [ate, peck_n])
+	hunger.free()
+
+
+## The city hit sounds ride the real events: a lobbed splat plays the splat and
+## panics its tourist (yelp at the hit), the indignant shout joins the fist
+## shake ~1.8 s later, and a car honk through the same duck-typed entry honks.
+func _scenario_audio_hit_sounds() -> void:
+	_dropped.clear()
+	_splat_events.clear()
+	Sfx.reset_counts()
+	## The pigeon grounds on the plaza first, so both spawner anchors stay put.
+	await _set_up(true, _city.position + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var tourists := TouristSpawner.new()
+	tourists.city = _city
+	tourists.player = _player
+	tourists.target_count = 1
+	tourists.spawn_min_dist = 0.0
+	tourists.spawn_max_dist = 10.0 ## Pin the loop to the plaza block, under the drop.
+	add_child(tourists)
+	var cars := CarSpawner.new()
+	cars.city = _city
+	cars.player = _player
+	cars.target_moving = 0
+	cars.target_parked = 1
+	cars.spawn_min_dist = 0.0
+	cars.spawn_max_dist = 10.0
+	add_child(cars)
+	await _wait_frames(4)
+	var living := tourists.living_tourists()
+	var parked := cars.living_cars()
+	if living.is_empty() or parked.is_empty():
+		_check("sfx_splat_yelp_panic_honk", false,
+				"tourist=%d parked_car=%d" % [living.size(), parked.size()])
+		tourists.free()
+		cars.free()
+		return
+	var tourist: Tourist = living[0]
+	tourist.path = PackedVector3Array() ## Freeze the target under the drop.
+	await _set_up(true, tourist.global_position + Vector3(0.0, 4.0, 0.0), Vector3.ZERO)
+	await _tap("poop")
+	await _wait_frames(2)
+	var splat_n := 0
+	var yelp_n := 0
+	var panic_n := 0
+	for _i in 240: ## Fall (~0.75 s) + panic until the shout joins the fist shake.
+		await get_tree().physics_frame
+		splat_n = Sfx.played_counts.get("splat", 0)
+		yelp_n = Sfx.played_counts.get("yelp", 0)
+		panic_n = Sfx.played_counts.get("panic", 0)
+		if splat_n >= 1 and yelp_n >= 1 and panic_n >= 1:
+			break
+	var panicked := tourist.mood == Tourist.Mood.PANIC or tourist._shouted
+	Sfx.reset_counts()
+	parked[0].on_splatted(Vector3(0.0, -5.0, 0.0)) ## The same duck-typed entry a dropping calls.
+	await _wait_frames(2)
+	var honk_n: int = Sfx.played_counts.get("honk", 0)
+	_check("sfx_splat_yelp_panic_honk",
+			splat_n == 1 and yelp_n == 1 and panic_n == 1 and panicked and honk_n == 1
+					and parked[0].honk_count == 1,
+			"splat=%d yelp=%d panic=%d (panicking=%s) honk=%d car_honks=%d" % [
+					splat_n, yelp_n, panic_n, panicked, honk_n, parked[0].honk_count])
+	tourists.free()
+	cars.free()
+
+
+## The city bed loops under the real game: main.tscn starts both beds on the
+## Ambience bus, start_ambience() is idempotent (a restart never stacks beds),
+## and the bed lives in the autoload — it survives the scene being torn down.
+func _scenario_ambience_bed() -> void:
+	Sfx.stop_ambience() ## Known-silent starting state.
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(2500.0, 0.0, -2500.0) ## Own space, clear of the test world.
+	add_child(main_game)
+	await _wait_frames(4)
+	var started := Sfx.ambience_playing
+	var on_bus := true
+	var all_playing := true
+	for player in Sfx.ambience_players():
+		on_bus = on_bus and player.bus == &"Ambience"
+		all_playing = all_playing and player.playing
+	var bed_count := Sfx.ambience_players().size()
+	Sfx.start_ambience() ## Idempotent: the restart path calls it again.
+	var no_duplicates: bool = Sfx.ambience_players().size() == bed_count
+	main_game.free()
+	var survives := Sfx.ambience_playing
+	Sfx.stop_ambience()
+	_check("ambience_loops_under_game",
+			started and on_bus and all_playing and no_duplicates and survives,
+			"started=%s on_bus=%s playing=%s idempotent=%s survives_scene_free=%s (%d beds)" % [
+					started, on_bus, all_playing, no_duplicates, survives, bed_count])

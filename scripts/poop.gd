@@ -71,6 +71,7 @@ func _on_body_entered(body: Node) -> void:
 	splatted.emit(body, _last_velocity)
 	if body.has_method("on_splatted"):
 		body.on_splatted(_last_velocity)
+	Sfx.play_at("splat", global_position) ## The wet landing, wherever it hit (T-012).
 	_stick_splat(body)
 
 

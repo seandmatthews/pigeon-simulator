@@ -18,7 +18,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-009 | [Scoring & combos](T-009-scoring-and-combos.md) | P0 | M | T-006, T-007, T-008 | done |
 | T-010 | [Game flow](T-010-game-flow.md) | P0 | S | T-005 | done |
 | T-011 | [Pigeon presentation v1](T-011-pigeon-presentation.md) | P1 | M | T-001, T-003 | done |
-| T-012 | [Audio v1](T-012-audio.md) | P1 | M | T-005, T-006, T-007, T-008 | todo |
+| T-012 | [Audio v1](T-012-audio.md) | P1 | M | T-005, T-006, T-007, T-008 | done |
 | T-013 | [Juice pass v1](T-013-juice-pass.md) | P1 | M | T-006, T-009 | todo |
 
 ## Milestone 2 — after the slice (not yet ticketed)

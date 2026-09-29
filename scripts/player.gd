@@ -64,6 +64,9 @@ enum State { AIR, GROUND }
 @export var poop_cooldown: float = 1.0 ## Seconds between drops — mashing F stays at one dropping per second.
 @export var poop_drop_offset: float = 0.3 ## Spawn distance below the body (m).
 
+@export_group("Audio") ## T-012: the sounds ride the state machine's own events.
+@export var effort_climb_speed: float = 2.0 ## Upward speed (m/s) the pigeon must ALREADY be climbing at for a flap to also play the strained wing-beat effort sound (the impulse itself would flatter every flap).
+
 var forward_speed: float
 var stalled: bool
 var state: State = State.AIR
@@ -207,6 +210,7 @@ func _update_pose(delta: float) -> void:
 ## lets the crumb's restore-amount signal connect directly.
 func peck(_amount: float = 0.0) -> void:
 	pigeon.trigger_peck()
+	Sfx.play("peck") ## The beak tap is audible too (T-012).
 
 
 func _set_state(new_state: State) -> void:
@@ -228,12 +232,16 @@ func _flap() -> void:
 		var fwd := -transform.basis.z
 		fwd.y = 0.0
 		flap_dir = (Vector3.UP + fwd.normalized()).normalized()
+	var pre_vy := velocity.y ## The climb the pigeon was already working with.
 	velocity += flap_dir * flap_impulse * rested
 	_flap_timer = flap_cooldown
 	_time_since_flap = 0.0
 	if state == State.GROUND:
 		_set_state(State.AIR) ## Takeoff.
 	flapped.emit()
+	Sfx.play("flap") ## Every impulse whooshes (T-012).
+	if pre_vy >= effort_climb_speed:
+		Sfx.play("effort") ## Paced flaps up a real climb earn the strained wing-beat too.
 
 
 ## The poop action (T-006): air-only. The dropping inherits the pigeon's full

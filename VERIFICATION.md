@@ -90,6 +90,11 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | pigeon_air_poses_track_flight | wings out in a glide, a wing beat on every real flap impulse (and the beat ends), wings swept back in a dive — the pose mirrors the flight state | T-011 |
 | pigeon_ground_poses_track_waddle | grounded settles into the folded stand, waddling flips to the waddle pose, stopping settles back to stand | T-011 |
 | pigeon_pecks_when_eating | eating a crumb through Main's exact wiring (crumb.eaten → Player.peck) plays the peck — the beak dives down and the overlay ends | T-011 |
+| audio_buses_and_assets | the Master/SFX/Ambience bus mix exists with the ambience bus quieter than SFX, every ticketed sound loads as a real stream, and both ambience beds are flagged to loop forever | T-012 |
+| sfx_flap_effort_fires | a takeoff flap whooshes without the effort beat; a flap mid-climb adds the strained wing-beat; a flap while falling stays quiet | T-012 |
+| sfx_peck_plays_on_eat | a grounded pigeon eating a crumb through Main's wiring plays exactly one bread peck | T-012 |
+| sfx_splat_yelp_panic_honk | a real lobbed splat plays the splat plus its tourist's yelp, the indignant shout joins the fist shake ~1.8 s later, and a duck-typed car hit blasts the horn | T-012 |
+| ambience_loops_under_game | main.tscn starts both ambience beds on the Ambience bus, start_ambience() is idempotent across restarts and the bed survives the scene teardown | T-012 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -130,7 +135,11 @@ spawn corridor) — `restart=true` joins `ok`, and a timeout waiting for the
 screen fails the gate. Since T-011 the pigeon is the real presented bird (a
 low-poly primitive pigeon, not a sphere) — flap beats, glide/dive wing poses,
 the waddle and the eat peck are all visible in the screenshots, and the DONE
-line reports which poses the run actually showed (`poses`). Saves a
+line reports which poses the run actually showed (`poses`). Since T-012 the
+run is audible too: every event the pilot drove fires its sound, the DONE line
+reports how many times each one played (`sfx`) plus the looping bed
+(`ambience`), and the gate requires the bed looping and at least one flap
+whoosh. Saves a
 screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
@@ -215,6 +224,10 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-011) Poses track the flight live: wings out gliding, swept back diving, beats on flaps, folded on the ground — no desync, no frozen wings
 - [ ] (T-011) The waddle (squat, body rock, head-thrust bob) is at least a little bit funny
 - [ ] (T-011) Eating a crumb plays the peck, and no pose ever clips the camera
+- [ ] (T-012) Trigger every sound in a normal run — flap whoosh, climb effort, splat, tourist yelp, panic shout at the fist shake, car honk, bread peck
+- [ ] (T-012) The mix is sane: nothing clips even when a splat, a yelp and a honk land at once, and the ambience bed never drowns gameplay SFX
+- [ ] (T-012) The ambience loops seamlessly — no audible seam on the traffic murmur or the distant chatter over a few minutes of play
+- [ ] (T-012) The flap whoosh reads in sync with the wing beat, and the effort strain only shows up on hard climbs
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -242,8 +255,8 @@ Playtest checklist (grows as tickets land):
   the T-007 lines (walk believability, panic readability, splat-the-3-buzz-the-3
   manual run, pop-in visibility) is still pending.
 - Cars (T-008) are machine-verified (Gate 1b traffic/splat-honk scenarios) and
-  live in the autoplay city (the DONE line reports `honks`); the honk is a body
-  flash only until T-012 wires audio; a human pass over the T-008 lines (parked
+  live in the autoplay city (the DONE line reports `honks`); since T-012 the
+  honk is a body flash plus the horn. A human pass over the T-008 lines (parked
   + moving splat, one full traffic circuit, bigger-target readability, corner
   flow at full density) is still pending.
 - Scoring & combos (T-009) are machine-verified (Gate 1b values/combo/style,
@@ -263,5 +276,12 @@ Playtest checklist (grows as tickets land):
   hand-built from primitives (no third-party asset, so no CREDITS entry). A
   human pass over the T-011 lines (silhouette at 20 m, pose readability at
   flight speed, waddle comedy, camera clipping) is still pending.
+- Audio (T-012) is machine-verified (Gate 1b bus/assets, flap-effort, peck,
+  hit-sounds and ambience scenarios) and audible in the autoplay run (the DONE
+  line reports `sfx` counts and `ambience`). Every file is CC0 and logged in
+  `assets/CREDITS.md` — the ambience beds were made into seamless loops
+  (head-tail crossfade) from field recordings. A human listen pass over the
+  T-012 lines (clipping at pile-ups, loop seams, flap/sync feel, honk
+  believability — the horn is a comedic bike-horn blast) is still pending.
 - Remaining placeholder art: buildings are tinted
   boxes with a procedural window texture.

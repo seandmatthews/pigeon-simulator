@@ -38,6 +38,7 @@ func _ready() -> void:
 	Game.hunger.attach_player(player)
 	Game.hunger.changed.connect(_on_hunger_changed)
 	Game.hunger.game_over.connect(_on_game_over)
+	Sfx.start_ambience() ## The looping city bed under everything (T-012).
 	pause_menu.restart_requested.connect(restart_run)
 	pause_menu.menu_requested.connect(_to_menu)
 	pause_menu.quit_requested.connect(_quit)
@@ -124,6 +125,7 @@ func restart_run() -> void:
 
 ## Back to the title screen — the other half of the menu.tscn ↔ main.tscn flow.
 func _to_menu() -> void:
+	Sfx.stop_ambience() ## The title screen isn't the city (T-012).
 	Game.reset_run()
 	get_tree().paused = false
 	get_tree().change_scene_to_file(MENU_SCENE_PATH)

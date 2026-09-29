@@ -37,6 +37,7 @@ const PANIC_TINT := Color(0.92, 0.22, 0.18)
 @export var panic_seconds: float = 2.6 ## How long the panic sprint lasts before the stroll resumes.
 @export var panic_bob_scale: float = 2.2 ## Bob-rate multiplier while panicking (frantic steps).
 @export var arm_raise_rate: float = 8.0 ## 1/s the arms sweep up when panic starts.
+@export var panic_shout_at: float = 0.8 ## Panic seconds left at which the indignant shout plays — together with the fist shake (T-012).
 
 @export_group("Buzz")
 @export var buzz_speed: float = 12.0 ## Player speed (m/s) that turns a near miss into a flinch.
@@ -59,6 +60,7 @@ var buzz_count: int = 0
 
 var _panic_left: float = 0.0
 var _panic_dir := Vector3.RIGHT
+var _shouted: bool = true ## True except mid-panic — the shout fires once per panic (T-012).
 var _flinch_left: float = 0.0
 var _buzz_cd: float = 0.0
 var _arm_raise: float = 0.0 ## 0 = arms down, 1 = arms up; doubles as the panic tint intensity.
@@ -108,7 +110,9 @@ func on_splatted(impact_velocity: Vector3) -> void:
 	_panic_dir = away.normalized()
 	mood = Mood.PANIC
 	_panic_left = panic_seconds
+	_shouted = false ## The indignant shout waits for the fist shake (T-012).
 	splatted.emit(self)
+	Sfx.play_at("yelp", global_position) ## The hit itself earns a yelp (T-012).
 
 
 ## Teleport-recycle onto a new loop (spawner, T-007): the same node, a new
@@ -122,6 +126,7 @@ func recycle_to(pos: Vector3, new_path: PackedVector3Array, new_block: Vector3) 
 	velocity = Vector3.ZERO
 	_panic_left = 0.0
 	_flinch_left = 0.0
+	_shouted = true
 	_retarget_nearest_waypoint()
 
 
@@ -163,6 +168,9 @@ func _panic(delta: float) -> void:
 	_face(_panic_dir, delta, walk_turn_rate * 1.5)
 	velocity.y = -2.0
 	move_and_slide()
+	if not _shouted and _panic_left <= panic_shout_at:
+		_shouted = true
+		Sfx.play_at("panic", global_position) ## Shaking the fist, shouting about it (T-012).
 	if _panic_left <= 0.0:
 		mood = Mood.WALK
 		_retarget_nearest_waypoint()

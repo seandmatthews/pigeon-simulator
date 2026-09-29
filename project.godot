@@ -24,6 +24,11 @@ window/size/viewport_height=720
 [autoload]
 
 Game="*res://scripts/game.gd"
+Sfx="*res://scripts/sfx.gd"
+
+[audio]
+
+buses/default_bus_layout="res://default_bus_layout.tres"
 
 [input]
 
