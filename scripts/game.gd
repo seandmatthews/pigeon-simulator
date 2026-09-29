@@ -34,9 +34,18 @@ var save_path: String = "user://highscore.cfg"
 ## Points this run so far — zeroed only by reset_run().
 var score: int = 0
 
+## Tourists splatted this run — the game-over score screen's breakdown (T-010).
+var tourist_hits: int = 0
+## Cars splatted this run — the game-over score screen's breakdown (T-010).
+var car_hits: int = 0
+
 ## Best score ever seen; written to save_path as soon as a run beats it, so a
 ## crash or an Alt-F4 still keeps the record.
 var high_score: int = 0
+
+## True once this run pushed the record up — the score screen's "new high
+## score" banner reads this, so an exact tie can't fake it.
+var record_beaten: bool = false
 
 ## The hunger clock (T-005), created in _ready — Main attaches the player to
 ## it; the sim harness builds its own instances directly.
@@ -74,11 +83,13 @@ func combo_multiplier() -> int:
 
 ## Scores a tourist splat at `pos` — the DESIGN skill shot, 100 base.
 func add_tourist_hit(pos: Vector3) -> int:
+	tourist_hits += 1
 	return _register_hit(tourist_points, pos)
 
 
 ## Scores a car splat at `pos` — the cheap target, 30 base.
 func add_car_hit(pos: Vector3) -> int:
+	car_hits += 1
 	return _register_hit(car_points, pos)
 
 
@@ -98,10 +109,14 @@ func on_grounding_changed(grounded: bool) -> void:
 		_end_combo()
 
 
-## Fresh-run state (restarts, the sim harness): zeroes the score and combo,
-## refills hunger. The high score is deliberately kept — it persists.
+## Fresh-run state (restarts, the sim harness): zeroes the score, the
+## tourist/car breakdown and the combo, refills hunger. The high score is
+## deliberately kept — it persists.
 func reset_run() -> void:
 	score = 0
+	tourist_hits = 0
+	car_hits = 0
+	record_beaten = false
 	_end_combo()
 	_release_age = 999.0
 	hunger.reset()
@@ -123,6 +138,7 @@ func _register_hit(base_points: int, pos: Vector3) -> int:
 	score += points
 	if score > high_score:
 		high_score = score
+		record_beaten = true
 		_save_high_score()
 	hit_scored.emit(points, combo_multiplier(), pos, style)
 	return points

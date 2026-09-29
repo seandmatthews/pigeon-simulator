@@ -1,16 +1,22 @@
 extends Node3D
 ## Autoplay smoke test (VERIFICATION.md Gate 2): boots the REAL game
 ## (scenes/main.tscn) and plays it with a scripted pilot for ~30 seconds,
-## saving a screenshot every 5 s to .godot/autoplay/. Exits 0 when the run
-## completes with the pigeon alive and finite; the caller greps the output for
+## saving a screenshot every 5 s to .godot/autoplay/. Since T-010 it then ends
+## the run on purpose: the pilot starves the pigeon, waits for the score
+## screen, restarts through the same path the screen's Space button drives and
+## verifies the fresh run before DONE. Exits 0 when the run completes with the
+## pigeon alive and the restart clean; the caller greps the output for
 ## SCRIPT ERROR lines. Run windowed so it renders for real:
 ##   godot --path . res://tests/autoplay.tscn
-## Note: when T-010 adds the game-over flow this driver must learn to restart
-## from the score screen.
 
 const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 const RUN_SECONDS: float = 30.0
 const SHOT_INTERVAL: float = 5.0
+## T-010 restart phase: after RUN_SECONDS the pilot starves on purpose, waits
+## this long for the score screen (timeout = gate failure), restarts and then
+## cruises a few more seconds on the fresh run before DONE.
+const RESTART_TIMEOUT: float = 6.0
+const RESTART_PLAY_SECONDS: float = 3.0
 const GROUND_VISIT_START: float = 8.0 ## T-003 excursion: descend to the plaza, land, waddle, take off.
 const GROUND_VISIT_END: float = 29.0
 const WADDLE_UNTIL: float = 28.6
@@ -47,13 +53,29 @@ var _visit_gliding: bool = false ## Latched once the landing glide begins.
 ## to 18 m there and the poop triggers (T-007/T-008 leads plus the 5 m
 ## pursuit window) get more honest chances to earn real score.
 var _lead_ceiling: float = 14.0
+## T-010 restart phase machine: 0 cruise → 1 starving/waiting for the score
+## screen → 2 restarted, final cruise. `_restart_ok` is the gate: DONE only
+## passes when the screen showed the right numbers and the reset is clean.
+var _restart_phase: int = 0
+var _restart_deadline: float = 0.0
+var _pre_score: int = 0
+var _pre_tourists: int = 0
+var _pre_cars: int = 0
+var _screen_labels_ok: bool = false
+var _restart_ok: bool = false
 
 
 func _ready() -> void:
+	## The pilot must keep driving while the game is frozen — the pause and
+	## score screens stop every PAUSABLE node, this driver stays ALWAYS and
+	## the game subtree is pinned back to PAUSABLE explicitly (it would
+	## otherwise inherit ALWAYS from here).
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_shot_dir = ProjectSettings.globalize_path("res://.godot/autoplay")
 	DirAccess.make_dir_recursive_absolute(_shot_dir)
 	_game = MAIN_SCENE.instantiate()
 	add_child(_game)
+	_game.process_mode = Node.PROCESS_MODE_PAUSABLE
 	_player = _game.get_node("Player") as Player
 	_hunger = Game.hunger ## The hunger clock lives in the Game autoload (T-009).
 	_spawner = _game.get_node("BreadSpawner") as BreadSpawner
@@ -76,21 +98,77 @@ func _physics_process(delta: float) -> void:
 	if _elapsed >= _next_shot:
 		_next_shot += SHOT_INTERVAL
 		_capture(int(_elapsed))
-	if _elapsed >= RUN_SECONDS:
-		var alive: bool = _player != null and is_instance_valid(_player) \
-				and _player.velocity.is_finite() and _player.position.y > -10.0 \
-				and _hunger != null and is_instance_valid(_hunger)
-		var where: Vector3 = _player.position if _player != null and is_instance_valid(_player) else Vector3.ZERO
-		var fps: float = _fps_sum / maxf(_fps_samples, 1)
-		var eaten: int = _spawner.eaten_count if _spawner != null and is_instance_valid(_spawner) else -1
-		var tourists: int = _tourists.living_tourists().size() if _tourists != null and is_instance_valid(_tourists) else -1
-		var panics: int = _tourists.splat_count if _tourists != null and is_instance_valid(_tourists) else -1
-		var honks: int = _cars.honk_count if _cars != null and is_instance_valid(_cars) else -1
-		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d score=%d high=%d" % [
-				alive, _elapsed, fps, where.x, where.y, where.z,
-				_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
-				tourists, panics, honks, Game.score, Game.high_score])
-		get_tree().quit(0 if alive else 1)
+	match _restart_phase:
+		0:
+			if _elapsed >= RUN_SECONDS:
+				_begin_restart_phase()
+		1:
+			_watch_score_screen()
+		2:
+			if _elapsed >= RUN_SECONDS + RESTART_PLAY_SECONDS:
+				_finish()
+
+
+## The DONE line: alive + a clean T-010 restart both gate the exit code; the
+## restart stats join the reported run stats.
+func _finish() -> void:
+	var alive: bool = _player != null and is_instance_valid(_player) \
+			and _player.velocity.is_finite() and _player.position.y > -10.0 \
+			and _hunger != null and is_instance_valid(_hunger)
+	var where: Vector3 = _player.position if _player != null and is_instance_valid(_player) else Vector3.ZERO
+	var fps: float = _fps_sum / maxf(_fps_samples, 1)
+	var eaten: int = _spawner.eaten_count if _spawner != null and is_instance_valid(_spawner) else -1
+	var tourists: int = _tourists.living_tourists().size() if _tourists != null and is_instance_valid(_tourists) else -1
+	var panics: int = _tourists.splat_count if _tourists != null and is_instance_valid(_tourists) else -1
+	var honks: int = _cars.honk_count if _cars != null and is_instance_valid(_cars) else -1
+	var ok: bool = alive and _restart_ok
+	print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d" % [
+			ok, _elapsed, fps, where.x, where.y, where.z,
+			_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
+			tourists, panics, honks, Game.score, Game.high_score,
+			_restart_ok, _pre_score, _pre_tourists, _pre_cars])
+	get_tree().quit(0 if ok else 1)
+
+
+## T-010 restart phase, step 1: starve the pigeon on purpose (the score screen
+## must come to US) and record the run's final numbers for the label check.
+func _begin_restart_phase() -> void:
+	_pre_score = Game.score
+	_pre_tourists = Game.tourist_hits
+	_pre_cars = Game.car_hits
+	Game.hunger.value = 0.0 ## The game_over latch fires on the next hunger tick.
+	_restart_deadline = _elapsed + RESTART_TIMEOUT
+	_restart_phase = 1
+	print("AUTOPLAY restart: starving on purpose at t=%.1f — score=%d tourists=%d cars=%d" % [
+			_elapsed, _pre_score, _pre_tourists, _pre_cars])
+
+
+## T-010 restart phase, step 2: the score screen opens (and freezes the run);
+## check its numbers, then restart through the same path the screen's Space
+## button drives and verify the fresh run synchronously.
+func _watch_score_screen() -> void:
+	var screen: GameOverScreen = _game.game_over_screen
+	if get_tree().paused and screen.is_open:
+		_screen_labels_ok = screen.score_label.text == "Score: %d" % _pre_score \
+				and screen.high_label.text == "High score: %d" % Game.high_score \
+				and screen.breakdown_label.text.contains("Tourists splatted: %d" % _pre_tourists) \
+				and screen.breakdown_label.text.contains("Cars splatted: %d" % _pre_cars)
+		print("AUTOPLAY restart: score screen up at t=%.1f — labels_ok=%s, restarting" % [
+				_elapsed, _screen_labels_ok])
+		_game.restart_run()
+		_restart_ok = _screen_labels_ok \
+				and not get_tree().paused and not screen.visible \
+				and Game.score == 0 and Game.tourist_hits == 0 and Game.car_hits == 0 \
+				and _hunger.value > 90.0 \
+				and _player.position.distance_to(_game.city.spawn_point) < 1.0
+		if not _restart_ok:
+			print("AUTOPLAY restart: FAILED — paused=%s visible=%s score=%d hunger=%.0f spawn_dist=%.1f" % [
+					get_tree().paused, screen.visible, Game.score, _hunger.value,
+					_player.position.distance_to(_game.city.spawn_point)])
+		_restart_phase = 2
+	elif _elapsed >= _restart_deadline:
+		print("AUTOPLAY restart: TIMEOUT — no score screen within %.0f s" % RESTART_TIMEOUT)
+		_restart_phase = 2 ## Finishes with restart_ok=false — the gate fails.
 
 
 ## One-line-per-second progress trace — evidence for the gate log.

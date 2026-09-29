@@ -33,6 +33,7 @@ func setup(points: int, multiplier: int, pos: Vector3) -> void:
 
 
 func _ready() -> void:
+	add_to_group("score_popups") ## The restart flow (T-010) clears popups mid-float.
 	global_position = _pos
 	label.text = format_text(_points, _multiplier)
 	var tween := create_tween()

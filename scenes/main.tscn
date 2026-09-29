@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/bread_spawner.gd" id="3_spawner"]
@@ -6,6 +6,8 @@
 [ext_resource type="PackedScene" path="res://scenes/city.tscn" id="5_city"]
 [ext_resource type="Script" path="res://scripts/tourist_spawner.gd" id="6_tourists"]
 [ext_resource type="Script" path="res://scripts/car_spawner.gd" id="7_cars"]
+[ext_resource type="Script" path="res://scripts/pause_menu.gd" id="8_pause"]
+[ext_resource type="Script" path="res://scripts/game_over_screen.gd" id="9_gameover"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_main"]
 sky_horizon_color = Color(0.74, 0.82, 0.89, 1)
@@ -82,3 +84,130 @@ offset_bottom = 88.0
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(1, 1, 1, 0.75)
 text = "W/S pitch · A/D turn · Space flap · F poop"
+
+[node name="PauseMenu" type="CanvasLayer" parent="."]
+layer = 10
+script = ExtResource("8_pause")
+
+[node name="Dim" type="ColorRect" parent="PauseMenu"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.55)
+
+[node name="Center" type="CenterContainer" parent="PauseMenu"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PausePanel" type="PanelContainer" parent="PauseMenu/Center"]
+unique_name_in_owner = true
+
+[node name="Box" type="VBoxContainer" parent="PauseMenu/Center/PausePanel"]
+custom_minimum_size = Vector2(280, 0)
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="PauseMenu/Center/PausePanel/Box"]
+theme_override_font_sizes/font_size = 32
+text = "PAUSED"
+horizontal_alignment = 1
+
+[node name="ResumeButton" type="Button" parent="PauseMenu/Center/PausePanel/Box"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 18
+text = "Resume (Esc)"
+
+[node name="RestartButton" type="Button" parent="PauseMenu/Center/PausePanel/Box"]
+theme_override_font_sizes/font_size = 18
+text = "Restart (R)"
+
+[node name="MenuButton" type="Button" parent="PauseMenu/Center/PausePanel/Box"]
+theme_override_font_sizes/font_size = 18
+text = "Menu (M)"
+
+[node name="QuitButton" type="Button" parent="PauseMenu/Center/PausePanel/Box"]
+theme_override_font_sizes/font_size = 18
+text = "Quit (Q)"
+
+[node name="GameOverScreen" type="CanvasLayer" parent="."]
+layer = 20
+script = ExtResource("9_gameover")
+
+[node name="Dim" type="ColorRect" parent="GameOverScreen"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.12, 0.02, 0.02, 0.7)
+
+[node name="Center" type="CenterContainer" parent="GameOverScreen"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ScorePanel" type="PanelContainer" parent="GameOverScreen/Center"]
+unique_name_in_owner = true
+
+[node name="Box" type="VBoxContainer" parent="GameOverScreen/Center/ScorePanel"]
+custom_minimum_size = Vector2(420, 0)
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="GameOverScreen/Center/ScorePanel/Box"]
+theme_override_font_sizes/font_size = 36
+text = "STARVED!"
+horizontal_alignment = 1
+
+[node name="NewRecordLabel" type="Label" parent="GameOverScreen/Center/ScorePanel/Box"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+text = "★ NEW HIGH SCORE ★"
+horizontal_alignment = 1
+
+[node name="ScoreLabel" type="Label" parent="GameOverScreen/Center/ScorePanel/Box"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 26
+text = "Score: 0"
+horizontal_alignment = 1
+
+[node name="HighLabel" type="Label" parent="GameOverScreen/Center/ScorePanel/Box"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 20
+text = "High score: 0"
+horizontal_alignment = 1
+
+[node name="BreakdownLabel" type="Label" parent="GameOverScreen/Center/ScorePanel/Box"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(1, 1, 1, 0.8)
+text = "Tourists splatted: 0    Cars splatted: 0"
+horizontal_alignment = 1
+
+[node name="AgainButton" type="Button" parent="GameOverScreen/Center/ScorePanel/Box"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 18
+text = "Fly again (Space)"
+
+[node name="MenuButton" type="Button" parent="GameOverScreen/Center/ScorePanel/Box"]
+theme_override_font_sizes/font_size = 18
+text = "Menu (M)"
+
+[node name="Hint" type="Label" parent="GameOverScreen/Center/ScorePanel/Box"]
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(1, 1, 1, 0.6)
+text = "the city regenerates with the same seed — scores stay comparable"
+horizontal_alignment = 1
+
+[connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/ResumeButton" to="PauseMenu" method="toggle"]
+[connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/RestartButton" to="PauseMenu" method="_request_restart"]
+[connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/MenuButton" to="PauseMenu" method="_on_menu_pressed"]
+[connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/QuitButton" to="PauseMenu" method="_on_quit_pressed"]
+[connection signal="pressed" from="GameOverScreen/Center/ScorePanel/Box/AgainButton" to="GameOverScreen" method="_on_again_pressed"]
+[connection signal="pressed" from="GameOverScreen/Center/ScorePanel/Box/MenuButton" to="GameOverScreen" method="_on_menu_pressed"]

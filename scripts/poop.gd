@@ -38,6 +38,7 @@ var _hit_normal: Vector3
 
 
 func _ready() -> void:
+	add_to_group("poops") ## The restart flow (T-010) clears drops still in flight.
 	body_entered.connect(_on_body_entered)
 	gravity_scale = fall_gravity / float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 	# Per-instance material: every splat fades its own alpha independently.

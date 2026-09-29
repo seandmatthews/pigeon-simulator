@@ -1,18 +1,23 @@
+class_name MainGame
 extends Node3D
 ## Game shell: wires the survival loop together — the player, the city services
 ## (bread T-005, tourists T-007, cars T-008) and the HUD. All game-wide state —
 ## score, combo, high score and the Hunger clock — lives in the Game autoload
 ## since T-009; Main attaches the player and the services to it and renders the
 ## results: the HUD stats line and world-space score popups at each splat.
-## The fail state (T-010) listens to Game.hunger.game_over.
+## The fail state (T-010) listens to Game.hunger.game_over and opens the score
+## screen; restart_run() rebuilds the run in place and menu.tscn sits in front.
 
 const HINT_AIR := "W/S pitch · A/D turn · Space flap · F poop · land by bread to eat"
 const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off · walk into crumbs to eat"
 const SCORE_POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
+const MENU_SCENE_PATH := "res://scenes/menu.tscn"
 
 @onready var stats_label: Label = %StatsLabel
 @onready var hint_label: Label = %HintLabel
 @onready var hunger_bar: ProgressBar = %HungerBar
+@onready var pause_menu: PauseMenu = $PauseMenu
+@onready var game_over_screen: GameOverScreen = $GameOverScreen
 @onready var player: Player = $Player
 @onready var city: City = $City
 @onready var bread_spawner: BreadSpawner = $BreadSpawner
@@ -32,10 +37,17 @@ func _ready() -> void:
 	Game.hunger.attach_player(player)
 	Game.hunger.changed.connect(_on_hunger_changed)
 	Game.hunger.game_over.connect(_on_game_over)
+	pause_menu.restart_requested.connect(restart_run)
+	pause_menu.menu_requested.connect(_to_menu)
+	pause_menu.quit_requested.connect(_quit)
+	game_over_screen.restart_requested.connect(restart_run)
+	game_over_screen.menu_requested.connect(_to_menu)
 	## Spawn on the road corridor by the plaza (T-004): a short drop onto the
 	## asphalt, in the one corridor the generator guarantees is clear of
-	## buildings at every height.
-	player.reset_flight(city.spawn_point)
+	## buildings at every height. to_local: spawn_point is global, reset_flight
+	## positions locally — identical while Main sits at the origin, correct
+	## wherever the scene is instanced (the sim harness moves it far away).
+	player.reset_flight(city.to_local(city.spawn_point))
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)
 
 
@@ -77,11 +89,47 @@ func _on_hit_scored(points: int, multiplier: int, pos: Vector3, _style: bool) ->
 	add_child(popup)
 
 
-## T-010 replaces this with the real game-over screen; until then the signal
-## still fires exactly once at zero and the HUD says so.
+## The fail state (T-010): starvation opens the score screen — final score,
+## the persisted high score and the tourist/car breakdown — and freezes the
+## run (the screen owns the pause; Esc-pausing is locked out by PauseMenu).
+## The signal fires exactly once per run (T-005 latch).
 func _on_game_over() -> void:
-	hint_label.text = "Starved! The pigeons mourn you. (game-over screen: T-010)"
+	pause_menu.locked = true
+	game_over_screen.open(Game.score, Game.high_score,
+			Game.tourist_hits, Game.car_hits, Game.record_beaten)
 	print("HUNGER: game over — signal fired at zero")
+
+
+## In-place fresh run (T-010): zeroes the autoload state, regenerates the SAME
+## M1 seed city (the `regenerated` signal re-seeds every spawner, so the layout
+## — and the score comparability — matches the old city street for street),
+## clears transient effects and drops the pigeon back on the spawn corridor.
+## Deliberately not a scene reload: this exact path is what the score screen's
+## restart and the autoplay pilot drive, headless-safe.
+func restart_run() -> void:
+	Game.reset_run()
+	get_tree().paused = false
+	pause_menu.locked = false
+	pause_menu.close()
+	game_over_screen.close()
+	for popup in get_tree().get_nodes_in_group("score_popups"):
+		popup.queue_free()
+	for poop in get_tree().get_nodes_in_group("poops"):
+		poop.queue_free()
+	city.generate(city.seed_value)
+	player.reset_flight(city.to_local(city.spawn_point))
+	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)
+
+
+## Back to the title screen — the other half of the menu.tscn ↔ main.tscn flow.
+func _to_menu() -> void:
+	Game.reset_run()
+	get_tree().paused = false
+	get_tree().change_scene_to_file(MENU_SCENE_PATH)
+
+
+func _quit() -> void:
+	get_tree().quit()
 
 
 ## The player signals every landing/takeoff so the hint always shows the

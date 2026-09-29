@@ -84,6 +84,9 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | score_combo_style_values | the Game autoload pays DESIGN values (tourist 100 · car 30), the chain escalates ×1 → ×2 → ×3 across target kinds and resets on landing and on the 20 s window, and the +50% style bonus demands a release that is fast, low and fresh | T-009 |
 | score_high_score_persists | beating the record writes user:// at once and a fresh Game loads it back | T-009 |
 | score_popup_floats_and_fades | the world-space popup shows "+100 ×2" at the hit position, floats up, fades and cleans itself up | T-009 |
+| pause_freezes_world | Esc-pausing through the real PauseMenu stops the flying pigeon dead mid-air and the hunger clock with it; resuming hands both back | T-010 |
+| game_over_shows_score_screen | starving through the real main scene opens the score screen — score, high score, tourist/car breakdown — freezes the run dead and keeps Esc locked | T-010 |
+| restart_resets_run | restart through Main.restart_run() zeroes score/breakdown, refills hunger, clears the game-over latch, regenerates the same-seed city and re-seeds every spawner with fresh nodes | T-010 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -114,17 +117,26 @@ landed, how many tourists are alive and how many took a splat (`panics`,
 T-007), how many car honks the run earned (`honks`, T-008), and the score the
 run built plus the persisted high score (`score` / `high`, T-009 — every real
 splat and honk now pays the DESIGN table through the Game autoload, with
-floating "+100 ×2" popups at the hits). Saves a
+floating "+100 ×2" popups at the hits). Since T-010 the run then ends on
+purpose at 30 s: the pilot starves the pigeon, the game-over score screen must
+open over a frozen world showing that run's numbers (score, high score,
+tourist/car breakdown — verified against the labels), the pilot restarts
+through the exact path the screen's Space button drives and checks the fresh
+run (unfrozen, score/breakdown zeroed, hunger refilled, pigeon back on the
+spawn corridor) — `restart=true` joins `ok`, and a timeout waiting for the
+screen fails the gate. Saves a
 screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
 godot --path . res://tests/autoplay.tscn
 ```
 
-**Pass =** exit 0, output contains `AUTOPLAY DONE ok=true`, and no `SCRIPT ERROR`
+**Pass =** exit 0, output contains `AUTOPLAY DONE ok=true` (which now includes
+`restart=true`), and no `SCRIPT ERROR`
 lines. The `DONE` line also reports the average rendered fps over the run —
 the T-004 60 fps criterion is measured with it. A game window appears on the
-desktop for ~35 s — that is the game being played; the screenshots are the evidence.
+desktop for ~40 s — that is the game being played; the screenshots are the
+evidence.
 
 Then confirm in a normal editor run (F5):
 
@@ -139,10 +151,13 @@ Keep this table in sync with `project.godot` and `README.md`:
 | ----- | ------ |
 | W / S | pitch up / down · waddle fwd / back while grounded |
 | A / D | turn left / right · turn while waddling |
-| Space | flap · takes off when grounded |
+| Space | flap · takes off when grounded · starts a run from the title screen · fly again on the score screen (T-010) |
 | F | poop — lobs a splat dropping while airborne (T-006) · a direct hit panics a tourist (T-007) or honks a car for 30 pts (T-008) |
 | Shift | boost *(not implemented)* |
-| Esc | pause *(not implemented — T-010)* |
+| Esc | pause — everything freezes; Esc again resumes (T-010) |
+| R | restart the run — from the pause menu or the score screen (T-010) |
+| M | back to the title screen — from the pause menu or the score screen (T-010) |
+| Q | quit the game — from the pause menu or the title screen (T-010) |
 
 Playtest checklist (grows as tickets land):
 
@@ -166,7 +181,7 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-005) The hunger bar ticks down while flying — visibly faster while flapping, slower while resting
 - [ ] (T-005) Landing near crumbs and waddling into them pecks them up and restores a chunk of the bar
 - [ ] (T-005) Flying low over crumbs does nothing — only grounded contact feeds
-- [ ] (T-005) Hunger reaching zero shows the starved hint exactly once (full game-over screen arrives with T-010)
+- [ ] (T-005) Hunger reaching zero ends the run — the game-over score screen opens (T-010), exactly once per run
 - [ ] (T-005) Eaten crumbs come back somewhere else within a few seconds
 - [ ] (T-006) Tapping F in flight lobs a dropping that visibly inherits momentum and arcs down
 - [ ] (T-006) Droppings splat on streets, walls and roofs, stick to the surface, and fade out after a few seconds
@@ -185,6 +200,11 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-009) Chained hits without landing escalate ×2, ×3… and reset when you land or after ~20 s
 - [ ] (T-009) A fast low dive hit pays the +50% style bonus — visible as a bigger popup number
 - [ ] (T-009) Beating the high score, then quitting and relaunching, shows the record survived
+- [ ] (T-010) Boot lands on the title screen; Space (or the Fly button) starts a run on the spawn corridor
+- [ ] (T-010) Esc mid-flight freezes everything dead — pigeon, hunger, traffic; Esc again resumes exactly where it was
+- [ ] (T-010) From the pause menu: R restarts into a fresh same-seed city, M returns to the title, Q quits
+- [ ] (T-010) Die on purpose twice in a row — each score screen shows score, high score and the tourist/car split; restart works from both (pause mid-flight during both runs)
+- [ ] (T-010) The score screen flags a freshly beaten record and Esc cannot unpause a dead run
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -220,5 +240,13 @@ Playtest checklist (grows as tickets land):
   high-score persistence and popup scenarios) and live in the autoplay run (the
   DONE line reports `score`/`high`); a human pass over the T-009 lines (popup
   readability at speed, combo rhythm, style-bonus feel) is still pending.
+- Game flow (T-010) is machine-verified (Gate 1b pause-freeze, score-screen and
+  restart scenarios) and exercised end to end by the autoplay pilot (the DONE
+  line reports `restart`/`run_score`/`run_tourists`/`run_cars`); a human pass
+  over the T-010 lines (title → play → starve → score screen → restart loop,
+  pause feel, die-twice manual run) is still pending. Restart is deliberately
+  in-place (Game.reset_run + same-seed city.generate, spawners re-seed off
+  `regenerated`) rather than a scene reload — the identical path runs in the
+  game, the sim harness and the autoplay pilot.
 - Placeholder art everywhere: the pigeon is a gray sphere and buildings are tinted
   boxes with a procedural window texture (pigeon look tracked in T-011).

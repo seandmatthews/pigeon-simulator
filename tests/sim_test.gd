@@ -11,6 +11,7 @@ const CITY_SCENE: PackedScene = preload("res://scenes/city.tscn")
 const CRUMB_SCENE: PackedScene = preload("res://scenes/bread_crumb.tscn")
 const POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const SPLAT_TARGET_SCRIPT := preload("res://tests/splat_target.gd")
+const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 
 ## The Game autoload's high score file is redirected here for the scoring
 ## scenarios, so a sim run never touches the real record in user://.
@@ -29,6 +30,7 @@ var _splat_events: Array[Dictionary] = [] ## {target, velocity} per splatted hit
 var _tourist_relay: int = 0 ## tourist_splatted relays caught from the spawner under test (T-007).
 var _car_relay: int = 0 ## car_splatted relays caught from the spawner under test (T-008).
 var _score_events: Array[Dictionary] = [] ## hit_scored payloads caught from the Game autoload (T-009).
+var _main_game: MainGame ## The real main.tscn instance the T-010 flow scenarios share.
 
 
 func _ready() -> void:
@@ -107,6 +109,9 @@ func _run_scenarios() -> void:
 	await _scenario_scoring_values()
 	await _scenario_high_score_persists()
 	await _scenario_score_popup()
+	await _scenario_pause_freezes()
+	await _scenario_game_over_screen()
+	await _scenario_restart_resets()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -1315,3 +1320,123 @@ func _scenario_score_popup() -> void:
 	_check("score_popup_floats_and_fades", text_ok and at_pos and risen and fading and cleaned,
 			"text=%s at_pos=%s risen=%s fading=%s cleaned=%s" % [
 					text_ok, at_pos, risen, fading, cleaned])
+
+
+## --- scenarios (T-010 game flow) --------------------------------------------
+
+
+## Esc-pausing through the REAL PauseMenu script: the whole tree freezes — the
+## flying pigeon stops dead mid-air and the hunger clock stops ticking — and
+## resuming hands both back.
+func _scenario_pause_freezes() -> void:
+	var pause_menu := PauseMenu.new()
+	add_child(pause_menu)
+	var hunger := Hunger.new()
+	hunger.player = _player
+	add_child(hunger)
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	pause_menu.toggle()
+	var paused := get_tree().paused and pause_menu.is_open
+	var air_pos: Vector3 = _player.position
+	var hunger_at_pause: float = hunger.value
+	await _wait_frames(30)
+	var frozen := _player.position.distance_to(air_pos) < 0.001 \
+			and absf(hunger.value - hunger_at_pause) < 0.0001
+	pause_menu.toggle()
+	var resumed := not get_tree().paused and not pause_menu.is_open
+	await _wait_frames(10)
+	var flew_on := _player.position.distance_to(air_pos) > 0.5
+	_check("pause_freezes_world", paused and frozen and resumed and flew_on,
+			"paused=%s frozen=%s resumed=%s flew_on=%s (drift %.4f m, hunger Δ %.4f)" % [
+					paused, frozen, resumed, flew_on,
+					_player.position.distance_to(air_pos),
+					absf(hunger.value - hunger_at_pause)])
+	hunger.free()
+	pause_menu.free()
+	get_tree().paused = false ## Never leak a pause into later scenarios.
+
+
+## The fail state, end to end through the REAL main scene (parked far from the
+## test world): starving opens the score screen with the run's numbers — score,
+## high score, tourist/car breakdown — freezes the run dead, and Esc stays
+## locked while the run is over.
+func _scenario_game_over_screen() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	_main_game = MAIN_SCENE.instantiate()
+	_main_game.position = Vector3(-2500.0, 0.0, 2500.0) ## Own space, clear of the test world.
+	add_child(_main_game)
+	await _wait_frames(4)
+	var drain_default: float = Game.hunger.drain_per_second
+	Game.add_tourist_hit(Vector3(-2500.0, 0.5, 2500.0))
+	Game.add_tourist_hit(Vector3(-2498.0, 0.5, 2501.0))
+	Game.add_car_hit(Vector3(-2502.0, 0.5, 2499.0))
+	var score_at_open: int = Game.score
+	var high_at_open: int = Game.high_score
+	Game.hunger.drain_per_second = 60.0 ## Time-compressed starvation: zero ~1.7 s in.
+	var screen: GameOverScreen = _main_game.game_over_screen
+	var opened := false
+	for _i in 600: ## 10 s budget.
+		await get_tree().physics_frame
+		if get_tree().paused and screen.is_open:
+			opened = true
+			break
+	var labels_ok := opened \
+			and screen.score_label.text == "Score: %d" % score_at_open \
+			and screen.high_label.text == "High score: %d" % high_at_open \
+			and screen.breakdown_label.text.contains("Tourists splatted: 2") \
+			and screen.breakdown_label.text.contains("Cars splatted: 1")
+	var pigeon: Player = _main_game.get_node("Player")
+	var frozen_pos: Vector3 = pigeon.position
+	await _wait_frames(30)
+	var frozen := pigeon.position.distance_to(frozen_pos) < 0.001 and get_tree().paused
+	var pause_menu: PauseMenu = _main_game.get_node("PauseMenu")
+	pause_menu.toggle() ## Esc on a dead run must be refused.
+	var esc_locked := get_tree().paused
+	Game.hunger.drain_per_second = drain_default ## Put the autoload's clock back.
+	_check("game_over_shows_score_screen", opened and labels_ok and frozen and esc_locked,
+			"opened=%s labels=%s frozen=%s esc_locked=%s (screen '%s' / '%s')" % [
+					opened, labels_ok, frozen, esc_locked,
+					screen.score_label.text if opened else "-",
+					screen.breakdown_label.text if opened else "-"])
+
+
+## Restart from the score screen (T-010): Main.restart_run() — the exact path
+## the screen's Space button drives — zeroes score/breakdown, refills hunger,
+## clears the one-shot game-over latch, regenerates the SAME-seed city and
+## re-seeds every spawner with fresh nodes back around the spawn corridor.
+func _scenario_restart_resets() -> void:
+	var main_game: MainGame = _main_game
+	var city: City = main_game.city
+	var pigeon: Player = main_game.get_node("Player")
+	var old_tourist_ids: Array[int] = []
+	for tourist in main_game.tourist_spawner.living_tourists():
+		old_tourist_ids.append(tourist.get_instance_id())
+	var fp_before: int = city.fingerprint
+	main_game.restart_run()
+	var state_ok := not get_tree().paused \
+			and not main_game.game_over_screen.visible \
+			and Game.score == 0 and Game.tourist_hits == 0 and Game.car_hits == 0 \
+			and Game.hunger.value >= Game.hunger.start_value - 0.001 \
+			and not Game.hunger.game_over_emitted
+	await _wait_frames(3) ## Let the queue_free'd old spawns flush out.
+	var city_ok := city.fingerprint == fp_before ## Same M1 seed — comparable scores.
+	var respawn_ok := pigeon.global_position.distance_to(city.spawn_point) < 1.0
+	var fresh_tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
+	var reused := false
+	for tourist in fresh_tourists:
+		reused = reused or old_tourist_ids.has(tourist.get_instance_id())
+	var spawns_ok := fresh_tourists.size() == main_game.tourist_spawner.target_count \
+			and not reused \
+			and main_game.bread_spawner.living_crumbs().size() == main_game.bread_spawner.target_count \
+			and main_game.car_spawner.living_cars().size() \
+					== main_game.car_spawner.target_moving + main_game.car_spawner.target_parked
+	_check("restart_resets_run", state_ok and city_ok and respawn_ok and spawns_ok,
+			"state=%s city=%s respawn=%s spawns=%s (tourists %d, crumbs %d, cars %d)" % [
+					state_ok, city_ok, respawn_ok, spawns_ok,
+					fresh_tourists.size(), main_game.bread_spawner.living_crumbs().size(),
+					main_game.car_spawner.living_cars().size()])
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	main_game.free()
+	_main_game = null

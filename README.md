@@ -11,7 +11,9 @@ survive, and earn points by pooping on tourists and their cars.
 > the curbs and looping the blocks (a direct hit earns a honk). Every splat
 > scores: tourists 100, cars 30, consecutive hits without landing multiply
 > (×1 → ×2 → ×3…), fast low dive hits pay +50%, and the high score persists
-> between runs.
+> between runs. The game boots to a title screen (Space to fly), pauses on Esc,
+> and starvation ends the run on a score screen — restart regenerates the same
+> city so scores stay comparable.
 > The roadmap lives in [`docs/tickets/`](docs/tickets/README.md).
 
 ## Run it
@@ -26,10 +28,13 @@ survive, and earn points by pooping on tourists and their cars.
 | ----- | ------ |
 | W / S | pitch up / down · waddle fwd / back while grounded |
 | A / D | turn left / right · turn while waddling |
-| Space | flap · takes off when grounded |
+| Space | flap · takes off when grounded · starts a run from the title screen · fly again on the score screen |
 | F | poop — lobs a splat dropping while airborne · a direct hit panics a tourist · honks a car (30 pts) |
 | Shift | boost *(not implemented yet)* |
-| Esc | pause *(not implemented yet)* |
+| Esc | pause — everything freezes; Esc again resumes |
+| R | restart the run — from the pause menu or the score screen |
+| M | back to the title screen — from the pause menu or the score screen |
+| Q | quit the game — from the pause menu or the title screen |
 
 ## Docs
 
