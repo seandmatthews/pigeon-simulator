@@ -22,6 +22,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-013 | [Juice pass v1](T-013-juice-pass.md) | P1 | M | T-006, T-009 | done |
 | T-014 | [Multi-instance pilot harness](T-014-pilot-multi-instance.md) | P1 | M | — | done |
 | T-015 | [Flap envelope](T-015-flap-envelope.md) | P1 | S | T-001 | done |
+| T-016 | [Pigeon silhouette & readable backdrops](T-016-pigeon-silhouette.md) | P1 | S | T-011, T-013 | done |
 | T-018 | [Performance budget pass](T-018-performance-budget.md) | P1 | M | T-004, T-007, T-008 | done |
 
 ## Milestone 2 — after the slice (not yet ticketed)
