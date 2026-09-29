@@ -17,6 +17,12 @@ const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 ## scenarios, so a sim run never touches the real record in user://.
 const SIM_SAVE_PATH := "user://sim_highscore.cfg"
 
+## (T-015) Forward-speed ceiling four paced ground flaps may pump. Measured
+## 25.04 m/s under the tapered flap (fixed-fps sim); the old fixed 45° flap
+## reached 28.7 m/s at THREE flaps and rode the 30 cap at four, so 26.0 both
+## passes the new model with margin and fails the old one.
+const FLAP_PUMP_CEIL := 26.0
+
 ## Set SIM_DEBUG=1 to print per-scenario trajectory samples.
 var _debug: bool = OS.get_environment("SIM_DEBUG") == "1"
 
@@ -75,6 +81,7 @@ func _add_box(box_name: String, size: Vector3, pos: Vector3) -> StaticBody3D:
 
 func _run_scenarios() -> void:
 	await _scenario_takeoff()
+	await _scenario_flap_speed_envelope()
 	await _scenario_lift()
 	await _scenario_energy_exchange()
 	await _scenario_banking()
@@ -218,6 +225,52 @@ func _scenario_takeoff() -> void:
 	_dbg("measure: y=%.2f vy=%.2f speed=%.2f" % [altitude, _player.velocity.y, _player.velocity.length()])
 	_check("takeoff_3_flaps", altitude > 1.0 and finite,
 			"altitude %.2f m after 3 flaps + 1 s (finite=%s)" % [altitude, finite])
+
+
+## (T-015) The flap is lift-first, not throttle: four paced flaps from the
+## ground climb without pumping forward speed toward the cap, and at cruise a
+## flap adds climb, not forward speed. The cruise tap is sampled at +1 and +2
+## frames after a 30-frame settled glide — the magnitude-preserving nose-chase
+## converts lift into forward speed within a few frames, and the envelope
+## claim is about the impulse, not that conversion.
+func _scenario_flap_speed_envelope() -> void:
+	# Leg 1 — four paced flaps from the ground, no pitch input. The pump
+	# ceiling is the largest forward speed seen through the cadence and the
+	# second after it (the old fixed 45° flap hit the cap here).
+	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO)
+	var pump_speed := 0.0
+	for _i in 4:
+		await _tap("flap")
+		await _wait_frames(24)
+		pump_speed = maxf(pump_speed, _player.forward_speed)
+	for _i in 60:
+		await get_tree().physics_frame
+		pump_speed = maxf(pump_speed, _player.forward_speed)
+	var pump_y := _player.position.y
+	var finite := _player.velocity.is_finite()
+	_dbg("envelope pump: y=%.2f pump_fwd=%.2f speed=%.2f" % [
+			pump_y, pump_speed, _player.velocity.length()])
+	# Leg 2 — one fully-rested flap at cruise, measured from a settled glide.
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	await _wait_frames(30)
+	var fwd0 := _player.forward_speed
+	var vy0 := _player.velocity.y
+	await _tap("flap")
+	await _wait_frames(1)
+	var fwd1 := _player.forward_speed
+	var vy1 := _player.velocity.y
+	await _wait_frames(1)
+	var fwd2 := _player.forward_speed
+	var vy2 := _player.velocity.y
+	_dbg("envelope cruise tap: fwd %.2f -> %.2f -> %.2f, vy %.2f -> %.2f -> %.2f" % [
+			fwd0, fwd1, fwd2, vy0, vy1, vy2])
+	var fwd_gain := maxf(fwd1, fwd2) - fwd0
+	var vy_gain := vy1 - vy0
+	_check("flap_speed_envelope",
+			pump_speed < FLAP_PUMP_CEIL and pump_y > 1.0 and fwd_gain < 2.0 and vy_gain > 4.0
+					and finite,
+			"pump %.1f m/s (ceil %.1f) at y %.1f, cruise tap fwd +%.2f vy +%.2f" % [
+					pump_speed, FLAP_PUMP_CEIL, pump_y, fwd_gain, vy_gain])
 
 
 ## At cruise speed, lift must noticeably soften gravity: a 1.5 s glide sinks
@@ -489,7 +542,7 @@ func _scenario_city_street_flyover() -> void:
 	for i in 1500:
 		await get_tree().physics_frame
 		if i % 24 == 0 and _player.position.y < 28.0:
-			await _tap("flap") ## Paced pulses keep it in the 24–30 m cruise band.
+			await _tap("flap") ## T-015: taps pace the climb toward the band; the crossing itself rides a glide flaps can no longer throttle past ~25.
 		min_y = minf(min_y, _player.position.y)
 		max_drift = maxf(max_drift, absf(_player.position.x - road_x))
 		finite = finite and _player.velocity.is_finite() and _player.position.is_finite()

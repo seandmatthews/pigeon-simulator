@@ -261,8 +261,9 @@ func _drive(t: float, delta: float) -> void:
 
 	# Low mode: below the cruise band, climb. Straight ahead is the road
 	# corridor; near the plaza at roof height it also pulls toward the center.
-	# Nose capped at ~27° up and flaps capped at vy 8, so the climb eases into
-	# the band instead of zooming or looping.
+	# Nose capped at ~27° up and flaps gated to vy < 5 (each flap now lifts
+	# harder — T-015), so the climb eases into the band instead of zooming or
+	# looping.
 	if _player.position.y < CRUISE_FLOOR:
 		if _nose_y() < 0.45:
 			Input.action_press("pitch_up")
@@ -285,10 +286,10 @@ func _drive(t: float, delta: float) -> void:
 			Input.action_press("flap")
 		return
 
-	# Cruise governor: hold the 24–30 m band, keep airspeed up, garnish with a
-	# bank and a bounded dive pulse. The steep-dive pull-out has priority, and
-	# every pitch command is nose-bounded, so nothing can ratchet the attitude
-	# into a loop or a sustained dive.
+	# Cruise governor: hold the 24–30 m band, keep airspeed near glide speed,
+	# garnish with a bank and a bounded dive pulse. The steep-dive pull-out has
+	# priority, and every pitch command is nose-bounded, so nothing can
+	# ratchet the attitude into a loop or a sustained dive.
 	var phase := fmod(t, 15.0)
 	var turn := "turn_left" if int(t / 15.0) % 2 == 0 else "turn_right"
 	var pitch := _governor_pitch(vy, speed)
@@ -301,7 +302,12 @@ func _drive(t: float, delta: float) -> void:
 		Input.action_press("pitch_down")
 	if phase >= 5.0 and phase < 7.0:
 		Input.action_press(turn) ## Alternate the bank each loop so it zigzags.
-	if _player.position.y < CRUISE_CEIL and speed < 28.0 and fmod(t, 0.5) < delta:
+	# T-015: flaps no longer throttle toward the old 28 m/s cap — their shove
+	# fades out at glide_speed — so the governor flaps to hold the cruise band
+	# itself (glide speed plus margin); beyond that, speed comes from the
+	# bounded dive pulse below.
+	if _player.position.y < CRUISE_CEIL and speed < _player.glide_speed + 3.0 \
+			and fmod(t, 0.5) < delta:
 		Input.action_press("flap")
 
 
