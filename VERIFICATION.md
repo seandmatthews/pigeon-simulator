@@ -39,6 +39,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | Scenario | Proves | Ticket |
 | -------- | ------ | ------ |
 | takeoff_3_flaps | 3 paced flaps from the ground reach climbing flight | T-001 |
+| flap_speed_envelope | four paced flaps climb without pumping forward speed to the cap, and a flap at cruise buys climb, not throttle (fwd gain < 2 m/s at +1–2 frames, vy gain > 4) | T-015 |
 | lift_softens_gravity | level glide at 12 m/s sinks gently (< 6 m in 1.5 s) | T-001 |
 | dive_gains_speed | a dive to −60° converts height into speed | T-001 |
 | pullup_gains_height | pulling out of a dive climbs above the pull-start altitude while speed bleeds | T-001 |
@@ -106,7 +107,9 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 
 Boots the **real** game (`scenes/main.tscn`) in a window and plays it with a
 scripted, city-aware pilot for 30 s: cruise above the skyline (every generated
-roof stays under 18.3 m, the pilot's floor is 23 m), flap-climb, bank, a short
+roof stays under 18.3 m, the pilot's floor is 23 m), a flap-paced climb
+(since T-015 the flaps pace near glide speed — the dive pulse owns the top
+end), bank, a short
 dive pulse that only starts high enough to stay over the roofs, pull-up, glide,
 and airborne poop taps (T-006 — every 2 s in flight the pilot lobs a real
 dropping; grounded taps are skipped; since T-007 it pulls the trigger early
@@ -253,8 +256,10 @@ Playtest checklist (grows as tickets land):
 
 ## Known issues
 
-- Flight model v1 is machine-verified (Gate 1b, 8/8) only — a human feel/tuning pass
-  over the T-001 playtest lines is still pending.
+- Flight model v1 is machine-verified (Gate 1b) and its speed envelope was
+  re-tuned by T-015 (flaps pace toward ~25, dives own the top end —
+  `flap_speed_envelope` green); a human feel pass over the T-001 playtest
+  lines under the new envelope is still pending.
 - Land/waddle/take-off (T-003) is machine-verified (Gate 1b) and exercised by the
   autoplay ground visit; a human feel pass over the T-003 lines is still pending.
 - City blockout (T-004) is machine-verified (Gate 1b layout/flyover/landing

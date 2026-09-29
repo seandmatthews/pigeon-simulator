@@ -39,9 +39,11 @@ dive versus playing it safe for crumbs.
 ## Mechanics
 
 ### Flight (T-001)
-Arcade, not simulation. Flap for timed up+forward impulses (pacing beats mashing);
-forward speed generates lift that softens gravity; diving trades height for speed;
-pulling up trades it back. Turns bank the body. Too slow → stall. All tunables are
+Arcade, not simulation. Flap for timed impulses that are up-and-forward when slow
+and mostly lift near cruise (T-015) — pacing beats mashing, and flaps pace toward
+roughly 25 m/s; speed beyond that comes from diving. Forward speed generates lift
+that softens gravity; diving trades height for speed; pulling up trades it back.
+Turns bank the body. Too slow → stall. All tunables are
 exported on the player script for live tweaking.
 
 ### Hunger (T-005)

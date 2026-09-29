@@ -5,7 +5,9 @@ extends CharacterBody3D
 ## banked turns and a stall below minimum airspeed in the air; gentle floor
 ## touches settle into a slow comedic waddle and flap takes off again. Hard
 ## touchdowns just skid — no damage model in M1. Every tunable is an @export
-## for live tweaking.
+## for live tweaking. Since T-015 the airborne flap is mostly lift: its
+## forward shove fades out across `flap_push_taper`, so flaps pace toward
+## roughly glide_speed plus a few m/s and dives own the top end.
 
 ## Emitted when the pigeon lands or takes off — the HUD swaps its control hint.
 signal grounding_changed(grounded: bool)
@@ -26,6 +28,7 @@ enum State { AIR, GROUND }
 @export var flap_interval: float = 0.35 ## Seconds since the last flap for full strength; faster flaps are weaker.
 @export var flap_min_fraction: float = 0.25 ## Impulse fraction when mash-spamming with no rest.
 @export var flap_cooldown: float = 0.12 ## Hard floor between two flaps.
+@export var flap_push_taper: float = 10.0 ## (T-015) m/s band over which the airborne flap's forward shove fades: full 45° shove at glide_speed - taper, pure lift at glide_speed — flaps climb and pace, dives add speed. Tune-safe: values ≤ 0 degrade to the old fixed 45° flap.
 
 @export_group("Lift & stall")
 @export var gravity: float = 12.0
@@ -266,7 +269,7 @@ func _flap() -> void:
 	if not Input.is_action_just_pressed("flap") or _flap_timer > 0.0:
 		return
 	var rested := clampf(_time_since_flap / flap_interval, flap_min_fraction, 1.0)
-	var flap_dir := (transform.basis.y - transform.basis.z).normalized()
+	var flap_dir: Vector3
 	if state == State.GROUND:
 		# A startled takeoff fires up-and-forward from level attitude — the body
 		# may still be nose-down right after a touchdown, and flapping along it
@@ -274,6 +277,17 @@ func _flap() -> void:
 		var fwd := -transform.basis.z
 		fwd.y = 0.0
 		flap_dir = (Vector3.UP + fwd.normalized()).normalized()
+	else:
+		# In the air the flap is mostly lift (T-015): its forward shove fades
+		# out across `flap_push_taper` — the full 45° shove at low speed (so
+		# stall recovery keeps its old bite), pure body-up lift at cruise. A
+		# flap buys climb and pacing, never the top end; only diving adds real
+		# speed. The maxf guard makes taper ≤ 0 degrade to the old fixed flap.
+		var blend := clampf(
+				(forward_speed - (glide_speed - flap_push_taper)) / maxf(flap_push_taper, 0.5),
+				0.0, 1.0)
+		flap_dir = (transform.basis.y - transform.basis.z).normalized().slerp(
+				transform.basis.y, blend).normalized()
 	var pre_vy := velocity.y ## The climb the pigeon was already working with.
 	velocity += flap_dir * flap_impulse * rested
 	_flap_timer = flap_cooldown
