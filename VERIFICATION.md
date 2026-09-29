@@ -91,6 +91,8 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | pigeon_ground_poses_track_waddle | grounded settles into the folded stand, waddling flips to the waddle pose, stopping settles back to stand | T-011 |
 | pigeon_pecks_when_eating | eating a crumb through Main's exact wiring (crumb.eaten → Player.peck) plays the peck — the beak dives down and the overlay ends | T-011 |
 | city_district_palettes_distinct | every building wears a color from its own district's palette, all four districts appear, the palettes are measurably distinct and the quadrant mapping is pure | T-013 |
+| city_shopfronts_present | every building wears a ground-floor shop band with a door on one of its two street-facing faces plus the seeded awning share (104/146 at the M1 seed), and the shopfront palette stays measurably distinct from every district palette | T-017 |
+| city_shopfronts_deterministic | regenerating the same seed reproduces every shop color, door face and awning flag exactly | T-017 |
 | juice_splat_burst_fires | a real lobbed splat spawns a one-shot droplet burst at the hit point on the hit body, and it cleans itself up | T-013 |
 | juice_feather_poofs_on_hard_flap | a fully-rested flap poofs feathers; a re-flap inside the throttle window doesn't spam another | T-013 |
 | juice_dust_puff_on_landing | a gentle glide touchdown kicks a dust puff at the feet, which cleans itself up | T-013 |
@@ -246,6 +248,10 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-013) The camera shake on landings and your own splat hits is a tick, never nauseating — nothing obscures targets
 - [ ] (T-013) Side-by-side with before, the city reads warmer and the four districts read as distinct-but-harmonious neighborhoods from the air
 - [ ] (T-013) The HUD score pulse fires on combo escalation, reads clearly, and settles without jitter
+- [ ] (T-017) Street canyons read as shop rows at eye level — colored ground-floor bands with doors and awnings, not blank office walls
+- [ ] (T-017) The shop bands read from the air and give the roofscape a visible street-level edge
+- [ ] (T-017) Shop colors harmonize with the four district palettes — distinct but not clashing
+- [ ] (T-017) Low street-level flight does not snag on or distractingly pass through awnings (visual-only by decision — `docs/tickets/T-017-shopfronts.md`)
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -307,5 +313,6 @@ Playtest checklist (grows as tickets land):
   `shake_peak`; average fps 130 — the 60 fps criterion holds with all
   particles active). A human pass over the T-013 lines (aliveness side-by-side,
   shake comfort, screen clutter, district palette harmony) is still pending.
-- Remaining placeholder art: buildings are tinted
-  boxes with a procedural window texture.
+- Remaining placeholder art: upper-floor facades are tinted
+  boxes with a procedural window texture (ground floors carry T-017 shopfront
+  bands, doors and awnings; the awnings are visual-only, no collider).
