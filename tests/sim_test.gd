@@ -98,6 +98,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_roof()
 	await _scenario_city_sidewalk()
 	await _scenario_city_district_palettes()
+	await _scenario_city_shopfronts()
 	await _scenario_hunger_drain()
 	await _scenario_hunger_game_over()
 	await _scenario_bread_eating()
@@ -642,6 +643,81 @@ func _scenario_city_district_palettes() -> void:
 			"members=%s distinct=%s mapping=%s districts_seen=%d/%d" % [
 					members_ok, distinct, mapping_ok,
 					districts_seen.size(), _city.DISTRICT_PALETTES.size()])
+
+
+## --- scenarios (T-017 shopfront ground floors) ------------------------------
+
+
+## Every building wears a ground-floor shop band, a door on one of its two
+## street-facing faces, and the seeded share of awnings; the shopfront palette
+## stays measurably distinct from all four district palettes. Under the fixed
+## seed every roll is deterministic, so coverage is asserted at 100% and the
+## awning count is pinned to the seed's exact draw (104 of 146 = 71.2% for
+## awning_chance 0.6 at seed 20260928 — retune the pin if the chance changes).
+func _scenario_city_shopfronts() -> void:
+	var members_ok := true
+	var doors_on_street := true
+	var awnings := 0
+	for info in _city.buildings:
+		var shop := false
+		for c: Color in _city.SHOPFRONT_PALETTE:
+			shop = shop or (info.shop_color as Color).is_equal_approx(c)
+		members_ok = members_ok and shop
+		## The lot's street faces are the two whose outward normal points away
+		## from the block center; the other two look into the alley.
+		var lot: Vector2 = info.lot_offset
+		var street_faces: Array[int] = []
+		if lot.x > 0.0:
+			street_faces.append(0)
+		elif lot.x < 0.0:
+			street_faces.append(1)
+		if lot.y > 0.0:
+			street_faces.append(2)
+		elif lot.y < 0.0:
+			street_faces.append(3)
+		doors_on_street = doors_on_street and street_faces.has(int(info.door_face))
+		if info.has_awning:
+			awnings += 1
+	var count := _city.buildings.size()
+	var awn_share := float(awnings) / float(maxi(count, 1))
+	## Shop palette vs district palette means — mirrors the T-013 distinctness read.
+	var shop_mean := Color(0.0, 0.0, 0.0)
+	for c: Color in _city.SHOPFRONT_PALETTE:
+		shop_mean += c
+	shop_mean /= float(_city.SHOPFRONT_PALETTE.size())
+	var palette_distinct := true
+	for palette: Array in _city.DISTRICT_PALETTES:
+		var sum := Color(0.0, 0.0, 0.0)
+		for c: Color in palette:
+			sum += c
+		var mean := sum / float(palette.size())
+		var shop_v := Vector3(shop_mean.r, shop_mean.g, shop_mean.b)
+		var district_v := Vector3(mean.r, mean.g, mean.b)
+		palette_distinct = palette_distinct and shop_v.distance_to(district_v) > 0.1
+	var coverage_ok := count > 0 and members_ok and doors_on_street and palette_distinct
+	## The seed's exact deterministic draw — an extra (or missing) _shop_rng roll
+	## anywhere upstream would shift this count and fail here.
+	var awn_ok := awnings == 104
+	_check("city_shopfronts_present", coverage_ok and awn_ok,
+			"buildings=%d members=%s doors_on_street=%s palette_distinct=%s awnings=%d (%.1f%%)"
+					% [count, members_ok, doors_on_street, palette_distinct,
+					awnings, awn_share * 100.0])
+	## Same seed → every shopfront roll reproduces identically.
+	var default_seed: int = _city.seed_value
+	var snapshot: Array = []
+	for info in _city.buildings:
+		snapshot.append([info.shop_color, info.door_face, info.has_awning])
+	_city.generate(default_seed)
+	var reproduced := snapshot.size() == _city.buildings.size()
+	if reproduced:
+		for i in snapshot.size():
+			var info: Dictionary = _city.buildings[i]
+			var same_color: bool = (snapshot[i][0] as Color).is_equal_approx(info.shop_color)
+			var same_face: bool = snapshot[i][1] == int(info.door_face)
+			var same_awning: bool = snapshot[i][2] == bool(info.has_awning)
+			reproduced = reproduced and same_color and same_face and same_awning
+	_check("city_shopfronts_deterministic", reproduced,
+			"snapshot %d vs regenerated %d" % [snapshot.size(), _city.buildings.size()])
 
 
 ## --- scenarios (T-005 bread & hunger) --------------------------------------

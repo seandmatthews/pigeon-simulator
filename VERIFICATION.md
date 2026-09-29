@@ -94,6 +94,8 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | pigeon_pecks_when_eating | eating a crumb through Main's exact wiring (crumb.eaten → Player.peck) plays the peck — the beak dives down and the overlay ends | T-011 |
 | pigeon_silhouette_contrast | the bird's body is ≥ 0.20 Euclidean RGB from the sidewalk and the cream facade family, darker than every district backdrop's mean luminance by ≥ 0.05, with wingtips ≥ 0.15 darker and the head lighter (the 12-color sweep prints informationally) | T-016 |
 | city_district_palettes_distinct | every building wears a color from its own district's palette, all four districts appear, the palettes are measurably distinct and the quadrant mapping is pure | T-013 |
+| city_shopfronts_present | every building wears a ground-floor shop band with a door on one of its two street-facing faces plus the seeded awning share (104/146 at the M1 seed), and the shopfront palette stays measurably distinct from every district palette | T-017 |
+| city_shopfronts_deterministic | regenerating the same seed reproduces every shop color, door face and awning flag exactly | T-017 |
 | juice_splat_burst_fires | a real lobbed splat spawns a one-shot droplet burst at the hit point on the hit body, and it cleans itself up | T-013 |
 | juice_feather_poofs_on_hard_flap | a fully-rested flap poofs feathers; a re-flap inside the throttle window doesn't spam another | T-013 |
 | juice_dust_puff_on_landing | a gentle glide touchdown kicks a dust puff at the feet, which cleans itself up | T-013 |
@@ -256,6 +258,10 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-016) Side-by-side with before, the city still reads warm and sunny after the sun-energy retune (the T-013 warmth judgement re-based)
 - [ ] (T-019) The score line and control hint read clearly over white pavement at the spawn corridor, over the bright sky at altitude and over the dark road (dark outlines)
 - [ ] (T-019) The hunger bar warns at a glance — white → amber → red pulse → fast flash — without staring at it, and never sits stranded mid-flash after landing to eat
+- [ ] (T-017) Street canyons read as shop rows at eye level — colored ground-floor bands with doors and awnings, not blank office walls
+- [ ] (T-017) The shop bands read from the air and give the roofscape a visible street-level edge
+- [ ] (T-017) Shop colors harmonize with the four district palettes — distinct but not clashing
+- [ ] (T-017) Low street-level flight does not snag on or distractingly pass through awnings (visual-only by decision — `docs/tickets/T-017-shopfronts.md`)
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -334,8 +340,9 @@ Playtest checklist (grows as tickets land):
   pulse, rest-color restore through refill and restart). A human pass over the
   T-019 lines (legibility over pavement/sky/road, tier readability at a
   glance, pulse comfort) is still pending.
-- Remaining placeholder art: buildings are tinted
-  boxes with a procedural window texture.
+- Remaining placeholder art: upper-floor facades are tinted
+  boxes with a procedural window texture (ground floors carry T-017 shopfront
+  bands, doors and awnings; the awnings are visual-only, no collider).
 - T-016 machine-checked the pigeon's material contrast and capped the sun, but
   the human pass over its two new Gate 3 lines (bird readable on sidewalk and
   facade at ~20 m; city still reads warm after the energy retune) is pending.

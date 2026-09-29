@@ -34,6 +34,17 @@ const COLOR_BENCH_WOOD := Color(0.55, 0.38, 0.24)
 const COLOR_METAL := Color(0.25, 0.26, 0.28)
 const COLOR_BIN := Color(0.16, 0.30, 0.20)
 const COLOR_LAMP_GLOW := Color(1.0, 0.9, 0.6)
+const COLOR_DOOR := Color(0.18, 0.14, 0.12)
+## Ground-floor shopfront palette (T-017): cafés, bakeries, bookshops and delis,
+## so the street level reads as shop rows instead of blank office walls. Kept
+## well apart from all four district families (the harness asserts the means
+## stay > 0.1 apart in RGB).
+const SHOPFRONT_PALETTE: Array[Color] = [
+	Color(0.62, 0.28, 0.22), ## Café red-brown.
+	Color(0.85, 0.72, 0.45), ## Bakery cream.
+	Color(0.34, 0.48, 0.36), ## Bookshop green.
+	Color(0.26, 0.42, 0.48), ## Deli teal.
+]
 
 @export_group("Layout")
 ## Fixed M1 seed — same city every run so runs and scores stay comparable.
@@ -78,6 +89,9 @@ const COLOR_LAMP_GLOW := Color(1.0, 0.9, 0.6)
 @export var bench_chance: float = 0.75 ## Chance each block edge gets a bench.
 @export var bin_chance: float = 0.6 ## Chance each block gets a trash bin.
 
+@export_group("Shopfronts")
+@export var awning_chance: float = 0.6 ## Share of buildings whose shop door gets an awning (T-017).
+
 @export_group("Traffic")
 ## Driving-lane center beyond the block edge (m) — ring-road corners sit at
 ## this offset. With the 1.9 m car width this keeps ~0.55 m to the parked
@@ -92,7 +106,9 @@ var spawn_point: Vector3
 ## Hash of the whole generated layout; equal fingerprints mean an identical city.
 var fingerprint: int = 0
 ## One entry per building: `center` (global footprint center), `size` (XZ
-## footprint), `top` (global roof height). Tests and later tickets read this.
+## footprint), `top` (global roof height), plus the T-013 palette members
+## (`district`, `color`) and the T-017 shopfront members (`lot_offset`,
+## `shop_color`, `door_face`, `has_awning`). Tests and later tickets read this.
 var buildings: Array[Dictionary] = []
 ## Summary of the last generation — the sim harness asserts the guarantees on it.
 var last_report: Dictionary = {}
@@ -120,6 +136,11 @@ var city_span: float:
 	get: return blocks_per_side * block_pitch + road_width
 
 var _rng := RandomNumberGenerator.new()
+## Dedicated stream for the T-017 shopfront decoration: seeding it separately
+## keeps the layout stream (floors, colors, lots, parks, props) byte-identical
+## to the pre-shopfront city — only the decoration and the fingerprint entries
+## it appends are new.
+var _shop_rng := RandomNumberGenerator.new()
 var _meshes: Dictionary = {} ## MultiMesh key -> shared unit BoxMesh for that key.
 var _visuals: Dictionary = {} ## MultiMesh key -> {xfs: Array, colors: Array}.
 var _static_root: Node3D
@@ -142,6 +163,7 @@ func generate(new_seed: int = seed_value) -> void:
 	seed_value = new_seed
 	_clear()
 	_rng.seed = seed_value
+	_shop_rng.seed = seed_value
 	_meshes = {}
 	_visuals = {}
 	_counts = {"buildings": 0, "parks": 0, "benches": 0, "lamps": 0, "bins": 0}
@@ -291,6 +313,9 @@ func _make_meshes() -> void:
 		"lamp_post": _unit_box(_flat_material(COLOR_METAL)),
 		"lamp_head": _unit_box(_glow_material(COLOR_LAMP_GLOW)),
 		"bin": _unit_box(_flat_material(COLOR_BIN)),
+		"shopfront": _unit_box(_vertex_color_material()),
+		"awning": _unit_box(_vertex_color_material()),
+		"door": _unit_box(_flat_material(COLOR_DOOR)),
 	}
 
 
@@ -382,10 +407,13 @@ func _build_block_buildings(center: Vector3, district: int) -> void:
 				kept.append(q)
 		lots = kept ## Duo — one alley through the block.
 	for q in lots:
-		_add_building(center + Vector3(q.x * lot * 0.5, 0.0, q.y * lot * 0.5), footprint, district)
+		var lot_offset := Vector2(q.x * lot * 0.5, q.y * lot * 0.5)
+		_add_building(center + Vector3(lot_offset.x, 0.0, lot_offset.y), footprint, district,
+				lot_offset)
 
 
-func _add_building(base_center: Vector3, footprint: float, district: int) -> void:
+func _add_building(base_center: Vector3, footprint: float, district: int,
+		lot_offset: Vector2) -> void:
 	var floors := _rng.randi_range(building_floors_min, building_floors_max)
 	var wall_h := floors * floor_height
 	var total_h := wall_h + roof_slab_height
@@ -397,6 +425,7 @@ func _add_building(base_center: Vector3, footprint: float, district: int) -> voi
 	_add_mm("roof", _box_xf(
 			base_center + Vector3(0.0, block_slab_height + wall_h + roof_slab_height * 0.5, 0.0),
 			Vector3(footprint, roof_slab_height, footprint)))
+	var shop := _add_shopfront(base_center, footprint, lot_offset)
 	_add_collider("Buildings",
 			Vector3(footprint, total_h, footprint),
 			base_center + Vector3(0.0, block_slab_height + total_h * 0.5, 0.0))
@@ -406,10 +435,16 @@ func _add_building(base_center: Vector3, footprint: float, district: int) -> voi
 		"top": to_global(Vector3(0.0, block_slab_height + total_h, 0.0)).y,
 		"district": district, ## Which district palette the facade wore (T-013).
 		"color": color, ## The facade color itself — tests assert palette membership (T-013).
+		"lot_offset": lot_offset, ## City-local offset from the block center (T-017 street-face rule).
+		"shop_color": shop.color, ## Ground-floor band color — tests assert palette membership (T-017).
+		"door_face": shop.door_face, ## 0=+x 1=-x 2=+z 3=-z — must be one of the lot's street faces (T-017).
+		"has_awning": shop.has_awning, ## Whether the door got its awning (T-017).
 	})
 	_max_roof = maxf(_max_roof, total_h)
 	_counts.buildings += 1
 	_fp.append(["b", base_center.x, base_center.z, footprint, wall_h, color.r, color.g, color.b])
+	_fp.append(["shop", base_center.x, base_center.z, shop.color.r, shop.color.g, shop.color.b,
+			shop.door_face, 1 if shop.has_awning else 0])
 	## Spawn-plaza guarantee: no footprint may intrude into the clear radius.
 	var half := footprint * 0.5
 	var closest := Vector2(
@@ -417,6 +452,51 @@ func _add_building(base_center: Vector3, footprint: float, district: int) -> voi
 			clampf(_plaza_center.z, base_center.z - half, base_center.z + half))
 	if Vector2(_plaza_center.x, _plaza_center.z).distance_to(closest) < spawn_clear_radius:
 		_plaza_clear = false
+
+
+## Ground-floor shopfront (T-017): a colored band around the whole ground floor,
+## plus a door — and often an awning over it — on ONE street-facing face. All
+## rolls come from the dedicated `_shop_rng`, so the layout stream is untouched.
+## Face indices: 0=+x, 1=-x, 2=+z, 3=-z. The street faces of a lot are the two
+## whose outward normal points away from the block center; the other two look
+## into the `lot_gap` alley, where facing awnings at the same height would
+## interpenetrate. The awning is deliberately visual-only (no collider — see
+## the ticket's Decisions).
+func _add_shopfront(base_center: Vector3, footprint: float, lot_offset: Vector2) -> Dictionary:
+	var shop_color: Color = SHOPFRONT_PALETTE[
+			_shop_rng.randi_range(0, SHOPFRONT_PALETTE.size() - 1)]
+	var band_h := 2.4
+	var band_outset := 0.12
+	_add_mm("shopfront", _box_xf(
+			base_center + Vector3(0.0, block_slab_height + band_h * 0.5, 0.0),
+			Vector3(footprint + band_outset, band_h, footprint + band_outset)), shop_color)
+	var street_faces: Array[int] = []
+	if lot_offset.x > 0.0:
+		street_faces.append(0) ## +x
+	elif lot_offset.x < 0.0:
+		street_faces.append(1) ## -x
+	if lot_offset.y > 0.0:
+		street_faces.append(2) ## +z
+	elif lot_offset.y < 0.0:
+		street_faces.append(3) ## -z
+	var door_face: int = street_faces[_shop_rng.randi_range(0, street_faces.size() - 1)]
+	var face_normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][door_face]
+	var door_size := Vector3(0.95, 2.05, 0.1) if absf(face_normal.x) > 0.5 \
+			else Vector3(0.1, 2.05, 0.95)
+	_add_mm("door", _box_xf(
+			base_center + face_normal * (footprint * 0.5 + band_outset + 0.01)
+					+ Vector3(0.0, block_slab_height + 1.025, 0.0),
+			door_size))
+	var has_awning := _shop_rng.randf() < awning_chance
+	if has_awning:
+		var awn_depth := 1.3
+		var awn_size := Vector3(awn_depth, 0.09, footprint * 0.55) if absf(face_normal.x) > 0.5 \
+				else Vector3(footprint * 0.55, 0.09, awn_depth)
+		_add_mm("awning", _box_xf(
+				base_center + face_normal * (footprint * 0.5 + awn_depth * 0.5)
+						+ Vector3(0.0, block_slab_height + 2.9, 0.0),
+				awn_size), shop_color.darkened(0.15))
+	return {"color": shop_color, "door_face": door_face, "has_awning": has_awning}
 
 
 ## The spawn plaza: an open paved block — benches around a clear middle,

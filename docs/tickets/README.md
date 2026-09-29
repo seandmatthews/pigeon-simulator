@@ -23,6 +23,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-014 | [Multi-instance pilot harness](T-014-pilot-multi-instance.md) | P1 | M | — | done |
 | T-015 | [Flap envelope](T-015-flap-envelope.md) | P1 | S | T-001 | done |
 | T-016 | [Pigeon silhouette & readable backdrops](T-016-pigeon-silhouette.md) | P1 | S | T-011, T-013 | done |
+| T-017 | [Shopfront ground floors](T-017-shopfronts.md) | P1 | S | T-004, T-013 | done |
 | T-018 | [Performance budget pass](T-018-performance-budget.md) | P1 | M | T-004, T-007, T-008 | done |
 | T-019 | [HUD legibility & hunger warning](T-019-hud-legibility.md) | P0 | S | T-005, T-010 | done |
 
