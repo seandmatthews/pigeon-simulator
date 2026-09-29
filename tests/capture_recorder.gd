@@ -36,12 +36,17 @@ var _frame: int = 0
 var _title_stamps: int = 0
 var _connected: Dictionary = {}
 var _holds: Dictionary = {}
+## PIGEON_PERF=1 adds an engine-monitor block to the state stream every 30
+## frames (fps, script times, draw calls, nodes, physics-active) — the
+## measurement stream for perf work (T-018); default sessions are unchanged.
+var _perf_enabled: bool = false
 
 @onready var _image_timer := Timer.new()
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_perf_enabled = OS.get_environment("PIGEON_PERF") == "1"
 	_session = _resolve_session()
 	if _session.is_empty():
 		_start_legacy()
@@ -166,6 +171,11 @@ func _pilot_step() -> void:
 	cmds.sort()
 	for fname in cmds:
 		var text := FileAccess.get_file_as_string(_pilot_dir + "/" + fname)
+		# Consume before executing: the quit command returns out of this loop,
+		# and a file left behind would poison the next session on this id — a
+		# fresh instance would read the stale {"quit":true} at boot and exit
+		# ~1 s in (observed live, T-018).
+		dir.remove(fname)
 		for line in text.split("\n"):
 			if line.is_empty():
 				continue
@@ -193,7 +203,6 @@ func _pilot_step() -> void:
 					Input.action_press(action)
 					_holds["action:%s" % action] = {"frames": frames, "keycode": 0}
 					_log_event("pilot_press", {"action": action, "frames": frames})
-		dir.remove(fname)
 	for name_key in _holds.keys():
 		var hold: Dictionary = _holds[name_key]
 		var left := int(hold["frames"]) - 1
@@ -261,24 +270,39 @@ func _snapshot() -> Dictionary:
 	if player != null:
 		out["crumbs"] = _nearest_crumbs(player.global_position)
 	_ensure_connections(player)
+	if _perf_enabled and _frame % 30 == 0:
+		out["perf"] = {
+			"fps": int(Performance.get_monitor(Performance.TIME_FPS)),
+			"proc_us": int(Performance.get_monitor(Performance.TIME_PROCESS) * 1000000.0),
+			"phys_us": int(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000000.0),
+			"draw_calls": int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
+			"primitives": int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)),
+			"render_objs": int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)),
+			"nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+			"phys_active": int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)),
+		}
 	return out
 
 
 ## Works both for a normal run (current scene IS Main) and the autoplay
 ## harness (Main instantiated under the autoplay scene root).
 func _find_player() -> Node:
-	var tree := get_tree()
+	var scene := get_tree().current_scene
+	if scene == null:
+		return null ## Mid-change_scene_to_file there is no scene to look in.
 	for path in ["Main/Player", "Player"]:
-		var node := tree.current_scene.get_node_or_null(path)
+		var node := scene.get_node_or_null(path)
 		if node != null:
 			return node
 	return null
 
 
 func _spawner(node_name: String) -> Node:
-	var tree := get_tree()
+	var scene := get_tree().current_scene
+	if scene == null:
+		return null ## Mid-change_scene_to_file there is no scene to look in.
 	for path in ["Main/%s" % node_name, node_name]:
-		var node := tree.current_scene.get_node_or_null(path)
+		var node := scene.get_node_or_null(path)
 		if node != null:
 			return node
 	return null

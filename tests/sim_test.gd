@@ -133,6 +133,7 @@ func _run_scenarios() -> void:
 	await _scenario_audio_peck()
 	await _scenario_audio_hit_sounds()
 	await _scenario_ambience_bed()
+	await _scenario_density_cpu_budget()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -1941,3 +1942,83 @@ func _scenario_ambience_bed() -> void:
 			started and on_bus and all_playing and no_duplicates and survives,
 			"started=%s on_bus=%s playing=%s idempotent=%s survives_scene_free=%s (%d beds)" % [
 					started, on_bus, all_playing, no_duplicates, survives, bed_count])
+
+
+## --- scenario (T-018 performance budget) ------------------------------------
+
+
+## The calibrated absolute CPU budget for one physics frame at full density:
+## median wall-time of a 100-frame window must stay under this many ms.
+## CALIBRATED, not predicted — the number comes from the headless run of this
+## very scenario on the dev machine: median 247.5 ms (spread 233.7-264.2) per
+## 100 frames at full density; the budget is ~3x that, rounded up, so only
+## gross regressions trip it. See docs/tickets/T-018 for the table.
+const DENSITY_BUDGET_MS_PER_100_FRAMES := 750.0
+
+
+## Full-density CPU budget (T-018): the REAL main scene — city, 18 tourists,
+## 36 cars, bread, pigeon — must keep the calibrated headless CPU cost per
+## physics frame. Headless renders nothing, so this gates the CPU half of the
+## frame (scripts + physics + scene); draw calls and primitives stay with
+## Gate 2's autoplay DONE line and Gate 3's human pass (VERIFICATION.md).
+## Method: Main parked in its own space, the pigeon on a synthetic level
+## cruise above the spawn corridor — velocity RE-IMPOSED at every window
+## start, because the flight model bleeds speed and would otherwise mix
+## cruise, stall and grounded states into the windows — 120 warm-up frames,
+## then three 100-frame wall-time windows under --fixed-fps 60 (headless runs
+## unthrottled, so wall time IS the CPU cost). Absolute and machine-relative:
+## a busy machine can false-FAIL this gate (rerun when idle); a generous
+## budget means percent-level drift passes by design.
+func _scenario_density_cpu_budget() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	_main_game = MAIN_SCENE.instantiate()
+	## Own space: clear of the test world at the origin, the harness city at
+	## (2000, 0, 2000) and every other instanced Main offset in this file.
+	_main_game.position = Vector3(-3500.0, 0.0, 3500.0)
+	add_child(_main_game)
+	await _wait_frames(4) ## City builds; spawners seed the band around the corridor.
+	var main_game: MainGame = _main_game
+	var city: City = main_game.city
+	var pigeon: Player = main_game.player
+	## Level cruise 22 m up — above every roof (generation caps them under
+	## 20 m) and high enough that no window can reach the ground. reset_flight
+	## takes LOCAL coordinates (player.gd:108), exactly why main.gd:60 wraps
+	## the global spawn point in city.to_local().
+	var cruise_pos := city.to_local(city.spawn_point) + Vector3(0.0, 22.0, 0.0)
+	var cruise_vel := Vector3(0.0, 0.0, -18.0)
+	pigeon.reset_flight(cruise_pos)
+	pigeon.velocity = cruise_vel
+	await _wait_frames(120) ## Warm-up: broadphase, materials, first-frame allocations.
+	var windows: Array[float] = []
+	for _w in 3:
+		pigeon.reset_flight(cruise_pos)
+		pigeon.velocity = cruise_vel
+		await _wait_frames(2) ## Settle the teleport before the clock starts.
+		var t0 := Time.get_ticks_usec()
+		await _wait_frames(100)
+		windows.append(float(Time.get_ticks_usec() - t0) / 1000.0)
+	windows.sort()
+	var median_ms: float = windows[1]
+	## The gate must measure what it claims: a half-seeded city would pass a
+	## budget it does not deserve.
+	var tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
+	var cars: Array[Car] = main_game.car_spawner.living_cars()
+	var density_ok := tourists.size() == main_game.tourist_spawner.target_count \
+			and cars.size() == main_game.car_spawner.target_moving \
+					+ main_game.car_spawner.target_parked
+	var nodes := Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+	var phys_active := Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)
+	print("SIM DATA density_cpu_budget: windows ms %.1f/%.1f/%.1f, median %.1f ms per 100 physics frames (budget %.0f), nodes %d, physics-active %d, tourists %d, cars %d" % [
+			windows[0], windows[1], windows[2], median_ms,
+			DENSITY_BUDGET_MS_PER_100_FRAMES, nodes, phys_active,
+			tourists.size(), cars.size()])
+	_check("density_cpu_budget",
+			median_ms > 0.0 and median_ms <= DENSITY_BUDGET_MS_PER_100_FRAMES and density_ok,
+			"median %.1f ms per 100 frames vs budget %.0f, density_ok=%s (tourists %d, cars %d)" % [
+					median_ms, DENSITY_BUDGET_MS_PER_100_FRAMES, density_ok,
+					tourists.size(), cars.size()])
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	main_game.free()
+	_main_game = null

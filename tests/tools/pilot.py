@@ -159,6 +159,12 @@ def cmd_start(a):
     if not CAPTURES.is_dir():
         CAPTURES.mkdir()
     d.mkdir(exist_ok=True)
+    # A predecessor that died without consuming its commands leaves poison
+    # behind: a stale {"quit": true} executes at this boot and kills the
+    # session ~1 s in (observed live, T-018). Sweep the channel before
+    # claiming it.
+    for stale in d.glob("pilot_cmd_*.jsonl"):
+        stale.unlink()
 
     godot = godot_bin()
     # First launch on a fresh checkout: imports must exist before any game
