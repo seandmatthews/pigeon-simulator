@@ -46,6 +46,7 @@ var _shot_dir: String = ""
 var _fps_sum: float = 0.0
 var _fps_samples: int = 0
 var _splats: int = 0 ## Poop splats that landed during the run (T-006 evidence).
+var _poses_seen: Dictionary = {} ## Pigeon poses the run showed (T-011 evidence).
 var _visit_gliding: bool = false ## Latched once the landing glide begins.
 ## Lead-shot altitude ceiling (m). High over the roofs the pilot's own banking
 ## makes the fall-time prediction garbage, so cruise keeps the T-007/T-008
@@ -95,6 +96,7 @@ func _physics_process(delta: float) -> void:
 	_fps_samples += 1
 	_trace(_elapsed)
 	_drive(_elapsed, delta)
+	_watch_poses()
 	if _elapsed >= _next_shot:
 		_next_shot += SHOT_INTERVAL
 		_capture(int(_elapsed))
@@ -122,11 +124,13 @@ func _finish() -> void:
 	var panics: int = _tourists.splat_count if _tourists != null and is_instance_valid(_tourists) else -1
 	var honks: int = _cars.honk_count if _cars != null and is_instance_valid(_cars) else -1
 	var ok: bool = alive and _restart_ok
-	print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d" % [
+	var poses := _poses_seen.keys()
+	poses.sort()
+	print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d poses=%s" % [
 			ok, _elapsed, fps, where.x, where.y, where.z,
 			_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
 			tourists, panics, honks, Game.score, Game.high_score,
-			_restart_ok, _pre_score, _pre_tourists, _pre_cars])
+			_restart_ok, _pre_score, _pre_tourists, _pre_cars, ",".join(poses)])
 	get_tree().quit(0 if ok else 1)
 
 
@@ -169,6 +173,20 @@ func _watch_score_screen() -> void:
 	elif _elapsed >= _restart_deadline:
 		print("AUTOPLAY restart: TIMEOUT — no score screen within %.0f s" % RESTART_TIMEOUT)
 		_restart_phase = 2 ## Finishes with restart_ok=false — the gate fails.
+
+
+## T-011 evidence: record which pigeon poses the run actually shows, so the
+## DONE line can prove the presentation is live (flap beats, dive sweep, the
+## waddle and the eat peck all leave a trace here).
+func _watch_poses() -> void:
+	if _player == null or not is_instance_valid(_player):
+		return
+	var bird: PigeonVisual = _player.pigeon
+	if bird.flap_beating:
+		_poses_seen["FLAP"] = true
+	if bird.pecking:
+		_poses_seen["PECK"] = true
+	_poses_seen[String(PigeonVisual.Pose.find_key(bird.pose))] = true
 
 
 ## One-line-per-second progress trace — evidence for the gate log.

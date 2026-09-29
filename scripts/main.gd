@@ -31,6 +31,7 @@ func _ready() -> void:
 	player.grounding_changed.connect(Game.on_grounding_changed) ## Landing ends the combo.
 	player.pooped.connect(_on_player_pooped) ## Release conditions feed the style bonus.
 	bread_spawner.crumb_eaten.connect(Game.hunger.eat)
+	bread_spawner.crumb_eaten.connect(player.peck) ## Every swallowed crumb plays the eat peck (T-011).
 	tourist_spawner.tourist_splatted.connect(_on_tourist_splatted)
 	car_spawner.car_splatted.connect(_on_car_splatted)
 	Game.hit_scored.connect(_on_hit_scored)

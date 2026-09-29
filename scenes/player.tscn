@@ -1,15 +1,8 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/chase_camera.gd" id="2_chase_cam"]
-
-[sub_resource type="StandardMaterial3D" id="Mat_pigeon"]
-albedo_color = Color(0.55, 0.57, 0.62, 1)
-
-[sub_resource type="SphereMesh" id="SphereMesh_pigeon"]
-material = SubResource("Mat_pigeon")
-radius = 0.3
-height = 0.6
+[ext_resource type="PackedScene" path="res://scenes/pigeon_visual.tscn" id="3_pigeon"]
 
 [sub_resource type="SphereShape3D" id="SphereShape_pigeon"]
 radius = 0.3
@@ -22,8 +15,7 @@ collision_layer = 2
 collision_mask = 1
 script = ExtResource("1_player")
 
-[node name="Mesh" type="MeshInstance3D" parent="."]
-mesh = SubResource("SphereMesh_pigeon")
+[node name="Pigeon" parent="." instance=ExtResource("3_pigeon")]
 
 [node name="Shape" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape_pigeon")

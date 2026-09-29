@@ -87,6 +87,9 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | pause_freezes_world | Esc-pausing through the real PauseMenu stops the flying pigeon dead mid-air and the hunger clock with it; resuming hands both back | T-010 |
 | game_over_shows_score_screen | starving through the real main scene opens the score screen — score, high score, tourist/car breakdown — freezes the run dead and keeps Esc locked | T-010 |
 | restart_resets_run | restart through Main.restart_run() zeroes score/breakdown, refills hunger, clears the game-over latch, regenerates the same-seed city and re-seeds every spawner with fresh nodes | T-010 |
+| pigeon_air_poses_track_flight | wings out in a glide, a wing beat on every real flap impulse (and the beat ends), wings swept back in a dive — the pose mirrors the flight state | T-011 |
+| pigeon_ground_poses_track_waddle | grounded settles into the folded stand, waddling flips to the waddle pose, stopping settles back to stand | T-011 |
+| pigeon_pecks_when_eating | eating a crumb through Main's exact wiring (crumb.eaten → Player.peck) plays the peck — the beak dives down and the overlay ends | T-011 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -124,7 +127,10 @@ tourist/car breakdown — verified against the labels), the pilot restarts
 through the exact path the screen's Space button drives and checks the fresh
 run (unfrozen, score/breakdown zeroed, hunger refilled, pigeon back on the
 spawn corridor) — `restart=true` joins `ok`, and a timeout waiting for the
-screen fails the gate. Saves a
+screen fails the gate. Since T-011 the pigeon is the real presented bird (a
+low-poly primitive pigeon, not a sphere) — flap beats, glide/dive wing poses,
+the waddle and the eat peck are all visible in the screenshots, and the DONE
+line reports which poses the run actually showed (`poses`). Saves a
 screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
@@ -205,6 +211,10 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-010) From the pause menu: R restarts into a fresh same-seed city, M returns to the title, Q quits
 - [ ] (T-010) Die on purpose twice in a row — each score screen shows score, high score and the tourist/car split; restart works from both (pause mid-flight during both runs)
 - [ ] (T-010) The score screen flags a freshly beaten record and Esc cannot unpause a dead run
+- [ ] (T-011) The pigeon reads as a pigeon — gray body, darker wingtips, green neck sheen — silhouetted at ~20 m against both roofs and road
+- [ ] (T-011) Poses track the flight live: wings out gliding, swept back diving, beats on flaps, folded on the ground — no desync, no frozen wings
+- [ ] (T-011) The waddle (squat, body rock, head-thrust bob) is at least a little bit funny
+- [ ] (T-011) Eating a crumb plays the peck, and no pose ever clips the camera
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -248,5 +258,10 @@ Playtest checklist (grows as tickets land):
   in-place (Game.reset_run + same-seed city.generate, spawners re-seed off
   `regenerated`) rather than a scene reload — the identical path runs in the
   game, the sim harness and the autoplay pilot.
-- Placeholder art everywhere: the pigeon is a gray sphere and buildings are tinted
-  boxes with a procedural window texture (pigeon look tracked in T-011).
+- Pigeon presentation (T-011) is machine-verified (Gate 1b pose-tracking and
+  peck scenarios) and visible in every autoplay screenshot; the mesh is
+  hand-built from primitives (no third-party asset, so no CREDITS entry). A
+  human pass over the T-011 lines (silhouette at 20 m, pose readability at
+  flight speed, waddle comedy, camera clipping) is still pending.
+- Remaining placeholder art: buildings are tinted
+  boxes with a procedural window texture.

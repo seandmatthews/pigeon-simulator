@@ -55,11 +55,9 @@ enum State { AIR, GROUND }
 @export var waddle_turn_rate: float = 2.6 ## Rad/s turn rate while waddling.
 @export var ground_level_rate: float = 6.0 ## Rad/s the body rights its pitch/roll while on a floor.
 
-@export_group("Ground pose")
-@export var grounded_squat: float = 0.82 ## Mesh Y scale while grounded — readable "I'm walking now" pose.
-@export var waddle_bob_rate: float = 10.0 ## Bob cycles per second while waddling.
-@export var waddle_bob_height: float = 0.03 ## Vertical bob amplitude (m).
-@export var waddle_sway: float = 0.1 ## Cosmetic roll amplitude of the waddle bob (rad).
+@export_group("Pose") ## The visual pose thresholds (T-011) — when the wings read as a dive.
+@export var dive_pose_nose: float = -0.35 ## Nose-pitch sine below which the wings sweep into the dive pose (~20° down).
+@export var dive_pose_min_speed: float = 9.0 ## Forward speed (m/s) the dive pose demands — slow mushes stay glide.
 
 @export_group("Poop")
 @export var poop_scene: PackedScene = preload("res://scenes/poop.tscn") ## Projectile the poop action spawns.
@@ -80,14 +78,17 @@ var is_grounded: bool:
 	get: return state == State.GROUND
 
 @onready var chase_camera: ChaseCamera = $ChaseCamera
-@onready var _mesh: MeshInstance3D = $Mesh
+@onready var pigeon: PigeonVisual = $Pigeon ## The T-011 presentation, driven from this state machine.
 
 var _flap_timer: float = 0.0
 var _time_since_flap: float = 10.0
 var _poop_timer: float = 0.0
 var _roll: float = 0.0
 var _air_grace: int = 0 ## Frames after a teleport where is_on_floor() is stale and must not trigger a landing.
-var _waddle_phase: float = 0.0
+
+
+func _ready() -> void:
+	flapped.connect(pigeon.trigger_flap) ## Every real flap impulse plays a wing beat (T-011).
 
 
 ## Hard-reset position, orientation and motion (sim harness, later restart flow).
@@ -101,12 +102,9 @@ func reset_flight(pos: Vector3, yaw_deg: float = 0.0) -> void:
 	_time_since_flap = 10.0
 	forward_speed = 0.0
 	stalled = false
-	_waddle_phase = 0.0
 	_air_grace = 2
 	_set_state(State.AIR)
-	_mesh.scale = Vector3.ONE
-	_mesh.position = Vector3.ZERO
-	_mesh.rotation = Vector3.ZERO
+	pigeon.reset_pose()
 
 
 func _physics_process(delta: float) -> void:
@@ -192,19 +190,23 @@ func _level_attitude(delta: float) -> void:
 	_roll = new_roll
 
 
-## Cheap readability for the grounded state: a squat plus a bobbing sway while
-## waddling (the real pose/animation arrives with T-011).
+## The presentation (T-011) mirrors this state machine every physics frame:
+## glide/dive in the air, waddle/stand on the ground — the picture is derived
+## from the physics state, so pose and model cannot desync. Flap beats ride on
+## the `flapped` signal (wired in _ready); the eat peck arrives via `peck()`.
 func _update_pose(delta: float) -> void:
-	var k := 1.0 - exp(-10.0 * delta)
-	_mesh.scale.y = lerpf(_mesh.scale.y, grounded_squat if state == State.GROUND else 1.0, k)
 	var walking := state == State.GROUND and Vector2(velocity.x, velocity.z).length() > 0.3
-	if walking:
-		_waddle_phase += waddle_bob_rate * delta
-		_mesh.position.y = waddle_bob_height * sin(_waddle_phase)
-		_mesh.rotation.z = waddle_sway * sin(_waddle_phase)
-	else:
-		_mesh.position.y = lerpf(_mesh.position.y, 0.0, k)
-		_mesh.rotation.z = lerpf(_mesh.rotation.z, 0.0, k)
+	var diving := state == State.AIR and not stalled \
+			and forward_speed > dive_pose_min_speed \
+			and (-transform.basis.z).y < dive_pose_nose
+	pigeon.drive(state == State.GROUND, walking, diving, delta)
+
+
+## The eat peck (T-011): Main wires the bread service's crumb_eaten relay here,
+## so every swallowed crumb plays the comedic head-slam. The defaulted argument
+## lets the crumb's restore-amount signal connect directly.
+func peck(_amount: float = 0.0) -> void:
+	pigeon.trigger_peck()
 
 
 func _set_state(new_state: State) -> void:

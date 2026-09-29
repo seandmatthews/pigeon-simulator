@@ -112,6 +112,9 @@ func _run_scenarios() -> void:
 	await _scenario_pause_freezes()
 	await _scenario_game_over_screen()
 	await _scenario_restart_resets()
+	await _scenario_pigeon_air_poses()
+	await _scenario_pigeon_ground_poses()
+	await _scenario_pigeon_peck()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -1440,3 +1443,89 @@ func _scenario_restart_resets() -> void:
 	Game.reset_run()
 	main_game.free()
 	_main_game = null
+
+
+## --- scenarios (T-011 pigeon presentation) ----------------------------------
+
+
+## The pose mirrors the flight state: wings out in a glide, a wing beat on
+## every real flap impulse (and the beat ends), wings swept back in a dive.
+func _scenario_pigeon_air_poses() -> void:
+	var bird: PigeonVisual = _player.pigeon
+	## Glide leg: cruise at lift speed — wings extended, unswept.
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	await _wait_frames(45) ## The wing joints ease to the pose targets.
+	var gliding := bird.pose == PigeonVisual.Pose.GLIDE \
+			and bird.wing_sweep < 0.3 and bird.wing_lift > 0.05
+	## Flap leg: a real flap plays a wing beat, and the beat finishes.
+	await _tap("flap")
+	var beat_seen := false
+	for _i in 10:
+		await get_tree().physics_frame
+		beat_seen = beat_seen or bird.flap_beating
+	await _wait_frames(30) ## 0.5 s > flap_beat_seconds.
+	var beat_done := not bird.flap_beating and bird.pose == PigeonVisual.Pose.GLIDE
+	## Dive leg: nose down past the pose threshold — the wings sweep back.
+	await _set_up(true, Vector3(0.0, 32.0, 0.0), Vector3(0.0, 0.0, -10.0))
+	await _pitch_until("pitch_down", -0.85, 90)
+	await _wait_frames(25)
+	var diving := bird.pose == PigeonVisual.Pose.DIVE and bird.wing_sweep > 0.7
+	_check("pigeon_air_poses_track_flight", gliding and beat_seen and beat_done and diving,
+			"glide=%s (pose %d sweep %.2f lift %.2f) beat=%s done=%s dive=%s (pose %d sweep %.2f)" % [
+					gliding, bird.pose, bird.wing_sweep, bird.wing_lift,
+					beat_seen, beat_done, diving, bird.pose, bird.wing_sweep])
+
+
+## The grounded poses follow the waddle: folded wings standing still, the
+## waddle pose while walking, back to stand when the waddle stops.
+func _scenario_pigeon_ground_poses() -> void:
+	var bird: PigeonVisual = _player.pigeon
+	await _set_up(true, Vector3(0.0, 3.0, 0.0), Vector3.ZERO)
+	await _await_grounded(120)
+	await _wait_frames(45) ## Let the touchdown slide bleed and the wings fold.
+	var standing := bird.pose == PigeonVisual.Pose.STAND \
+			and bird.wing_sweep > 0.7 and bird.wing_lift < 0.0
+	await _hold("pitch_up", 30) ## Half a second of waddling.
+	var waddling := bird.pose == PigeonVisual.Pose.WADDLE
+	await _wait_frames(50) ## Past the walk_decel stop.
+	var rested := bird.pose == PigeonVisual.Pose.STAND
+	_check("pigeon_ground_poses_track_waddle", standing and waddling and rested,
+			"stand=%s (pose %d sweep %.2f lift %.2f) waddle=%s rested=%s (pose %d)" % [
+					standing, bird.pose, bird.wing_sweep, bird.wing_lift,
+					waddling, rested, bird.pose])
+
+
+## Eating a crumb plays the peck — the same wiring Main uses (crumb.eaten →
+## Player.peck): the overlay fires and the beak visibly dives at the ground.
+func _scenario_pigeon_peck() -> void:
+	var bird: PigeonVisual = _player.pigeon
+	var hunger := Hunger.new()
+	hunger.player = _player
+	add_child(hunger)
+	var crumb: BreadCrumb = CRUMB_SCENE.instantiate()
+	crumb.position = Vector3(0.0, 0.16, 0.0)
+	add_child(crumb)
+	crumb.eaten.connect(hunger.eat)
+	crumb.eaten.connect(_player.peck) ## Main's exact wiring.
+	await _set_up(true, Vector3(0.0, 0.4, 1.8), Vector3.ZERO) ## Drop ahead of the crumb…
+	await _await_grounded(90)
+	await _wait_frames(10)
+	hunger.value = 40.0 ## Mid-bar so the +30 restore is measurable (a full bar would just clamp).
+	var hunger0: float = hunger.value
+	var pecked := false
+	var beak_down := false
+	Input.action_press("pitch_up") ## Waddle in and watch for the peck overlay and the beak dive.
+	for _i in 120:
+		await get_tree().physics_frame
+		pecked = pecked or bird.pecking
+		beak_down = beak_down or (bird.pecking and bird.head_pitch < -0.8)
+		if pecked and beak_down:
+			break
+	Input.action_release("pitch_up")
+	var ate := not is_instance_valid(crumb) and hunger.value > hunger0 + 10.0
+	await _wait_frames(30) ## Past the peck length.
+	var peck_ended := not bird.pecking
+	_check("pigeon_pecks_when_eating", ate and pecked and beak_down and peck_ended,
+			"ate=%s pecked=%s beak_down=%s ended=%s (head pitch %.2f)" % [
+					ate, pecked, beak_down, peck_ended, bird.head_pitch])
+	hunger.free()
