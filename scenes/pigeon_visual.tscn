@@ -3,11 +3,11 @@
 [ext_resource type="Script" path="res://scripts/pigeon_visual.gd" id="1_bird"]
 
 [sub_resource type="StandardMaterial3D" id="Mat_body"]
-albedo_color = Color(0.62, 0.64, 0.68, 1)
+albedo_color = Color(0.38, 0.42, 0.47, 1)
 roughness = 0.85
 
 [sub_resource type="StandardMaterial3D" id="Mat_dark"]
-albedo_color = Color(0.24, 0.24, 0.28, 1)
+albedo_color = Color(0.15, 0.15, 0.18, 1)
 roughness = 0.85
 
 [sub_resource type="StandardMaterial3D" id="Mat_sheen"]
@@ -16,7 +16,7 @@ metallic = 0.7
 roughness = 0.25
 
 [sub_resource type="StandardMaterial3D" id="Mat_head"]
-albedo_color = Color(0.52, 0.54, 0.6, 1)
+albedo_color = Color(0.6, 0.62, 0.66, 1)
 roughness = 0.85
 
 [sub_resource type="StandardMaterial3D" id="Mat_eye"]

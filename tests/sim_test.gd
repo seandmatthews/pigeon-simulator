@@ -116,6 +116,7 @@ func _run_scenarios() -> void:
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
+	await _scenario_pigeon_silhouette_contrast()
 	await _scenario_juice_splat_burst()
 	await _scenario_juice_feather_poof()
 	await _scenario_juice_dust_puff()
@@ -1579,6 +1580,65 @@ func _scenario_pigeon_peck() -> void:
 	hunger.free()
 
 
+## --- scenarios (T-016 pigeon silhouette) ------------------------------------
+
+
+## The albedo of a mesh instance's first surface — how the bird's look is
+## authored (materials live on the Mesh sub-resources in pigeon_visual.tscn).
+func _mesh_albedo(root: Node, node_path: String) -> Color:
+	var mesh_instance: MeshInstance3D = root.get_node(node_path) as MeshInstance3D
+	var mesh: Mesh = mesh_instance.mesh
+	return (mesh.surface_get_material(0) as StandardMaterial3D).albedo_color
+
+
+func _rgb(color: Color) -> Vector3:
+	return Vector3(color.r, color.g, color.b)
+
+
+## The player bird must carry its own silhouette (T-016): the play pass showed
+## the old body albedo ≈ the sidewalk albedo and lighter than the cream
+## facades, so the bird washed out exactly where it flies most. Gates the two
+## named wash-out backdrops at Euclidean RGB ≥ 0.20 (sidewalk + the sandy-cream
+## family), demands luminance ≥ 0.05 darker than EVERY district backdrop's mean,
+## and keeps the identity accents (wingtips a readable step darker, head a step
+## lighter). The full 12-color sweep prints informationally — a per-channel gate
+## across all 13 backdrops is only satisfiable by a near-black bird.
+func _scenario_pigeon_silhouette_contrast() -> void:
+	var bird: PigeonVisual = load("res://scenes/pigeon_visual.tscn").instantiate() as PigeonVisual
+	add_child(bird)
+	var body := _rgb(_mesh_albedo(bird, "Body"))
+	var head := _rgb(_mesh_albedo(bird, "HeadPivot/Head"))
+	var tip := _rgb(_mesh_albedo(bird, "WingL/Tip"))
+	bird.free()
+	var near_backdrops: Array[Vector3] = [_rgb(City.COLOR_SIDEWALK)]
+	for backdrop: Color in City.DISTRICT_PALETTES[1]: ## The sandy-cream family.
+		near_backdrops.append(_rgb(backdrop))
+	var near_gate := true
+	var distances := []
+	for backdrop: Vector3 in near_backdrops:
+		var d := body.distance_to(backdrop)
+		distances.append("%.2f" % d)
+		near_gate = near_gate and d >= 0.2
+	var body_mean := (body.x + body.y + body.z) / 3.0
+	var worst_margin := INF
+	var luminance_gate := true
+	for family: Array in City.DISTRICT_PALETTES:
+		for backdrop: Color in family:
+			var margin := (backdrop.r + backdrop.g + backdrop.b) / 3.0 - body_mean
+			worst_margin = minf(worst_margin, margin)
+			luminance_gate = luminance_gate and margin >= 0.05
+	var tip_step := tip.distance_to(body) >= 0.15
+	var head_step := head.x > body.x and head.y > body.y and head.z > body.z
+	var sweep := []
+	for family: Array in City.DISTRICT_PALETTES:
+		for backdrop: Color in family:
+			sweep.append("%.2f" % body.distance_to(_rgb(backdrop)))
+	print("SIM INFO silhouette distances to all 12 district colors: [%s]" % [", ".join(sweep)])
+	_check("pigeon_silhouette_contrast", near_gate and luminance_gate and tip_step and head_step,
+			"sidewalk+cream=[%s] worst luminance margin %.3f tip_step=%s head_step=%s" % [
+					", ".join(distances), worst_margin, tip_step, head_step])
+
+
 ## --- scenarios (T-013 juice pass) -------------------------------------------
 
 
@@ -1671,7 +1731,8 @@ func _scenario_juice_landing_shake() -> void:
 
 ## Your own scored hits, through the REAL Main scene: a combo escalation
 ## shakes the chase camera, pulses the HUD score line, and both settle back.
-## Also checks the lighting pass actually shipped (the warm sun).
+## Also checks the lighting pass actually shipped (the warm sun, and since
+## T-016 capped at 1.15 energy so mid-gray albedos stop clipping to white).
 func _scenario_juice_hit_shake_pulse() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
@@ -1685,6 +1746,7 @@ func _scenario_juice_hit_shake_pulse() -> void:
 	var label: Label = main_game.stats_label
 	var sun := main_game.get_node("Sun") as DirectionalLight3D
 	var warm_sun := sun.light_color.r >= sun.light_color.g and sun.light_color.g > sun.light_color.b
+	var sun_capped := sun.light_energy <= 1.15
 	Game.add_tourist_hit(Vector3(3500.0, 0.5, -3500.0))
 	await _wait_frames(3) ## Let _process show the ×1 before the escalation.
 	Game.add_tourist_hit(Vector3(3500.0, 0.5, -3501.0))
@@ -1696,12 +1758,13 @@ func _scenario_juice_hit_shake_pulse() -> void:
 	var settled := label.scale.is_equal_approx(Vector2.ONE) and cam.trauma == 0.0
 	var scale_after: float = label.scale.x
 	var trauma_after: float = cam.trauma
+	var sun_energy: float = sun.light_energy ## Read before the scene frees the Sun.
 	main_game.free()
 	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
 	Game.reset_run()
-	_check("hit_shake_and_score_pulse", pulsed and shook and combo_shown and settled and warm_sun,
-			"pulsed=%s shook=%s combo_shown=%s settled=%s (scale %.3f trauma %.3f) warm_sun=%s" % [
-					pulsed, shook, combo_shown, settled, scale_after, trauma_after, warm_sun])
+	_check("hit_shake_and_score_pulse", pulsed and shook and combo_shown and settled and warm_sun and sun_capped,
+			"pulsed=%s shook=%s combo_shown=%s settled=%s (scale %.3f trauma %.3f) warm_sun=%s sun_energy=%.2f" % [
+					pulsed, shook, combo_shown, settled, scale_after, trauma_after, warm_sun, sun_energy])
 
 
 ## --- scenarios (T-012 audio) -------------------------------------------------
