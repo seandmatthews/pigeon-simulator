@@ -1,8 +1,8 @@
 extends Node3D
 ## Game shell: wires the survival loop together — the Hunger clock (T-005), the
-## bread service that feeds it, and the HUD. Score lives here until the Game
-## autoload arrives with the scoring ticket (T-009); the fail state (T-010)
-## listens to Hunger.game_over.
+## bread service that feeds it, the tourist crowd (T-007), and the HUD. Score
+## lives here until the Game autoload arrives with the scoring ticket (T-009);
+## the fail state (T-010) listens to Hunger.game_over.
 
 const HINT_AIR := "W/S pitch · A/D turn · Space flap · F poop · land by bread to eat"
 const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off · walk into crumbs to eat"
@@ -14,6 +14,7 @@ const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off · walk
 @onready var city: City = $City
 @onready var hunger: Hunger = $Hunger
 @onready var bread_spawner: BreadSpawner = $BreadSpawner
+@onready var tourist_spawner: TouristSpawner = $TouristSpawner
 
 var score: int = 0
 
@@ -21,6 +22,7 @@ func _ready() -> void:
 	$Sun.rotation_degrees = Vector3(-50.0, -30.0, 0.0)
 	player.grounding_changed.connect(_on_grounding_changed)
 	bread_spawner.crumb_eaten.connect(hunger.eat)
+	tourist_spawner.tourist_splatted.connect(_on_tourist_splatted)
 	hunger.changed.connect(_on_hunger_changed)
 	hunger.game_over.connect(_on_game_over)
 	## Spawn on the road corridor by the plaza (T-004): a short drop onto the
@@ -36,6 +38,11 @@ func _process(_delta: float) -> void:
 func _on_hunger_changed(value: float, max_value: float) -> void:
 	hunger_bar.max_value = max_value
 	hunger_bar.value = value
+
+## Token score per tourist splat so the hit event is live and visible in the
+## HUD; T-009 replaces this with the real score table and combos.
+func _on_tourist_splatted(_tourist: Tourist) -> void:
+	score += 1
 
 ## T-010 replaces this with the real game-over screen; until then the signal
 ## still fires exactly once at zero and the HUD says so.

@@ -75,6 +75,10 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | poop_splats_ground_and_fades | a floor hit fires splatted(target, impact_velocity), sticks an up-facing splat to the hit body and fades it away | T-006 |
 | poop_splats_wall | a wall hit sticks a splat facing along the wall's horizontal normal | T-006 |
 | poop_event_reaches_any_body | a plain body on the hit layers receives the hit duck-typed (on_splatted) with no player import anywhere in poop.gd | T-006 |
+| tourists_walk_loose_groups | 18 tourists stroll their sidewalk loops at slab level, seeded in loose groups | T-007 |
+| tourist_splat_panics_scores | a real lobbed splat panics its tourist (sprint + arms) and fires the splatted score event; a sideways hit makes the panic flee along the impact's horizontal mirror | T-007 |
+| tourist_buzz_flinch | a slow pass through the buzz zone earns nothing; a fast one earns a flinch duck, never a panic | T-007 |
+| tourists_recycle_around_player | moving the player recycles the same tourist nodes into the spawn band around the new position | T-007 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -83,15 +87,18 @@ scripted, city-aware pilot for 30 s: cruise above the skyline (every generated
 roof stays under 18.3 m, the pilot's floor is 23 m), flap-climb, bank, a short
 dive pulse that only starts high enough to stay over the roofs, pull-up, glide,
 and airborne poop taps (T-006 — every 2 s in flight the pilot lobs a real
-dropping; grounded taps are skipped). Below the cruise floor the pilot climbs
+dropping; grounded taps are skipped; since T-007 it pulls the trigger early
+whenever a strolling tourist lines up under the predicted impact point).
+Below the cruise floor the pilot climbs
 hard while circling the spawn plaza — the one spot the generator guarantees is
 clear of buildings — and beyond 60 m from the plaza it steers home. From 11 s in
 the pilot also makes a ground visit (T-003 + T-004): arc to the plaza, bleed
 speed in a wide orbit, spiral down inside the building-free ring, touchdown,
 waddle across the pavement, take-off. While landed it waddles toward the
 nearest breadcrumb and pecks it up when it reaches one (T-005) — the DONE line
-reports the hunger bar, how many crumbs were eaten and how many poop splats
-landed. Saves a screenshot every 5 s to `.godot/autoplay/`:
+reports the hunger bar, how many crumbs were eaten, how many poop splats
+landed, how many tourists are alive and how many took a splat (`panics`,
+T-007). Saves a screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
 godot --path . res://tests/autoplay.tscn
@@ -148,6 +155,11 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-006) Droppings splat on streets, walls and roofs, stick to the surface, and fade out after a few seconds
 - [ ] (T-006) Mashing F while flying yields about one dropping per second — no stream
 - [ ] (T-006) F does nothing while grounded — the dropping only exists in the air
+- [ ] (T-007) 15–20 tourists stroll the sidewalks and plaza in loose groups and read as believable walkers
+- [ ] (T-007) A direct splat panics its tourist — sprints away, arms up, red flush, fist shake — and Score ticks up
+- [ ] (T-007) Manual skill run: splat at least 3 tourists and buzz 3 more; watch one full panic cycle (sprint, fist shake, stroll resumes) through to the tourist eventually recycling
+- [ ] (T-007) A close fast flyby makes nearby tourists flinch (a quick duck) without full panic
+- [ ] (T-007) At full density the framerate holds; tourists only ever appear/disappear well away from the camera
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -170,5 +182,9 @@ Playtest checklist (grows as tickets land):
   scenarios) and exercised by the autoplay pilot's poop taps; a human pass over
   the T-006 lines (leading a moving target once real ones exist, splat look and
   fade timing) is still pending.
+- Tourists (T-007) are machine-verified (Gate 1b walk/splat/buzz/recycle
+  scenarios) and live in the autoplay city at full density; a human pass over
+  the T-007 lines (walk believability, panic readability, splat-the-3-buzz-the-3
+  manual run, pop-in visibility) is still pending.
 - Placeholder art everywhere: the pigeon is a gray sphere and buildings are tinted
   boxes with a procedural window texture (pigeon look tracked in T-011).

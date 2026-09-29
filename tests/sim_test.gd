@@ -21,6 +21,7 @@ var _failures: int = 0
 var _game_over_fires: int = 0 ## Signal counters survive inside lambdas only as members.
 var _dropped: Array[Poop] = [] ## Poops the test player released (T-006).
 var _splat_events: Array[Dictionary] = [] ## {target, velocity} per splatted hit of the poop under test.
+var _tourist_relay: int = 0 ## tourist_splatted relays caught from the spawner under test (T-007).
 
 
 func _ready() -> void:
@@ -86,6 +87,10 @@ func _run_scenarios() -> void:
 	await _scenario_poop_splat_ground()
 	await _scenario_poop_splat_wall()
 	await _scenario_poop_event_target()
+	await _scenario_tourists_walk()
+	await _scenario_tourist_splat()
+	await _scenario_tourist_buzz()
+	await _scenario_tourists_recycle()
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -807,3 +812,198 @@ func _scenario_poop_event_target() -> void:
 	_check("poop_event_reaches_any_body", fired and duck_typed and decoupled,
 			"signal_hit_pad=%s duck_typed=%s (hits %d) no_player_import=%s" % [
 					fired, duck_typed, pad_hits, decoupled])
+
+
+## --- scenarios (T-007 tourists) ---------------------------------------------
+
+
+## Full density: `target_count` tourists seeded in loose groups around the
+## player's area, actually strolling their sidewalk loops at slab level.
+func _scenario_tourists_walk() -> void:
+	await _set_up(true, _city.position + Vector3(0.0, 25.0, 0.0), Vector3.ZERO)
+	var spawner := TouristSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	add_child(spawner)
+	await _wait_frames(4)
+	var tourists := spawner.living_tourists()
+	var last: Array[Vector3] = []
+	for tourist in tourists:
+		last.append(tourist.global_position)
+	var travel: Array[float] = []
+	travel.resize(tourists.size())
+	for f in 240: ## 4 s of strolling; accumulate real path length per tourist.
+		await get_tree().physics_frame
+		for i in tourists.size():
+			var t: Tourist = tourists[i]
+			if is_instance_valid(t):
+				travel[i] += last[i].distance_to(t.global_position)
+				last[i] = t.global_position
+		if _debug and f % 60 == 0:
+			for i in tourists.size():
+				var t: Tourist = tourists[i]
+				if is_instance_valid(t) and t.global_position.y < 0.05:
+					_dbg("sink f%d t%d y=%.4f vel=%s pos=%s" % [f, i, t.global_position.y,
+							t.velocity, t.global_position])
+	var moved := 0
+	var on_slab := true
+	var finite := true
+	var grouped := false
+	var by_block := {}
+	for i in tourists.size():
+		var tourist: Tourist = tourists[i]
+		if not is_instance_valid(tourist):
+			continue
+		## Path length, not net displacement: a tourist that rounded a waypoint
+		## and is heading back can legitimately have a tiny net displacement.
+		if travel[i] > 2.0:
+			moved += 1
+		else:
+			_dbg("t%d stalled: travel=%.2f pos=%s path=%d mood=%s vel=%s" % [
+					i, travel[i], tourist.global_position, tourist.path.size(),
+					tourist.mood, tourist.velocity])
+		var local_y := tourist.global_position.y - _city.position.y
+		if absf(local_y - _city.block_slab_height) >= 0.2:
+			_dbg("t%d off-slab: y=%.2f pos=%s mood=%s" % [i, local_y, tourist.global_position, tourist.mood])
+		on_slab = on_slab and absf(local_y - _city.block_slab_height) < 0.2
+		finite = finite and tourist.velocity.is_finite()
+		var key := Vector2(tourist.block_center.x, tourist.block_center.z)
+		by_block[key] = int(by_block.get(key, 0)) + 1
+	for key in by_block:
+		grouped = grouped or by_block[key] >= 2
+	_check("tourists_walk_loose_groups",
+			tourists.size() == 18 and moved == tourists.size() and on_slab and finite and grouped,
+			"count %d, moved %d, on_slab=%s finite=%s grouped=%s" % [
+					tourists.size(), moved, on_slab, finite, grouped])
+	spawner.free()
+
+
+## A real lobbed dropping hits a tourist: the duck-typed on_splatted panics it
+## (sprint + score event relayed), and a second synthetic sideways hit proves
+## the panic flees along the impact velocity's horizontal mirror.
+func _scenario_tourist_splat() -> void:
+	_dropped.clear()
+	_splat_events.clear()
+	_tourist_relay = 0
+	var spawner := TouristSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	spawner.target_count = 1
+	spawner.spawn_min_dist = 0.0
+	spawner.spawn_max_dist = 10.0 ## Pin the loop to the plaza block, under the drop.
+	add_child(spawner)
+	await _wait_frames(4)
+	var tourists := spawner.living_tourists()
+	if tourists.is_empty():
+		_check("tourist_splat_panics_scores", false, "no tourist spawned")
+		spawner.free()
+		return
+	var tourist: Tourist = tourists[0]
+	spawner.tourist_splatted.connect(func(_t: Tourist) -> void: _tourist_relay += 1)
+	tourist.path = PackedVector3Array() ## Freeze the target under the drop.
+	await _set_up(true, tourist.global_position + Vector3(0.0, 4.0, 0.0), Vector3.ZERO)
+	await _tap("poop")
+	await _wait_frames(2)
+	var dropped := _dropped.size() == 1
+	if dropped:
+		_dropped[0].splatted.connect(_on_test_splatted)
+	var panicked := false
+	var max_hspeed := 0.0
+	for _i in 120: ## The drop falls ~0.7 s; the panic sprint follows it.
+		await get_tree().physics_frame
+		panicked = panicked or tourist.mood == Tourist.Mood.PANIC
+		max_hspeed = maxf(max_hspeed, Vector2(tourist.velocity.x, tourist.velocity.z).length())
+		if _debug and _i % 20 == 0:
+			_dbg("splat poll %d: poop=%s tourist_pos=%s mood=%s hspeed=%.2f" % [_i,
+					_dropped[0].global_position if dropped and is_instance_valid(_dropped[0]) else Vector3.INF,
+					tourist.global_position, tourist.mood,
+					Vector2(tourist.velocity.x, tourist.velocity.z).length()])
+	var fired: bool = _splat_events.size() == 1 and _splat_events[0].target == tourist
+	var sprinted := panicked and max_hspeed > 2.5
+	# Second hit through the same duck-typed entry, with a sideways impact:
+	# the panic direction must mirror it horizontally.
+	tourist.on_splatted(Vector3(6.0, -2.0, 0.0))
+	await _wait_frames(2)
+	var flees_impact := tourist._panic_dir.dot(Vector3(-1.0, 0.0, 0.0)) > 0.95
+	_check("tourist_splat_panics_scores",
+			dropped and fired and _tourist_relay == 2 and sprinted and flees_impact,
+			"dropped=%s fired=%s relay=%d panicked=%s sprint %.1f m/s flees=%s" % [
+					dropped, fired, _tourist_relay, panicked, max_hspeed, flees_impact])
+	spawner.free()
+
+
+## A slow pass through the buzz zone earns nothing; a fast one earns a flinch
+## duck — never a full panic (that takes a splat).
+func _scenario_tourist_buzz() -> void:
+	var spawner := TouristSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	spawner.target_count = 1
+	spawner.spawn_min_dist = 0.0
+	spawner.spawn_max_dist = 10.0
+	add_child(spawner)
+	await _wait_frames(4)
+	var tourists := spawner.living_tourists()
+	if tourists.is_empty():
+		_check("tourist_buzz_flinch", false, "no tourist spawned")
+		spawner.free()
+		return
+	var tourist: Tourist = tourists[0]
+	tourist.path = PackedVector3Array() ## A standing target for repeatable passes.
+	var pass_start: Vector3 = tourist.global_position + Vector3(0.0, 2.2, -5.0)
+	await _set_up(true, pass_start, Vector3(0.0, 0.0, 9.0), 180.0)
+	await _wait_frames(110) ## ~1.8 s: drifts through the zone slowly and lands beyond it.
+	var slow_clean := tourist.buzz_count == 0 and tourist.mood != Tourist.Mood.PANIC
+	await _set_up(true, pass_start, Vector3(0.0, 0.0, 18.0), 180.0)
+	var saw_flinch := false
+	for _i in 120:
+		await get_tree().physics_frame
+		saw_flinch = saw_flinch or tourist.mood == Tourist.Mood.FLINCH
+		if tourist.buzz_count >= 1 and saw_flinch:
+			break
+	var fast_ok := tourist.buzz_count == 1 and saw_flinch \
+			and tourist.mood != Tourist.Mood.PANIC
+	_check("tourist_buzz_flinch", slow_clean and fast_ok,
+			"slow pass clean=%s · fast pass buzzes=%d flinch_seen=%s panicked=%s" % [
+					slow_clean, tourist.buzz_count, saw_flinch,
+					tourist.mood == Tourist.Mood.PANIC])
+	spawner.free()
+
+
+## Density survives a move: teleporting the player across the city recycles
+## the whole crowd — the SAME tourist nodes — into the spawn band around the
+## new position.
+func _scenario_tourists_recycle() -> void:
+	await _set_up(true, _city.position + Vector3(0.0, 25.0, 0.0), Vector3.ZERO)
+	var spawner := TouristSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	add_child(spawner)
+	await _wait_frames(4)
+	var tourists := spawner.living_tourists()
+	var full := tourists.size() == spawner.target_count
+	var ids: Array[int] = []
+	for tourist in tourists:
+		ids.append(tourist.get_instance_id())
+	await _set_up(true, _city.position + Vector3(-90.0, 25.0, 0.0), Vector3.ZERO)
+	await _wait_frames(45) ## 0.75 s > recycle_interval — one scan must move them all.
+	var reused := true
+	var placed := true
+	var after := spawner.living_tourists()
+	var anchor := Vector2(_city.position.x - 90.0, _city.position.z)
+	for tourist in after:
+		reused = reused and ids.has(tourist.get_instance_id())
+		var flat := Vector2(tourist.global_position.x - anchor.x,
+				tourist.global_position.z - anchor.y)
+		var center := Vector2(tourist.block_center.x - anchor.x, tourist.block_center.z - anchor.y)
+		# The recycle contract: every tourist is EITHER already within the
+		# recycle radius of the moved player (legitimately kept — density
+		# stays where the player is) OR recycled onto a loop in the spawn band.
+		placed = placed and (flat.length() <= spawner.recycle_radius
+				or (center.length() >= spawner.spawn_min_dist
+						and center.length() <= spawner.spawn_max_dist))
+	_check("tourists_recycle_around_player",
+			full and after.size() == spawner.target_count and reused and placed,
+			"full=%s count %d reused=%s placed=%s" % [
+					full, after.size(), reused, placed])
+	spawner.free()

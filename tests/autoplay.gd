@@ -32,6 +32,7 @@ var _game: Node
 var _player: Player
 var _hunger: Hunger
 var _spawner: BreadSpawner
+var _tourists: TouristSpawner
 var _elapsed: float = 0.0
 var _next_shot: float = 1.0
 var _shot_dir: String = ""
@@ -49,6 +50,7 @@ func _ready() -> void:
 	_player = _game.get_node("Player") as Player
 	_hunger = _game.get_node("Hunger") as Hunger
 	_spawner = _game.get_node("BreadSpawner") as BreadSpawner
+	_tourists = _game.get_node("TouristSpawner") as TouristSpawner
 	_player.pooped.connect(_on_pilot_pooped)
 
 
@@ -73,9 +75,12 @@ func _physics_process(delta: float) -> void:
 		var where: Vector3 = _player.position if _player != null and is_instance_valid(_player) else Vector3.ZERO
 		var fps: float = _fps_sum / maxf(_fps_samples, 1)
 		var eaten: int = _spawner.eaten_count if _spawner != null and is_instance_valid(_spawner) else -1
-		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d" % [
+		var tourists: int = _tourists.living_tourists().size() if _tourists != null and is_instance_valid(_tourists) else -1
+		var panics: int = _tourists.splat_count if _tourists != null and is_instance_valid(_tourists) else -1
+		print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d" % [
 				alive, _elapsed, fps, where.x, where.y, where.z,
-				_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats])
+				_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
+				tourists, panics])
 		get_tree().quit(0 if alive else 1)
 
 
@@ -105,9 +110,12 @@ func _drive(t: float, delta: float) -> void:
 			Input.action_release(action)
 
 	# T-006: air-only dropping, released wherever the bird happens to be
-	# flying — over the roofs, over the plaza, on the way down to land.
-	# Grounded taps are skipped (the pigeon doesn't poop on the ground).
-	if t >= POOP_START and not _player.is_grounded and fmod(t - POOP_START, POOP_PERIOD) < delta:
+	# flying — over the roofs, over the plaza, on the way down to land —
+	# with the T-007 addition that the pilot pulls the trigger early when a
+	# walking tourist lines up under the predicted impact point. Grounded
+	# taps are skipped (the pigeon doesn't poop on the ground).
+	if t >= POOP_START and not _player.is_grounded \
+			and (_tourist_in_lead() or fmod(t - POOP_START, POOP_PERIOD) < delta):
 		Input.action_press("poop")
 
 	if t >= GROUND_VISIT_START and t < GROUND_VISIT_END:
@@ -168,6 +176,28 @@ func _drive(t: float, delta: float) -> void:
 ## Banks toward the plaza center (the generator's one guaranteed-clear spot).
 func _steer_toward(_flat: Vector2) -> void:
 	_steer_toward_point(Vector2.ZERO)
+
+
+## T-007: true when a strolling tourist sits within tolerance of the predicted
+## poop impact — fall time from the pigeon's height times its velocity, plus
+## the tourist's own stroll. A chance shot (drag ignored, pacing free): some
+## runs connect, some tourists walk on — the DONE line reports `panics`.
+func _tourist_in_lead() -> bool:
+	if _tourists == null or not is_instance_valid(_tourists):
+		return false
+	if _player.position.y > 14.0:
+		return false ## High lobs drift too far for a chance shot.
+	var v := _player.velocity
+	if Vector2(v.x, v.z).length() < 5.0:
+		return false ## No lead to speak of — the cadence taps cover this.
+	var fall := sqrt(2.0 * maxf(_player.position.y - 1.2, 0.0) / 12.0)
+	var impact := Vector2(_player.position.x, _player.position.z) + Vector2(v.x, v.z) * fall
+	for tourist in _tourists.living_tourists():
+		var spot := Vector2(tourist.global_position.x, tourist.global_position.z) \
+				+ Vector2(tourist.velocity.x, tourist.velocity.z) * fall
+		if impact.distance_to(spot) < 1.5:
+			return true
+	return false
 
 
 ## Banks (or waddle-turns) toward a world XZ point — one bang-bang convention

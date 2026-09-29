@@ -92,6 +92,10 @@ signal regenerated
 ## seed and never shifts the building RNG sequence.
 var bread_spots: Array[Vector3] = []
 
+## Center (city-local) of every generated block — the tourist service (T-007)
+## picks its sidewalk walking loops from these.
+var block_centers: Array[Vector3] = []
+
 ## Center-to-center distance between neighboring blocks (m).
 var block_pitch: float:
 	get: return block_size + road_width
@@ -131,6 +135,7 @@ func generate(new_seed: int = seed_value) -> void:
 	_plaza_clear = true
 	buildings = []
 	bread_spots = []
+	block_centers = []
 	_static_root = Node3D.new()
 	_static_root.name = "Static"
 	add_child(_static_root)
@@ -173,6 +178,26 @@ func _block_center(ix: int, iz: int) -> Vector3:
 
 
 ## --- construction --------------------------------------------------------
+
+
+## Waypoint loop (city-local) for one block's tourists (T-007): a rectangle on
+## the sidewalk's outer curb line. The radius matters: the loop's legs must be
+## clear of everything that shares the block. Buildings reach 7.8 m from the
+## block center, benches sit 9.5–10.0 m out along the edges, lamps and bins
+## crowd the diagonals up to ~10.3 m — so the only band where the sides AND
+## the corners stay clear is the curb line just inside the slab edge (11.0 m):
+## sides keep ~0.6–0.9 m off every prop, corners ~0.9 m off the worst-case
+## (max-jitter) corner bin. Anything tighter (e.g. a diamond through the edge
+## midpoints) chords straight through the building footprints.
+func sidewalk_loop(center: Vector3) -> PackedVector3Array:
+	var ring := block_size * 0.5 - 0.1
+	var y := block_slab_height
+	return PackedVector3Array([
+		center + Vector3(ring, y, ring),
+		center + Vector3(-ring, y, ring),
+		center + Vector3(-ring, y, -ring),
+		center + Vector3(ring, y, -ring),
+	])
 
 
 ## Four sidewalk spots per block for bread crumbs (T-005), placed at the
@@ -259,6 +284,7 @@ func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 	_add_collider("Blocks", slab_size, center + Vector3(0.0, block_slab_height * 0.5, 0.0))
 	_fp.append(["slab", center.x, center.z, is_plaza, is_park])
 	_bread_ring_spots(center)
+	block_centers.append(center)
 	if is_plaza:
 		_build_plaza(center)
 	elif is_park:

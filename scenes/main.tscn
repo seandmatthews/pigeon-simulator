@@ -1,10 +1,11 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/hunger.gd" id="2_hunger"]
 [ext_resource type="Script" path="res://scripts/bread_spawner.gd" id="3_spawner"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="4_player"]
 [ext_resource type="PackedScene" path="res://scenes/city.tscn" id="5_city"]
+[ext_resource type="Script" path="res://scripts/tourist_spawner.gd" id="6_tourists"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_main"]
 sky_horizon_color = Color(0.74, 0.82, 0.89, 1)
@@ -44,6 +45,11 @@ player_path = NodePath("../Player")
 [node name="BreadSpawner" type="Node3D" parent="."]
 script = ExtResource("3_spawner")
 city_path = NodePath("../City")
+
+[node name="TouristSpawner" type="Node3D" parent="."]
+script = ExtResource("6_tourists")
+city_path = NodePath("../City")
+player_path = NodePath("../Player")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
