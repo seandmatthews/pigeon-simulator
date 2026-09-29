@@ -101,6 +101,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | sfx_peck_plays_on_eat | a grounded pigeon eating a crumb through Main's wiring plays exactly one bread peck | T-012 |
 | sfx_splat_yelp_panic_honk | a real lobbed splat plays the splat plus its tourist's yelp, the indignant shout joins the fist shake ~1.8 s later, and a duck-typed car hit blasts the horn | T-012 |
 | ambience_loops_under_game | main.tscn starts both ambience beds on the Ambience bus, start_ambience() is idempotent across restarts and the bed survives the scene teardown | T-012 |
+| density_cpu_budget | the real main scene at full density (18 tourists + 36 cars asserted) keeps the calibrated headless CPU budget — median wall-time of three 100-frame windows under --fixed-fps 60 | T-018 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -307,5 +308,15 @@ Playtest checklist (grows as tickets land):
   `shake_peak`; average fps 130 — the 60 fps criterion holds with all
   particles active). A human pass over the T-013 lines (aliveness side-by-side,
   shake comfort, screen clutter, district palette harmony) is still pending.
+- Performance budget (T-018) is machine-verified **headless only**
+  (`density_cpu_budget`): a headless run renders nothing, so the gate sees the
+  CPU half of the frame (scripts, physics, scene) — draw-call/primitive
+  regressions stay with Gate 2's autoplay DONE line (average fps) and Gate 3's
+  human pass over the T-004 "~60 fps" line. The budget is absolute
+  wall-time calibrated on the dev machine (750 ms per 100 physics frames vs a
+  measured 247.5 median, ticket T-018): a busy machine can false-FAIL it
+  (re-run idle), and a regression smaller than its ~3x headroom passes by
+  design. The `city.generate` synchronous rebuild spike at boot/restart is
+  recorded in the ticket, not gated.
 - Remaining placeholder art: buildings are tinted
   boxes with a procedural window texture.
