@@ -120,6 +120,7 @@ func _run_scenarios() -> void:
 	await _scenario_pause_freezes()
 	await _scenario_game_over_screen()
 	await _scenario_restart_resets()
+	await _scenario_hud_hunger_tiers() ## T-019 — must follow restart_resets: unpaused tree, no live Main.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -1546,6 +1547,99 @@ func _scenario_restart_resets() -> void:
 	Game.reset_run()
 	main_game.free()
 	_main_game = null
+
+
+## T-019: the HUD stays readable and the hunger bar warns in tiers, through the
+## REAL main scene. Registered immediately after _scenario_restart_resets —
+## that is the only spot with an unpaused tree and no live Main (game_over_screen
+## ends paused; restart_resets unpauses, detaches the clock and frees the
+## instance), so this fresh instance's _process pulse actually advances and it
+## is the sole listener on Game.hunger.changed.
+func _scenario_hud_hunger_tiers() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(-3500.0, 0.0, -3500.0) ## Own space, clear of the test world.
+	add_child(main_game)
+	await _wait_frames(4)
+	var stats: Label = main_game.stats_label
+	var hint: Label = main_game.hint_label
+	var bar: ProgressBar = main_game.hunger_bar
+	## Outlines resolve through the theme stack — there is no per-override
+	## getter, and the default Label theme defines font_outline_color, so
+	## equality against the tuned values is the reliable read.
+	var outline_ok: bool = \
+			stats.get_theme_color("font_outline_color").is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
+			and stats.get_theme_constant("outline_size") == 6 \
+			and hint.get_theme_color("font_outline_color").is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
+			and hint.get_theme_constant("outline_size") == 4
+	## Tier bands through the real signal path: the value setter emits
+	## synchronously, so set→read same-frame is exact; probes sit mid-band so
+	## the live drain (~0.27/s grounded) can't cross a boundary mid-scenario.
+	var probes := {80: 0, 40: 1, 20: 2, 8: 3}
+	var tiers_ok := true
+	for probe_value in probes:
+		Game.hunger.value = float(probe_value)
+		tiers_ok = tiers_ok and main_game.hud_warning_tier == probes[probe_value]
+	## Quiet tiers park the bar on their rest color — sample a window to prove
+	## nothing animates it.
+	Game.hunger.value = 80.0
+	var quiet_static := true
+	for _i in 10:
+		await get_tree().process_frame
+		quiet_static = quiet_static and bar.modulate.is_equal_approx(MainGame.TIER_REST_COLORS[0])
+	## Danger tiers pulse in game time — sample ~0.5 s each, assert the channel
+	## spread (never sampled at the flash's rest point) and that tier 3 flashes
+	## FASTER than tier 2 via zero crossings of the green channel.
+	Game.hunger.value = 20.0
+	var tier2_lo := 1.0
+	var tier2_hi := 0.0
+	var tier2_last := -1.0
+	var tier2_crossings := 0
+	for _i in 30:
+		await get_tree().process_frame
+		var g2 := bar.modulate.g
+		tier2_lo = minf(tier2_lo, g2)
+		tier2_hi = maxf(tier2_hi, g2)
+		if tier2_last >= 0.0 and (g2 - 0.55) * (tier2_last - 0.55) < 0.0:
+			tier2_crossings += 1
+		tier2_last = g2
+	Game.hunger.value = 8.0
+	var tier3_lo := 1.0
+	var tier3_hi := 0.0
+	var tier3_last := -1.0
+	var tier3_crossings := 0
+	for _i in 30:
+		await get_tree().process_frame
+		var g3 := bar.modulate.g
+		tier3_lo = minf(tier3_lo, g3)
+		tier3_hi = maxf(tier3_hi, g3)
+		if tier3_last >= 0.0 and (g3 - 0.5) * (tier3_last - 0.5) < 0.0:
+			tier3_crossings += 1
+		tier3_last = g3
+	var pulse2 := tier2_hi - tier2_lo > 0.1
+	var pulse3 := tier3_hi - tier3_lo > 0.1
+	var faster := tier3_crossings > tier2_crossings
+	## Falling back to a lower tier restores that tier's rest color — the crumb
+	## path (a refill through changed)…
+	Game.hunger.value = 80.0
+	var refill_rest := bar.modulate.is_equal_approx(MainGame.TIER_REST_COLORS[0])
+	## …and the restart path re-fires full hunger through the same handler.
+	main_game.restart_run()
+	var restart_rest := not get_tree().paused \
+			and main_game.hud_warning_tier == 0 \
+			and bar.modulate.is_equal_approx(MainGame.TIER_REST_COLORS[0])
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("hud_hunger_warning_tiers",
+			outline_ok and tiers_ok and quiet_static and pulse2 and pulse3 \
+					and faster and refill_rest and restart_rest,
+			"outline=%s tiers=%s quiet_static=%s pulse2=%s (g %.2f..%.2f, %d x) pulse3=%s (g %.2f..%.2f, %d x) faster=%s refill_rest=%s restart_rest=%s" % [
+					outline_ok, tiers_ok, quiet_static,
+					pulse2, tier2_lo, tier2_hi, tier2_crossings,
+					pulse3, tier3_lo, tier3_hi, tier3_crossings,
+					faster, refill_rest, restart_rest])
 
 
 ## --- scenarios (T-011 pigeon presentation) ----------------------------------

@@ -88,6 +88,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | pause_freezes_world | Esc-pausing through the real PauseMenu stops the flying pigeon dead mid-air and the hunger clock with it; resuming hands both back | T-010 |
 | game_over_shows_score_screen | starving through the real main scene opens the score screen — score, high score, tourist/car breakdown — freezes the run dead and keeps Esc locked | T-010 |
 | restart_resets_run | restart through Main.restart_run() zeroes score/breakdown, refills hunger, clears the game-over latch, regenerates the same-seed city and re-seeds every spawner with fresh nodes | T-010 |
+| hud_hunger_warning_tiers | the HUD score/hint outlines resolve through the theme, the hunger bar's four warning tiers map the 50/25/10% bands through the real Main scene, the danger tiers pulse in game time (tier 3 faster than tier 2) and falling back restores the rest color — via refill and restart_run | T-019 |
 | pigeon_air_poses_track_flight | wings out in a glide, a wing beat on every real flap impulse (and the beat ends), wings swept back in a dive — the pose mirrors the flight state | T-011 |
 | pigeon_ground_poses_track_waddle | grounded settles into the folded stand, waddling flips to the waddle pose, stopping settles back to stand | T-011 |
 | pigeon_pecks_when_eating | eating a crumb through Main's exact wiring (crumb.eaten → Player.peck) plays the peck — the beak dives down and the overlay ends | T-011 |
@@ -253,6 +254,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-013) The HUD score pulse fires on combo escalation, reads clearly, and settles without jitter
 - [ ] (T-016) The pigeon reads as a pigeon at ~20 m against a sunlit sidewalk and a cream facade, not just against the road
 - [ ] (T-016) Side-by-side with before, the city still reads warm and sunny after the sun-energy retune (the T-013 warmth judgement re-based)
+- [ ] (T-019) The score line and control hint read clearly over white pavement at the spawn corridor, over the bright sky at altitude and over the dark road (dark outlines)
+- [ ] (T-019) The hunger bar warns at a glance — white → amber → red pulse → fast flash — without staring at it, and never sits stranded mid-flash after landing to eat
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -326,6 +329,11 @@ Playtest checklist (grows as tickets land):
   (re-run idle), and a regression smaller than its ~3x headroom passes by
   design. The `city.generate` synchronous rebuild spike at boot/restart is
   recorded in the ticket, not gated.
+- HUD legibility & hunger warning (T-019) is machine-verified (Gate 1b
+  `hud_hunger_warning_tiers` — resolved outlines, tier bands, in-game-time
+  pulse, rest-color restore through refill and restart). A human pass over the
+  T-019 lines (legibility over pavement/sky/road, tier readability at a
+  glance, pulse comfort) is still pending.
 - Remaining placeholder art: buildings are tinted
   boxes with a procedural window texture.
 - T-016 machine-checked the pigeon's material contrast and capped the sun, but
