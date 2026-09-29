@@ -47,6 +47,8 @@ var _fps_sum: float = 0.0
 var _fps_samples: int = 0
 var _splats: int = 0 ## Poop splats that landed during the run (T-006 evidence).
 var _poses_seen: Dictionary = {} ## Pigeon poses the run showed (T-011 evidence).
+var _max_live_effects: int = 0 ## Peak one-shot juice bursts alive at once (T-013 evidence).
+var _peak_trauma: float = 0.0 ## Peak camera shake trauma the run hit (T-013 evidence).
 var _visit_gliding: bool = false ## Latched once the landing glide begins.
 ## Lead-shot altitude ceiling (m). High over the roofs the pilot's own banking
 ## makes the fall-time prediction garbage, so cruise keeps the T-007/T-008
@@ -97,6 +99,7 @@ func _physics_process(delta: float) -> void:
 	_trace(_elapsed)
 	_drive(_elapsed, delta)
 	_watch_poses()
+	_watch_juice()
 	if _elapsed >= _next_shot:
 		_next_shot += SHOT_INTERVAL
 		_capture(int(_elapsed))
@@ -135,11 +138,12 @@ func _finish() -> void:
 	var ok: bool = alive and _restart_ok and audio_ok
 	var poses := _poses_seen.keys()
 	poses.sort()
-	print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d poses=%s sfx=%s ambience=%s" % [
+	print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d poses=%s effects=%d shake_peak=%.2f sfx=%s ambience=%s" % [
 			ok, _elapsed, fps, where.x, where.y, where.z,
 			_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
 			tourists, panics, honks, Game.score, Game.high_score,
 			_restart_ok, _pre_score, _pre_tourists, _pre_cars, ",".join(poses),
+			_max_live_effects, _peak_trauma,
 			",".join(sfx_bits), Sfx.ambience_playing])
 	get_tree().quit(0 if ok else 1)
 
@@ -197,6 +201,16 @@ func _watch_poses() -> void:
 	if bird.pecking:
 		_poses_seen["PECK"] = true
 	_poses_seen[String(PigeonVisual.Pose.find_key(bird.pose))] = true
+
+
+## T-013 evidence: the peak number of one-shot juice bursts alive at once
+## (splats, feathers, dust — proves the pass fired without spamming) and the
+## peak camera shake trauma (proves the shake stayed a tick, never full).
+func _watch_juice() -> void:
+	_max_live_effects = maxi(_max_live_effects,
+			get_tree().get_nodes_in_group("juice_effects").size())
+	if _player != null and is_instance_valid(_player):
+		_peak_trauma = maxf(_peak_trauma, _player.chase_camera.trauma)
 
 
 ## One-line-per-second progress trace — evidence for the gate log.

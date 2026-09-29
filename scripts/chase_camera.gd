@@ -29,9 +29,20 @@ extends Node3D
 @export var fov_speed: float = 20.0 ## Forward speed at which the FOV kick is fully on.
 @export var fov_rate: float = 4.0 ## 1/s FOV damping.
 
+@export_group("Shake") ## T-013: tiny and cozy — landings and your own splat hits, never nauseating.
+@export var shake_max_offset: float = 0.18 ## Lens offset (m) at full trauma.
+@export var shake_max_roll: float = 0.03 ## Lens roll (rad) at full trauma.
+@export var shake_decay: float = 1.4 ## Trauma fractions shed per second — a hit's tick lasts ~0.2 s.
+@export var shake_rate: float = 24.0 ## How fast the shake pattern wanders (noise units/s).
+
 var _yaw: float = 0.0
 var _pitch: float = 0.0
 var _pivot_height: float = 1.4
+var _trauma: float = 0.0 ## 0..1; the shake strength is trauma² so small hits stay tiny.
+var _shake_clock: float = 0.0
+## Fixed-seed noise: the shake pattern is identical run to run, so a sim
+## failure is a real regression, never per-run noise.
+var _noise := FastNoiseLite.new()
 
 @onready var _player: Player = get_parent() as Player
 @onready var _spring: SpringArm3D = $SpringArm3D
@@ -48,12 +59,30 @@ var arm_length: float:
 	get: return _spring.spring_length
 
 
+## Current trauma (0..1) — tests and the autoplay DONE line report peak shake through it.
+var trauma: float:
+	get: return _trauma
+
+
+## The live lens shake offset (m) — the sim harness asserts the shake is felt.
+var shake_offset: Vector2:
+	get: return Vector2(_camera.h_offset, _camera.v_offset)
+
+
 func _ready() -> void:
 	var fwd := -_player.transform.basis.z
 	if Vector2(fwd.x, fwd.z).length() > 0.1:
 		_yaw = atan2(-fwd.x, -fwd.z)
 	_pitch = deg_to_rad(base_pitch_deg)
 	global_position = _player.global_position
+	_noise.seed = 20260928
+	_noise.frequency = 1.0
+
+
+## Kicks the shake up by `amount` trauma fractions (clamped to 1) — the juice
+## pass (T-013) shakes hard landings (player) and scored splat hits (Main).
+func add_shake(amount: float) -> void:
+	_trauma = minf(_trauma + amount, 1.0)
 
 
 func _physics_process(delta: float) -> void:
@@ -87,3 +116,14 @@ func _physics_process(delta: float) -> void:
 	var fov_target := fov_ground if grounded else lerpf(
 			fov_air, fov_max, clampf(_player.forward_speed / fov_speed, 0.0, 1.0))
 	_camera.fov = lerpf(_camera.fov, fov_target, 1.0 - exp(-fov_rate * delta))
+
+	# T-013 shake: trauma decays linearly, the applied strength is trauma² so
+	# small hits stay proportionally tiny, and the lens rides a fixed-seed noise
+	# pattern. The offsets go on the CAMERA (image shift), never on this rig —
+	# the rig's damped transform stays exact for the T-002 checks.
+	_trauma = maxf(_trauma - shake_decay * delta, 0.0)
+	_shake_clock += delta * shake_rate
+	var strength := _trauma * _trauma
+	_camera.h_offset = shake_max_offset * strength * _noise.get_noise_2d(_shake_clock, 0.0)
+	_camera.v_offset = shake_max_offset * strength * _noise.get_noise_2d(31.7, _shake_clock)
+	_camera.rotation.z = shake_max_roll * strength * _noise.get_noise_2d(63.4, _shake_clock)

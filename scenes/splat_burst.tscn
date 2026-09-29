@@ -1,0 +1,43 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/one_shot_burst.gd" id="1_burst"]
+
+[sub_resource type="Gradient" id="Grad_fade"]
+offsets = PackedFloat32Array(0, 0.6, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GradTex_fade"]
+gradient = SubResource("Grad_fade")
+
+[sub_resource type="ParticleProcessMaterial" id="PPM_splat"]
+direction = Vector3(0, 1, 0)
+spread = 85.0
+initial_velocity_min = 1.8
+initial_velocity_max = 3.4
+gravity = Vector3(0, -10, 0)
+damping_min = 1.0
+damping_max = 2.0
+scale_min = 0.5
+scale_max = 1.3
+color_ramp = SubResource("GradTex_fade")
+
+[sub_resource type="StandardMaterial3D" id="Mat_drop"]
+albedo_color = Color(0.96, 0.94, 0.8, 1)
+roughness = 0.9
+
+[sub_resource type="SphereMesh" id="Mesh_drop"]
+material = SubResource("Mat_drop")
+radius = 0.045
+height = 0.09
+radial_segments = 8
+rings = 4
+
+[node name="SplatBurst" type="GPUParticles3D"]
+emitting = false
+amount = 24
+lifetime = 0.55
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("PPM_splat")
+draw_pass_1 = SubResource("Mesh_drop")
+script = ExtResource("1_burst")

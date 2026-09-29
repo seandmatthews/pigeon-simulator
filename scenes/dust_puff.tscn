@@ -1,0 +1,44 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/one_shot_burst.gd" id="1_burst"]
+
+[sub_resource type="Gradient" id="Grad_fade"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(1, 1, 1, 0.8, 1, 1, 1, 0.55, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GradTex_fade"]
+gradient = SubResource("Grad_fade")
+
+[sub_resource type="ParticleProcessMaterial" id="PPM_dust"]
+direction = Vector3(0, 1, 0)
+spread = 85.0
+initial_velocity_min = 1.2
+initial_velocity_max = 2.2
+gravity = Vector3(0, -0.8, 0)
+damping_min = 2.0
+damping_max = 4.0
+scale_min = 0.6
+scale_max = 1.2
+color_ramp = SubResource("GradTex_fade")
+
+[sub_resource type="StandardMaterial3D" id="Mat_dust"]
+transparency = 1
+albedo_color = Color(0.76, 0.7, 0.58, 1)
+roughness = 1.0
+
+[sub_resource type="SphereMesh" id="Mesh_dust"]
+material = SubResource("Mat_dust")
+radius = 0.07
+height = 0.14
+radial_segments = 8
+rings = 4
+
+[node name="DustPuff" type="GPUParticles3D"]
+emitting = false
+amount = 14
+lifetime = 0.5
+one_shot = true
+explosiveness = 0.9
+process_material = SubResource("PPM_dust")
+draw_pass_1 = SubResource("Mesh_dust")
+script = ExtResource("1_burst")

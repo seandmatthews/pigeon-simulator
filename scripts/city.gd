@@ -12,10 +12,16 @@ extends Node3D
 ## widths fit for flight, roof heights under the cruise floor, and enough
 ## bread-capable surfaces (benches, sidewalks, roofs, parks) for T-005.
 
-const FACADE_PALETTE: Array[Color] = [
-	Color(0.78, 0.48, 0.38), Color(0.85, 0.68, 0.42), Color(0.52, 0.60, 0.70),
-	Color(0.55, 0.64, 0.48), Color(0.88, 0.82, 0.68), Color(0.78, 0.58, 0.60),
-	Color(0.60, 0.57, 0.55),
+## Per-district facade palettes (T-013): the city reads as neighborhoods from
+## the air. The locked low-poly palette colors, regrouped into four district
+## families — a building picks its color from its district's palette only, so
+## each quadrant wears a coherent range while the whole city stays in style.
+## Index with `district_of()`.
+const DISTRICT_PALETTES: Array = [
+	[Color(0.78, 0.48, 0.38), Color(0.72, 0.4, 0.32), Color(0.84, 0.56, 0.44)], ## Warm brick.
+	[Color(0.88, 0.82, 0.68), Color(0.82, 0.73, 0.55), Color(0.9, 0.86, 0.76)], ## Sandy cream.
+	[Color(0.52, 0.6, 0.7), Color(0.44, 0.53, 0.64), Color(0.6, 0.67, 0.76)], ## Cool blue-gray.
+	[Color(0.55, 0.64, 0.48), Color(0.47, 0.58, 0.43), Color(0.62, 0.69, 0.54)], ## Sage green.
 ]
 const COLOR_ASPHALT := Color(0.24, 0.24, 0.26)
 const COLOR_GRASS := Color(0.36, 0.5, 0.30)
@@ -186,6 +192,14 @@ func _block_center(ix: int, iz: int) -> Vector3:
 	return Vector3((ix - half) * block_pitch, 0.0, (iz - half) * block_pitch)
 
 
+## Which district a block belongs to: the city's four quadrants (the middle
+## column/row folds into the east/south side). A pure function of the block
+## coordinates, so the district map is deterministic per seed.
+func district_of(bx: int, bz: int) -> int:
+	var half := (blocks_per_side - 1) * 0.5
+	return (0 if bx <= half else 1) + (0 if bz <= half else 2)
+
+
 ## --- construction --------------------------------------------------------
 
 
@@ -343,13 +357,14 @@ func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 	elif is_park:
 		_counts.parks += 1
 	else:
-		_build_block_buildings(center)
+		_build_block_buildings(center, district_of(bx, bz))
 	_build_block_props(center, is_plaza)
 
 
 ## Subdivides a block interior into 2x2 lots and fills 2–4 of them with
-## buildings whose heights snap to whole floors.
-func _build_block_buildings(center: Vector3) -> void:
+## buildings whose heights snap to whole floors. The block's district picks
+## the palette the buildings wear.
+func _build_block_buildings(center: Vector3, district: int) -> void:
 	var interior := block_size - sidewalk_width * 2.0
 	var lot := interior * 0.5
 	var footprint := lot - lot_gap
@@ -367,14 +382,15 @@ func _build_block_buildings(center: Vector3) -> void:
 				kept.append(q)
 		lots = kept ## Duo — one alley through the block.
 	for q in lots:
-		_add_building(center + Vector3(q.x * lot * 0.5, 0.0, q.y * lot * 0.5), footprint)
+		_add_building(center + Vector3(q.x * lot * 0.5, 0.0, q.y * lot * 0.5), footprint, district)
 
 
-func _add_building(base_center: Vector3, footprint: float) -> void:
+func _add_building(base_center: Vector3, footprint: float, district: int) -> void:
 	var floors := _rng.randi_range(building_floors_min, building_floors_max)
 	var wall_h := floors * floor_height
 	var total_h := wall_h + roof_slab_height
-	var color: Color = FACADE_PALETTE[_rng.randi_range(0, FACADE_PALETTE.size() - 1)]
+	var palette: Array = DISTRICT_PALETTES[district]
+	var color: Color = palette[_rng.randi_range(0, palette.size() - 1)]
 	_add_mm("facade", _box_xf(
 			base_center + Vector3(0.0, block_slab_height + wall_h * 0.5, 0.0),
 			Vector3(footprint, wall_h, footprint)), color)
@@ -388,6 +404,8 @@ func _add_building(base_center: Vector3, footprint: float) -> void:
 		"center": to_global(Vector3(base_center.x, 0.0, base_center.z)),
 		"size": Vector2(footprint, footprint),
 		"top": to_global(Vector3(0.0, block_slab_height + total_h, 0.0)).y,
+		"district": district, ## Which district palette the facade wore (T-013).
+		"color": color, ## The facade color itself — tests assert palette membership (T-013).
 	})
 	_max_roof = maxf(_max_roof, total_h)
 	_counts.buildings += 1

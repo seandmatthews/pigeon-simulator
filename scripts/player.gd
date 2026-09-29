@@ -67,6 +67,14 @@ enum State { AIR, GROUND }
 @export_group("Audio") ## T-012: the sounds ride the state machine's own events.
 @export var effort_climb_speed: float = 2.0 ## Upward speed (m/s) the pigeon must ALREADY be climbing at for a flap to also play the strained wing-beat effort sound (the impulse itself would flatter every flap).
 
+@export_group("Juice") ## T-013: the one-shots ride the same state events.
+@export var feather_scene: PackedScene = preload("res://scenes/feather_poof.tscn") ## Feathers poof off a hard flap.
+@export var dust_scene: PackedScene = preload("res://scenes/dust_puff.tscn") ## Dust kicks up on a touchdown.
+@export var feather_flap_fraction: float = 0.85 ## Rested fraction a flap needs before it poofs feathers.
+@export var feather_min_interval: float = 0.9 ## Hard floor between feather poofs — paced flapping never featherscreens.
+@export var dust_impact_min: float = 1.5 ## Downward speed (m/s) a touchdown needs to kick up dust — just under the flight model's natural glide-touchdown sink (~1.8), so every real landing puffs.
+@export var land_shake: float = 0.45 ## Camera-shake fraction of a max-speed touchdown (the camera scales it by impact).
+
 var forward_speed: float
 var stalled: bool
 var state: State = State.AIR
@@ -86,6 +94,8 @@ var is_grounded: bool:
 var _flap_timer: float = 0.0
 var _time_since_flap: float = 10.0
 var _poop_timer: float = 0.0
+var _time_since_poof: float = 10.0 ## Seconds since the last feather poof — throttles the flap juice (T-013).
+var _touchdown_velocity: Vector3 = Vector3.ZERO ## Velocity of the first floor contact in flight — the landing juice reads this, not the skid's leftovers (T-013).
 var _roll: float = 0.0
 var _air_grace: int = 0 ## Frames after a teleport where is_on_floor() is stale and must not trigger a landing.
 
@@ -103,6 +113,8 @@ func reset_flight(pos: Vector3, yaw_deg: float = 0.0) -> void:
 	_flap_timer = 0.0
 	_poop_timer = 0.0
 	_time_since_flap = 10.0
+	_time_since_poof = 10.0
+	_touchdown_velocity = Vector3.ZERO
 	forward_speed = 0.0
 	stalled = false
 	_air_grace = 2
@@ -114,6 +126,7 @@ func _physics_process(delta: float) -> void:
 	_flap_timer = maxf(_flap_timer - delta, 0.0)
 	_poop_timer = maxf(_poop_timer - delta, 0.0)
 	_time_since_flap += delta
+	_time_since_poof = minf(_time_since_poof + delta, 10.0)
 	if _air_grace > 0:
 		_air_grace -= 1
 	if state == State.GROUND:
@@ -134,6 +147,8 @@ func _air_physics(delta: float) -> void:
 	var was_on_floor := is_on_floor()
 	if not was_on_floor:
 		_steer(delta)
+		if velocity.y < 0.0:
+			_touchdown_velocity = velocity ## Descending toward something — remember how hard (T-013).
 	else:
 		_level_attitude(delta)
 	_flap()
@@ -156,7 +171,34 @@ func _try_settle(impact_vy: float, impact_speed: float) -> void:
 	if impact_speed > 0.5 \
 			and rad_to_deg(asin(clampf(-impact_vy / impact_speed, -1.0, 1.0))) > max_land_angle_deg:
 		return
+	_land_effects(impact_vy, impact_speed) ## Dust + shake, scaled by the touchdown (T-013).
 	_set_state(State.GROUND)
+
+
+## Landing juice (T-013): a puff of dust at the feet when the drop was real,
+## and a small camera shake scaled by how hard the pigeon arrived — a tick,
+## not a jolt. The impact is the recorded first-contact velocity: a straight
+## drop settles a frame later with its speed already eaten by the slide, and
+## the juice must still read the hit that actually happened.
+func _land_effects(impact_vy: float, impact_speed: float) -> void:
+	var impact := _touchdown_velocity if _touchdown_velocity != Vector3.ZERO \
+			else Vector3(0.0, impact_vy, 0.0).limit_length(impact_speed)
+	_touchdown_velocity = Vector3.ZERO
+	if -impact.y >= dust_impact_min:
+		var puff: OneShotBurst = dust_scene.instantiate()
+		add_child(puff)
+		puff.global_position = global_position - Vector3(0.0, 0.15, 0.0)
+	chase_camera.add_shake(land_shake * clampf(impact.length() / max_land_speed, 0.15, 1.0))
+
+
+## Flap juice (T-013): feathers poof off a fully-rested "hard" flap, throttled
+## by `feather_min_interval` so paced flapping never featherscreens.
+func _poof_feathers() -> void:
+	_time_since_poof = 0.0
+	var poof: OneShotBurst = feather_scene.instantiate()
+	add_child(poof)
+	poof.global_transform = Transform3D(OneShotBurst.basis_from_dir(global_transform.basis.y),
+			global_position + global_transform.basis.y * 0.2)
 
 
 ## Grounded locomotion: W/S shuffles along the body axis, A/D turns in place.
@@ -242,6 +284,8 @@ func _flap() -> void:
 	Sfx.play("flap") ## Every impulse whooshes (T-012).
 	if pre_vy >= effort_climb_speed:
 		Sfx.play("effort") ## Paced flaps up a real climb earn the strained wing-beat too.
+	if rested >= feather_flap_fraction and _time_since_poof >= feather_min_interval:
+		_poof_feathers() ## Fully-rested flaps shed a feather or two (T-013).
 
 
 ## The poop action (T-006): air-only. The dropping inherits the pigeon's full

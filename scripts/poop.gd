@@ -22,6 +22,9 @@ signal splatted(target: Node, impact_velocity: Vector3)
 @export var fade_seconds: float = 4.0 ## Seconds the splat stays on the surface before it fades away.
 @export var splat_lift: float = 0.02 ## Offset along the hit normal so the decal clears z-fighting (m).
 
+@export_group("Juice") ## T-013
+@export var burst_scene: PackedScene = preload("res://scenes/splat_burst.tscn") ## One-shot droplet burst fired at every hit.
+
 ## The decal mesh — reparented onto the hit body when the splat sticks. Public
 ## so the sim harness can assert where it landed and how it fades.
 @onready var splat_mesh: MeshInstance3D = $SplatMesh
@@ -72,7 +75,22 @@ func _on_body_entered(body: Node) -> void:
 	if body.has_method("on_splatted"):
 		body.on_splatted(_last_velocity)
 	Sfx.play_at("splat", global_position) ## The wet landing, wherever it hit (T-012).
+	_spawn_burst(body) ## Droplets kick off the hit face (T-013).
 	_stick_splat(body)
+
+
+## The juice burst (T-013): droplets spray out along the hit normal from the
+## contact point. Parented to the hit body when possible, so a burst on a
+## moving tourist or car rides it for its brief life; the burst frees itself.
+func _spawn_burst(target: Node) -> void:
+	var normal := _hit_normal.normalized() if _has_contact and _hit_normal.length() > 0.5 \
+			else -_last_velocity.normalized()
+	var point := _hit_point if _has_contact else global_position
+	var burst: OneShotBurst = burst_scene.instantiate()
+	var parent := target if target is Node3D else get_tree().current_scene
+	parent.add_child(burst)
+	burst.global_transform = Transform3D(OneShotBurst.basis_from_dir(normal),
+			point + normal * splat_lift)
 
 
 ## Freezes the ball, swaps it for the decal stuck to the hit face, hands the

@@ -90,6 +90,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_street_flyover()
 	await _scenario_city_roof()
 	await _scenario_city_sidewalk()
+	await _scenario_city_district_palettes()
 	await _scenario_hunger_drain()
 	await _scenario_hunger_game_over()
 	await _scenario_bread_eating()
@@ -115,6 +116,11 @@ func _run_scenarios() -> void:
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
+	await _scenario_juice_splat_burst()
+	await _scenario_juice_feather_poof()
+	await _scenario_juice_dust_puff()
+	await _scenario_juice_landing_shake()
+	await _scenario_juice_hit_shake_pulse()
 	await _scenario_audio_buses()
 	await _scenario_audio_flap_effort()
 	await _scenario_audio_peck()
@@ -543,6 +549,43 @@ func _scenario_city_sidewalk() -> void:
 			and absf(y - (_city.block_slab_height + 0.3)) < 0.05,
 			"walked %.2f m west, grounded=%s at y=%.2f (slab top %.2f)" % [
 					walked, _player.is_grounded, y, _city.block_slab_height])
+
+
+## The district palettes (T-013): every building wears a color from ITS
+## district's palette, all four districts actually appear in the city, the
+## palettes are measurably distinct from each other, and the district mapping
+## is the pure quadrant function it claims to be.
+func _scenario_city_district_palettes() -> void:
+	var districts_seen := {}
+	var members_ok := true
+	for info in _city.buildings:
+		var district: int = info.district
+		districts_seen[district] = true
+		var member := false
+		for c: Color in _city.DISTRICT_PALETTES[district]:
+			member = member or (info.color as Color).is_equal_approx(c)
+		members_ok = members_ok and member
+	var means: Array[Color] = []
+	for palette: Array in _city.DISTRICT_PALETTES:
+		var sum := Color(0.0, 0.0, 0.0)
+		for c: Color in palette:
+			sum += c
+		means.append(sum / float(palette.size()))
+	var distinct := true
+	for i in means.size():
+		for j in range(i + 1, means.size()):
+			var a := means[i]
+			var b := means[j]
+			distinct = distinct and Vector3(a.r, a.g, a.b).distance_to(Vector3(b.r, b.g, b.b)) > 0.1
+	var mapping_ok := _city.district_of(0, 0) == 0 \
+			and _city.district_of(_city.blocks_per_side - 1, 0) == 1 \
+			and _city.district_of(0, _city.blocks_per_side - 1) == 2 \
+			and _city.district_of(_city.blocks_per_side - 1, _city.blocks_per_side - 1) == 3
+	var all_four := districts_seen.size() == _city.DISTRICT_PALETTES.size()
+	_check("city_district_palettes_distinct", members_ok and distinct and mapping_ok and all_four,
+			"members=%s distinct=%s mapping=%s districts_seen=%d/%d" % [
+					members_ok, distinct, mapping_ok,
+					districts_seen.size(), _city.DISTRICT_PALETTES.size()])
 
 
 ## --- scenarios (T-005 bread & hunger) --------------------------------------
@@ -1534,6 +1577,131 @@ func _scenario_pigeon_peck() -> void:
 			"ate=%s pecked=%s beak_down=%s ended=%s (head pitch %.2f)" % [
 					ate, pecked, beak_down, peck_ended, bird.head_pitch])
 	hunger.free()
+
+
+## --- scenarios (T-013 juice pass) -------------------------------------------
+
+
+## Counts live one-shot juice bursts by their scene file name — the shared
+## `juice_effects` group carries all three looks.
+func _count_effects(scene_suffix: String) -> int:
+	var count := 0
+	for node in get_tree().get_nodes_in_group("juice_effects"):
+		if is_instance_valid(node) and (node as Node).scene_file_path.ends_with(scene_suffix):
+			count += 1
+	return count
+
+
+## A real lobbed splat fires a one-shot droplet burst at the hit point, facing
+## along the surface, and cleans itself up once the payload has burnt out.
+func _scenario_juice_splat_burst() -> void:
+	_dropped.clear()
+	await _set_up(true, Vector3(0.0, 4.0, 6.0), Vector3.ZERO) ## Clear of the bench at z −8.
+	await _tap("poop")
+	await _wait_frames(55) ## The drop falls ~0.78 s before contact.
+	var burst: OneShotBurst = null
+	for child in _ground.get_children():
+		if child is OneShotBurst and child.scene_file_path.ends_with("splat_burst.tscn"):
+			burst = child
+	var spawned := burst != null
+	var emitting := spawned and burst.emitting
+	var at_hit := spawned \
+			and absf(burst.global_position.x) < 0.4 \
+			and absf(burst.global_position.z - 6.0) < 0.4 \
+			and burst.global_position.y > 0.0 and burst.global_position.y < 0.3
+	await _wait_frames(60) ## Past the 0.55 s lifetime + burnout margin.
+	var cleaned := burst == null or not is_instance_valid(burst)
+	_check("juice_splat_burst_fires", spawned and emitting and at_hit and cleaned,
+			"spawned=%s emitting=%s at_hit=%s cleaned=%s pos=%s" % [
+					spawned, emitting, at_hit, cleaned,
+					burst.global_position if spawned and is_instance_valid(burst) else Vector3.INF])
+
+
+## A fully-rested flap poofs feathers; a second flap while the poof throttle is
+## still warm does NOT — paced flapping never featherscreens.
+func _scenario_juice_feather_poof() -> void:
+	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	await _wait_frames(10)
+	var before := _count_effects("feather_poof.tscn")
+	await _tap("flap") ## Fully rested (reset_flight zeroes the clock): the hard flap poofs.
+	await _wait_frames(4)
+	var poofed := _count_effects("feather_poof.tscn") == before + 1
+	await _wait_frames(24) ## 0.4 s: past the flap cooldown, inside feather_min_interval.
+	await _tap("flap")
+	await _wait_frames(4)
+	var no_spam := _count_effects("feather_poof.tscn") == before + 1
+	_check("juice_feather_poofs_on_hard_flap", poofed and no_spam,
+			"hard flap poofed=%s, throttled re-flap stayed at %d (before %d)" % [
+					poofed, _count_effects("feather_poof.tscn"), before])
+
+
+## A gentle-but-real touchdown kicks up a dust puff at the feet, which then
+## cleans itself up. The input is a proper glide arrival: forward speed and a
+## shallow sink, so the FIRST floor contact settles (a straight vertical drop
+## would skid a frame and let the slide eat the hit before the juice sees it).
+func _scenario_juice_dust_puff() -> void:
+	var before := _count_effects("dust_puff.tscn")
+	await _set_up(true, Vector3(0.0, 2.8, 4.0), Vector3(0.0, -3.5, -8.0))
+	await _await_grounded(120)
+	var puffed := _count_effects("dust_puff.tscn") == before + 1 and _player.is_grounded
+	await _wait_frames(55) ## Past the 0.5 s lifetime + burnout margin.
+	var cleaned := _count_effects("dust_puff.tscn") == before
+	_check("juice_dust_puff_on_landing", puffed and cleaned,
+			"puffed=%s cleaned=%s (before %d)" % [puffed, cleaned, before])
+
+
+## A touchdown shakes the camera — a tick, never full-blown — and the trauma
+## decays back to dead still.
+func _scenario_juice_landing_shake() -> void:
+	await _set_up(true, Vector3(0.0, 3.6, 4.0), Vector3(0.0, -3.0, -9.0))
+	await _await_grounded(150)
+	var cam: ChaseCamera = _player.chase_camera
+	var kicked := cam.trauma > 0.1 and cam.trauma <= 0.5 ## Felt, but cozy — never full trauma.
+	var moved := cam.shake_offset.length() > 0.0005
+	for _i in 10:
+		await get_tree().physics_frame
+		moved = moved or cam.shake_offset.length() > 0.0005
+	await _wait_frames(180) ## 3 s of decay clears any landing shake.
+	var settled := cam.trauma == 0.0 and cam.shake_offset == Vector2.ZERO
+	_check("juice_landing_shake_decays", kicked and moved and settled,
+			"kicked=%s (trauma %.2f) lens moved=%s settled=%s" % [
+					kicked, cam.trauma, moved, settled])
+
+
+## Your own scored hits, through the REAL Main scene: a combo escalation
+## shakes the chase camera, pulses the HUD score line, and both settle back.
+## Also checks the lighting pass actually shipped (the warm sun).
+func _scenario_juice_hit_shake_pulse() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	Game.high_score = 0
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(3500.0, 0.0, -3500.0) ## Own space, clear of the test world.
+	add_child(main_game)
+	await _wait_frames(4)
+	var pigeon: Player = main_game.get_node("Player")
+	var cam: ChaseCamera = pigeon.chase_camera
+	var label: Label = main_game.stats_label
+	var sun := main_game.get_node("Sun") as DirectionalLight3D
+	var warm_sun := sun.light_color.r >= sun.light_color.g and sun.light_color.g > sun.light_color.b
+	Game.add_tourist_hit(Vector3(3500.0, 0.5, -3500.0))
+	await _wait_frames(3) ## Let _process show the ×1 before the escalation.
+	Game.add_tourist_hit(Vector3(3500.0, 0.5, -3501.0))
+	await _wait_frames(3) ## The escalation frame: the pulse fires, the shake lands.
+	var pulsed := label.scale.x > 1.03
+	var shook := cam.trauma > 0.05
+	var combo_shown := label.text.contains("×2 combo")
+	await _wait_frames(90) ## 1.5 s: pulse and shake have both settled.
+	var settled := label.scale.is_equal_approx(Vector2.ONE) and cam.trauma == 0.0
+	var scale_after: float = label.scale.x
+	var trauma_after: float = cam.trauma
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("hit_shake_and_score_pulse", pulsed and shook and combo_shown and settled and warm_sun,
+			"pulsed=%s shook=%s combo_shown=%s settled=%s (scale %.3f trauma %.3f) warm_sun=%s" % [
+					pulsed, shook, combo_shown, settled, scale_after, trauma_after, warm_sun])
 
 
 ## --- scenarios (T-012 audio) -------------------------------------------------

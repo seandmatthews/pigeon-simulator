@@ -90,6 +90,12 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | pigeon_air_poses_track_flight | wings out in a glide, a wing beat on every real flap impulse (and the beat ends), wings swept back in a dive — the pose mirrors the flight state | T-011 |
 | pigeon_ground_poses_track_waddle | grounded settles into the folded stand, waddling flips to the waddle pose, stopping settles back to stand | T-011 |
 | pigeon_pecks_when_eating | eating a crumb through Main's exact wiring (crumb.eaten → Player.peck) plays the peck — the beak dives down and the overlay ends | T-011 |
+| city_district_palettes_distinct | every building wears a color from its own district's palette, all four districts appear, the palettes are measurably distinct and the quadrant mapping is pure | T-013 |
+| juice_splat_burst_fires | a real lobbed splat spawns a one-shot droplet burst at the hit point on the hit body, and it cleans itself up | T-013 |
+| juice_feather_poofs_on_hard_flap | a fully-rested flap poofs feathers; a re-flap inside the throttle window doesn't spam another | T-013 |
+| juice_dust_puff_on_landing | a gentle glide touchdown kicks a dust puff at the feet, which cleans itself up | T-013 |
+| juice_landing_shake_decays | a touchdown kicks a small camera shake (never full trauma) that moves the lens and decays to dead still | T-013 |
+| hit_shake_and_score_pulse | through the real main scene, a combo escalation shakes the chase camera, pulses the HUD score line and shows the ×2 — both settle back; the sun is warm | T-013 |
 | audio_buses_and_assets | the Master/SFX/Ambience bus mix exists with the ambience bus quieter than SFX, every ticketed sound loads as a real stream, and both ambience beds are flagged to loop forever | T-012 |
 | sfx_flap_effort_fires | a takeoff flap whooshes without the effort beat; a flap mid-climb adds the strained wing-beat; a flap while falling stays quiet | T-012 |
 | sfx_peck_plays_on_eat | a grounded pigeon eating a crumb through Main's wiring plays exactly one bread peck | T-012 |
@@ -139,7 +145,10 @@ line reports which poses the run actually showed (`poses`). Since T-012 the
 run is audible too: every event the pilot drove fires its sound, the DONE line
 reports how many times each one played (`sfx`) plus the looping bed
 (`ambience`), and the gate requires the bed looping and at least one flap
-whoosh. Saves a
+whoosh. Since T-013 the juice pass is live in the run — splat bursts, feather
+poofs and dust puffs spawn as one-shot bursts and the DONE line reports the
+peak number alive at once (`effects`, the no-spam evidence) and the peak
+camera-shake trauma (`shake_peak`, the never-nauseating evidence). Saves a
 screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
@@ -228,6 +237,10 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-012) The mix is sane: nothing clips even when a splat, a yelp and a honk land at once, and the ambience bed never drowns gameplay SFX
 - [ ] (T-012) The ambience loops seamlessly — no audible seam on the traffic murmur or the distant chatter over a few minutes of play
 - [ ] (T-012) The flap whoosh reads in sync with the wing beat, and the effort strain only shows up on hard climbs
+- [ ] (T-013) Splats burst droplets, hard flaps poof feathers, landings kick dust — the effects read at flight speed but never pile up into screen clutter
+- [ ] (T-013) The camera shake on landings and your own splat hits is a tick, never nauseating — nothing obscures targets
+- [ ] (T-013) Side-by-side with before, the city reads warmer and the four districts read as distinct-but-harmonious neighborhoods from the air
+- [ ] (T-013) The HUD score pulse fires on combo escalation, reads clearly, and settles without jitter
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -283,5 +296,11 @@ Playtest checklist (grows as tickets land):
   (head-tail crossfade) from field recordings. A human listen pass over the
   T-012 lines (clipping at pile-ups, loop seams, flap/sync feel, honk
   believability — the horn is a comedic bike-horn blast) is still pending.
+- Juice pass (T-013) is machine-verified (Gate 1b district-palette, splat-burst,
+  feather-poof, dust-puff, landing-shake and hit-shake/score-pulse scenarios)
+  and live in the autoplay run (the DONE line reports `effects` and
+  `shake_peak`; average fps 130 — the 60 fps criterion holds with all
+  particles active). A human pass over the T-013 lines (aliveness side-by-side,
+  shake comfort, screen clutter, district palette harmony) is still pending.
 - Remaining placeholder art: buildings are tinted
   boxes with a procedural window texture.

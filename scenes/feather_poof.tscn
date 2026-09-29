@@ -1,0 +1,42 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/one_shot_burst.gd" id="1_burst"]
+
+[sub_resource type="Gradient" id="Grad_fade"]
+offsets = PackedFloat32Array(0, 0.55, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GradTex_fade"]
+gradient = SubResource("Grad_fade")
+
+[sub_resource type="ParticleProcessMaterial" id="PPM_feather"]
+direction = Vector3(0, 1, 0)
+spread = 70.0
+initial_velocity_min = 0.8
+initial_velocity_max = 1.6
+gravity = Vector3(0, -1.2, 0)
+angle_min = -180.0
+angle_max = 180.0
+angular_velocity_min = -240.0
+angular_velocity_max = 240.0
+scale_min = 0.7
+scale_max = 1.2
+color_ramp = SubResource("GradTex_fade")
+
+[sub_resource type="StandardMaterial3D" id="Mat_feather"]
+albedo_color = Color(0.72, 0.72, 0.74, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="Mesh_feather"]
+material = SubResource("Mat_feather")
+size = Vector3(0.16, 0.01, 0.06)
+
+[node name="FeatherPoof" type="GPUParticles3D"]
+emitting = false
+amount = 8
+lifetime = 0.9
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("PPM_feather")
+draw_pass_1 = SubResource("Mesh_feather")
+script = ExtResource("1_burst")
