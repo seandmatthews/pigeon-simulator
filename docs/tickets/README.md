@@ -20,6 +20,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-011 | [Pigeon presentation v1](T-011-pigeon-presentation.md) | P1 | M | T-001, T-003 | done |
 | T-012 | [Audio v1](T-012-audio.md) | P1 | M | T-005, T-006, T-007, T-008 | done |
 | T-013 | [Juice pass v1](T-013-juice-pass.md) | P1 | M | T-006, T-009 | done |
+| T-014 | [Multi-instance pilot harness](T-014-pilot-multi-instance.md) | P1 | M | — | done |
 
 ## Milestone 2 — after the slice (not yet ticketed)
 

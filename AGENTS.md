@@ -62,6 +62,81 @@ docs/           DESIGN.md and tickets/
   do rotations in `_ready()`/scripts (the Sun in `main.gd` shows the pattern) so
   scene files stay free of hand-computed basis matrices.
 
+## Agent play: godot-mcp (eyes-on verification)
+
+An MCP server lets agents launch the game, inject input, and capture screenshots.
+Wiring lives in `.zcode/config.json` (`godot` → `http://127.0.0.1:9090/mcp`), the
+editor-side pieces in `addons/godot_mcp/` (editor plugin + the `MCPRuntimeProbe`
+autoload — the probe no-ops outside debug sessions, leave both in place).
+
+- **Shared server first.** It is shared with the cozy-arcade suite. If port 9090
+  isn't answering, start it before opening the editor:
+  `cmd //c ../cozy-arcade/tools/serve.cmd` (idempotent; refuses foreign squatters).
+  Editor bridge: `ws://127.0.0.1:9080`.
+- **One editor per bridge.** Open this project's editor
+  (`~/bin/Godot_v4.7.2-stable_win64.exe --path . --editor`) and preflight with
+  `godot_get_server_info` before any runtime tool — if `bridge_connected` is false,
+  the tool is talking to nobody (or another project).
+- **A fresh MCP session has only core+inspection.** Enable what the session needs
+  once: `godot_enable_toolset` with category `runtime`, `input`, `testing` (and
+  `editor` for editor screenshots).
+- **Play loop:** `godot_runtime_play_scene` (e.g. `res://scenes/menu.tscn`) →
+  `godot_runtime_capture_game_screenshot` → input → screenshot → … →
+  `godot_runtime_stop_scene`.
+- **Input must be press+release pairs.** A lone `pressed=true` may never complete
+  (the focused button waits for release). Use `godot_input_play_sequence` with a
+  down event and an up event ~120 ms apart; confirm delivery via
+  `godot_input_get_stats` (`injected` count). This is how the title screen's Space
+  shortcut was proven to start a run.
+- **Known defects (2026-09-17, from the cozy-arcade suite):** screenshots can wedge
+  after game events — capture first, and restart the play session if one times out;
+  `monitor_property` sampling pauses the SceneTree and drops injected input — arm it
+  while idle and never interleave with input. Bridge acting up: run
+  `../cozy-arcade/tools/port-doctor.cmd`; ports are identity-checked, a SQUAT is a
+  foreign process, not our server.
+
+Without the bridge (headless CI), `tests/` Gate 1b still works — the MCP path is
+for the eyes-on human-judgement gate (feel, look, sound).
+
+## Agent play: pilot harness (standalone, multi-instance)
+
+For gameplay verification — and always when more than one agent needs to play at
+the same time — use the standalone pilot harness instead of the editor bridge
+(editor play sessions freeze during real gameplay, and the bridge is one-editor-
+only). Sessions are isolated by id, need no ports, and scale with CPU/GPU only:
+
+```bash
+python tests/tools/pilot.py start --session <your-unique-id>   # boots menu.tscn
+python tests/tools/pilot.py wait  --session <id> --scene Menu  # Menu → Main after Space
+python tests/tools/pilot.py send  --session <id> '{"key":"Space","frames":2}'
+python tests/tools/pilot.py send  --session <id> '{"action":"flap","frames":7}'
+python tests/tools/pilot.py state --session <id>               # last world-state JSONL line
+python tests/tools/pilot.py events --session <id> --tail 20    # what happened
+python tests/tools/pilot.py shot  --session <id>               # OS grab of that window
+python tests/tools/pilot.py stop  --session <id>               # graceful quit
+python tests/tools/pilot.py list / clean                       # fleet overview / sweep dead dirs
+```
+
+- **One session id per agent, unique while you live.** Your channel is
+  `.captures/session_<id>/` (state/events JSONL + frame PNGs + the command
+  queue); nobody else's commands can reach your instance. `start` refuses an id
+  owned by a live process — pick a fresh one rather than reusing.
+- **Session defaults are safe for fleets:** muted audio, high-score persistence
+  OFF (`--sound` / `--persist` to opt in), frame PNGs every 0.2 s (`--images
+  off|N`; they run 10–20 MB/s per session, so `clean` once reviewed). The title
+  screen to run transition is `{"key":"Space"}` — real key events reach menus,
+  action commands (`flap`, `poop`, …) only reach gameplay.
+- **Command files are consumed-and-deleted** by the game oldest-first; queue
+  several in one file by passing multiple JSON lines. `state`'s `scene` field
+  drives `wait` (`Menu`, `Main`).
+- **`shot` vs frame PNGs:** `shot` grabs the OS window by its
+  `Pigeon pilot <id>` title (works even with `--images off`); the frame stream
+  is the in-process viewport. Review with `tests/review/summarize.py
+  .captures/session_<id>` and `contact_sheet.py` — both take the session dir.
+- Launch only through `pilot.py` (it warms `.godot/` imports before a fleet and
+  owns the liveness checks); `stop` when done so the desktop doesn't fill with
+  pigeons.
+
 ## Ticket workflow
 
 - Backlog: `docs/tickets/` — index in `docs/tickets/README.md`, one file per ticket,

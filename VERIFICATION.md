@@ -167,6 +167,11 @@ Then confirm in a normal editor run (F5):
 - [ ] Boots straight into the playable scene; Debugger → Errors tab is empty
 - [ ] No warning spam on boot or during ~30 s of play
 
+For interactive agent play sessions — including several running at once — use
+the pilot harness (`python tests/tools/pilot.py start|send|state|shot|stop …`,
+sessions isolated under `.captures/session_<id>/`); see AGENTS.md →
+"Agent play: pilot harness" (T-014).
+
 ## Gate 3 — Manual playtest (run the full list before closing any ticket)
 
 Keep this table in sync with `project.godot` and `README.md`:

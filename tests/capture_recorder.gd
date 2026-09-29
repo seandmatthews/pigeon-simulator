@@ -1,23 +1,39 @@
 extends Node
-## In-process run recorder for agent-driven playtesting (verification tooling,
-## not gameplay). Inert unless `res://.captures/record.flag` exists when the
-## game launches: then every play session gets its own folder under
-## `.captures/` holding a JPEG stream (~10 Hz) plus a per-physics-frame JSONL
-## state dump and an events JSONL, so a run can be replayed and reviewed
-## offline without hammering the MCP screenshot tool (which wedges after game
-## events). Enable by creating the flag file; first line may hold a custom
-## image interval in seconds.
+## In-process run recorder + pilot channel for agent-driven playtesting
+## (verification tooling, not gameplay). Two modes:
+##
+## **Session mode** — launched with a pilot session id (`--pilot-session=<id>`
+## user arg after `--`, or `PIGEON_PILOT_SESSION` env): the instance owns
+## `.captures/session_<id>/` exclusively (state/events JSONL, frame PNGs,
+## and the `pilot_cmd_*.jsonl` command channel), so any number of instances
+## can play concurrently without stealing each other's inputs. `tests/tools/
+## pilot.py` is the launcher/driver. Per-instance knobs via env:
+## `PIGEON_IMAGE_INTERVAL` (seconds between frames, 0 = no images),
+## `PIGEON_MUTE=1`. The session is claimed via `started.json`; a second live
+## process claiming the same id disables the recorder instead of corrupting
+## the first one's stream. The window title carries the session id so
+## OS-level window captures can target one instance among many.
+##
+## **Legacy mode** — no session id: inert unless `res://.captures/record.flag`
+## exists at launch; then a shared `.captures/run_<timestamp>_p<pid>/` folder
+## gets the same stream and the pilot channel is the shared `.captures/`
+## directory (single instance only — concurrent instances would eat each
+## other's commands). Enable by creating the flag file; first line may hold a
+## custom image interval in seconds.
 
 const FLAG_PATH := "res://.captures/record.flag"
-const PILOT_DIR := "res://.captures"
+const CAPTURES_DIR := "res://.captures"
 const DEFAULT_IMAGE_INTERVAL := 0.1
 const CRUMB_LIMIT := 15
 
+var _session: String = ""
 var _dir: String = ""
+var _pilot_dir: String = CAPTURES_DIR
 var _state_file: FileAccess
 var _events_file: FileAccess
 var _image_interval: float = DEFAULT_IMAGE_INTERVAL
 var _frame: int = 0
+var _title_stamps: int = 0
 var _connected: Dictionary = {}
 var _holds: Dictionary = {}
 
@@ -26,6 +42,68 @@ var _holds: Dictionary = {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_session = _resolve_session()
+	if _session.is_empty():
+		_start_legacy()
+	else:
+		_start_session()
+
+
+## Session id from `--pilot-session=<id>` user args (after `--`) or the
+## `PIGEON_PILOT_SESSION` env var; anything unsanitary means legacy mode.
+func _resolve_session() -> String:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--pilot-session="):
+			var id := arg.get_slice("=", 1).strip_edges()
+			if _valid_session_id(id):
+				return id
+			push_error("CaptureRecorder: rejecting malformed pilot session id '%s'" % id)
+	var env := OS.get_environment("PIGEON_PILOT_SESSION").strip_edges()
+	return env if _valid_session_id(env) else ""
+
+
+func _valid_session_id(id: String) -> bool:
+	if id.length() == 0 or id.length() > 64:
+		return false
+	var allowed := RegEx.new()
+	allowed.compile("^[A-Za-z0-9_-]+$")
+	return allowed.search(id) != null
+
+
+## Exclusive per-instance channel under .captures/session_<id>/ — the layout
+## pilot.py creates, polls and cleans up. Ownership is enforced by the
+## launcher (pilot.py refuses a live owner before spawning); here a stale or
+## hijacking claim is only audited, then overwritten.
+func _start_session() -> void:
+	var base := "%s/session_%s" % [CAPTURES_DIR, _session]
+	var claim_path := base + "/started.json"
+	if FileAccess.file_exists(claim_path):
+		var prev: Variant = JSON.parse_string(FileAccess.get_file_as_string(claim_path))
+		var prev_pid := int(prev.get("pid", 0)) if typeof(prev) == TYPE_DICTIONARY else 0
+		push_warning("CaptureRecorder: session '%s' had a previous claim (pid %d) — overwriting" % [_session, prev_pid])
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(base))
+	_dir = base
+	_pilot_dir = base
+	_state_file = FileAccess.open(_dir + "/state.jsonl", FileAccess.WRITE)
+	_events_file = FileAccess.open(_dir + "/events.jsonl", FileAccess.WRITE)
+	if OS.get_environment("PIGEON_MUTE") == "1":
+		AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), true)
+	var interval_env := OS.get_environment("PIGEON_IMAGE_INTERVAL")
+	if interval_env.is_valid_float():
+		_image_interval = interval_env.to_float()
+	_start_stream()
+	# The claim is written last: pilot.py treats its appearance as "this
+	# instance booted and owns the session".
+	var claim := {"pid": OS.get_process_id(), "dir": _dir, "image_interval": _image_interval}
+	var claim_file := FileAccess.open(claim_path, FileAccess.WRITE)
+	if claim_file != null:
+		claim_file.store_line(JSON.stringify(claim))
+	claim_file = null
+	DisplayServer.window_set_title("Pigeon pilot %s" % _session)
+
+
+## Legacy flag-file mode, unchanged: one shared .captures/ channel.
+func _start_legacy() -> void:
 	if not FileAccess.file_exists(FLAG_PATH):
 		return
 	if FileAccess.file_exists("res://.captures/mute.flag"):
@@ -35,12 +113,17 @@ func _ready() -> void:
 		_image_interval = interval_text.to_float()
 	var stamp := Time.get_datetime_string_from_system(true)
 	stamp = stamp.replace(":", "").replace("-", "").replace("T", "_")
-	_dir = "res://.captures/run_%s" % stamp
-	var global_dir := ProjectSettings.globalize_path(_dir)
-	DirAccess.make_dir_recursive_absolute(global_dir)
-	_state_file = FileAccess.open(_dir + "/state.jsonl", FileAccess.WRITE)
-	_events_file = FileAccess.open(_dir + "/events.jsonl", FileAccess.WRITE)
-	_log_event("run_start", {"image_interval": _image_interval, "dir": _dir})
+	# pid suffix: two instances launched in the same second must not share a folder
+	_dir = "res://.captures/run_%s_p%d" % [stamp, OS.get_process_id()]
+	_start_stream()
+
+
+## Shared tail of both modes: open the image timer unless the interval is 0
+## or rendering is headless (dummy renderer has no textures to grab).
+func _start_stream() -> void:
+	_log_event("run_start", {"image_interval": _image_interval, "dir": _dir, "session": _session})
+	if _image_interval <= 0.0 or DisplayServer.get_name() == "headless":
+		return
 	_image_timer.wait_time = _image_interval
 	_image_timer.timeout.connect(_save_image)
 	add_child(_image_timer)
@@ -48,6 +131,12 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	# The engine re-titles the window ("Pigeon Simulator (DEBUG)") shortly
+	# after autoload _ready, so the session title has to be re-stamped for a
+	# while before it sticks (window-shot.ps1 matches on it).
+	if not _session.is_empty() and _title_stamps < 600:
+		_title_stamps += 1
+		DisplayServer.window_set_title("Pigeon pilot %s" % _session)
 	if _state_file == null:
 		return
 	_pilot_step()
@@ -66,17 +155,17 @@ func _physics_process(_delta: float) -> void:
 ## {"key": "Space", "frames": 2} (a real InputEventKey for menu screens),
 ## {"quit": true}. Holds can overlap.
 func _pilot_step() -> void:
-	var dir := DirAccess.open("res://.captures")
+	var dir := DirAccess.open(_pilot_dir)
 	if dir == null:
 		return
-	var names := dir.get_files_at("res://.captures")
+	var names := dir.get_files_at(_pilot_dir)
 	var cmds: PackedStringArray = PackedStringArray()
 	for fname in names:
 		if fname.begins_with("pilot_cmd_") and fname.ends_with(".jsonl"):
 			cmds.append(fname)
 	cmds.sort()
 	for fname in cmds:
-		var text := FileAccess.get_file_as_string("res://.captures/" + fname)
+		var text := FileAccess.get_file_as_string(_pilot_dir + "/" + fname)
 		for line in text.split("\n"):
 			if line.is_empty():
 				continue

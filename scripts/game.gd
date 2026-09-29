@@ -31,6 +31,10 @@ signal hit_scored(points: int, multiplier: int, pos: Vector3, style: bool)
 ## touch the real record.
 var save_path: String = "user://highscore.cfg"
 
+## Play sessions launched by tests/tools/pilot.py set PIGEON_NO_PERSIST=1 so N
+## concurrent agent-driven runs never fight over (or wipe) the real record.
+var _persistence_enabled: bool = OS.get_environment("PIGEON_NO_PERSIST") != "1"
+
 ## Points this run so far — zeroed only by reset_run().
 var score: int = 0
 
@@ -124,6 +128,8 @@ func reset_run() -> void:
 
 ## Reads the persisted record (boot, and the sim harness's restart round-trip).
 func load_high_score() -> void:
+	if not _persistence_enabled:
+		return
 	var cfg := ConfigFile.new()
 	if cfg.load(save_path) == OK:
 		high_score = int(cfg.get_value("score", "high", 0))
@@ -158,6 +164,8 @@ func _end_combo() -> void:
 
 
 func _save_high_score() -> void:
+	if not _persistence_enabled:
+		return
 	var cfg := ConfigFile.new()
 	cfg.set_value("score", "high", high_score)
 	cfg.save(save_path)
