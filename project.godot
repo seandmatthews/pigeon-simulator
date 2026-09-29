@@ -16,20 +16,21 @@ run/main_scene="res://scenes/menu.tscn"
 config/features=PackedStringArray("4.7")
 config/icon="res://icon.svg"
 
+[autoload]
+
+MCPRuntimeProbe="*res://addons/godot_mcp/mcp_runtime_probe.gd"
+Game="*res://scripts/game.gd"
+Sfx="*res://scripts/sfx.gd"
+CaptureRecorder="*res://tests/capture_recorder.gd"
+
 [display]
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
 
-[autoload]
+[editor_plugins]
 
-Game="*res://scripts/game.gd"
-Sfx="*res://scripts/sfx.gd"
-CaptureRecorder="*res://tests/capture_recorder.gd"
-
-[audio]
-
-buses/default_bus_layout="res://default_bus_layout.tres"
+enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
 
 [input]
 
