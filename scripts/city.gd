@@ -45,6 +45,18 @@ const SHOPFRONT_PALETTE: Array[Color] = [
 	Color(0.34, 0.48, 0.36), ## Bookshop green.
 	Color(0.26, 0.42, 0.48), ## Deli teal.
 ]
+## Shopfront door faces: 0=+x 1=-x 2=+z 3=-z — the same order `_add_shopfront`
+## indexes its normals with. The T-031 cafe placement reads it too.
+const FACE_NORMALS: Array[Vector3] = [
+	Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD,
+]
+## Sidewalk cafe table layout (T-031): the table sits `CAFE_STANDOFF` out from
+## the shop-band face plane and `CAFE_SIDE_OFFSET` along the face from the
+## (centered) door — corner-ward, the side the `lot_offset` sign picks. Pure
+## layout numbers; the placement draws no RNG.
+const CAFE_FACE_OUTSET := 0.12 ## The shop band's outset (the `_add_shopfront` band_outset).
+const CAFE_STANDOFF := 1.9 ## Table center out from the face plane (m).
+const CAFE_SIDE_OFFSET := 2.2 ## Table center along the face from the door center (m).
 
 @export_group("Layout")
 ## Fixed M1 seed — same city every run so runs and scores stay comparable.
@@ -134,6 +146,13 @@ var bread_spots: Array[Vector3] = []
 ## seed and never shifts the layout RNG sequence.
 var elder_spots: Array[Transform3D] = []
 
+## Seated spots (city-local) for the sidewalk cafes (T-031): one transform per
+## awninged building — table center on the sidewalk in front of the shop door,
+## yaw facing the street. Appended after the block loop from the public
+## `buildings[]` data by pure math, zero RNG of any stream, so the layout
+## fingerprints and the pinned awning count stay byte-identical.
+var cafe_spots: Array[Transform3D] = []
+
 ## Center (city-local) of every generated block — the tourist service (T-007)
 ## picks its sidewalk walking loops from these.
 var block_centers: Array[Vector3] = []
@@ -197,6 +216,7 @@ func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
 	buildings = []
 	bread_spots = []
 	elder_spots = []
+	cafe_spots = []
 	block_centers = []
 	_static_root = Node3D.new()
 	_static_root.name = "Static"
@@ -212,6 +232,7 @@ func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
 	for bx in blocks_per_side:
 		for bz in blocks_per_side:
 			_build_block(bx, bz, bx == plaza_i and bz == plaza_i)
+	_build_cafe_spots() ## T-031 — after the block loop, from the buildings[] records.
 	_spawn_visuals()
 	## Spawn on the road centerline next to the plaza, facing along the street:
 	## roads are the one corridor guaranteed clear of buildings at every
@@ -522,6 +543,42 @@ func _add_shopfront(base_center: Vector3, footprint: float, lot_offset: Vector2)
 						+ Vector3(0.0, block_slab_height + 2.9, 0.0),
 				awn_size), shop_color.darkened(0.15))
 	return {"color": shop_color, "door_face": door_face, "has_awning": has_awning}
+
+
+## Sidewalk cafe tables (T-031): one spot per awninged building, appended after
+## the block loop from the public `buildings[]` records. Pure math — ZERO new
+## RNG (no `_shop_rng` draws, no layout-stream draws, no `_fp` entry), so the
+## pinned awning count and the layout fingerprint stay byte-identical; the
+## spots are pinned by the `city_cafe_tables_present` scenario directly, like
+## `elder_spots`.
+func _build_cafe_spots() -> void:
+	for info in buildings:
+		if info.has_awning:
+			cafe_spots.append(cafe_spot_for(info))
+
+
+## The transform for one building's cafe table (T-031) — a pure function of its
+## `buildings[]` record (`door_face`, `size`, `lot_offset`), recomputable by
+## tests: 1.9 m out from the shop-band face plane along the door-face normal,
+## ±2.2 m along the face from the centered door — the side the lot_offset sign
+## picks (toward the lot's own outer corner), y at slab level, yaw facing the
+## street. The center lands 9.82 m out along the normal, 6.45 m along the face:
+## on the sidewalk band with the tourist loop's ~0.63 m walker clearance to the
+## 10.9 m curb line, ~1.28 m edge-to-edge clear of the door, and structurally
+## ≥ 1.0 m off the block's bread spots at every seed (bench jitter ±4 m can
+## never reach the corner-ward line).
+func cafe_spot_for(info: Dictionary) -> Transform3D:
+	var normal: Vector3 = FACE_NORMALS[int(info.door_face)]
+	var lot: Vector2 = info.lot_offset
+	var footprint: float = (info.size as Vector2).x
+	var face_axis_x := absf(normal.x) > 0.5
+	var along := Vector3(0.0, 0.0, signf(lot.y)) if face_axis_x \
+			else Vector3(signf(lot.x), 0.0, 0.0)
+	var pos: Vector3 = to_local(info.center) \
+			+ normal * (footprint * 0.5 + CAFE_FACE_OUTSET + CAFE_STANDOFF) \
+			+ along * CAFE_SIDE_OFFSET
+	pos.y = block_slab_height
+	return Transform3D(Basis(Vector3.UP, atan2(-normal.x, -normal.z)), pos)
 
 
 ## The spawn plaza: an open paved block — benches around a clear middle,

@@ -103,6 +103,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | city_district_palettes_distinct | every building wears a color from its own district's palette, all four districts appear, the palettes are measurably distinct and the quadrant mapping is pure | T-013 |
 | city_shopfronts_present | every building wears a ground-floor shop band with a door on one of its two street-facing faces plus the seeded awning share (104/146 at the M1 seed), and the shopfront palette stays measurably distinct from every district palette | T-017 |
 | city_shopfronts_deterministic | regenerating the same seed reproduces every shop color, door face and awning flag exactly | T-017 |
+| city_cafe_tables_present | every awninged building gets exactly one sidewalk cafe table on a pure-layout spot recomputable from its building record (104 at the M1 seed, non-awninged buildings none), same-seed regeneration reproduces the spot list byte-identically, a spawner rig seats tables-with-sitters exactly on the spots (sitters layer-3 `npc` static bodies, 1-2 per table by the even/odd index rule — 104 tables → 156, tourist-palette shirts by index), the spots hold the street clearances (center ≥ 0.5 m inside the 10.9 m loop line, ≥ 1.0 m off the block's bread spots, ≥ 1.2 m edge-to-edge off the door line), and a grounded pigeon can perch beside a table — whose solid top stops the waddle dead | T-031 |
 | juice_splat_burst_fires | a real lobbed splat spawns a one-shot droplet burst at the hit point on the hit body, and it cleans itself up | T-013 |
 | juice_feather_poofs_on_hard_flap | a fully-rested flap poofs feathers; a re-flap inside the throttle window doesn't spam another | T-013 |
 | juice_dust_puff_on_landing | a gentle glide touchdown kicks a dust puff at the feet, which cleans itself up | T-013 |
@@ -284,6 +285,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-026) Side-by-side with before: sunlit sidewalk and plaza show surface tone instead of clipping to white, the asphalt reads as road rather than void, and lane dashes and car colors still pop
 - [ ] (T-026) The city still reads "warm sun" after the ground retune — the T-013 warmth judgement holds over the new ground values
 - [ ] (T-033) Restarting from the score screen shows no generation hitch — the fresh run appears instantly on the standing same-seed city
+- [ ] (T-031) Awninged fronts read as cafes at eye level — table and seated people under the awning, not a bare door slab [screenshot]
+- [ ] (T-031) Low street-level flight past cafe tables doesn't snag, and tables don't crowd the tourist path
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -394,6 +397,15 @@ Playtest checklist (grows as tickets land):
   `force_rebuild = true`); the per-restart rebuild hitch is gone and only the
   one-off boot build remains. A human pass over the T-033 Gate 3 line (no
   generation hitch restarting from the score screen) is still pending.
+- Cafe tables (T-031) are machine-verified (Gate 1b `city_cafe_tables_present` —
+  pure-layout spots recomputable from the building records, byte-identical
+  across same-seed regeneration, spawner rig seating 104 tables with 156
+  static sitters, street clearances, pigeon perch-and-snag check) and live in
+  the autoplay city; the T-018 CPU budget stays green with the furniture in
+  (median ~241 vs 750 ms per 100 physics frames). The layout fingerprint is
+  byte-identical to pre-T-031 builds (no new RNG draws anywhere). A human pass
+  over the T-031 lines (cafe read at eye level, low-flight snag,
+  tourist-path crowding) is still pending.
 - Remaining placeholder art: upper-floor facades are tinted
   boxes with a procedural window texture (ground floors carry T-017 shopfront
   bands, doors and awnings; the awnings are visual-only, no collider).

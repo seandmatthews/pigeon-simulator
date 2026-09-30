@@ -131,6 +131,7 @@ func _run_scenarios() -> void:
 	await _scenario_elder_shares_bread_after_hangout()
 	await _scenario_elder_no_bread_airborne()
 	await _scenario_elder_cooldown_blocks_second_share()
+	await _scenario_city_cafe_tables() ## T-031 — after the elder block, same rig pattern.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -1289,6 +1290,162 @@ func _scenario_elder_cooldown_blocks_second_share() -> void:
 					first_at, quiet, second_at, _bread_shared.size()])
 	spawner.free()
 	(rig[1] as Node).free()
+
+
+## --- scenarios (T-031 cafe tables) ------------------------------------------
+
+
+## The cafe table transform the ticket's pure math claims for one awninged
+## building — an independent re-derivation (the harness owns its copy of the
+## layout numbers) so the scenario proves the spots, not just the city
+## function that filled them.
+func _expected_cafe_spot(city: City, info: Dictionary) -> Transform3D:
+	var normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][
+			int(info.door_face)]
+	var lot: Vector2 = info.lot_offset
+	var face_axis_x := absf(normal.x) > 0.5
+	var along := Vector3(0.0, 0.0, signf(lot.y)) if face_axis_x \
+			else Vector3(signf(lot.x), 0.0, 0.0)
+	var pos: Vector3 = city.to_local(info.center) \
+			+ normal * ((info.size as Vector2).x * 0.5 + 0.12 + 1.9) \
+			+ along * 2.2
+	pos.y = city.block_slab_height
+	return Transform3D(Basis(Vector3.UP, atan2(-normal.x, -normal.z)), pos)
+
+
+## Cafe tables (T-031): the city records one pure-layout spot per awninged
+## building (the pinned 104 at the M1 seed; non-awninged buildings get none),
+## every spot recomputable from its building's `door_face`/`size`/`lot_offset`,
+## same-seed regeneration reproducing the spot list byte-identically, and a
+## spawner rig seating tables-with-sitters exactly on the spots
+## (`elder_placement_no_rng` template). Placement holds the street clearances:
+## on the sidewalk band with the table center ≥ 0.5 m inside the tourist
+## loop's 10.9 m curb line (square metrics — the loop legs are lines), ≥ 1.0 m
+## off the block's bread spots (bench seats; corner bread-ring spots lie
+## outside every block's radius), ≥ 1.2 m edge-to-edge off the door line.
+## Sitters are layer-3 `npc` static bodies (mask 0), 1-2 per table by the
+## even/odd spot rule (104 tables → 156), shirts straight from the tourist
+## palette by spot index — and a grounded pigeon can waddle up and perch
+## beside a table, which stops the waddle dead (solid layer-1 furniture).
+func _scenario_city_cafe_tables() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed)
+	var spots: Array[Transform3D] = _city.cafe_spots.duplicate()
+	var awnings := 0
+	for info in _city.buildings:
+		if info.has_awning:
+			awnings += 1
+	var count_ok: bool = spots.size() == awnings and awnings == 104
+	var recompute_ok := spots.size() > 0
+	var band_ok := spots.size() > 0
+	var bread_ok := spots.size() > 0
+	var door_ok := spots.size() > 0
+	var spot_i := 0
+	for info in _city.buildings:
+		if not info.has_awning:
+			continue
+		var spot: Transform3D = spots[spot_i]
+		var expected: Transform3D = _expected_cafe_spot(_city, info)
+		recompute_ok = recompute_ok \
+				and spot.origin.distance_to(expected.origin) < 0.01 \
+				and spot.basis.get_euler().distance_to(expected.basis.get_euler()) < 0.01
+		## Street-face geometry, re-derived from the building record.
+		var lot: Vector2 = info.lot_offset
+		var block_center: Vector3 = _city.to_local(info.center) \
+				- Vector3(lot.x, 0.0, lot.y)
+		## Square metrics — the slab, the sidewalk band and the tourist loop are
+		## all squares: the loop legs run at block_size * 0.5 - 0.1 = 10.9 m.
+		var out_line: float = maxf(absf(spot.origin.x - block_center.x),
+				absf(spot.origin.z - block_center.z))
+		band_ok = band_ok and out_line <= _city.block_size * 0.5 - 0.1 - 0.5
+		## The block's own bread spots stay ≥ 1.0 m off — block membership by the
+		## block's radius (spots beyond it, notably the corner bread-ring spots at
+		## radial ~11.7 m, belong to no block). Bench-seat clearance is structural:
+		## the ±4 m bench jitter can never reach the corner-ward table line.
+		var nearest: Vector3 = _city.block_centers[0]
+		var best := INF
+		for center in _city.block_centers:
+			var d: float = Vector2(spot.origin.x - center.x,
+					spot.origin.z - center.z).length_squared()
+			if d < best:
+				best = d
+				nearest = center
+		for bread: Vector3 in _city.bread_spots:
+			if Vector2(bread.x - nearest.x, bread.z - nearest.z).length() \
+					<= _city.block_size * 0.5:
+				bread_ok = bread_ok \
+						and Vector2(spot.origin.x - bread.x,
+								spot.origin.z - bread.z).length() >= 1.0
+		## Door line: the centered 0.95 m door vs the table's along-face edge.
+		var normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][
+				int(info.door_face)]
+		var face_axis_x := absf(normal.x) > 0.5
+		var along_dir := Vector3(0.0, 0.0, signf(lot.y)) if face_axis_x \
+				else Vector3(signf(lot.x), 0.0, 0.0)
+		var face_center: Vector3 = _city.to_local(info.center) \
+				+ normal * ((info.size as Vector2).x * 0.5 + 0.12)
+		var along_dist: float = absf((spot.origin - face_center).dot(along_dir))
+		door_ok = door_ok and along_dist - 0.475 - 0.45 >= 1.2
+		spot_i += 1
+	_city.generate(default_seed)
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and _spots_equal(spots, _city.cafe_spots)
+	## Spawner rig over the real generated city (the elder-rig template).
+	var spawner := CafeSpawner.new()
+	spawner.city = _city
+	add_child(spawner)
+	await _wait_frames(4)
+	var tables := spawner.living_tables()
+	var seated: bool = tables.size() == spots.size()
+	var count_ok_rig := seated
+	var shirts_ok := seated
+	var layers_ok := seated
+	var total_sitters := 0
+	for i in tables.size():
+		var table: CafeTable = tables[i]
+		seated = seated and table.global_position.distance_to(
+				_city.to_global((spots[i] as Transform3D).origin)) < 0.01
+		count_ok_rig = count_ok_rig and table.sitters.size() == (2 if i % 2 == 0 else 1)
+		for j in table.sitters.size():
+			var sitter: CafeSitter = table.sitters[j]
+			total_sitters += 1
+			layers_ok = layers_ok and sitter.collision_layer == 4 \
+					and sitter.collision_mask == 0
+			var mat := sitter._torso.material_override as StandardMaterial3D
+			shirts_ok = shirts_ok and mat != null and mat.albedo_color.is_equal_approx(
+					Tourist.SHIRT_PALETTE[(i + j) % Tourist.SHIRT_PALETTE.size()])
+	## A grounded pigeon waddles up and perches beside table 0 …
+	var table0: CafeTable = tables[0]
+	var seat: Vector3 = _city.to_global((spots[0] as Transform3D).origin)
+	var table_basis: Basis = (spots[0] as Transform3D).basis
+	var beside := seat + table_basis.x * 1.5 + Vector3(0.0, 0.5, 0.0)
+	await _set_up(true, beside, Vector3.ZERO)
+	await _await_grounded(120)
+	var flat := Vector2(_player.position.x - seat.x, _player.position.z - seat.z)
+	var perch_ok: bool = _player.is_grounded and flat.length() > 0.55 and flat.length() < 2.0
+	## … and the table itself is solid: a waddle aimed straight into it stops at
+	## its edge (parked street-side, past the tabletop, before the sitters' line).
+	var street_side := seat - table_basis.z * 1.0 + Vector3(0.0, 0.5, 0.0)
+	var to_table := seat - street_side
+	to_table.y = 0.0
+	await _set_up(true, street_side, Vector3.ZERO,
+			rad_to_deg(atan2(-to_table.x, -to_table.z)))
+	await _await_grounded(120)
+	await _hold("pitch_up", 25)
+	flat = Vector2(_player.position.x - seat.x, _player.position.z - seat.z)
+	perch_ok = perch_ok and _player.is_grounded \
+			and flat.length() > 0.5 and flat.length() < 0.8
+	_check("city_cafe_tables_present",
+			count_ok and recompute_ok and band_ok and bread_ok and door_ok
+					and deterministic and seated and count_ok_rig and shirts_ok
+					and layers_ok and perch_ok,
+			"spots %d vs awnings %d, recompute=%s band=%s bread=%s door=%s det=%s, "
+			+ "seated=%d tables, sitters=%d (rule=%s shirts=%s layers=%s), perch=%s" % [
+					spots.size(), awnings, recompute_ok, band_ok, bread_ok, door_ok,
+					deterministic, tables.size(), total_sitters, count_ok_rig, shirts_ok,
+					layers_ok, perch_ok])
+	spawner.free()
 
 
 ## --- scenarios (T-007 tourists) ---------------------------------------------

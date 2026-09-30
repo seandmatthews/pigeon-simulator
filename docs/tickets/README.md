@@ -41,7 +41,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-027 | [Fix the grounded read: thin the folded wing chord at the rig level](T-027-folded-wing-chord.md) | visual-design | 3 | 2 | proposed |
 | T-029 | [Plaza landmark: statue on a plinth at the square's center](T-029-plaza-landmark.md) | worldbuilding | 3 | 2 | proposed |
 | T-030 | [Tree the parks (prototyped live: 4 MultiMesh trees per park block)](T-030-park-trees.md) | worldbuilding | 3 | 1 | proposed |
-| T-031 | [Cafe life under the awnings: tables with seated tourists on shop fronts](T-031-cafe-tables.md) | worldbuilding | 4 | 2 | proposed |
+| T-031 | [Cafe life under the awnings: tables with seated tourists on shop fronts](T-031-cafe-tables.md) | worldbuilding | 4 | 2 | done |
 | T-032 | [Give roofs a reason to exist: rooftop clutter and roof bread spots](T-032-roof-clutter.md) | worldbuilding | 4 | 2 | proposed |
 | T-033 | [Same-seed restart skips the city rebuild](T-033-same-seed-restart-skip.md) | code-optimization | 4 | 2 | done |
 | T-034 | [Extract the duplicated spawner band/recycle machinery](T-034-spawner-band-extraction.md) | code-optimization | 3 | 3 | proposed |

@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/bread_spawner.gd" id="3_spawner"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scripts/pause_menu.gd" id="8_pause"]
 [ext_resource type="Script" path="res://scripts/game_over_screen.gd" id="9_gameover"]
 [ext_resource type="Script" path="res://scripts/elder_spawner.gd" id="10_elders"]
+[ext_resource type="Script" path="res://scripts/cafe_spawner.gd" id="11_cafes"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_main"]
 sky_horizon_color = Color(0.85, 0.8, 0.7, 1)
@@ -61,6 +62,10 @@ script = ExtResource("10_elders")
 city_path = NodePath("../City")
 player_path = NodePath("../Player")
 bread_spawner_path = NodePath("../BreadSpawner")
+
+[node name="CafeSpawner" type="Node3D" parent="."]
+script = ExtResource("11_cafes")
+city_path = NodePath("../City")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
