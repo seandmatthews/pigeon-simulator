@@ -29,3 +29,7 @@ desktop.ini
 # MCPRuntimeProbe autoload, so every checkout needs the directory on disk, but
 # the addon itself is per-machine tooling — untracked, like the .captures runs.
 addons/godot_mcp/
+
+# Local ZCode agent tooling (MCP wiring, workflow drafts/runs, smoke shots) —
+# per-machine, like addons/godot_mcp/; AGENTS.md documents what lives here.
+.zcode/
