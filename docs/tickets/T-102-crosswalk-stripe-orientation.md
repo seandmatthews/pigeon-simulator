@@ -3,10 +3,12 @@
 - **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-069 (landed — the crossing machinery this corrects)
 - **Refs:** owner Gate 3 pass on T-069 (2026-09-30, pilot session `xwalklook` + owner grabs,
-  frames kept at `.captures/xwalk-ingame/`); real-world references downloaded to
-  `.captures/xwalk-refs/` (`ref08` Singapore layout diagram, `ref01` Bangkok Asok
-  intersection, `ref11` Shibuya aerial — zebra bars run ALONG the road, repeating ACROSS it;
-  UK Highway Code: 500 mm stripes, 500 mm gaps, longitudinal)
+  frames kept at `.captures/xwalk-ingame/`); **in-repo references (the source of truth —
+  commit `820d304`): `docs/references/zebra-crossing/`** — `research.md` (orientation +
+  proportions), `singapore-zebra-layout-diagram.png`, `asok-intersection-bangkok.jpg`,
+  `shibuya-crossing-aerial.jpg`, two Showa-dori drone shots; credits in that directory.
+  Zebra bars run ALONG the road, repeating ACROSS it (UK Highway Code: 500 mm stripes,
+  500 mm gaps, longitudinal)
 
 ## What
 
