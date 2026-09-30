@@ -1,7 +1,13 @@
 # T-036 — Guard the off-world fall with a return to the spawn corridor
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done (adopted by T-042) · **Category:** code-optimization · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** — (T-001/T-003 flight and T-010's hunger-only fail state are landed)
+
+> **Adopted and landed by [T-042](T-042-off-world-void-respawn.md)** — same guard design
+> (this ticket's plan, including the main.gd wiring it adds to the file list), with
+> T-042's scenario-sketch correction: the harness scenario starts below the guard at
+> y −10 and polls ≤ 120 frames, because the sketched y −2 start never crosses the −5
+> line. The landed scenario is named `off_world_fall_respawns`.
 - **Refs:** `.captures/session_optperf1/state.jsonl:6990`, `.captures/session_optperf2/state.jsonl:17503` (worktree captures, verified verbatim this session) · sweep 1 planning session
 
 ## What
@@ -62,22 +68,24 @@ escapable only by starving or restarting.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b scenario `off_world_fall_returns_home` passes: a player teleported
+- [x] Gate 1b scenario `off_world_fall_returns_home` passes *(landed as
+      `off_world_fall_respawns` per T-042's corrected sketch)*: a player teleported
       below `off_world_y` (and beyond any floor) is grounded on the respawn
       corridor within ~2 s, the reset fired exactly once (counter == 1, no
       oscillation across the following ~2 s), and hunger kept draining through
       the reset
-- [ ] No false trigger in ordinary play: every existing flight/landing/density
+- [x] No false trigger in ordinary play: every existing flight/landing/density
       scenario stays green (all harness setups start at y ≥ 0.35 and every
       in-scenario fall lands on a floor — the −5 line is never approached)
-- [ ] The fail state is unchanged: starvation still ends the run exactly once
+- [x] The fail state is unchanged: starvation still ends the run exactly once
       (`hunger_game_over_once` green); the reset neither refills nor pauses the
       clock
-- [ ] No input actions change (no controls-table updates); the only new knobs
+- [x] No input actions change (no controls-table updates); the only new knobs
       are `off_world_y` and `respawn_point`
 - [ ] [screenshot] Gate 3: flying hard past the apron returns you to the spawn
       corridor within a couple of seconds, and it reads as intentional ("came
-      home"), not a teleport glitch
+      home"), not a teleport glitch — **pending human playtest** (tracked on
+      T-042, which carries the landed change-set)
 
 ## Verification
 

@@ -59,6 +59,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | bench_takeoff | flapping off a bench returns to flight | T-003 |
 | hard_landing_skids | a steep fast dive skids to a stop — no instant ground, no tunneling, no NaNs (T-021 retuned the skid detector to AIR floor frames above `skid_settle_speed`) | T-003 |
 | trim_glide_lands_clean | a natural trim-speed glide touchdown settles into the waddle on the contact frame — zero airborne floor-contact frames past the touch (no ghost-slide) | T-021 |
+| off_world_fall_respawns | a pigeon placed below the `off_world_y` guard (−5) and past every floor is grounded on the respawn corridor within ~2 s — the guard fired exactly once (`off_world_resets` == 1, no second fire across a further ~2 s, velocity finite throughout) and the hunger clock kept draining through the reset (loss > 0.2) | T-042 |
 | city_same_seed_deterministic | regenerating with the same seed reproduces the identical layout fingerprint | T-004 |
 | city_new_seed_guarantees | a different seed still yields a clear spawn plaza, flyable street widths, capped roof heights and enough bread-capable surfaces | T-004 |
 | city_regenerate_restores_layout | after regenerating a foreign seed, the default seed rebuilds the original city exactly | T-004 |
@@ -287,6 +288,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-033) Restarting from the score screen shows no generation hitch — the fresh run appears instantly on the standing same-seed city
 - [ ] (T-031) Awninged fronts read as cafes at eye level — table and seated people under the awning, not a bare door slab [screenshot]
 - [ ] (T-031) Low street-level flight past cafe tables doesn't snag, and tables don't crowd the tourist path
+- [ ] (T-042) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home") — not a teleport glitch [screenshot]
+- [ ] (T-042) The hunger bar keeps ticking down across an off-world return — the clock never paused (compare the bar just before flying out and just after landing home)
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -406,6 +409,15 @@ Playtest checklist (grows as tickets land):
   byte-identical to pre-T-031 builds (no new RNG draws anywhere). A human pass
   over the T-031 lines (cafe read at eye level, low-flight snag,
   tourist-path crowding) is still pending.
+- Off-world guard (T-042, adopting T-036) is machine-verified (Gate 1b
+  `off_world_fall_respawns` — a −10 m start past every floor grounds on the
+  respawn corridor within ~2 s with exactly one guard fire, finite velocity
+  throughout, and the hunger clock draining straight through the reset; every
+  pre-existing flight/landing/density scenario re-run green, so the −5 line is
+  never approached in ordinary play) and live in the autoplay run (the pilot's
+  off-world excursions now self-heal). A human pass over the two T-042 lines
+  (the return reads as "came home", not a teleport glitch; the hunger bar never
+  pauses across a return) is still pending.
 - Remaining placeholder art: upper-floor facades are tinted
   boxes with a procedural window texture (ground floors carry T-017 shopfront
   bands, doors and awnings; the awnings are visual-only, no collider).
