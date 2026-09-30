@@ -1664,8 +1664,8 @@ func _scenario_city_cafe_tables() -> void:
 			count_ok and recompute_ok and band_ok and bread_ok and door_ok
 					and deterministic and seated and count_ok_rig and shirts_ok
 					and layers_ok and perch_ok,
-			"spots %d vs awnings %d, recompute=%s band=%s bread=%s door=%s det=%s, "
-				+ "seated=%d tables, sitters=%d (rule=%s shirts=%s layers=%s), perch=%s" % [
+			("spots %d vs awnings %d, recompute=%s band=%s bread=%s door=%s det=%s, "
+				+ "seated=%d tables, sitters=%d (rule=%s shirts=%s layers=%s), perch=%s") % [
 						spots.size(), awnings, recompute_ok, band_ok, bread_ok, door_ok,
 						deterministic, tables.size(), total_sitters, count_ok_rig, shirts_ok,
 						layers_ok, perch_ok])
@@ -1864,8 +1864,8 @@ func _scenario_city_roofs_inhabited() -> void:
 	_check("city_roofs_inhabited",
 			props_ok and spots_ok and total_ok and one_per_building and colliders_ok
 					and deterministic and physical_ok and eat_ok and prop_ok,
-			"props_ok=%s spots=%d/%d total_ok=%s one_per_building=%s colliders=%s (%d high) "
-			+ "det=%s physical=%s eat=%s prop=%s" % [
+			("props_ok=%s spots=%d/%d total_ok=%s one_per_building=%s colliders=%s (%d high) "
+			+ "det=%s physical=%s eat=%s prop=%s") % [
 					props_ok, spots_snapshot.size(), _city.buildings.size(),
 					total_ok, one_per_building, colliders_ok, high_bodies,
 					deterministic, physical_ok, eat_ok, prop_ok])
@@ -3225,8 +3225,8 @@ func _scenario_pigeon_silhouette_contrast() -> void:
 			% [sidewalk_asphalt, sidewalk_body])
 	_check("pigeon_silhouette_contrast", near_gate and luminance_gate and tip_step and head_step
 			and ground_gate,
-			"sidewalk+cream=[%s] worst luminance margin %.3f tip_step=%s head_step=%s "
-			+ "ground sidewalk-asphalt=%.3f sidewalk-body=%.3f" % [
+			("sidewalk+cream=[%s] worst luminance margin %.3f tip_step=%s head_step=%s "
+			+ "ground sidewalk-asphalt=%.3f sidewalk-body=%.3f") % [
 					", ".join(distances), worst_margin, tip_step, head_step,
 					sidewalk_asphalt, sidewalk_body])
 
