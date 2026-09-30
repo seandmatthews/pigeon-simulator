@@ -1,6 +1,6 @@
 # T-069 — Paint the intersections — crosswalks so streets read as streets
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding ·
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding ·
   **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** — (builds on the landed T-004 blockout and T-008 traffic offsets; no open
   dependency)
@@ -83,32 +83,71 @@ re-captured here — Gate 3 re-judges the look on fresh screenshots.
 
 ## Acceptance criteria
 
-- [ ] The `Crosswalk` MultiMesh has exactly 1,120 instances with default exports — 224
+- [x] The `Crosswalk` MultiMesh has exactly 1,120 instances with default exports — 224
       bands × 5 stripes (36 interior nodes × 4 approaches, 24 rim nodes × 3, 4 corner
       nodes × 2; every approach whose band would leave the asphalt skipped)
-- [ ] Every stripe is axis-aligned with extents {0.4, road_width} in the ground plane ×
+- [x] Every stripe is axis-aligned with extents {0.4, road_width} in the ground plane ×
       0.01 thick; stripes on vertical roads sit at y = `road_slab_height + 0.005`, on
       horizontal roads at y = `road_slab_height` (the two dash-family recipes)
-- [ ] Every stripe center lies ≥ 5.0 m from every intersection node in XZ (turning
+- [x] Every stripe center lies ≥ 5.0 m from every intersection node in XZ (turning
       traffic's 3.5 m corner-cut swing area, `scripts/city.gd:107-111`, stays clear by
       1.5 m) and inside its approach road's asphalt rect (|along-road coordinate| ≤
       `city_span * 0.5`, cross-road on the centerline)
-- [ ] Each unblocked node approach carries exactly 5 stripes centered at
+- [x] Each unblocked node approach carries exactly 5 stripes centered at
       5.2 / 5.7 / 6.2 / 6.7 / 7.2 m along the approach axis, on that road's centerline
-- [ ] A forced same-seed rebuild reproduces all 1,120 transforms byte-identically
+- [x] A forced same-seed rebuild reproduces all 1,120 transforms byte-identically
       (`_spots_equal`, `tests/sim_test.gd:1093` — the `elder_placement_no_rng` pattern,
       `tests/sim_test.gd:1109-1131`)
-- [ ] No `StaticBody3D` exists anywhere under the city's `Visuals` root — the paint is
+- [x] No `StaticBody3D` exists anywhere under the city's `Visuals` root — the paint is
       visual-only (T-017 decision)
-- [ ] Gate 1b suite green unchanged, explicitly `city_street_flyover`,
+- [x] Gate 1b suite green unchanged, explicitly `city_street_flyover`,
       `cars_traffic_loops_blocks`, `city_sidewalk_walkable` and
       `city_same_seed_deterministic` (zero `_fp` entries keep the fingerprint stable)
-- [ ] `density_cpu_budget` re-run green with the extra MultiMesh (1,120 instances, one
+- [x] `density_cpu_budget` re-run green with the extra MultiMesh (1,120 instances, one
       extra draw key)
-- [ ] [screenshot] An eye-level pass down a street shows a zebra band ahead at each
+- [x] [screenshot] An eye-level pass down a street shows a zebra band ahead at each
       crossing, reading as worn road paint, not glowing geometry
-- [ ] [screenshot] An aerial pass shows the crossing grid banding the intersections;
+- [x] [screenshot] An aerial pass shows the crossing grid banding the intersections;
       no z-fighting shimmer between stripes and slabs at any of the 64 nodes
+
+## Tuned values (as landed)
+
+- `CROSSWALK_OUTSET := 6.2` · `CROSSWALK_STRIPE_PITCH := 0.5` ·
+  `CROSSWALK_STRIPE_DEPTH := 0.4` · `CROSSWALK_STRIPE_COUNT := 5` — band footprint
+  5.0–7.4 m out from each node, stripe centers 5.2 / 5.7 / 6.2 / 6.7 / 7.2 m.
+- `COLOR_CROSSWALK := Color(0.78, 0.78, 0.75)` — worn white, distinct from the yellow
+  lane mark; reads as road paint, not glowing geometry (Gate 3 pass, screenshots at
+  `.captures/t069_eye_level_crossing*.png`).
+- Counts at the default seed: 224 bands (36 interior nodes × 4 + 24 rim × 3 + 4 corner
+  × 2) → 1,120 stripes; `Visuals/Crosswalk` instance_count == 1120 (machine-checked).
+- Layout fingerprint unchanged at 2492360539 (byte-identical to pre-T-069); Gate 1b
+  `density_cpu_budget` median 268.0 ms per 100 physics frames (budget 750).
+
+## Implementation note (T-069, agent pass 2026-09-30)
+
+- One deliberate deviation from the Verification plan: `MultiMesh.get_instance_transform`
+  reads back IDENTITY for every key in headless runs (the dummy RenderingServer never
+  uploads the instance buffer — verified with a throwaway probe against the pre-existing
+  `Dash` key too, which also read all-identity). `city_crosswalks_present` therefore
+  asserts `instance_count == 1120` off the `Visuals/Crosswalk` node itself (readable,
+  headless-proven) and walks the transforms from the queue that feeds that exact
+  MultiMesh (`_visuals["crosswalk"].xfs`, copied verbatim by `_spawn_visuals`, same
+  build, same order). The queue must stay in sync with the node or the count assert
+  fails.
+- Gates run on this branch: Gate 1 import + 120-frame boot clean; Gate 1b full suite
+  `godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn` → 0 failures,
+  `SIM DATA city_crosswalks: stripes=1120 bands=224 fingerprint=2492360539` (fingerprint
+  unchanged from the pre-change print in the same log's roofs scenario), Gate 1b
+  `density_cpu_budget` median 268.0 ms ≤ 750; Gate 2 autoplay `AUTOPLAY DONE ok=true`
+  (fps 134, restart=true).
+- Fresh screenshots captured for the Gate 3 human pass (the ticket's earlier session
+  frames were not retained, so these are new): eye-level low pass down the x=16 street
+  with bands ahead at the crossings — `.captures/t069_eye_level_crossing.png`,
+  `.captures/t069_eye_level_crossing2.png` (pilot session `t069gate3`); aerial cruise
+  over the grid with the crossings banding at every intersection —
+  `.captures/t069_aerial_grid.png`, `.captures/t069_aerial_grid2.png` (Gate 2 autoplay
+  frames). Gate 3 human pass signed off 2026-09-30: paint reads as worn road paint at
+  eye level, the grid reads at altitude, no shimmer — both [screenshot] criteria ticked.
 
 ## Verification
 
