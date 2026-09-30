@@ -1,6 +1,6 @@
 # T-097 — Stop the title screen's Esc key from hard-quitting the app
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** —
 - **Refs:** sweep 2, ui-ux lane (2026-09-30) · T-010 (menu flow, done) · T-039
   (title-screen precedent; coordinates on the footer line) · pilot traces
@@ -53,22 +53,22 @@ what the code should do, and nothing else.
 
 ## Acceptance criteria
 
-- [ ] Feeding a synthetic `pause` (Esc) action event to `menu.gd`'s
+- [x] Feeding a synthetic `pause` (Esc) action event to `menu.gd`'s
       `_unhandled_input` neither quits the process nor pauses the tree —
       Gate 1b only (new scenario `title_escape_does_not_quit`)
-- [ ] Space still starts a run from the title: the `flap` arm and
+- [x] Space still starts a run from the title: the `flap` arm and
       `_start_run()` are untouched and the T-010 flow line
       (`VERIFICATION.md:259`) keeps passing
-- [ ] Q remains the title's quit key: the `quit` arm survives verbatim (not
+- [x] Q remains the title's quit key: the `quit` arm survives verbatim (not
       asserted headlessly — a harness cannot survive testing its own quit; the
       Gate 3 pass covers it)
-- [ ] `project.godot` `[input]` is untouched: `pause`/`quit` keep their keys
+- [x] `project.godot` `[input]` is untouched: `pause`/`quit` keep their keys
       and no action is added or removed
-- [ ] README.md and VERIFICATION.md control tables state, in the same
+- [x] README.md and VERIFICATION.md control tables state, in the same
       change-set, that Esc does nothing on the title screen and Q quits from
       it
-- [ ] `menu.gd`'s docstring no longer describes Esc as a quit alias
-- [ ] The title screen shows a Q quit hint (Footer or the T-039 controls
+- [x] `menu.gd`'s docstring no longer describes Esc as a quit alias
+- [x] The title screen shows a Q quit hint (Footer or the T-039 controls
       line), legible at a glance — [screenshot]
 
 ## Verification
@@ -90,3 +90,39 @@ unpaused point works. Full suite green. Gate 2 unaffected: the autoplay boots
 has no menu or Esc reference), run it anyway. Gate 3: [screenshot] of the
 title showing the Q quit hint; while there, one manual Esc press at the title
 (app stays up) and one Q press (app exits).
+
+## Recorded verification (agent, 2026-09-30 — accepted by reviewer sign-off)
+
+T-039 was still `proposed` when this landed, so per the ticket's fallback the
+"Q quit" hint went on the existing Footer line.
+
+**Tuned values:** none — this change deletes a branch and adds a footer hint;
+no constants were tuned and no code values need recording.
+
+- **Gate 1:** `--import` exit 0 with the one documented benign line
+  (`ERROR: 33 resources still in use at exit` — see VERIFICATION.md known
+  issues); `--quit-after 120` exit 0, zero ERROR lines.
+- **Gate 1b:** full suite `godot --headless --fixed-fps 60 --path .
+  res://tests/sim_test.tscn` → exit 0, `SIM SUMMARY: 0 failure(s)`, 86 PASS
+  including the new `title_escape_does_not_quit`. The regression guard was
+  executed, not assumed: with the quit branch temporarily re-added the run's
+  output stops exactly after `SIM PASS pause_freezes_world` — the quit fires
+  inside the new scenario and kills the process with no `SIM SUMMARY` (exit
+  code is Godot's default 0, so the missing summary/check IS the loud signal,
+  as this ticket predicted).
+- **Gate 2:** `godot --path . res://tests/autoplay.tscn` → exit 0,
+  `AUTOPLAY DONE ok=true … restart=true` (fps 137).
+- **Gate 3, agent-side via the pilot harness** (sessions `t097a` / `t097b`,
+  muted, persistence off):
+  - Space still starts a run: session `t097a` `send {"key":"Space"}` at the
+    title → `wait --scene Main` reached Main.
+  - Esc no longer quits: session `t097b` `send {"key":"Escape"}` at the title;
+    6 s later `state` reports alive at scene Menu (`t_ms=29327`, frame 1710).
+  - Q still quits: same session `send {"key":"Q"}` → `pilot.py list` shows
+    `t097b live no` (last state frozen at `t_ms=40481`); the godot log ends
+    clean — a graceful quit, not a crash.
+  - Q quit hint: title screenshot at
+    `.captures/t097_title_q_hint.png` (raw session kept at
+    `.captures/session_t097b/`) — the footer reads "eat bread to survive ·
+    splat tourists (100) and cars (30) · don't starve · Q quit" and is legible
+    at a glance.

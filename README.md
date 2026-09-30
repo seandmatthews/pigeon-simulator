@@ -36,7 +36,7 @@ Main Run Args.
 | Space | flap · takes off when grounded · starts a run from the title screen · fly again on the score screen |
 | F | poop — lobs a splat dropping while airborne · a direct hit panics a tourist · honks a car (30 pts) |
 | Shift | boost *(not implemented yet)* |
-| Esc | pause — everything freezes; Esc again resumes |
+| Esc | pause — everything freezes; Esc again resumes · does nothing on the title screen (T-097) |
 | R | restart the run — from the pause menu or the score screen |
 | M | back to the title screen — from the pause menu or the score screen |
 | Q | quit the game — from the pause menu or the title screen |

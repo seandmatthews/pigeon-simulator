@@ -92,6 +92,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | score_high_score_persists | beating the record writes user:// at once and a fresh Game loads it back | T-009 |
 | score_popup_floats_and_fades | the world-space popup shows "+100 ×2" at the hit position, floats up, fades and cleans itself up | T-009 |
 | pause_freezes_world | Esc-pausing through the real PauseMenu stops the flying pigeon dead mid-air and the hunger clock with it; resuming hands both back | T-010 |
+| title_escape_does_not_quit | a synthetic Esc (`pause`) action fed straight to the real title scene's `_unhandled_input` neither quits the process nor pauses the tree — the menu instance survives; a regression re-adding the quit branch kills the whole Gate 1b run at that line (`flap`/`quit` are never fed — they would change the scene / quit the harness) | T-097 |
 | game_over_shows_score_screen | starving through the real main scene opens the score screen — score, high score, tourist/car breakdown — freezes the run dead and keeps Esc locked | T-010 |
 | restart_resets_run | restart through Main.restart_run() zeroes score/breakdown, refills hunger, clears the game-over latch, re-uses the same-seed city and re-seeds every spawner with fresh nodes | T-010 |
 | restart_same_seed_skips_rebuild | a real main.tscn restart through Main.restart_run() takes the same-seed fast path — build_count stays 1, fingerprint/spawn_point/last_report untouched, exactly one regenerated — while every tourist AND car spawner re-seeds fresh nodes and the pigeon returns to the spawn corridor (fails if `regenerated` stops firing: the old nodes would survive) | T-033 |
@@ -215,7 +216,7 @@ Keep this table in sync with `project.godot` and `README.md`:
 | Space | flap · takes off when grounded · starts a run from the title screen · fly again on the score screen (T-010) |
 | F | poop — lobs a splat dropping while airborne (T-006) · a direct hit panics a tourist (T-007) or honks a car for 30 pts (T-008) |
 | Shift | boost *(not implemented)* |
-| Esc | pause — everything freezes; Esc again resumes (T-010) |
+| Esc | pause — everything freezes; Esc again resumes (T-010) · does nothing on the title screen (T-097) |
 | R | restart the run — from the pause menu or the score screen (T-010) |
 | M | back to the title screen — from the pause menu or the score screen (T-010) |
 | Q | quit the game — from the pause menu or the title screen (T-010) |
@@ -274,6 +275,7 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-010) From the pause menu: R restarts into a fresh same-seed city, M returns to the title, Q quits
 - [ ] (T-010) Die on purpose twice in a row — each score screen shows score, high score and the tourist/car split; restart works from both (pause mid-flight during both runs)
 - [ ] (T-010) The score screen flags a freshly beaten record and Esc cannot unpause a dead run
+- [x] (T-097) The title screen shows a "Q quit" hint, legible at a glance; Esc at the title does nothing (the app stays up) and Q still quits [screenshot]
 - [ ] (T-011) The pigeon reads as a pigeon — gray body, darker wingtips, green neck sheen — silhouetted at ~20 m against both roofs and road
 - [ ] (T-011) Poses track the flight live: wings out gliding, swept back diving, beats on flaps, folded on the ground — no desync, no frozen wings
 - [ ] (T-011) The waddle (squat, body rock, head-thrust bob) is at least a little bit funny
@@ -510,6 +512,15 @@ Playtest checklist (grows as tickets land):
   model). The line stays unchecked pending a human pass; both residuals are
   recorded as follow-up candidates in the ticket's "Known issues / follow-up"
   section.
+- Title-screen Esc (T-097) is machine-verified (Gate 1b
+  `title_escape_does_not_quit` — a synthetic `pause` action fed to the real
+  menu scene neither quits the process nor pauses the tree; a regression
+  re-adding the quit branch kills the whole Gate 1b run) and the quit arm
+  itself is deliberately not asserted headlessly — a harness cannot survive
+  testing its own quit. The agent-side pilot pass (title screenshot with the
+  "Q quit" footer hint, Esc at the title leaves the app up, Space still starts
+  a run, Q exits) is recorded in the ticket and accepted by reviewer
+  sign-off (2026-09-30).
 - Remaining placeholder art: upper-floor facades are tinted
   boxes with a procedural window texture (ground floors carry T-017 shopfront
   bands, doors and awnings; the awnings are visual-only, no collider).
