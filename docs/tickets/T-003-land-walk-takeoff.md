@@ -32,15 +32,20 @@ the waddle reads as slow and comedic — is pending the human Gate 3 lines.
 
 ## Tuned values (v1)
 
-`max_land_speed 12` · `max_land_angle_deg 30` · `walk_speed 2.2` · `walk_accel 10` ·
-`walk_decel 22` · `waddle_turn_rate 2.6` · `ground_level_rate 6` · `grounded_squat 0.82` ·
-`waddle_bob_rate 10` · `waddle_bob_height 0.03` · `waddle_sway 0.1`
+`max_land_speed 16` (T-021, was 12) · `max_land_angle_deg 30` · `skid_settle_speed 2`
+(T-021) · `walk_speed 2.2` · `walk_accel 10` · `walk_decel 22` · `waddle_turn_rate 2.6` ·
+`ground_level_rate 6` · `grounded_squat 0.82` · `waddle_bob_rate 10` ·
+`waddle_bob_height 0.03` · `waddle_sway 0.1`
 
 Model notes from the tuning session:
 - A touch settles into the waddle only below `max_land_speed` and `max_land_angle_deg`
   of descent; anything harder stays in AIR and skids (`ground_friction`) until it has
   bled down to waddle pace. Falling out of a stall means a forward skid, because
   velocity chases the nose as the stall drops it — that's why `walk_decel` exists.
+  (T-021 amends the settle semantics: the touch is judged ONCE, on the first
+  floor-contact frame's pre-move velocity — `max_land_speed` rose 12 → 16 because
+  the model's own trim glide touches down at 15.3–17.2 m/s — and a rejected touch's
+  skid may only settle again under `skid_settle_speed` 2, i.e. near rest.)
 - A grounded flap launches up+forward from a level attitude regardless of body pitch:
   a pigeon that touches down nose-low would otherwise "flap" into a forward lunge
   along the pavement instead of a startled hop into the air.

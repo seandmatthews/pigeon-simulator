@@ -1,6 +1,6 @@
 # T-021 — Stick the landing: settle shallow touchdowns on contact
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-003 (amends its settle/skid semantics) · builds on T-001 + T-015 (the trim envelope that set natural arrivals at 15–17 m/s)
 - **Refs:** flight-control review-lane play sessions (2026-09-29, `.captures/session_flc-s1-b/`,
   `.captures/session_flc-s1-d/`); baseline Gate 1b on today's tree re-run during ticket-writing:
@@ -77,19 +77,29 @@ experiment with bar=16 settled GND on the contact frame at 15.31 m/s
 
 ## Acceptance criteria
 
-- [ ] A shallow glide touchdown at trim speed settles into the waddle on the
+- [x] A shallow glide touchdown at trim speed settles into the waddle on the
       contact frame — zero airborne floor-contact frames past the touch
       (Gate 1b: `trim_glide_lands_clean`)
-- [ ] A steep fast dive still skids — never settles on contact, stays AIR on
+- [x] A steep fast dive still skids — never settles on contact, stays AIR on
       the floor while bleeding, settles only under ~2 m/s, no tunneling, no
       NaNs (Gate 1b: `hard_landing_skids` with the retuned detector)
-- [ ] A low slow touch still slides to a stop with no bounce and no NaNs
+- [x] A low slow touch still slides to a stop with no bounce and no NaNs
       (Gate 1b: `landing_slides_to_stop` stays green unchanged)
-- [ ] Landings on the bench, the roof and the plaza still settle grounded and
+- [x] Landings on the bench, the roof and the plaza still settle grounded and
       walkable (Gate 1b: `bench_landing`, `roof_landing`, `city_plaza_spawn`
       stay green)
-- [ ] The tuned bar is recorded in T-003's "Tuned values" section, and
+- [x] The tuned bar is recorded in T-003's "Tuned values" section, and
       `VERIFICATION.md`'s Gate 1b table gains the `trim_glide_lands_clean` row
+
+## Tuned values
+
+`max_land_speed 16` (was 12) · `skid_settle_speed 2` (new) — both in the
+"Landing & waddle" group of `scripts/player.gd`. Measured on this tree: the
+scenario's trim glide (settled 17 m/s from 1.8 m) touches down at **15.69 m/s**
+and settles grounded on the contact frame; with the bar held at the old 12 the
+same touch is rejected and ghost-slides **57 airborne floor frames** (15.69 →
+1.90 m/s) before grounding — the exact regression `trim_glide_lands_clean`
+guards.
 
 ## Verification
 
@@ -99,6 +109,16 @@ tree measured exit 0, 73/73 PASS; the new scenario makes it 74;
 `hard_landing_skids` (retuned detector), `landing_slides_to_stop`,
 `bench_landing`, `bench_takeoff`, `roof_landing`, `city_plaza_spawn`
 explicitly re-run — + Gate 2 (autoplay) + Gate 3.
+
+Recorded on the implementation tree (2026-09-29): Gate 1 import + 120-frame
+boot exit 0 (`--check-only` prints the pre-existing "Identifier not found:
+Sfx/Game" autoload noise, identical with the change stashed — see T-017's
+note; the suite run is the authority). Gate 1b: exit 0, **74/74 PASS** (73/73
+baseline re-run first); the A/B with the old bar (max_land_speed 12, all else
+equal) fails exactly `trim_glide_lands_clean` — the scenario has teeth.
+Gate 2 autoplay: exit 0, `AUTOPLAY DONE ok=true … restart=true`, ground visit
+landed/waddled/ate under the new semantics. Gate 3: pending human playtest
+(the stick-vs-skid feel lines above).
 
 **Pending human playtest (Gate 3):** the stick-vs-skid feel line — does a
 trim-speed touchdown on a bench now *stick* (pose + HUD flip on contact)

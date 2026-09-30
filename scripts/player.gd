@@ -50,8 +50,9 @@ enum State { AIR, GROUND }
 @export var ground_friction: float = 14.0 ## Horizontal decel while sliding on the ground; landings skid to a stop.
 
 @export_group("Landing & waddle")
-@export var max_land_speed: float = 12.0 ## Total speed below which a floor touch settles into the waddle; faster ones skid.
+@export var max_land_speed: float = 16.0 ## Total speed below which a floor touch settles into the waddle; faster ones skid. (T-021 raised 12 → 16: the model's own trim glide touches down at 15.3–17.2 m/s, so the bar must sit above the natural arrival.)
 @export var max_land_angle_deg: float = 30.0 ## Steepest descent angle that still counts as a gentle touchdown.
+@export var skid_settle_speed: float = 2.0 ## (T-021) Speed a rejected touch's skid must bleed under before it may still settle near rest — the touch itself was already judged (and rejected) on first contact.
 @export var walk_speed: float = 2.2 ## Waddle speed (m/s) — slow on purpose.
 @export var walk_accel: float = 10.0 ## How fast waddling reaches walk speed (m/s²).
 @export var walk_decel: float = 22.0 ## How fast waddling kills leftover landing momentum (m/s²).
@@ -160,12 +161,24 @@ func _air_physics(delta: float) -> void:
 	var pre_vy := velocity.y
 	var pre_speed := velocity.length()
 	move_and_slide()
-	if is_on_floor() and _air_grace <= 0:
+	if not is_on_floor() or _air_grace > 0:
+		return
+	if not was_on_floor:
+		## (T-021) First floor-contact frame: judge the touch itself on the
+		## pre-move velocity — the same touch velocity `_touchdown_velocity`
+		## recorded. Judging it once here is what makes a shallow glide settle
+		## on the contact frame instead of ghost-sliding through it in AIR.
 		_try_settle(pre_vy, pre_speed)
+	elif velocity.length() < skid_settle_speed:
+		## (T-021) A later AIR frame on the floor is the T-003 skid: its touch
+		## was already judged and rejected, so it may only settle near rest.
+		_try_settle(velocity.y, velocity.length())
 
 
-## Floor contact while airborne: a shallow, slow enough touch settles into the
-## waddle; anything harder keeps skidding until it has bled its speed.
+## Floor contact while airborne: the touch frame judges the pre-move velocity —
+## a shallow, slow enough touch settles into the waddle; anything harder keeps
+## skidding (flight forces + friction) and only settles again once the skid has
+## bled under `skid_settle_speed`.
 func _try_settle(impact_vy: float, impact_speed: float) -> void:
 	if impact_vy > 1.0: ## Moving up — a takeoff touch, not a landing.
 		return
