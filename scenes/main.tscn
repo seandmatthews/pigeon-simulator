@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/bread_spawner.gd" id="3_spawner"]
@@ -25,6 +25,30 @@ sky = SubResource("Sky_main")
 ambient_light_source = 3
 ambient_light_sky_contribution = 1.0
 tonemap_mode = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hunger_track"]
+bg_color = Color(0, 0, 0, 0.35)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0, 0, 0.85)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hunger_fill"]
+bg_color = Color(1, 1, 1, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0, 0, 0.85)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
@@ -86,6 +110,8 @@ offset_left = 16.0
 offset_top = 48.0
 offset_right = 216.0
 offset_bottom = 62.0
+theme_override_styles/background = SubResource("StyleBoxFlat_hunger_track")
+theme_override_styles/fill = SubResource("StyleBoxFlat_hunger_fill")
 max_value = 100.0
 value = 100.0
 show_percentage = false

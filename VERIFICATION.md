@@ -96,7 +96,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | restart_resets_run | restart through Main.restart_run() zeroes score/breakdown, refills hunger, clears the game-over latch, re-uses the same-seed city and re-seeds every spawner with fresh nodes | T-010 |
 | restart_same_seed_skips_rebuild | a real main.tscn restart through Main.restart_run() takes the same-seed fast path — build_count stays 1, fingerprint/spawn_point/last_report untouched, exactly one regenerated — while every tourist AND car spawner re-seeds fresh nodes and the pigeon returns to the spawn corridor (fails if `regenerated` stops firing: the old nodes would survive) | T-033 |
 | hud_bread_pointer_tracks_nearest_crumb | the HUD bread pointer names the nearest living crumb (distance within 1 m; `nearest_crumb()` matches an independent scan and returns null when none is alive), the chevron carries the bearing from the nose and flips ~180° with the yaw, the readout decreases on approach, eating the pointed-at crumb through the grounded waddle-in re-aims at the next-nearest, beyond half the city span the same slot names "city" with the horizontal distance home (± 2 m) pointing back, and the label carries the T-019 outline treatment; since T-098 the readout carries the climb cue, decided against the independent scan — " ▲" with a hand-placed crumb ~10 m over a grounded pigeon, " ▼" from ~10 m above a street crumb, no arrow within the ±3 m band, city mode never arrowed, and `_pointer_distance_m` parses both shapes so every pre-existing numeric assert is untouched | T-037, T-098 |
-| hud_hunger_warning_tiers | the HUD score/hint outlines resolve through the theme, the hunger bar's four warning tiers map the 50/25/10% bands through the real Main scene, the danger tiers pulse in game time (tier 3 faster than tier 2) and falling back restores the rest color — via refill and restart_run | T-019 |
+| hud_hunger_warning_tiers | the HUD score/hint outlines resolve through the theme, the hunger bar's four warning tiers map the 50/25/10% bands through the real Main scene, the danger tiers pulse in game time (tier 3 faster than tier 2) and falling back restores the rest color — via refill and restart_run; since T-080 the bar also resolves its own `background`/`fill` StyleBoxFlat overrides (dark translucent track, pure-WHITE fill — the tier-modulate invariant — both with the dark-outline border ≥ 1 px on all four sides) | T-019, T-080 |
 | elder_placement_no_rng | the city records one pure-layout spot per plaza-ring bench and the spawner seats 4 elders on every second bench (0, 2, 4, 6 — 90° apart, on the seat line); regenerating the same seed reproduces the fingerprint, the bench/lamp/bin counts and the spot list byte-identically, a foreign seed still gets its ring, and the elders sit exactly on the chosen spots of a real generated City | T-020 |
 | elder_shares_bread_after_hangout | a GROUNDED pigeon parked in an elder's PresenceZone fills trust (~2 in ~2 s); a short walk-about decays it without wiping; back for `trust_needed` seconds the elder relays `bread_shared` exactly once and two ordinary T-005 crumbs (restore 30, hand-placed, respawn-accounted) sit on the pavement within reach in front of the bench | T-020 |
 | elder_no_bread_airborne | a FLYING pigeon held inside the same PresenceZone for longer than `trust_needed` banks nothing — zero crumbs, zero relays, trust never leaves zero | T-020 |
@@ -290,6 +290,7 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-016) Side-by-side with before, the city still reads warm and sunny after the sun-energy retune (the T-013 warmth judgement re-based)
 - [ ] (T-019) The score line and control hint read clearly over white pavement at the spawn corridor, over the bright sky at altitude and over the dark road (dark outlines)
 - [ ] (T-019) The hunger bar warns at a glance — white → amber → red pulse → fast flash — without staring at it, and never sits stranded mid-flash after landing to eat
+- [x] (T-080) The hunger bar reads as a bounded element at tier 0 — dark track + dark border — findable at a glance over white pavement at the spawn corridor, over the bright sky at altitude and over the dark road (side-by-side with before)
 - [ ] (T-037) The bread pointer is readable at a glance mid-flight — the chevron leads the eye toward the crumb it names, and the metres count down as you close in
 - [ ] (T-037) Flying past the city edge flips the same line to "city N m" pointing home, and steering along the chevron brings the ring back into view
 - [ ] (T-037) The pointer line and chevron read over white pavement and bright sky (T-019 outline treatment) without crowding the hint above them
@@ -417,9 +418,12 @@ Playtest checklist (grows as tickets land):
   and only the one-off boot build remains.
 - HUD legibility & hunger warning (T-019) is machine-verified (Gate 1b
   `hud_hunger_warning_tiers` — resolved outlines, tier bands, in-game-time
-  pulse, rest-color restore through refill and restart). A human pass over the
-  T-019 lines (legibility over pavement/sky/road, tier readability at a
-  glance, pulse comfort) is still pending.
+  pulse, rest-color restore through refill and restart; since T-080 also the
+  bar's own track/fill styleboxes). A human pass over the T-019 lines
+  (legibility over pavement/sky/road, tier readability at a glance, pulse
+  comfort) is still pending; T-080 landed the scene-side half (dark track +
+  bordered white fill) and its at-a-glance line is agent-played via the pilot
+  harness (see T-080's ticket for the before/after grabs).
 - Bread pointer (T-037) is machine-verified (Gate 1b
   `hud_bread_pointer_tracks_nearest_crumb` — nearest-crumb query vs an
   independent scan, distance/bearing/flip/approach, re-aim after eating

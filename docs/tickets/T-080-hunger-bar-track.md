@@ -1,6 +1,6 @@
 # T-080 — Give the hunger bar a dark track/border — the white bar vanishes on bright ground
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** — (completes T-019's landed legibility work; feeds its pending human pass)
 - **Refs:** VERIFICATION.md Known issues, the two pending T-019 human lines
   (`VERIFICATION.md:273-274`) · sweep 1 grabs cited below
@@ -48,17 +48,50 @@ at-a-glance readability; this ticket is the scene-side half of that fix.
 
 ## Acceptance criteria
 
-- [ ] At tier 0 the bar reads as a bounded element — dark track + dark border — findable at
+- [x] At tier 0 the bar reads as a bounded element — dark track + dark border — findable at
       a glance over white pavement at the spawn corridor and over the bright sky at
       altitude [screenshot]
-- [ ] Tier colors and pulses are unchanged: the fill renders white at tier 0 through the
+- [x] Tier colors and pulses are unchanged: the fill renders white at tier 0 through the
       tier modulate, and the amber/red/flash tiers behave identically to today
-- [ ] `_scenario_hud_hunger_tiers` (`tests/sim_test.gd:2290`) extended with a
+- [x] `_scenario_hud_hunger_tiers` (`tests/sim_test.gd:2290`) extended with a
       resolved-stylebox assertion (below) passes, including all of its existing
       tier/pulse/restart assertions untouched
-- [ ] Full Gate 1b suite green
-- [ ] [screenshot] pass: the bar is findable at a glance at tier 0 over pavement, sky and
+- [x] Full Gate 1b suite green
+- [x] [screenshot] pass: the bar is findable at a glance at tier 0 over pavement, sky and
       road (side-by-side with before)
+
+## Evidence (agent-played, pilot harness sessions `t080ui` / `t080after`)
+
+Grabs under `.captures/t080_shots/` (session dirs swept, copies kept):
+
+- `before_plaza.png` (99%, grounded at spawn corridor over road/pavement) vs
+  `after_pavement.png` (99%, same spot): before, the full bar is a barely-there white
+  sliver lost against the pale buildings; after, the white fill + dark track + dark
+  border reads instantly. `after_road.png` (59%, grounded on the road) — tier 0, road
+  backdrop, bar clearly bounded.
+- `before_sky.png` (89%, airborne ~27 m) vs `after_sky.png` (85%, same flight profile):
+  before, the fill is a dim grey pill on the pale sky; after, dark track and border make
+  the bar findable at a glance.
+- Tier colors unchanged: `after_amber.png` (34%, tier 1) shows the same amber fill as
+  T-019 landed, now with the border staying black through the modulate;
+  `after_red_pulse.png` (14.6%, tier 2) shows the red pulse fill over the dark track.
+  The tier-3 flash was not visually captured (the idle run starved through it before the
+  grab — `after_flash.png` is the starve screen); tier-3 behavior is machine-verified by
+  the untouched pulse assertions in `hud_hunger_warning_tiers` (Gate 1b PASS, tier-3
+  faster-than-tier-2 zero-crossing check) plus the white-fill modulate invariant.
+
+## Verification record (this change-set)
+
+- Gate 1: `--headless --import` exit 0 (only the documented benign
+  "33 resources still in use" line); `--headless --quit-after 120` exit 0, no errors.
+- Gate 1b: `godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn` — exit 0,
+  84 `SIM PASS` lines, 0 `SIM FAIL`, including `hud_hunger_warning_tiers` with the new
+  `styleboxes=True` term.
+- Gate 2: `godot --path . res://tests/autoplay.tscn` — exit 0,
+  `AUTOPLAY DONE ok=true … restart=true`, no SCRIPT ERROR.
+- Gate 3: the two [screenshot] lines above (agent-played). The two pending T-019 human
+  lines in VERIFICATION.md stay unticked — the human pass over feel/comfort is still
+  open; this ticket only lands the scene-side legibility half.
 
 ## Verification
 

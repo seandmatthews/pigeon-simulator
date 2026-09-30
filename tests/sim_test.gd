@@ -2984,6 +2984,23 @@ func _scenario_hud_hunger_tiers() -> void:
 			and stats.get_theme_constant("outline_size") == 6 \
 			and hint.get_theme_color("font_outline_color").is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
 			and hint.get_theme_constant("outline_size") == 4
+	## T-080: the bar carries its own track/fill styleboxes, resolved through
+	## the theme stack (there is no per-override getter). The fill must be pure
+	## WHITE — the tier-modulate invariant, since hunger_bar.modulate
+	## multiplies the whole node — and both styleboxes the dark-outline family
+	## with ≥ 1 px borders on all four sides, so the bar stays a bounded
+	## element in every tier (black × anything is still black).
+	var track_box: StyleBoxFlat = bar.get_theme_stylebox("background") as StyleBoxFlat
+	var fill_box: StyleBoxFlat = bar.get_theme_stylebox("fill") as StyleBoxFlat
+	var styleboxes_ok: bool = track_box != null and fill_box != null \
+			and track_box.bg_color.is_equal_approx(Color(0.0, 0.0, 0.0, 0.35)) \
+			and track_box.border_color.is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
+			and fill_box.border_color.is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
+			and track_box.border_width_left >= 1 and track_box.border_width_top >= 1 \
+			and track_box.border_width_right >= 1 and track_box.border_width_bottom >= 1 \
+			and fill_box.border_width_left >= 1 and fill_box.border_width_top >= 1 \
+			and fill_box.border_width_right >= 1 and fill_box.border_width_bottom >= 1 \
+			and fill_box.bg_color.is_equal_approx(Color.WHITE)
 	## Tier bands through the real signal path: the value setter emits
 	## synchronously, so set→read same-frame is exact; probes sit mid-band so
 	## the live drain (~0.27/s grounded) can't cross a boundary mid-scenario.
@@ -3044,10 +3061,10 @@ func _scenario_hud_hunger_tiers() -> void:
 	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
 	Game.reset_run()
 	_check("hud_hunger_warning_tiers",
-			outline_ok and tiers_ok and quiet_static and pulse2 and pulse3 \
+			outline_ok and styleboxes_ok and tiers_ok and quiet_static and pulse2 and pulse3 \
 					and faster and refill_rest and restart_rest,
-			"outline=%s tiers=%s quiet_static=%s pulse2=%s (g %.2f..%.2f, %d x) pulse3=%s (g %.2f..%.2f, %d x) faster=%s refill_rest=%s restart_rest=%s" % [
-					outline_ok, tiers_ok, quiet_static,
+			"outline=%s styleboxes=%s tiers=%s quiet_static=%s pulse2=%s (g %.2f..%.2f, %d x) pulse3=%s (g %.2f..%.2f, %d x) faster=%s refill_rest=%s restart_rest=%s" % [
+					outline_ok, styleboxes_ok, tiers_ok, quiet_static,
 					pulse2, tier2_lo, tier2_hi, tier2_crossings,
 					pulse3, tier3_lo, tier3_hi, tier3_crossings,
 					faster, refill_rest, restart_rest])
