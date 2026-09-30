@@ -76,6 +76,13 @@ func _ready() -> void:
 	pause_menu.quit_requested.connect(_quit)
 	game_over_screen.restart_requested.connect(restart_run)
 	game_over_screen.menu_requested.connect(_to_menu)
+	## (T-036) The off-world fall guard returns to the spawn corridor: hand the
+	## player that corridor in its own local space — the same point the opening
+	## drop starts from — so flying past the apron snaps home instead of falling
+	## forever. Player has no City reference, so only Main can compute this.
+	## Never goes stale in M1: restart keeps the same seed, so restart_run()'s
+	## reset_flight re-uses the identical value.
+	player.respawn_point = city.to_local(city.spawn_point)
 	## Spawn on the road corridor by the plaza (T-004): a short drop onto the
 	## asphalt, in the one corridor the generator guarantees is clear of
 	## buildings at every height. to_local: spawn_point is global, reset_flight

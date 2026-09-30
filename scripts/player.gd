@@ -7,7 +7,9 @@ extends CharacterBody3D
 ## touchdowns just skid — no damage model in M1. Every tunable is an @export
 ## for live tweaking. Since T-015 the airborne flap is mostly lift: its
 ## forward shove fades out across `flap_push_taper`, so flaps pace toward
-## roughly glide_speed plus a few m/s and dives own the top end.
+## roughly glide_speed plus a few m/s and dives own the top end. Since T-036
+## a fall past the `off_world_y` guard line — off the world's edge — quietly
+## snaps home to `respawn_point` (Main wires the spawn corridor in).
 
 ## Emitted when the pigeon lands or takes off — the HUD swaps its control hint.
 signal grounding_changed(grounded: bool)
@@ -71,6 +73,12 @@ enum State { AIR, GROUND }
 @export_group("Audio") ## T-012: the sounds ride the state machine's own events.
 @export var effort_climb_speed: float = 2.0 ## Upward speed (m/s) the pigeon must ALREADY be climbing at for a flap to also play the strained wing-beat effort sound (the impulse itself would flatter every flap).
 
+@export_group("Off-world guard") ## T-036: falling off the world's edge comes home.
+## The guard line (m) — below it the pigeon is off the world and falling under
+## it. Unreachable over real terrain: the lowest walkable surface is the ground
+## slab's top at y = 0 (city.gd's ground box spans ±(city_span/2 + ground_extra)).
+@export var off_world_y: float = -5.0
+
 @export_group("Juice") ## T-013: the one-shots ride the same state events.
 @export var feather_scene: PackedScene = preload("res://scenes/feather_poof.tscn") ## Feathers poof off a hard flap.
 @export var dust_scene: PackedScene = preload("res://scenes/dust_puff.tscn") ## Dust kicks up on a touchdown.
@@ -103,6 +111,15 @@ var _touchdown_velocity: Vector3 = Vector3.ZERO ## Velocity of the first floor c
 var _roll: float = 0.0
 var _air_grace: int = 0 ## Frames after a teleport where is_on_floor() is stale and must not trigger a landing.
 
+## LOCAL coordinates the off-world guard resets to (T-036) — `reset_flight`'s
+## convention. Main wires the spawn corridor in (`city.to_local(city.
+## spawn_point)`); the zero default is only the harness/bare-instance fallback.
+var respawn_point: Vector3 = Vector3.ZERO
+## Guard fires so far (T-036) — test evidence, and the oscillation alarm: the
+## corridor sits ~360 m inside the world, so a second fire means the respawn
+## point itself is off-world.
+var off_world_resets: int = 0
+
 
 func _ready() -> void:
 	flapped.connect(pigeon.trigger_flap) ## Every real flap impulse plays a wing beat (T-011).
@@ -127,6 +144,14 @@ func reset_flight(pos: Vector3, yaw_deg: float = 0.0) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if global_position.y < off_world_y:
+		## (T-036) Off the world — quietly come home. The hard reset zeroes
+		## velocity/timers, hands back AIR and a 2-frame air grace, so the
+		## pigeon drops the short spawn drop onto the corridor and lands
+		## normally. No sound, no popup: the "you flew off and came home" beat
+		## is the return itself. The hunger clock (autoload) is untouched.
+		off_world_resets += 1
+		reset_flight(respawn_point)
 	_flap_timer = maxf(_flap_timer - delta, 0.0)
 	_poop_timer = maxf(_poop_timer - delta, 0.0)
 	_time_since_flap += delta

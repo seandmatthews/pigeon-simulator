@@ -1,6 +1,6 @@
 # T-036 — Guard the off-world fall with a return to the spawn corridor
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** code-optimization · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** — (T-001/T-003 flight and T-010's hunger-only fail state are landed)
 - **Refs:** `.captures/session_optperf1/state.jsonl:6990`, `.captures/session_optperf2/state.jsonl:17503` (worktree captures, verified verbatim this session) · sweep 1 planning session
 
@@ -62,22 +62,24 @@ escapable only by starving or restarting.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b scenario `off_world_fall_returns_home` passes: a player teleported
+- [x] Gate 1b scenario `off_world_fall_returns_home` passes: a player teleported
       below `off_world_y` (and beyond any floor) is grounded on the respawn
       corridor within ~2 s, the reset fired exactly once (counter == 1, no
       oscillation across the following ~2 s), and hunger kept draining through
       the reset
-- [ ] No false trigger in ordinary play: every existing flight/landing/density
+- [x] No false trigger in ordinary play: every existing flight/landing/density
       scenario stays green (all harness setups start at y ≥ 0.35 and every
       in-scenario fall lands on a floor — the −5 line is never approached)
-- [ ] The fail state is unchanged: starvation still ends the run exactly once
+- [x] The fail state is unchanged: starvation still ends the run exactly once
       (`hunger_game_over_once` green); the reset neither refills nor pauses the
       clock
-- [ ] No input actions change (no controls-table updates); the only new knobs
+- [x] No input actions change (no controls-table updates); the only new knobs
       are `off_world_y` and `respawn_point`
 - [ ] [screenshot] Gate 3: flying hard past the apron returns you to the spawn
       corridor within a couple of seconds, and it reads as intentional ("came
-      home"), not a teleport glitch
+      home"), not a teleport glitch (feel judgement — recorded as a pending
+      human playtest note below; the agent-captured pilot run in the Result
+      section already shows the mechanic end to end)
 
 ## Verification
 
@@ -100,3 +102,62 @@ autopilot's two known off-world failure modes now self-heal; `ok=true` must
 hold). Gate 3: the [screenshot] line above plus confirming the hunger clock
 never paused across a return. VERIFICATION.md in the same change-set: new Gate
 1b row + new Gate 3 playtest line.
+
+## Result (2026-09-30)
+
+- `scripts/player.gd`: new `@export_group("Off-world guard")` with `off_world_y`
+  (shipped at the ticketed default −5.0), plain `respawn_point: Vector3` (LOCAL
+  coordinates, the `reset_flight` convention — zero default is only the
+  harness/bare-instance fallback) and public `off_world_resets: int`. One
+  guarded branch at the top of `_physics_process`: `global_position.y <
+  off_world_y` → `off_world_resets += 1` + `reset_flight(respawn_point)`.
+  Quiet by design — no sound, no popup; the hunger clock (autoload) is
+  untouched.
+- `scripts/main.gd`: `_ready()` wires `player.respawn_point =
+  city.to_local(city.spawn_point)` right next to the opening `reset_flight`
+  (Player has no City reference and cannot compute the corridor itself).
+  `restart_run()` deliberately untouched: M1 restarts keep the seed, so the
+  value never goes stale.
+- `tests/sim_test.gd`: new scenario `off_world_fall_returns_home`, registered
+  last (it bends `_player.respawn_point` for its own window): fresh local
+  `Hunger` node (the `sim_test.gd` `Hunger.new()` pattern),
+  `respawn_point = (0, 0.4, 0)` over the flat test ground, then
+  `_set_up(true, (0, -10, -400), ZERO)` — below the guard AND past any floor —
+  poll ≤ 120 frames for grounded-near-home, then 120 more frames for the
+  no-oscillation window; asserts counter == 1, hunger loss > 0.2 across the
+  window, finite and at rest; frees the hunger node.
+- `VERIFICATION.md`: new Gate 1b row `off_world_fall_returns_home`, two Gate 3
+  playtest lines, known-issues entry.
+- Gates run this session: Gate 1 import + 120-frame boot exit 0 (the import
+  run's "resources still in use at exit" line is pre-existing — the pristine
+  tree prints it too; `--check-only` cannot resolve autoloads anywhere in this
+  project — untouched `poop.gd` fails it identically — so the 120-frame boot
+  is the compile proof). Gate 1b full suite `SIM SUMMARY: 0 failure(s)`,
+  exit 0, including every ticket-named re-run: `takeoff_3_flaps`,
+  `stall_drops`, `stall_recovers`, `hard_landing_skids`,
+  `landing_slides_to_stop`, `dive_gains_speed`, `pullup_gains_height`,
+  `city_street_flyover`, `city_roof_takeoff`, `restart_resets_run`,
+  `density_cpu_budget` (median 266.4 ms / 100 frames vs the 750 budget) and
+  `hunger_game_over_once`. Negative test: with `off_world_y` temporarily at
+  −1000 the suite fails EXACTLY `off_world_fall_returns_home` (counter=0, the
+  pigeon still falling at y −36.5 / z −453.6, 23 m/s down after the window)
+  and nothing else — the scenario really guards the behavior; restored to
+  green. Gate 2 autoplay: `AUTOPLAY DONE ok=true … restart=true`, fps 135,
+  exit 0.
+- Eyes-on (agent-driven, pilot harness, two runs): flew ~382–459 m past the
+  apron edge and dove off-world; the guard snapped the pigeon back to the
+  spawn corridor (`p=[16.0, 0.35, -0.12]`, velocity zeroed) and it grounded
+  there ~0.4 s later — well inside a couple of seconds of the fall — with the
+  hunger bar still draining (3% / 66% across the two runs; never paused, never
+  refilled). Screenshot kept at `.captures/t036_return_home.png` (gitignored
+  captures dir; the pilot harness regenerates it anytime).
+
+## Pending human playtest (Gate 3)
+
+- The [screenshot] criterion stays open for the human pass: does the return
+  READ as intentional ("came home") rather than a teleport glitch. The
+  agent-captured run above shows the mechanic end to end (grounded on the
+  corridor within ~2 s of the off-world fall, hunger ticking through it); the
+  feel judgement is the human's. The second Gate 3 line (the hunger bar
+  visibly keeps ticking through a return) is covered by the same run plus the
+  sim scenario's drain assertion.
