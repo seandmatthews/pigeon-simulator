@@ -94,7 +94,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-094 | [Cafe furniture is 47% of the boot scene — batch it like the city props](T-094-cafe-furniture-batched.md) | code-optimization | 3 | 3 | proposed |
 | T-095 | [Make the off-world return and the buzz flinch visible to pilot sessions](T-095-pilot-off-world-buzz-events.md) | code-optimization | 3 | 1 | proposed |
 | T-097 | [Stop the title screen's Esc key from hard-quitting the app](T-097-title-esc-no-quit.md) | ui-ux | 3 | 1 | proposed |
-| T-098 | [Give the bread pointer an up/down cue — roof crumbs currently point into walls](T-098-bread-pointer-climb-cue.md) | ui-ux | 4 | 1 | proposed |
+| T-098 | [Give the bread pointer an up/down cue — roof crumbs currently point into walls](T-098-bread-pointer-climb-cue.md) | ui-ux | 4 | 1 | done |
 | T-099 | [Put the controls inside the pause menu — the one screen a stuck player opens](T-099-pause-menu-controls.md) | ui-ux | 3 | 1 | proposed |
 | T-100 | [Whisper 'home again' when the off-world guard snaps the pigeon back](T-100-off-world-home-note.md) | ui-ux | 3 | 1 | proposed |
 

@@ -1,6 +1,6 @@
 # T-098 — Give the bread pointer an up/down cue — roof crumbs currently point into walls
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 1
 - **Depends on:** — (T-037 landed the pointer; T-032 landed the roof crumbs it stumbles over)
 - **Refs:** sweep 2, ui-ux lane (2026-09-30) · T-037 (pointer, done) · T-032
   (roof spots, done) · T-057 (rewrites the same function's chevron math —
@@ -58,23 +58,60 @@ reverted afterwards (worktree clean at ee84292).
 
 ## Acceptance criteria
 
-- [ ] With the named crumb more than 3 m above the pigeon the readout ends
+- [x] With the named crumb more than 3 m above the pigeon the readout ends
       " ▲"; more than 3 m below it ends " ▼"; within ±3 m it carries no
       arrow — Gate 1b only (three new arms in the extended pointer scenario)
-- [ ] City mode never carries an arrow — the off-city readout stays exactly
+- [x] City mode never carries an arrow — the off-city readout stays exactly
       "city <n> m" — Gate 1b only
-- [ ] Selection is unchanged: the existing arms of
+- [x] Selection is unchanged: the existing arms of
       `hud_bread_pointer_tracks_nearest_crumb` (query-vs-scan, distance,
       re-aim, style) pass unchanged, proving the cue annotates rather than
       re-aims — Gate 1b
-- [ ] `_pointer_distance_m` parses both shapes and every existing numeric
+- [x] `_pointer_distance_m` parses both shapes and every existing numeric
       pointer assert stays green — Gate 1b (landed in the same commit as the
       suffix)
 - [ ] The arrowed readout stays legible under the T-019 treatment at 14 px —
       [screenshot]: grounded before a building, chevron at the roofline,
       " ▲" readable at a glance
-- [ ] No gameplay change: bread_spawner, crumbs and eating untouched;
+      *(pending human playtest — see Verification record)*
+- [x] No gameplay change: bread_spawner, crumbs and eating untouched;
       `project.godot` untouched
+
+## Verification record (2026-09-30)
+
+- Tuned value: `POINTER_CLIMB_CUE_M := 3.0` (`scripts/main.gd:33`), exactly as
+  spec'd. City call site left byte-identical; bread call site passes `true`.
+- Gate 1: `--import` and `--quit-after 120` both exit 0. First gate round
+  failed on missing-`addons/godot_mcp` autoload errors (reproduced identically
+  on the pristine base via `git stash`, so never from this change): the
+  worktree lacked the per-machine addon that `.gitignore:29-31` says every
+  checkout needs on disk ("project.godot references the MCPRuntimeProbe
+  autoload"). Fix: synced `addons/godot_mcp/` from the main checkout —
+  untracked on purpose (the addon is documented per-machine tooling), matching
+  5 of 6 sibling worktrees. Re-run with the addon live: boot is fully clean
+  (exit 0, zero ERROR lines — the earlier ObjectDB leak ERROR was the failed
+  autoload); import exits 0 with ONE residual line, `ERROR: 33 resources
+  still in use at exit`, byte-identical to the main checkout's own `--import`
+  output (verified by running the same command there) — upstream baseline of
+  the addon-wired project, not of this branch. `--check-only --script` cannot
+  see autoload singletons in this environment (untouched scripts
+  `tourist.gd`/`player.gd` fail the same way), so the effective compile gates
+  here are the boot and the suite.
+- Gate 1b: `godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn`
+  — all 81 scenarios pass, `SIM SUMMARY: 0 failure(s)`, exit 0. First run
+  caught a real placement bug: the ▲ arm's first clear street spot sat past
+  half the city span, where the slot correctly flips to "city" and drops the
+  cue — the arm now constrains its ground column to ≤ 0.35 × `city_span`.
+  Measured: " ▲" arm true 9.8 m over a grounded pigeon; " ▼" arm true 11.7 m
+  → "bread 12 m ▼"; level arm bare ("bread 3 m"); city arm bare
+  ("city 141 m"). All cue arms decided against `_scan_nearest_crumb`, never
+  `nearest_crumb()`.
+- Gate 2: autoplay `AUTOPLAY DONE ok=true … restart=true`, exit 0, no
+  `SCRIPT ERROR` (descent logic homes on its own scan, unaffected, as the
+  ticket predicted — confirmed by running it).
+- Gate 3: the [screenshot] legibility line (▲ readable at a glance at 14 px
+  before a roofline) is a human-judgement check — still pending; recorded in
+  VERIFICATION.md's Gate 3 checklist and Known issues.
 
 ## Verification
 
