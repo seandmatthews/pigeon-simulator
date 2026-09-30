@@ -1,6 +1,6 @@
 # T-032 — Give roofs a reason to exist: rooftop clutter and roof bread spots
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-004 (buildings/roofs), T-005 (bread system)
 - **Refs:** `docs/tickets/T-004-city-blockout.md` → Notes ("T-005 can spawn
   bread on benches, sidewalks, plaza and roofs — `City.buildings` exposes
@@ -76,21 +76,21 @@ rooftop screenshot; this ticket's Gate 3 screenshot closes that gap.
 
 ## Acceptance criteria
 
-- [ ] Every building carries 1-3 rooftop props fully inside its roof (≥ 1.0 m
+- [x] Every building carries 1-3 rooftop props fully inside its roof (≥ 1.0 m
       from every roof edge), prop centers ≥ 2.5 m from the footprint center;
       props have layer-1 colliders and are landable.
-- [ ] Every building's roof carries exactly one bread spot at roof-top
+- [x] Every building's roof carries exactly one bread spot at roof-top
       height (+0.06) in the (+,+) quadrant that never hosts a prop; city-wide
       `bread_spots` grows by exactly the building count (533 → 679 at the
       M1 seed).
-- [ ] A roof crumb is an ordinary crumb: a grounded pigeon waddling into it
+- [x] A roof crumb is an ordinary crumb: a grounded pigeon waddling into it
       eats it through the existing `crumb_eaten` path (+30 via Hunger), with
       NO `BreadSpawner` code change.
-- [ ] Zero RNG draws and no new `_fp` entries: the fingerprint hash is
+- [x] Zero RNG draws and no new `_fp` entries: the fingerprint hash is
       byte-identical to pre-T-032, and
       `city_same_seed_deterministic` / `city_regenerate_restores_layout`
       pass unchanged.
-- [ ] *(Gate 1b)* `city_roofs_inhabited`: on a real generated City — every
+- [x] *(Gate 1b)* `city_roofs_inhabited`: on a real generated City — every
       building has ≥ 1 prop whose footprint is inside the roof and whose
       center is ≥ 2.5 m from the footprint center (the `city_roof_landable`
       drop point, `tests/sim_test.gd:580`); ≥ 20 roof bread spots city-wide
@@ -101,11 +101,46 @@ rooftop screenshot; this ticket's Gate 3 screenshot closes that gap.
       settles grounded on its top (bench-landing template);
       `_city.generate(default_seed)` reproduces `roof_props` and the roof
       spots byte-identically.
-- [ ] *(Gate 1b)* `city_roof_landable`, `city_roof_takeoff`, `roof_landing`,
+- [x] *(Gate 1b)* `city_roof_landable`, `city_roof_takeoff`, `roof_landing`,
       `roof_takeoff`, `crumb_eaten_grounded_only` and `crumbs_respawn` stay
       green unchanged.
 - [ ] [screenshot] From the air, roofs read as inhabited — props break the
       gray planes — and a rooftop crumb is spottable from a cruise glide.
+      *Pending human playtest (Gate 3): the props half is evidenced — the
+      Gate 2 autoplay cruise frames (`.godot/autoplay/shot-006s.png`,
+      `shot-016s.png`) clearly show AC boxes, tanks and vents breaking the
+      roof planes — but a rooftop crumb is not resolvable at cruise-camera
+      distance in those frames, and the lane's pilot steering could not hold
+      a rooftop close-up (the pre-implementation caveat above, still true);
+      the human pass judges both halves.*
+
+## Decisions & tuned values
+
+- Placement is exactly the ticket's layout math, implemented in
+  `_add_building()`: count `1 + ((floors − 2) % 3)`, kind rotation
+  `[ac_box, water_tank, roof_vent]` by building order (index `buildings.size()`
+  before the append), quadrant offsets `±0.25·footprint` filled (−,−), (+,−),
+  (−,+), bread spot `±0.28·footprint` at (+,+), all mirrored through the
+  `lot_offset` signs (so the crumb always sits at the lot's outer corner).
+  Prop bases sit on `block_slab_height + wall_h + roof_slab_height`; colliders
+  are the bench pattern (`_add_collider("Props", size, center)`), one per
+  prop.
+- Water tank color: new `COLOR_TANK = Color(0.45, 0.53, 0.58)` (dull plastic
+  slate-blue — reads against the dark roof gray without clashing with the
+  district families); AC box and vent use `COLOR_METAL`.
+- M1-seed measured values (fingerprint probe + `SIM DATA roofs_inhabited`):
+  146 buildings → 259 roof props (1.77/building), 146 roof crumb spots,
+  `bread_spots` 533 → 679, layout fingerprint **2492360539 — byte-identical
+  to the pre-T-032 checkout** (probe run on both), and 9 of the 40 seeded
+  crumbs start on roofs (derived by replicating the spawner's seeded shuffle).
+- Gates run: Gate 1 clean (import exit 0 — the one `resources still in use`
+  line is the pre-existing baseline, identical on the untouched main
+  checkout; 120-frame boot zero errors), Gate 1b full suite exit 0
+  (78 PASS / 0 FAIL, including `city_roofs_inhabited` and every named
+  re-run), Gate 2 autoplay `ok=true restart=true` at 133 fps. The worst
+  prop-top (6-floor roof 18.25 m + 2.0 m tank = 20.25 m) stays under the
+  autoplay cruise floor of 23 m, and the pilot's ground visit is plaza-bound
+  (`_plaza_crumb` only) so roof crumbs never drag the descent.
 
 ## Verification
 

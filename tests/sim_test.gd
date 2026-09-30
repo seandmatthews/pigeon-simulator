@@ -132,6 +132,7 @@ func _run_scenarios() -> void:
 	await _scenario_elder_no_bread_airborne()
 	await _scenario_elder_cooldown_blocks_second_share()
 	await _scenario_city_cafe_tables() ## T-031 — after the elder block, same rig pattern.
+	await _scenario_city_roofs_inhabited() ## T-032 — after the cafe block, same audit pattern.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -1441,11 +1442,216 @@ func _scenario_city_cafe_tables() -> void:
 					and deterministic and seated and count_ok_rig and shirts_ok
 					and layers_ok and perch_ok,
 			"spots %d vs awnings %d, recompute=%s band=%s bread=%s door=%s det=%s, "
-			+ "seated=%d tables, sitters=%d (rule=%s shirts=%s layers=%s), perch=%s" % [
-					spots.size(), awnings, recompute_ok, band_ok, bread_ok, door_ok,
-					deterministic, tables.size(), total_sitters, count_ok_rig, shirts_ok,
-					layers_ok, perch_ok])
+				+ "seated=%d tables, sitters=%d (rule=%s shirts=%s layers=%s), perch=%s" % [
+						spots.size(), awnings, recompute_ok, band_ok, bread_ok, door_ok,
+						deterministic, tables.size(), total_sitters, count_ok_rig, shirts_ok,
+						layers_ok, perch_ok])
 	spawner.free()
+
+
+## --- scenarios (T-032 rooftop clutter) --------------------------------------
+
+
+## The low roof near the plaza, by the `city_roof_landable` selection: the
+## first generated building under 12 m tall, 20–90 m out from the city origin.
+func _low_roof_building() -> Dictionary:
+	for info in _city.buildings:
+		var c: Vector3 = info.center
+		var dist := Vector2(c.x - _city.position.x, c.z - _city.position.z).length()
+		if info.top <= 12.0 and dist > 20.0 and dist < 90.0:
+			return info
+	return {}
+
+
+## The `roof_props` entries of one building: centers inside its footprint XZ,
+## in array order. Prop insets keep every center ≤ 2.81 m from the footprint
+## center, so a prop can never sit inside a neighbor (lot centers are 8.5 m
+## apart, footprints 7.1 m wide).
+func _props_of(building: Dictionary) -> Array[Dictionary]:
+	var props: Array[Dictionary] = []
+	var half: float = (building.size as Vector2).x * 0.5
+	var c: Vector3 = building.center
+	for prop in _city.roof_props:
+		var p: Vector3 = prop.center
+		if absf(p.x - c.x) <= half and absf(p.z - c.z) <= half:
+			props.append(prop)
+	return props
+
+
+## The roof-corner bread spots: `bread_spots` entries at crumb height on a roof
+## (y > 1.0 — every ground spot sits at or below the 0.72 m bench seats).
+func _roof_bread_spots() -> Array[Vector3]:
+	var roof_spots: Array[Vector3] = []
+	for spot in _city.bread_spots:
+		if spot.y > 1.0:
+			roof_spots.append(spot)
+	return roof_spots
+
+
+## Byte-identical `roof_props` comparison — exact equality on every member
+## (the layout math is deterministic, so a real rebuild must produce
+## bit-identical values, not approximately equal ones).
+func _props_reproduced(a: Array[Dictionary], b: Array[Dictionary]) -> bool:
+	if a.size() != b.size():
+		return false
+	for i in a.size():
+		var pa: Dictionary = a[i]
+		var pb: Dictionary = b[i]
+		if pa.center != pb.center or pa.size != pb.size \
+				or pa.top != pb.top or pa.kind != pb.kind:
+			return false
+	return true
+
+
+## Exact comparison for the roof-spot snapshots (the `_spots_equal` pattern).
+func _vec_spots_equal(a: Array[Vector3], b: Array[Vector3]) -> bool:
+	if a.size() != b.size():
+		return false
+	for i in a.size():
+		if a[i] != b[i]:
+			return false
+	return true
+
+
+## Rooftop clutter (T-032): every building carries 1-3 roof props — fully on
+## its roof (≥ 1.0 m from every edge), centers ≥ 2.5 m from the footprint
+## center (the `city_roof_landable` drop point at the exact center stays
+## clear) with one layer-1 `world` collider each — and exactly one crumb spot
+## in the never-propped (+,+) quadrant at roof-top + 0.06, so city-wide
+## `bread_spots` grows by exactly the building count (8 ring spots × 49 blocks
+## + one per bench seat + one per building). A crumb instantiated at a low
+## roof's spot is an ordinary crumb: a dropped pigeon waddling in eats it
+## through the existing eaten path (+30 via Hunger, no BreadSpawner involved).
+## A drop onto the low roof's first prop settles grounded on its top
+## (bench-landing template). Same-seed regeneration reproduces `roof_props`
+## and the roof spots byte-identically and the fingerprint holds.
+func _scenario_city_roofs_inhabited() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	var props_snapshot := _city.roof_props.duplicate()
+	var spots_snapshot := _roof_bread_spots()
+	## --- layout audit: prop and spot geometry across every building ----------
+	var props_ok: bool = _city.roof_props.size() >= _city.buildings.size()
+	var spots_ok: bool = spots_snapshot.size() == _city.buildings.size() \
+			and spots_snapshot.size() >= 20
+	## City-wide pool: the T-005 ground spots plus exactly the new roof spots.
+	var total_ok: bool = _city.bread_spots.size() \
+			== _city.blocks_per_side * _city.blocks_per_side * 8 \
+			+ int(_city.last_report.benches) + _city.buildings.size()
+	var one_per_building := true
+	for info in _city.buildings:
+		var props := _props_of(info)
+		var half: float = (info.size as Vector2).x * 0.5
+		props_ok = props_ok and props.size() >= 1 and props.size() <= 3
+		for prop in props:
+			var c: Vector3 = prop.center
+			var s: Vector3 = prop.size
+			var flat := Vector2(c.x - info.center.x, c.z - info.center.z)
+			props_ok = props_ok \
+					and flat.length() >= 2.5 \
+					and half - absf(flat.x) - s.x * 0.5 >= 1.0 \
+					and half - absf(flat.y) - s.z * 0.5 >= 1.0 \
+					and absf((prop.top as float) - (info.top as float) - s.y) < 0.001
+		## Exactly one roof spot per building, in the (+,+) quadrant mirrored by
+		## lot_offset at ±0.28·footprint per axis — never a prop quadrant.
+		var found := 0
+		for spot in spots_snapshot:
+			var g := _city.to_global(spot)
+			var flat_s := Vector2(g.x - info.center.x, g.z - info.center.z)
+			if absf(g.y - (info.top as float) - 0.06) > 0.001 \
+					or absf(flat_s.x) > half or absf(flat_s.y) > half:
+				continue
+			found += 1
+			var lot: Vector2 = info.lot_offset
+			one_per_building = one_per_building \
+					and signf(flat_s.x) == signf(lot.x) \
+					and signf(flat_s.y) == signf(lot.y) \
+					and absf(absf(flat_s.x) - (info.size as Vector2).x * 0.28) < 0.001 \
+					and absf(absf(flat_s.y) - (info.size as Vector2).x * 0.28) < 0.001
+		one_per_building = one_per_building and found == 1
+	## --- colliders: one layer-1 body per prop, high above the street props ---
+	var high_bodies := 0
+	var layers_ok := true
+	for body in (_city.get_node("Static/Props") as Node3D).get_children():
+		var static_body := body as StaticBody3D
+		if static_body != null and static_body.position.y > 5.0:
+			high_bodies += 1
+			layers_ok = layers_ok and static_body.collision_layer == 1
+	var colliders_ok := high_bodies == _city.roof_props.size() and layers_ok
+	## --- determinism: a real rebuild reproduces props and roof spots ---------
+	_city.generate(default_seed, true)
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and _props_reproduced(props_snapshot, _city.roof_props) \
+			and _vec_spots_equal(spots_snapshot, _roof_bread_spots())
+	## --- the physical legs, on the low roof near the plaza --------------------
+	var roof := _low_roof_building()
+	var physical_ok := not roof.is_empty()
+	var eat_ok := false
+	var prop_ok := false
+	if physical_ok:
+		## Leg 1 — the roof crumb is an ordinary crumb (the T-005 template):
+		## instantiated at the spot, eaten by a dropped-then-waddling pigeon.
+		var hunger := Hunger.new()
+		hunger.player = _player
+		add_child(hunger)
+		var half: float = (roof.size as Vector2).x * 0.5
+		var center_local := _city.to_local(roof.center)
+		var spot_local := Vector3.INF
+		for spot in _city.bread_spots:
+			if spot.y > 1.0 and absf(spot.x - center_local.x) <= half \
+					and absf(spot.z - center_local.z) <= half:
+				spot_local = spot
+				break
+		physical_ok = spot_local.is_finite()
+		if physical_ok:
+			var spot_global := _city.to_global(spot_local)
+			var crumb: BreadCrumb = CRUMB_SCENE.instantiate()
+			crumb.position = spot_global
+			add_child(crumb)
+			crumb.eaten.connect(hunger.eat)
+			## Drop 1.8 m from the crumb along z, toward the footprint center
+			## (the spot sits 0.28·footprint ≈ 2.0 m out per axis, so the drop
+			## stays on the roof, clear of the propped quadrants), facing it.
+			var dir_z := signf(spot_global.z - (roof.center as Vector3).z)
+			var walk_dir := Vector3(0.0, 0.0, dir_z)
+			await _set_up(true, spot_global + Vector3(0.0, 0.4, -dir_z * 1.8),
+					Vector3.ZERO, rad_to_deg(atan2(-walk_dir.x, -walk_dir.z)))
+			await _await_grounded(90)
+			hunger.value = 40.0 ## Mid-bar so the +30 restore is measurable.
+			var hunger0 := hunger.value
+			Input.action_press("pitch_up") ## Waddle in.
+			for _i in 120:
+				await get_tree().physics_frame
+				eat_ok = not is_instance_valid(crumb) and hunger.value > hunger0 + 10.0
+				if eat_ok:
+					break
+			Input.action_release("pitch_up")
+		hunger.free()
+		## Leg 2 — a drop onto the low roof's first prop settles grounded on
+		## its top (the bench-landing template): props are landable cover.
+		var props := _props_of(roof)
+		if not props.is_empty():
+			var prop: Dictionary = props[0]
+			await _set_up(true, (prop.center as Vector3) + Vector3(0.0, 0.8, 0.0),
+					Vector3.ZERO)
+			await _await_grounded(150)
+			prop_ok = _player.is_grounded \
+					and absf(_player.position.y - ((prop.top as float) + 0.3)) < 0.2
+	_check("city_roofs_inhabited",
+			props_ok and spots_ok and total_ok and one_per_building and colliders_ok
+					and deterministic and physical_ok and eat_ok and prop_ok,
+			"props_ok=%s spots=%d/%d total_ok=%s one_per_building=%s colliders=%s (%d high) "
+			+ "det=%s physical=%s eat=%s prop=%s" % [
+					props_ok, spots_snapshot.size(), _city.buildings.size(),
+					total_ok, one_per_building, colliders_ok, high_bodies,
+					deterministic, physical_ok, eat_ok, prop_ok])
+	## Informational: the M1-seed surface counts (146 buildings → 259 props,
+	## 533 → 679 bread spots) — the ticket's tuned numbers, re-printed on every
+	## re-verification.
+	print("SIM DATA roofs_inhabited: buildings=%d roof_props=%d roof_spots=%d bread_spots=%d fingerprint=%d" % [
+			_city.buildings.size(), _city.roof_props.size(), spots_snapshot.size(),
+			_city.bread_spots.size(), fp_first])
 
 
 ## --- scenarios (T-007 tourists) ---------------------------------------------
