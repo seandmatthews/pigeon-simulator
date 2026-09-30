@@ -1,6 +1,6 @@
 # T-086 — Adopt T-025's bigger emissive drop ball — A/B-proven live, minus a latent parse bug in the ticket
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 1
 - **Depends on:** T-006 (the poop mechanic, landed). Adopts [T-025](T-025-poop-ball-visibility.md) — mark that ticket done/superseded when this lands.
 - **Refs:** visual-design lane sweep 2, sessions `vds3b` (baseline frames) / `vds3y` (the A/B run, done in the lane worktree) / `vds3x` (the parse-bug repro log); readings recorded below in text — the session dirs are not present in this repo (checked both checkouts 2026-09-30); [T-025](T-025-poop-ball-visibility.md), executed here with one correction (see What).
 
@@ -68,18 +68,18 @@ albedo (0.94, 0.9, 0.78) measures **0.853** vs grass and **0.545** vs plaza.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: new scenario `poop_ball_visible`, placed beside the T-006 block in
+- [x] Gate 1b: new scenario `poop_ball_visible`, placed beside the T-006 block in
       `tests/sim_test.gd` (registered in the run list next to
       `tests/sim_test.gd:110-115`) and in the VERIFICATION.md table:
       instantiating `res://scenes/poop.tscn` yields a BallMesh whose SphereMesh
       `radius` is ≥ 0.10
-- [ ] Same scenario: Mat_ball reports `emission_enabled == true` (and the
+- [x] Same scenario: Mat_ball reports `emission_enabled == true` (and the
       4-arg emission Color — the parse-safe form — is what landed)
-- [ ] Same scenario: the ball's albedo stays ≥ 0.25 Euclidean RGB from
+- [x] Same scenario: the ball's albedo stays ≥ 0.25 Euclidean RGB from
       `City.COLOR_GRASS` and `City.COLOR_PLAZA` (the `_mesh_albedo` measuring
       pattern from `pigeon_silhouette_contrast`, `tests/sim_test.gd:2837-2841`),
       distances printed informationally — 0.853 / 0.545 today
-- [ ] `poop_inherits_and_arcs`, `poop_grounded_no_drop`,
+- [x] `poop_inherits_and_arcs`, `poop_grounded_no_drop`,
       `poop_cooldown_blocks_stream`, `poop_splats_ground_and_fades`,
       `poop_splats_wall`, `poop_event_reaches_any_body` stay green unchanged —
       collider and `poop.gd` untouched
@@ -88,6 +88,28 @@ albedo (0.94, 0.9, 0.78) measures **0.853** vs grass and **0.545** vs plaza.
       street, for ~2 s of fall (Gate 3 — human judgement)
 - [ ] [screenshot] The enlarged ball does not read as a premature hit during
       the pre-contact moment (Gate 3 — human judgement)
+
+## Landed (2026-09-30)
+
+Both scene edits exactly as specified above: BallMesh radius 0.12 / height 0.24,
+Mat_ball `emission_enabled = true`, `emission = Color(0.85, 0.78, 0.55, 1)`
+(4-arg — the 3-arg parse failure was re-reproduced this session with the same
+headless probe: `Parse Error: Expected 4 arguments for constructor`, `load()`
+→ null), `emission_energy_multiplier = 0.55`. BallShape untouched at 0.07;
+`scripts/poop.gd` untouched.
+
+Gate 1b `poop_ball_visible` measures live: radius 0.12, emission
+(0.85, 0.78, 0.55, 1.0), energy 0.55, collider radius 0.07, albedo distances
+0.853 vs grass / 0.545 vs plaza — matching the ticket's computed numbers
+exactly. Full suite exit 0 with the six untouched `poop_*` rows green; Gate 1
+and Gate 2 autoplay (`AUTOPLAY DONE ok=true restart=true`, 13 splats) green.
+
+Agent-play pre-check of the two [screenshot] lines (pilot harness, gitignored
+captures, NOT a substitute for the human Gate 3 pass): session `t086check`
+frame f00001128 shows the drop as a distinct bright cream dot below the bird
+against sunlit grass; session `t086street` frame f00010596 shows it against
+shaded asphalt, drop shadow aiding. The pre-contact-moment judgement (no
+premature-hit read) is still pending human eyes.
 
 ## Verification
 

@@ -12,6 +12,7 @@ const CRUMB_SCENE: PackedScene = preload("res://scenes/bread_crumb.tscn")
 const POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const SPLAT_TARGET_SCRIPT := preload("res://tests/splat_target.gd")
 const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
+const POOP_SCENE: PackedScene = preload("res://scenes/poop.tscn")
 
 ## The Game autoload's high score file is redirected here for the scoring
 ## scenarios, so a sim run never touches the real record in user://.
@@ -113,6 +114,7 @@ func _run_scenarios() -> void:
 	await _scenario_poop_splat_ground()
 	await _scenario_poop_splat_wall()
 	await _scenario_poop_event_target()
+	await _scenario_poop_ball_visible() ## T-086 — the drop reads from the chase cam: bigger emissive ball, collider untouched.
 	await _scenario_poop_ready_indicator_tracks_cooldown() ## T-077 — unpaused tree, no live Main, like the poop block.
 	await _scenario_tourists_walk()
 	await _scenario_tourist_splat()
@@ -1121,6 +1123,39 @@ func _scenario_poop_event_target() -> void:
 	_check("poop_event_reaches_any_body", fired and duck_typed and decoupled,
 			"signal_hit_pad=%s duck_typed=%s (hits %d) no_player_import=%s" % [
 					fired, duck_typed, pad_hits, decoupled])
+
+
+## The falling drop reads from the chase cam (T-086, adopting T-025): the ball
+## mesh is at least a readable dot (SphereMesh radius >= 0.10), Mat_ball carries
+## the soft warm self-glow in the parse-safe 4-arg Color form (a 3-arg Color in
+## a .tscn fails resource parsing outright — load() returns null — so this
+## scenario running at all, plus the reported emission alpha of 1.0, is that
+## proof), and the albedo keeps >= 0.25 Euclidean RGB from both wash-out
+## backdrops (sunlit grass, plaza), distances printed informationally. The
+## collider stays pinned at its landed 0.07 — the visible ball overhangs it on
+## purpose, and every hit-registration scenario above is untouched by that.
+func _scenario_poop_ball_visible() -> void:
+	var poop: Poop = POOP_SCENE.instantiate() as Poop
+	var ball := poop.get_node("BallMesh") as MeshInstance3D
+	var sphere := ball.mesh as SphereMesh
+	var mat := sphere.material as StandardMaterial3D
+	var albedo := _rgb(_mesh_albedo(poop, "BallMesh"))
+	var vs_grass := albedo.distance_to(_rgb(City.COLOR_GRASS))
+	var vs_plaza := albedo.distance_to(_rgb(City.COLOR_PLAZA))
+	var collider := (poop.get_node("BallShape") as CollisionShape3D).shape as SphereShape3D
+	var emission_ok := mat.emission_enabled \
+			and absf(mat.emission.r - 0.85) < 0.005 and absf(mat.emission.g - 0.78) < 0.005 \
+			and absf(mat.emission.b - 0.55) < 0.005 and absf(mat.emission.a - 1.0) < 0.005
+	print("SIM INFO poop ball radius=%.2f emission=%s energy=%.2f collider radius=%.2f albedo vs grass=%.3f vs plaza=%.3f" % [
+			sphere.radius, mat.emission, mat.emission_energy_multiplier,
+			collider.radius, vs_grass, vs_plaza])
+	_check("poop_ball_visible",
+			sphere.radius >= 0.10 and emission_ok and vs_grass >= 0.25 and vs_plaza >= 0.25
+					and absf(collider.radius - 0.07) < 0.005, ## float32-stored 0.07 sits a hair above the literal.
+			"radius=%.2f emission_enabled=%s emission=%s grass=%.3f plaza=%.3f collider=%.2f" % [
+					sphere.radius, mat.emission_enabled, mat.emission, vs_grass, vs_plaza,
+					collider.radius])
+	poop.free()
 
 
 ## The F readiness glyph (T-077), through the REAL main scene: airborne with a

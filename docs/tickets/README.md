@@ -36,7 +36,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-022 | [Give pitch-up a real flare near the ground instead of a balloon](T-022-pitch-flare.md) | flight-control | 4 | 3 | proposed |
 | T-023 | [Edge-of-world guard: nudge the pigeon home past the apron](T-023-edge-of-world-guard.md) | flight-control | 3 | 3 | proposed |
 | T-024 | [Make the bird read at cruise: trim the FOV kick and arm](T-024-cruise-readability.md) | flight-control | 3 | 1 | proposed |
-| T-025 | [Make the falling dropping trackable: bigger ball, soft emission](T-025-poop-ball-visibility.md) | visual-design | 3 | 1 | proposed |
+| T-025 | [Make the falling dropping trackable: bigger ball, soft emission](T-025-poop-ball-visibility.md) | visual-design | 3 | 1 | superseded (adopted by T-086) |
 | T-026 | [Re-value the ground planes: stop the sidewalk/plaza blowout, lift the road](T-026-ground-palette-retune.md) | visual-design | 4 | 2 | proposed |
 | T-027 | [Fix the grounded read: thin the folded wing chord at the rig level](T-027-folded-wing-chord.md) | visual-design | 3 | 2 | proposed |
 | T-029 | [Plaza landmark: statue on a plinth at the square's center](T-029-plaza-landmark.md) | worldbuilding | 3 | 2 | proposed |
@@ -84,7 +84,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-083 | [Adopt T-062: bound pitch attitude with authority falloff near vertical](T-083-pitch-attitude-bound.md) | flight-control | 4 | 3 | proposed |
 | T-084 | [Adopt T-041: pitch-up near the ground becomes a brake-sink, not a balloon](T-084-flare-brake-sink.md) | flight-control | 4 | 3 | proposed |
 | T-085 | [Adopt T-045's pale rump/underwing anchor — the player bird is a gray smudge on road and roof](T-085-pale-rump-anchor-adoption.md) | visual-design | 3 | 1 | proposed |
-| T-086 | [Adopt T-025's bigger emissive drop ball — A/B-proven live, minus a latent parse bug in the ticket](T-086-poop-ball-visibility-adoption.md) | visual-design | 4 | 1 | proposed |
+| T-086 | [Adopt T-025's bigger emissive drop ball — A/B-proven live, minus a latent parse bug in the ticket](T-086-poop-ball-visibility-adoption.md) | visual-design | 4 | 1 | done |
 | T-087 | [Give the off-world return a visible "came home" beat — today it is a blank frame and a hard cut](T-087-off-world-return-beat.md) | visual-design | 3 | 2 | proposed |
 | T-088 | [Make the city edge legible: T-047's near rim plus T-050's far skyline as one pass](T-088-city-edge-rim-skyline.md) | visual-design | 4 | 2 | proposed |
 | T-089 | [Unclog the band: traffic must move when you stand still](T-089-traffic-recycle-flow.md) | worldbuilding | 4 | 2 | proposed |
