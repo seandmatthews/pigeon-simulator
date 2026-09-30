@@ -1,6 +1,6 @@
 # T-053 — Land the off-world fall guard: falling past the apron returns you home
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** code-optimization · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** — (T-001/T-003 flight and T-010's hunger-only fail state are landed) · implements **T-036** as specified — land it under this ID and flip T-036 to done in the same commit; do not implement twice
 - **Refs:** sweep 2 planning lane (code-optimization) · all line numbers verified on commit b76ec96, this tree
 
@@ -60,22 +60,25 @@ restarting.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b scenario `off_world_fall_returns_home` passes (spec in Verification):
+- [x] Gate 1b scenario `off_world_fall_returns_home` passes (spec in Verification):
       a pigeon teleported below `off_world_y` AND past every floor is grounded on the
       respawn point within ≤ 120 physics frames, the guard fired exactly once
       (`off_world_resets == 1`, no second fire across the following ~2 s of
       stability), and hunger kept draining through the reset (loss > 0.2 over the
       window)
-- [ ] No false trigger in ordinary play: every existing flight/landing/density
+- [x] No false trigger in ordinary play: every existing flight/landing/density
       scenario stays green — all harness setups start at y ≥ 0.35 and every
       in-scenario fall lands on a floor, so the −5 line is never approached
-- [ ] The fail state is unchanged: `hunger_game_over_once` stays green; the reset
+- [x] The fail state is unchanged: `hunger_game_over_once` stays green; the reset
       neither refills nor pauses the hunger clock
-- [ ] No input actions change (no controls-table updates needed); the only new knobs
+- [x] No input actions change (no controls-table updates needed); the only new knobs
       are `off_world_y` and `respawn_point`
 - [ ] [screenshot] Gate 3: flying hard past the apron returns you to the spawn
       corridor within a couple of seconds, and it reads as intentional ("came
-      home"), not a teleport glitch
+      home"), not a teleport glitch — **pending human playtest** (machine gates all
+      green; the line is in VERIFICATION.md's Gate 3 checklist with its
+      hunger-never-paused companion, and the drain-through half is machine-covered
+      by this ticket's criterion 1)
 
 ## Verification
 
@@ -110,3 +113,47 @@ Implementer note: run the gates on a quiet machine — `density_cpu_budget` is
 machine-relative and false-FAILs under fleet load (the planning lane measured
 1662.9 ms median vs the 750 budget with ~10 fleet Godot processes sharing the box;
 the scenario itself warns about this at `sim_test.gd:2874-2876`).
+
+## Landed
+
+This ticket says to implement [T-036](T-036-off-world-fall-respawn.md) "do not implement
+twice" — and that work is already in the tree, landed under two IDs: commit `0a08d8e`
+(T-036's guard plus this ticket's named `off_world_fall_returns_home` scenario, its
+Gate 1b row and both Gate 3 lines) and commit `c2cf7f4` (T-042's adoption, which added
+its own `off_world_fall_respawns` scenario). T-036 is flipped done ("done (adopted by
+T-042)"). This change-set therefore lands only the ticket bookkeeping and re-verifies
+the criteria under this ID — no second implementation.
+
+Landed shape, as adopted: `@export var off_world_y: float = -5.0` (`scripts/player.gd:55`),
+`respawn_point` in local coordinates (`scripts/player.gd:60`), `off_world_resets`
+(`scripts/player.gd:64`), the guarded branch at the top of `Player._physics_process`
+(`scripts/player.gd:157-159`) incrementing the counter then calling
+`reset_flight(respawn_point)`; `Main._ready()` wires
+`player.respawn_point = city.to_local(city.spawn_point)` (`scripts/main.gd:93`). One
+deviation from this ticket's sketch, deliberate in the adopted landing: the guard does
+not `return` for that frame — T-042's spec lets the frame continue so the pigeon "drops
+the short spawn drop onto the corridor and lands normally", which differs only by one
+frame of air physics on the freshly teleported body (identical state either way —
+`reset_flight` zeroes velocity/timers, sets AIR and the 2-frame air grace). Both guard
+scenarios assert the exactly-one fire and the 2 s stability this ticket requires, so the
+criteria hold under either shape.
+
+Gates re-run this session on the final tree (quiet machine, `Godot_v4.7.2-stable_win64_console.exe`):
+
+- Gate 1: `--headless --path . --import` exit 0 (its one output line is the documented
+  benign "ERROR: 33 resources still in use at exit" addon-shutdown bookkeeping, same as
+  T-042's landing) and `--headless --path . --quit-after 120` exit 0 with zero ERROR lines.
+- Gate 1b: `--headless --fixed-fps 60 --path . res://tests/sim_test.tscn` exit 0 —
+  81 SIM PASS, `SIM SUMMARY: 0 failure(s)`, including `off_world_fall_returns_home`,
+  `off_world_fall_respawns`, `hunger_game_over_once` and every scenario in this ticket's
+  explicit re-run list; `density_cpu_budget` median 262.0 ms vs the 750 budget.
+- Gate 2: `--path . res://tests/autoplay.tscn` exit 0 — `AUTOPLAY DONE ok=true …
+  restart=true` (t=33.0, fps=134, splats=13, ambience=true), no SCRIPT ERROR lines.
+
+Verification coverage: the Gate 1b row (`off_world_fall_returns_home`,
+`VERIFICATION.md:121`) and the two Gate 3 playtest lines (`VERIFICATION.md:293-294`)
+landed in the same change-sets that shipped the feature and are tagged T-036 — not
+duplicated under this ID.
+
+Gate 3 pending (human): the [screenshot] criterion above — the return reading as "came
+home", not a teleport glitch, and the hunger bar visibly ticking through a return.
