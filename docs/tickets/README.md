@@ -28,6 +28,12 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-019 | [HUD legibility & hunger warning](T-019-hud-legibility.md) | P0 | S | T-005, T-010 | done |
 | T-020 | [Park elders share bread](T-020-park-elders.md) | P1 | S | T-004, T-005, T-007 | done |
 
+## Sweep backlog (agent sweeps)
+
+| ID | Ticket | Category | Value (1-5) | Risk (1-5) | Status |
+| -- | ------ | -------- | ----------- | ---------- | ------ |
+| T-031 | [Cafe life under the awnings: tables with seated tourists on shop fronts](T-031-cafe-tables.md) | worldbuilding | 4 | 2 | done |
+
 ## Milestone 2 — after the slice (not yet ticketed)
 
 Districts & palette variety · hawk hazard · seagull bread rivals · statue/landmark
