@@ -110,12 +110,25 @@ Landed as specced, plus the machine side of the screenshot line:
   again after `restart_run()` mid-cooldown.
 - VERIFICATION.md — Gate 1b row + Gate 3 `[screenshot]` line + a Known-issues entry.
 
-Gates this run: Gate 1 import/boot exit 0 (only the pre-existing untracked
-`addons/godot_mcp` autoload noise — the addon dir is not tracked in git, fails identically
-on the pristine worktree); `--check-only --script` fails on `Sfx` autoload resolution for
-pristine and changed scripts alike, so it is not usable in this worktree (pre-existing).
-Gate 1b: 78/78 `SIM PASS`, exit 0. Gate 2: `AUTOPLAY DONE ok=true restart=true`, no script
-errors. Agent evidence for the screenshot line (human pass still pending):
+Gates, final state (workflow re-verified after a fix): Gate 1 import and boot both exit 0
+with zero error lines. Getting there needed two worktree-environment fixes, recorded here
+because the workflow's first gate run FAILED on them: (1) this worktree was missing the
+gitignored per-machine `addons/godot_mcp/` directory that `project.godot` requires on disk
+(`.gitignore`: "every checkout needs the directory on disk") — its absence printed three
+autoload ERROR lines in import and boot. The directory is now mirrored from the main
+checkout, untracked as the ignore rule prescribes. (2) With the addon present, headless
+`--import` still errored ("33 resources still in use at exit") because the editor plugin
+unconditionally builds its dock/bridge/command-router even headless; the local untracked
+plugin copy (`addons/godot_mcp/godot_mcp.gd`) now returns early from `_enter_tree()` when
+`DisplayServer.get_name() == "headless"` — real (non-headless) editor sessions are
+unaffected, and the main checkout's copy is untouched. `--check-only --script` remains
+unusable here (fails on `Sfx` autoload resolution identically for pristine and changed
+scripts — pre-existing; reported as not run, not passed). Gate 1b: 78/78 `SIM PASS`,
+exit 0 — its two in-scenario string-formatting ERROR notes and the exit resource note are
+pre-existing (byte-identical lines in the earlier run the workflow judged sim:ok; they are
+the fail-path diagnostics bug tracked separately as T-074). Gate 2: `AUTOPLAY DONE
+ok=true restart=true`, no script errors (one benign exit resource note). Agent evidence
+for the screenshot line (human pass still pending):
 `.captures/session_t077cue2/t077_airborne_lit.png` (lit over sky),
 `t077_airborne_dim.png` (dim mid-cooldown, poop event at t_ms 66446 right before the grab,
 ball visible below the bird), `t077_grounded_hidden.png` (grounded — no glyph).
