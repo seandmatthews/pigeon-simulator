@@ -97,6 +97,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-098 | [Give the bread pointer an up/down cue — roof crumbs currently point into walls](T-098-bread-pointer-climb-cue.md) | ui-ux | 4 | 1 | done |
 | T-099 | [Put the controls inside the pause menu — the one screen a stuck player opens](T-099-pause-menu-controls.md) | ui-ux | 3 | 1 | proposed |
 | T-100 | [Whisper 'home again' when the off-world guard snaps the pigeon back](T-100-off-world-home-note.md) | ui-ux | 3 | 1 | superseded (T-087) |
+| T-101 | [Boot muted: start silent unless a sound-design session opts in](T-101-boot-muted.md) | ui-ux | 3 | 1 | done |
 
 ## Milestone 2 — after the slice (not yet ticketed)
 

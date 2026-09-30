@@ -149,6 +149,7 @@ func _run_scenarios() -> void:
 	await _scenario_juice_landing_shake()
 	await _scenario_juice_hit_shake_pulse()
 	await _scenario_audio_buses()
+	await _scenario_audio_boots_muted() ## T-101 — after the bus mix, same audio block.
 	await _scenario_audio_flap_effort()
 	await _scenario_audio_peck()
 	await _scenario_audio_hit_sounds()
@@ -3366,6 +3367,31 @@ func _scenario_audio_buses() -> void:
 	_check("audio_buses_and_assets", present and mix_sane and sfx_streams and beds_loop,
 			"buses=%s ambience_quieter=%s sfx_streams=%s beds_loop=%s" % [
 					present, mix_sane, sfx_streams, beds_loop])
+
+
+## T-101: the game boots MUTED — the real autoload path muted Master in this very
+## process (this scenario runs under no opt-in, so Game._ready decided "mute"),
+## and the opt-in contract holds as documented: PIGEON_SOUND=1 opts in, the
+## pilot's PIGEON_MUTE=1 wins over everything, the `--sound` user arg opts in,
+## and no opt-in stays silent. The truth table switches the process env and
+## restores it, so the game boot itself is only ever sampled, never re-run.
+func _scenario_audio_boots_muted() -> void:
+	var master := AudioServer.get_bus_index("Master")
+	var muted_at_boot: bool = AudioServer.is_bus_mute(master)
+	var saved_sound := OS.get_environment("PIGEON_SOUND")
+	var saved_mute := OS.get_environment("PIGEON_MUTE")
+	OS.set_environment("PIGEON_SOUND", "1")
+	var env_opts_in: bool = not Game.boot_muted(PackedStringArray())
+	OS.set_environment("PIGEON_MUTE", "1")
+	var pilot_mute_wins: bool = Game.boot_muted(PackedStringArray(["--sound"]))
+	OS.set_environment("PIGEON_MUTE", saved_mute)
+	OS.set_environment("PIGEON_SOUND", saved_sound)
+	var arg_opts_in: bool = not Game.boot_muted(PackedStringArray(["--sound"]))
+	var silent_by_default: bool = Game.boot_muted(PackedStringArray())
+	_check("audio_boots_muted",
+			muted_at_boot and env_opts_in and pilot_mute_wins and arg_opts_in and silent_by_default,
+			"muted_at_boot=%s env_opts_in=%s pilot_mute_wins=%s arg_opts_in=%s silent_by_default=%s" % [
+					muted_at_boot, env_opts_in, pilot_mute_wins, arg_opts_in, silent_by_default])
 
 
 ## The wing sounds ride the real flap impulses: a grounded takeoff flap whooshes

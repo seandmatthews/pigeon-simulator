@@ -179,6 +179,7 @@ def cmd_start(a):
     env["PIGEON_PILOT_SESSION"] = sid
     env["PIGEON_IMAGE_INTERVAL"] = "0" if a.images == "off" else a.images
     env["PIGEON_MUTE"] = "" if a.sound else "1"
+    env["PIGEON_SOUND"] = "1" if a.sound else ""  # T-101: --sound opts the game's own boot-mute policy in
     env["PIGEON_NO_PERSIST"] = "" if a.persist else "1"
 
     pos = tuple(int(v) for v in a.pos.split(",")) if a.pos else cascade_pos()

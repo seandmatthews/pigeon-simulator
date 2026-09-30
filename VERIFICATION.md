@@ -116,6 +116,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | juice_landing_shake_decays | a touchdown kicks a small camera shake (never full trauma) that moves the lens and decays to dead still | T-013 |
 | hit_shake_and_score_pulse | through the real main scene, a combo escalation shakes the chase camera, pulses the HUD score line and shows the ×2 — both settle back; the sun is warm and capped at ≤ 1.15 energy | T-013 |
 | audio_buses_and_assets | the Master/SFX/Ambience bus mix exists with the ambience bus quieter than SFX, every ticketed sound loads as a real stream, and both ambience beds are flagged to loop forever | T-012 |
+| audio_boots_muted | the game boots MUTED (T-101) — the real autoload path muted Master in the harness process itself at boot, and the opt-in contract holds: PIGEON_SOUND=1 opts in, the pilot's PIGEON_MUTE=1 wins over `--sound`, the `--sound` user arg opts in, and no opt-in stays silent | T-101 |
 | sfx_flap_effort_fires | a takeoff flap whooshes without the effort beat; a flap mid-climb adds the strained wing-beat; a flap while falling stays quiet | T-012 |
 | sfx_peck_plays_on_eat | a grounded pigeon eating a crumb through Main's wiring plays exactly one bread peck | T-012 |
 | sfx_splat_yelp_panic_honk | a real lobbed splat plays the splat plus its tourist's yelp, the indignant shout joins the fist shake ~1.8 s later, and a duck-typed car hit blasts the horn | T-012 |
@@ -200,6 +201,10 @@ sessions isolated under `.captures/session_<id>/`); see AGENTS.md →
 "Agent play: pilot harness" (T-014).
 
 ## Gate 3 — Manual playtest (run the full list before closing any ticket)
+
+**The game boots muted since T-101.** A playtest that needs to HEAR the game opts in
+explicitly: `godot --path . -- --sound` (the flag after `--`), or `PIGEON_SOUND=1`, or the
+pilot harness with `--sound`.
 
 Keep this table in sync with `project.godot` and `README.md`:
 

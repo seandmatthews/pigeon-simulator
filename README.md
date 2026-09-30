@@ -22,6 +22,11 @@ survive, and earn points by pooping on tourists and their cars.
 2. Open this folder as a project in Godot, or run `godot --path .` from a terminal.
 3. Press **F5**.
 
+**Sound:** the game boots muted (T-101). To hear it, opt in explicitly — run
+`godot --path . -- --sound` (note the `--`), set `PIGEON_SOUND=1`, or launch the pilot
+harness with `--sound`. In the editor, put `--sound` in Debug → Customize Run Instances →
+Main Run Args.
+
 ## Controls
 
 | Input | Action |

@@ -35,6 +35,18 @@ var save_path: String = "user://highscore.cfg"
 ## concurrent agent-driven runs never fight over (or wipe) the real record.
 var _persistence_enabled: bool = OS.get_environment("PIGEON_NO_PERSIST") != "1"
 
+## Boot audio policy (T-101): the game starts MUTED — a normal launch or editor
+## run is silent so nobody gets ambushed by audio, and a sound-design session
+## opts in explicitly. Priority order: the pilot's PIGEON_MUTE=1 always mutes;
+## PIGEON_SOUND=1 or a `--sound` user arg (after `--` on the CLI, or the
+## editor's Main Run Args) opts in; anything else mutes. Applied once in _ready.
+func boot_muted(user_args: PackedStringArray) -> bool:
+	if OS.get_environment("PIGEON_MUTE") == "1":
+		return true
+	if OS.get_environment("PIGEON_SOUND") == "1":
+		return false
+	return not user_args.has("--sound")
+
 ## Points this run so far — zeroed only by reset_run().
 var score: int = 0
 
@@ -63,6 +75,7 @@ var _release_age: float = 999.0 ## Seconds since the last poop release; starts s
 
 
 func _ready() -> void:
+	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), boot_muted(OS.get_cmdline_user_args()))
 	hunger = Hunger.new()
 	hunger.name = "Hunger"
 	add_child(hunger)
