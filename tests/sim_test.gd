@@ -13,6 +13,7 @@ const POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const SPLAT_TARGET_SCRIPT := preload("res://tests/splat_target.gd")
 const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 const POOP_SCENE: PackedScene = preload("res://scenes/poop.tscn")
+const MENU_SCENE: PackedScene = preload("res://scenes/menu.tscn")
 
 ## The Game autoload's high score file is redirected here for the scoring
 ## scenarios, so a sim run never touches the real record in user://.
@@ -128,6 +129,7 @@ func _run_scenarios() -> void:
 	await _scenario_high_score_persists()
 	await _scenario_score_popup()
 	await _scenario_pause_freezes()
+	await _scenario_title_escape_does_not_quit() ## T-097 — Esc at the title must not hard-quit.
 	await _scenario_game_over_screen()
 	await _scenario_restart_resets()
 	await _scenario_restart_same_seed_skips_rebuild()
@@ -2542,6 +2544,29 @@ func _scenario_pause_freezes() -> void:
 	hunger.free()
 	pause_menu.free()
 	get_tree().paused = false ## Never leak a pause into later scenarios.
+
+
+## (T-097) Esc at the title must not hard-quit the app: a synthetic `pause`
+## action fed straight to the REAL menu scene's `_unhandled_input` neither quits
+## the process nor pauses the tree — the menu instance survives and the harness
+## keeps running. A regression re-adding the quit branch kills the whole Gate 1b
+## run at that line, so the missing check IS the loud failure. `flap` and `quit`
+## are deliberately never fed — they would change the harness's scene / quit it.
+func _scenario_title_escape_does_not_quit() -> void:
+	var menu: Control = MENU_SCENE.instantiate()
+	add_child(menu)
+	await _wait_frames(2)
+	var esc_event := InputEventAction.new()
+	esc_event.action = "pause"
+	esc_event.pressed = true
+	menu._unhandled_input(esc_event)
+	await _wait_frames(5)
+	var menu_alive := is_instance_valid(menu)
+	var tree_unpaused := not get_tree().paused
+	menu.free()
+	_check("title_escape_does_not_quit", menu_alive and tree_unpaused,
+			"menu_alive=%s tree_unpaused=%s (a quit here would kill the whole run)" % [
+					menu_alive, tree_unpaused])
 
 
 ## The fail state, end to end through the REAL main scene (parked far from the

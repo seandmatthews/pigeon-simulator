@@ -1,8 +1,9 @@
 extends Control
 ## Title screen (T-010): placeholder logo text, the persisted high score and
 ## "press Space to fly". Space (the `flap` action) starts a run in
-## main.tscn — the same key that flaps, so the hand never moves. Q quits and
-## Esc is an alias from the menu. Scene flow: menu.tscn ↔ main.tscn.
+## main.tscn — the same key that flaps, so the hand never moves. Q quits.
+## Esc does nothing here (T-097) — it is the in-run pause only.
+## Scene flow: menu.tscn ↔ main.tscn.
 
 const MAIN_SCENE_PATH := "res://scenes/main.tscn"
 
@@ -20,7 +21,7 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("flap"):
 		_start_run()
-	elif event.is_action_pressed("pause") or event.is_action_pressed("quit"):
+	elif event.is_action_pressed("quit"):
 		get_tree().quit()
 
 
