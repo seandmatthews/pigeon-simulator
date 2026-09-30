@@ -1,0 +1,113 @@
+[gd_scene load_steps=16 format=3]
+
+[ext_resource type="Script" path="res://scripts/elder.gd" id="1_elder"]
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(0.5, 0.85, 0.42)
+
+[sub_resource type="SphereShape3D" id="Shape_zone"]
+radius = 3.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_cardigan"]
+albedo_color = Color(0.42, 0.55, 0.52, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_skin"]
+albedo_color = Color(0.87, 0.68, 0.55, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_hair"]
+albedo_color = Color(0.78, 0.78, 0.75, 1)
+roughness = 1.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_trousers"]
+albedo_color = Color(0.42, 0.38, 0.36, 1)
+roughness = 1.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_cane"]
+albedo_color = Color(0.5, 0.4, 0.3, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="Mesh_torso"]
+material = SubResource("Mat_cardigan")
+size = Vector3(0.52, 0.6, 0.34)
+
+[sub_resource type="SphereMesh" id="Mesh_head"]
+material = SubResource("Mat_skin")
+radius = 0.15
+height = 0.3
+
+[sub_resource type="BoxMesh" id="Mesh_hair"]
+material = SubResource("Mat_hair")
+size = Vector3(0.32, 0.12, 0.32)
+
+[sub_resource type="BoxMesh" id="Mesh_thigh"]
+material = SubResource("Mat_trousers")
+size = Vector3(0.4, 0.13, 0.42)
+
+[sub_resource type="BoxMesh" id="Mesh_shin"]
+material = SubResource("Mat_trousers")
+size = Vector3(0.12, 0.6, 0.14)
+
+[sub_resource type="BoxMesh" id="Mesh_arm"]
+material = SubResource("Mat_cardigan")
+size = Vector3(0.09, 0.42, 0.09)
+
+[sub_resource type="BoxMesh" id="Mesh_cane"]
+material = SubResource("Mat_cane")
+size = Vector3(0.045, 0.95, 0.045)
+
+[node name="Elder" type="StaticBody3D"]
+collision_layer = 4
+collision_mask = 0
+script = ExtResource("1_elder")
+
+[node name="Shape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.425, 0)
+shape = SubResource("Shape_body")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Torso" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 0.02)
+mesh = SubResource("Mesh_torso")
+
+[node name="Head" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, -0.06)
+mesh = SubResource("Mesh_head")
+
+[node name="Hair" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.96, -0.05)
+mesh = SubResource("Mesh_hair")
+
+[node name="Thigh" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.13, -0.14)
+mesh = SubResource("Mesh_thigh")
+
+[node name="ShinL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.11, -0.3, -0.32)
+mesh = SubResource("Mesh_shin")
+
+[node name="ShinR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.11, -0.3, -0.32)
+mesh = SubResource("Mesh_shin")
+
+[node name="ArmNear" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.33, 0.52, 0)
+mesh = SubResource("Mesh_arm")
+
+[node name="ArmFar" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.33, 0.52, 0)
+mesh = SubResource("Mesh_arm")
+
+[node name="Cane" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.42, -0.1, -0.25)
+mesh = SubResource("Mesh_cane")
+
+[node name="PresenceZone" type="Area3D" parent="."]
+collision_layer = 0
+collision_mask = 2
+
+[node name="Shape" type="CollisionShape3D" parent="PresenceZone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("Shape_zone")

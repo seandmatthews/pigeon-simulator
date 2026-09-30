@@ -123,6 +123,12 @@ signal regenerated
 ## seed and never shifts the building RNG sequence.
 var bread_spots: Array[Vector3] = []
 
+## Seated spots (city-local) for the park elders (T-020): one transform per
+## plaza-ring bench — position on the seat line, yaw = the bench's own. Purely
+## derived from the layout — no RNG of its own — so it is deterministic per
+## seed and never shifts the layout RNG sequence.
+var elder_spots: Array[Transform3D] = []
+
 ## Center (city-local) of every generated block — the tourist service (T-007)
 ## picks its sidewalk walking loops from these.
 var block_centers: Array[Vector3] = []
@@ -172,6 +178,7 @@ func generate(new_seed: int = seed_value) -> void:
 	_plaza_clear = true
 	buildings = []
 	bread_spots = []
+	elder_spots = []
 	block_centers = []
 	_static_root = Node3D.new()
 	_static_root.name = "Static"
@@ -506,6 +513,13 @@ func _build_plaza(center: Vector3) -> void:
 		var ang := TAU * i / 8.0
 		var pos := center + Vector3(sin(ang) * 8.0, 0.0, cos(ang) * 8.0)
 		_add_bench(pos, ang + PI * 0.5)
+		## Elder seat (T-020): the same bench, recorded as a pure-layout spot —
+		## position on the seat top (slab + 0.60, the `_add_bench` math), yaw =
+		## the bench's own. No RNG: appending here never touches the layout
+		## stream, so the fingerprints stay byte-identical.
+		elder_spots.append(Transform3D(
+				Basis(Vector3.UP, ang + PI * 0.5),
+				Vector3(pos.x, block_slab_height + 0.60, pos.z)))
 	for corner: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
 		_add_lamp(center + Vector3(corner.x * 9.8, 0.0, corner.y * 9.8))
 		_add_bin(center + Vector3(corner.x * 5.5, 0.0, corner.y * 5.5))

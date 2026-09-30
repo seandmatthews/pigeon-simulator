@@ -24,3 +24,8 @@ desktop.ini
 
 # Capture runs (agent playtesting)
 .captures/
+
+# Editor-side godot-mcp wiring (T-020 worktree): project.godot references the
+# MCPRuntimeProbe autoload, so every checkout needs the directory on disk, but
+# the addon itself is per-machine tooling — untracked, like the .captures runs.
+addons/godot_mcp/

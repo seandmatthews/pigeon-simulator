@@ -89,6 +89,10 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | game_over_shows_score_screen | starving through the real main scene opens the score screen — score, high score, tourist/car breakdown — freezes the run dead and keeps Esc locked | T-010 |
 | restart_resets_run | restart through Main.restart_run() zeroes score/breakdown, refills hunger, clears the game-over latch, regenerates the same-seed city and re-seeds every spawner with fresh nodes | T-010 |
 | hud_hunger_warning_tiers | the HUD score/hint outlines resolve through the theme, the hunger bar's four warning tiers map the 50/25/10% bands through the real Main scene, the danger tiers pulse in game time (tier 3 faster than tier 2) and falling back restores the rest color — via refill and restart_run | T-019 |
+| elder_placement_no_rng | the city records one pure-layout spot per plaza-ring bench and the spawner seats 4 elders on every second bench (0, 2, 4, 6 — 90° apart, on the seat line); regenerating the same seed reproduces the fingerprint, the bench/lamp/bin counts and the spot list byte-identically, a foreign seed still gets its ring, and the elders sit exactly on the chosen spots of a real generated City | T-020 |
+| elder_shares_bread_after_hangout | a GROUNDED pigeon parked in an elder's PresenceZone fills trust (~2 in ~2 s); a short walk-about decays it without wiping; back for `trust_needed` seconds the elder relays `bread_shared` exactly once and two ordinary T-005 crumbs (restore 30, hand-placed, respawn-accounted) sit on the pavement within reach in front of the bench | T-020 |
+| elder_no_bread_airborne | a FLYING pigeon held inside the same PresenceZone for longer than `trust_needed` banks nothing — zero crumbs, zero relays, trust never leaves zero | T-020 |
+| elder_cooldown_blocks_second_share | a pigeon hanging out CONTINUOUSLY through the whole `share_cooldown` after a share earns nothing until it expires — then exactly one more share | T-020 |
 | pigeon_air_poses_track_flight | wings out in a glide, a wing beat on every real flap impulse (and the beat ends), wings swept back in a dive — the pose mirrors the flight state | T-011 |
 | pigeon_ground_poses_track_waddle | grounded settles into the folded stand, waddling flips to the waddle pose, stopping settles back to stand | T-011 |
 | pigeon_pecks_when_eating | eating a crumb through Main's exact wiring (crumb.eaten → Player.peck) plays the peck — the beak dives down and the overlay ends | T-011 |
@@ -156,7 +160,11 @@ reports how many times each one played (`sfx`) plus the looping bed
 whoosh. Since T-013 the juice pass is live in the run — splat bursts, feather
 poofs and dust puffs spawn as one-shot bursts and the DONE line reports the
 peak number alive at once (`effects`, the no-spam evidence) and the peak
-camera-shake trauma (`shake_peak`, the never-nauseating evidence). Saves a
+camera-shake trauma (`shake_peak`, the never-nauseating evidence). Since T-020
+the plaza benches seat four park elders and the DONE line reports how many
+bread shares the run earned (`shares` — the pilot's ground visit can land
+inside an elder's PresenceZone; the count is reported, not gated, since it
+depends on where the visit parks). Saves a
 screenshot every 5 s to `.godot/autoplay/`:
 
 ```bash
@@ -259,6 +267,9 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-019) The score line and control hint read clearly over white pavement at the spawn corridor, over the bright sky at altitude and over the dark road (dark outlines)
 - [ ] (T-019) The hunger bar warns at a glance — white → amber → red pulse → fast flash — without staring at it, and never sits stranded mid-flash after landing to eat
 - [ ] (T-017) Street canyons read as shop rows at eye level — colored ground-floor bands with doors and awnings, not blank office walls
+- [ ] (T-020) Four elders sit on the plaza benches every run, spread around the ring, and read as old people at a glance — hunch, gray hair, cane — from both flight height and ground level
+- [ ] (T-020) Landing in front of an elder and hanging out ~4 s earns a share: two crumbs toss onto the pavement in front of the bench, land where the pigeon can reach them without phasing through the bench, and eating them restores hunger
+- [ ] (T-020) The ~4 s hangout feels like "a bit", not an age — and after a share the elder clearly ignores you for a good while (no infinite buffet)
 - [ ] (T-017) The shop bands read from the air and give the roofscape a visible street-level edge
 - [ ] (T-017) Shop colors harmonize with the four district palettes — distinct but not clashing
 - [ ] (T-017) Low street-level flight does not snag on or distractingly pass through awnings (visual-only by decision — `docs/tickets/T-017-shopfronts.md`)
@@ -340,6 +351,14 @@ Playtest checklist (grows as tickets land):
   pulse, rest-color restore through refill and restart). A human pass over the
   T-019 lines (legibility over pavement/sky/road, tier readability at a
   glance, pulse comfort) is still pending.
+- Park elders (T-020) are machine-verified (Gate 1b `elder_placement_no_rng`,
+  `elder_shares_bread_after_hangout`, `elder_no_bread_airborne`,
+  `elder_cooldown_blocks_second_share` — including byte-identical city
+  fingerprints across the change) and live in the autoplay city (the DONE line
+  reports `shares`); the CaptureRecorder emits `elder_bread_shared` events and
+  an `elders` state list for pilot sessions. A human pass over the T-020 lines
+  (elder reads as an old person at a glance, ~4 s hangout feels right, tossed
+  bread lands reachable) is still pending.
 - Remaining placeholder art: upper-floor facades are tinted
   boxes with a procedural window texture (ground floors carry T-017 shopfront
   bands, doors and awnings; the awnings are visual-only, no collider).
