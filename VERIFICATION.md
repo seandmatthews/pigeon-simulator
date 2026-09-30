@@ -105,7 +105,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | pigeon_air_poses_track_flight | wings out in a glide, a wing beat on every real flap impulse (and the beat ends), wings swept back in a dive — the pose mirrors the flight state | T-011 |
 | pigeon_ground_poses_track_waddle | grounded settles into the folded stand, waddling flips to the waddle pose, stopping settles back to stand | T-011 |
 | pigeon_pecks_when_eating | eating a crumb through Main's exact wiring (crumb.eaten → Player.peck) plays the peck — the beak dives down and the overlay ends | T-011 |
-| pigeon_silhouette_contrast | the bird's body is ≥ 0.20 Euclidean RGB from the sidewalk and the cream facade family, darker than every district backdrop's mean luminance by ≥ 0.05, with wingtips ≥ 0.15 darker and the head lighter (the 12-color sweep prints informationally); since T-026 the ground planes stay distinct — sidewalk ↔ asphalt ≥ 0.30 and sidewalk ↔ body ≥ 0.20 (measured 0.435 / 0.230 at the retuned values) | T-016, T-026 |
+| pigeon_silhouette_contrast | the bird's body is ≥ 0.20 Euclidean RGB from the sidewalk and the cream facade family, darker than every district backdrop's mean luminance by ≥ 0.05, with wingtips ≥ 0.15 darker and the head lighter (the 12-color sweep prints informationally); since T-026 the ground planes stay distinct — sidewalk ↔ asphalt ≥ 0.30 and sidewalk ↔ body ≥ 0.20 (measured 0.435 / 0.230 at the retuned values); since T-045/T-085 the bird also keeps one bright anchor over the dark road/roof family its gray body melts into — head and pale rump patch each ≥ 0.30 Euclidean RGB from asphalt and roof (measured 0.572 / 0.497 and 0.964 / 0.889), both underwings wearing the exact Mat_rump the Rump wears, and the bird scene still visual-only (Node3D/MeshInstance3D, no physics nodes) | T-016, T-026, T-045, T-085 |
 | city_district_palettes_distinct | every building wears a color from its own district's palette, all four districts appear, the palettes are measurably distinct and the quadrant mapping is pure | T-013 |
 | city_shopfronts_present | every building wears a ground-floor shop band with a door on one of its two street-facing faces plus the seeded awning share (104/146 at the M1 seed), and the shopfront palette stays measurably distinct from every district palette | T-017 |
 | city_shopfronts_deterministic | regenerating the same seed reproduces every shop color, door face and awning flag exactly | T-017 |
@@ -316,6 +316,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-042) The hunger bar keeps ticking down across an off-world return — the clock never paused (compare the bar just before flying out and just after landing home)
 - [ ] (T-032) From cruise height the roofs read as inhabited — AC boxes, water tanks and vents break the gray roof planes, and a rooftop crumb is spottable from a cruise glide [screenshot]
 - [ ] (T-032) Landing on a roof near a crumb and waddling to it works like the pavement version; the props read as useful cover, not obstacles
+- [ ] (T-085) In flight at cruise and in a dive, the bird reads at a glance against road AND roof at ~20 m — one bright anchor (rump/underwing) visible from the chase angle [screenshot]
+- [ ] (T-085) Grounded, the pale rump reads against asphalt so the bird no longer melts into the road [screenshot]
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing

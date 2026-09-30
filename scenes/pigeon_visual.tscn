@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://scripts/pigeon_visual.gd" id="1_bird"]
 
@@ -30,6 +30,10 @@ roughness = 0.6
 [sub_resource type="StandardMaterial3D" id="Mat_feet"]
 albedo_color = Color(0.78, 0.42, 0.3, 1)
 roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_rump"]
+albedo_color = Color(0.85, 0.85, 0.86, 1)
+roughness = 0.85
 
 [sub_resource type="SphereMesh" id="Mesh_body"]
 material = SubResource("Mat_body")
@@ -82,6 +86,14 @@ size = Vector3(0.2, 0.03, 0.18)
 material = SubResource("Mat_feet")
 size = Vector3(0.05, 0.1, 0.09)
 
+[sub_resource type="BoxMesh" id="Mesh_rump"]
+material = SubResource("Mat_rump")
+size = Vector3(0.16, 0.05, 0.14)
+
+[sub_resource type="BoxMesh" id="Mesh_underwing"]
+material = SubResource("Mat_rump")
+size = Vector3(0.22, 0.02, 0.16)
+
 [node name="Pigeon" type="Node3D"]
 script = ExtResource("1_bird")
 
@@ -112,6 +124,10 @@ mesh = SubResource("Mesh_eye")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.075, 0.06, -0.055)
 mesh = SubResource("Mesh_eye")
 
+[node name="Rump" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0.22)
+mesh = SubResource("Mesh_rump")
+
 [node name="Tail" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0.34)
 mesh = SubResource("Mesh_tail")
@@ -127,6 +143,10 @@ mesh = SubResource("Mesh_wing")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.32, 0, 0.04)
 mesh = SubResource("Mesh_tip")
 
+[node name="Under" type="MeshInstance3D" parent="WingL"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.13, -0.04, -0.01)
+mesh = SubResource("Mesh_underwing")
+
 [node name="WingR" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, 0.08, 0)
 
@@ -137,6 +157,10 @@ mesh = SubResource("Mesh_wing")
 [node name="Tip" type="MeshInstance3D" parent="WingR"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.32, 0, 0.04)
 mesh = SubResource("Mesh_tip")
+
+[node name="Under" type="MeshInstance3D" parent="WingR"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.13, -0.04, -0.01)
+mesh = SubResource("Mesh_underwing")
 
 [node name="FootL" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, -0.24, -0.02)

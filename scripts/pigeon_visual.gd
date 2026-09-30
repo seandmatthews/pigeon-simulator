@@ -88,6 +88,7 @@ func _ready() -> void:
 	## the cone beak points forward, the tail fans up, the wingtips sweep back.
 	$HeadPivot/Beak.rotation.x = -PI / 2.0
 	$Tail.rotation.x = -0.16 ## Tail tips up (a +Z-backward mesh pitches down under +X rotation).
+	$Rump.rotation.x = 0.25 ## Pale rump patch laid tangent on the sloping back (+Z edge dips).
 	$WingL/Tip.rotation.y = 0.3
 	$WingR/Tip.rotation.y = -0.3
 	_head_base_z = _head.position.z
