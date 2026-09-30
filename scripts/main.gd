@@ -84,10 +84,12 @@ func _ready() -> void:
 	## buildings at every height. to_local: spawn_point is global, reset_flight
 	## positions locally — identical while Main sits at the origin, correct
 	## wherever the scene is instanced (the sim harness moves it far away).
-	## (T-042) The same point feeds the off-world guard: fly hard past the apron
-	## and the player walks the fall back here. It never goes stale in M1 —
-	## restart_run() always keeps the same seed, so spawn_point (and with it the
-	## guard's target) is identical across restarts.
+	## (T-042, adopting T-036) The same point feeds the off-world guard: hand
+	## the player that corridor in its own local space — the same point the
+	## opening drop starts from — so flying past the apron walks the fall back
+	## here. Player has no City reference, so only Main can compute this. It
+	## never goes stale in M1 — restart_run() always keeps the same seed, so
+	## spawn_point (and with it the guard's target) is identical across restarts.
 	player.respawn_point = city.to_local(city.spawn_point)
 	player.reset_flight(player.respawn_point)
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)

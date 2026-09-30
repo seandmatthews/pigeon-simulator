@@ -117,6 +117,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | sfx_splat_yelp_panic_honk | a real lobbed splat plays the splat plus its tourist's yelp, the indignant shout joins the fist shake ~1.8 s later, and a duck-typed car hit blasts the horn | T-012 |
 | ambience_loops_under_game | main.tscn starts both ambience beds on the Ambience bus, start_ambience() is idempotent across restarts and the bed survives the scene teardown | T-012 |
 | density_cpu_budget | the real main scene at full density (18 tourists + 36 cars asserted) keeps the calibrated headless CPU budget — median wall-time of three 100-frame windows under --fixed-fps 60 | T-018 |
+| off_world_fall_returns_home | a fall below the off-world guard line (past any floor) fires the reset exactly once, snaps the pigeon home to the respawn corridor and lands it there within ~2 s, stays parked home with no second fire over the following ~2 s, and the hunger clock keeps draining straight through the reset | T-036 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -288,6 +289,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-026) Side-by-side with before: sunlit sidewalk and plaza show surface tone instead of clipping to white, the asphalt reads as road rather than void, and lane dashes and car colors still pop
 - [ ] (T-026) The city still reads "warm sun" after the ground retune — the T-013 warmth judgement holds over the new ground values
 - [ ] (T-033) Restarting from the score screen shows no generation hitch — the fresh run appears instantly on the standing same-seed city
+- [ ] (T-036) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home"), not a teleport glitch [screenshot]
+- [ ] (T-036) Across an off-world return the hunger bar never pauses — it keeps ticking down through the snap home
 - [ ] (T-031) Awninged fronts read as cafes at eye level — table and seated people under the awning, not a bare door slab [screenshot]
 - [ ] (T-031) Low street-level flight past cafe tables doesn't snag, and tables don't crowd the tourist path
 - [ ] (T-042) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home") — not a teleport glitch [screenshot]
@@ -446,3 +449,14 @@ Playtest checklist (grows as tickets land):
   pass over its two Gate 3 lines (sidewalk/plaza tone instead of blow-out,
   road reads as road, dashes/cars still pop; the warm-sun read holds) is
   still pending.
+- Off-world fall guard (T-036) is machine-verified (Gate 1b
+  `off_world_fall_returns_home` — below the −5 line past any floor the reset
+  fires exactly once, the pigeon grounds on the respawn corridor within ~2 s,
+  holds it with no second fire for ~2 more, and hunger keeps draining through
+  the reset; the fail state is untouched — `hunger_game_over_once` stays
+  green). Agent-driven pilot runs flew ~380–460 m past the apron, dove
+  off-world and snapped home grounded on the corridor within seconds, hunger
+  still draining through the return (evidence kept at
+  `.captures/t036_return_home.png`). A human pass over the T-036 Gate 3 lines
+  (the return reads as "came home", not a teleport glitch [screenshot]; the
+  hunger bar visibly keeps ticking through a return) is still pending.

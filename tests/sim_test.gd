@@ -149,6 +149,7 @@ func _run_scenarios() -> void:
 	await _scenario_audio_hit_sounds()
 	await _scenario_ambience_bed()
 	await _scenario_density_cpu_budget()
+	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -3089,3 +3090,53 @@ func _scenario_density_cpu_budget() -> void:
 	Game.reset_run()
 	main_game.free()
 	_main_game = null
+
+
+## --- scenario (T-036 off-world fall guard) ----------------------------------
+
+
+## A fall past the world's edge must not fall forever: below `off_world_y` the
+## reset fires EXACTLY once, snaps the pigeon to `respawn_point`, and it lands
+## grounded there within ~2 s — while the hunger clock keeps draining straight
+## through the teleport (the fail state stays hunger-only). No oscillation over
+## the following ~2 s: the corridor sits far inside the world, so a second fire
+## would mean the respawn point itself is off-world. The standalone harness
+## player has no city, so the scenario points `respawn_point` at a known spot
+## over the flat test ground itself — mirroring what Main wires in.
+func _scenario_off_world_fall_returns_home() -> void:
+	var hunger := Hunger.new()
+	hunger.player = _player
+	add_child(hunger)
+	_player.respawn_point = Vector3(0.0, 0.4, 0.0) ## The spawn-drop height over the flat test ground.
+	## The harness player is shared across scenarios and T-042's
+	## `off_world_fall_respawns` (which runs earlier) already fired the guard
+	## once — zero the counter so this window asserts its OWN exactly-one fire.
+	_player.off_world_resets = 0
+	var home: Vector3 = _player.respawn_point
+	var hunger0: float = hunger.value
+	## Below the guard (−5) AND past where any floor exists (the test ground
+	## ends at ±100): without the guard the pigeon falls forever from here.
+	await _set_up(true, Vector3(0.0, -10.0, -400.0), Vector3.ZERO)
+	var grounded_home := false
+	for _i in 120: ## ~2 s to fire the guard and land the short spawn drop.
+		await get_tree().physics_frame
+		if _player.is_grounded and _player.position.distance_to(home) < 1.0:
+			grounded_home = true
+			break
+	var fired_once := _player.off_world_resets == 1
+	var landed := _player.is_grounded
+	## No oscillation: two more seconds parked home — the counter must not move.
+	await _wait_frames(120)
+	var stable := fired_once and grounded_home and _player.is_grounded \
+			and _player.position.distance_to(home) < 1.0 \
+			and _player.off_world_resets == 1
+	var hunger_loss: float = hunger0 - hunger.value
+	var finite := _player.velocity.is_finite() and _player.position.is_finite()
+	var at_rest := _player.velocity.length() < 1.0
+	hunger.free()
+	_check("off_world_fall_returns_home",
+			fired_once and grounded_home and landed and stable and hunger_loss > 0.2
+					and finite and at_rest,
+			"counter=%d grounded_home=%s stable=%s hunger lost %.2f, rest %.2f m/s at %s (finite=%s)" % [
+					_player.off_world_resets, grounded_home, stable, hunger_loss,
+					_player.velocity.length(), _player.position, finite])

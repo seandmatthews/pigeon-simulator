@@ -7,7 +7,9 @@ extends CharacterBody3D
 ## touchdowns just skid — no damage model in M1. Every tunable is an @export
 ## for live tweaking. Since T-015 the airborne flap is mostly lift: its
 ## forward shove fades out across `flap_push_taper`, so flaps pace toward
-## roughly glide_speed plus a few m/s and dives own the top end.
+## roughly glide_speed plus a few m/s and dives own the top end. Since T-036
+## a fall past the `off_world_y` guard line — off the world's edge — quietly
+## snaps home to `respawn_point` (Main wires the spawn corridor in).
 
 ## Emitted when the pigeon lands or takes off — the HUD swaps its control hint.
 signal grounding_changed(grounded: bool)
@@ -144,11 +146,11 @@ func reset_flight(pos: Vector3, yaw_deg: float = 0.0) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	## (T-042) Off-world guard: past the apron there is no floor and no fail
-	## state but starvation, so the fall would run for minutes with the HUD
-	## alive. Below the line, walk the fall back to the respawn corridor with
-	## the existing hard reset — quietly (no sound, no popup; the return is the
-	## beat) — after which the pigeon drops the short spawn drop and lands
+	## (T-042, adopting T-036) Off-world guard: past the apron there is no floor
+	## and no fail state but starvation, so the fall would run for minutes with
+	## the HUD alive. Below the line, walk the fall back to the respawn corridor
+	## with the existing hard reset — quietly (no sound, no popup; the return is
+	## the beat) — after which the pigeon drops the short spawn drop and lands
 	## normally. The counter makes a double fire loud: the corridor sits ~360 m
 	## inside the world box, so a second fire would mean the respawn point
 	## itself is off-world.
