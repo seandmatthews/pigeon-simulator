@@ -33,7 +33,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-021 | [Stick the landing: settle shallow touchdowns on contact](T-021-stick-the-landing.md) | flight-control | 4 | 2 | done |
-| T-022 | [Give pitch-up a real flare near the ground instead of a balloon](T-022-pitch-flare.md) | flight-control | 4 | 3 | proposed |
+| T-022 | [Give pitch-up a real flare near the ground instead of a balloon](T-022-pitch-flare.md) | flight-control | 4 | 3 | done |
 | T-023 | [Edge-of-world guard: nudge the pigeon home past the apron](T-023-edge-of-world-guard.md) | flight-control | 3 | 3 | proposed |
 | T-024 | [Make the bird read at cruise: trim the FOV kick and arm](T-024-cruise-readability.md) | flight-control | 3 | 1 | proposed |
 | T-025 | [Make the falling dropping trackable: bigger ball, soft emission](T-025-poop-ball-visibility.md) | visual-design | 3 | 1 | proposed |
