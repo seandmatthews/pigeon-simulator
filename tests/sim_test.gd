@@ -2057,6 +2057,13 @@ func _rgb(color: Color) -> Vector3:
 ## and keeps the identity accents (wingtips a readable step darker, head a step
 ## lighter). The full 12-color sweep prints informationally — a per-channel gate
 ## across all 13 backdrops is only satisfiable by a near-black bird.
+##
+## T-026 re-valued the ground planes (darker sidewalk/plaza, lighter asphalt)
+## and pins them apart here so a future tweak cannot silently re-merge the
+## surfaces: sidewalk ↔ asphalt ≥ 0.30 (the retune narrows the old 0.62 gap on
+## purpose, but the road must keep reading darker than the pavement) and
+## sidewalk ↔ body ≥ 0.20 (the T-016 floor, re-asserted explicitly on the
+## ground pair because the darker sidewalk is what makes it load-bearing).
 func _scenario_pigeon_silhouette_contrast() -> void:
 	var bird: PigeonVisual = load("res://scenes/pigeon_visual.tscn").instantiate() as PigeonVisual
 	add_child(bird)
@@ -2064,7 +2071,8 @@ func _scenario_pigeon_silhouette_contrast() -> void:
 	var head := _rgb(_mesh_albedo(bird, "HeadPivot/Head"))
 	var tip := _rgb(_mesh_albedo(bird, "WingL/Tip"))
 	bird.free()
-	var near_backdrops: Array[Vector3] = [_rgb(City.COLOR_SIDEWALK)]
+	var sidewalk := _rgb(City.COLOR_SIDEWALK)
+	var near_backdrops: Array[Vector3] = [sidewalk]
 	for backdrop: Color in City.DISTRICT_PALETTES[1]: ## The sandy-cream family.
 		near_backdrops.append(_rgb(backdrop))
 	var near_gate := true
@@ -2083,14 +2091,22 @@ func _scenario_pigeon_silhouette_contrast() -> void:
 			luminance_gate = luminance_gate and margin >= 0.05
 	var tip_step := tip.distance_to(body) >= 0.15
 	var head_step := head.x > body.x and head.y > body.y and head.z > body.z
+	var sidewalk_asphalt := sidewalk.distance_to(_rgb(City.COLOR_ASPHALT))
+	var sidewalk_body := sidewalk.distance_to(body)
+	var ground_gate := sidewalk_asphalt >= 0.3 and sidewalk_body >= 0.2
 	var sweep := []
 	for family: Array in City.DISTRICT_PALETTES:
 		for backdrop: Color in family:
 			sweep.append("%.2f" % body.distance_to(_rgb(backdrop)))
 	print("SIM INFO silhouette distances to all 12 district colors: [%s]" % [", ".join(sweep)])
-	_check("pigeon_silhouette_contrast", near_gate and luminance_gate and tip_step and head_step,
-			"sidewalk+cream=[%s] worst luminance margin %.3f tip_step=%s head_step=%s" % [
-					", ".join(distances), worst_margin, tip_step, head_step])
+	print("SIM INFO ground pairs (T-026): sidewalk-asphalt=%.3f (>= 0.30) sidewalk-body=%.3f (>= 0.20)"
+			% [sidewalk_asphalt, sidewalk_body])
+	_check("pigeon_silhouette_contrast", near_gate and luminance_gate and tip_step and head_step
+			and ground_gate,
+			"sidewalk+cream=[%s] worst luminance margin %.3f tip_step=%s head_step=%s "
+			+ "ground sidewalk-asphalt=%.3f sidewalk-body=%.3f" % [
+					", ".join(distances), worst_margin, tip_step, head_step,
+					sidewalk_asphalt, sidewalk_body])
 
 
 ## --- scenarios (T-013 juice pass) -------------------------------------------

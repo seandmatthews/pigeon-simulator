@@ -96,7 +96,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | pigeon_air_poses_track_flight | wings out in a glide, a wing beat on every real flap impulse (and the beat ends), wings swept back in a dive — the pose mirrors the flight state | T-011 |
 | pigeon_ground_poses_track_waddle | grounded settles into the folded stand, waddling flips to the waddle pose, stopping settles back to stand | T-011 |
 | pigeon_pecks_when_eating | eating a crumb through Main's exact wiring (crumb.eaten → Player.peck) plays the peck — the beak dives down and the overlay ends | T-011 |
-| pigeon_silhouette_contrast | the bird's body is ≥ 0.20 Euclidean RGB from the sidewalk and the cream facade family, darker than every district backdrop's mean luminance by ≥ 0.05, with wingtips ≥ 0.15 darker and the head lighter (the 12-color sweep prints informationally) | T-016 |
+| pigeon_silhouette_contrast | the bird's body is ≥ 0.20 Euclidean RGB from the sidewalk and the cream facade family, darker than every district backdrop's mean luminance by ≥ 0.05, with wingtips ≥ 0.15 darker and the head lighter (the 12-color sweep prints informationally); since T-026 the ground planes stay distinct — sidewalk ↔ asphalt ≥ 0.30 and sidewalk ↔ body ≥ 0.20 (measured 0.435 / 0.230 at the retuned values) | T-016, T-026 |
 | city_district_palettes_distinct | every building wears a color from its own district's palette, all four districts appear, the palettes are measurably distinct and the quadrant mapping is pure | T-013 |
 | city_shopfronts_present | every building wears a ground-floor shop band with a door on one of its two street-facing faces plus the seeded awning share (104/146 at the M1 seed), and the shopfront palette stays measurably distinct from every district palette | T-017 |
 | city_shopfronts_deterministic | regenerating the same seed reproduces every shop color, door face and awning flag exactly | T-017 |
@@ -273,6 +273,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-017) The shop bands read from the air and give the roofscape a visible street-level edge
 - [ ] (T-017) Shop colors harmonize with the four district palettes — distinct but not clashing
 - [ ] (T-017) Low street-level flight does not snag on or distractingly pass through awnings (visual-only by decision — `docs/tickets/T-017-shopfronts.md`)
+- [ ] (T-026) Side-by-side with before: sunlit sidewalk and plaza show surface tone instead of clipping to white, the asphalt reads as road rather than void, and lane dashes and car colors still pop
+- [ ] (T-026) The city still reads "warm sun" after the ground retune — the T-013 warmth judgement holds over the new ground values
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -369,3 +371,12 @@ Playtest checklist (grows as tickets land):
   retuning alone (−0.35 lift / 1.5 sweep) was A/B-tested in play and narrows
   the wing plane only ~15 % — invisible at a glance; the splay comes from the
   0.24 m wing chord presenting laterally, which needs a mesh/rig change.
+- Ground palette retune (T-026) is machine-verified: the Gate 1b
+  `pigeon_silhouette_contrast` scenario gained the ground-pair floors
+  (sidewalk ↔ asphalt ≥ 0.30, sidewalk ↔ body ≥ 0.20 — measured 0.435 / 0.230
+  at the retuned constants), and the T-016 body↔sidewalk floor held with no
+  re-basing (0.230 ≥ 0.20). Colors are absent from the layout fingerprint and
+  colliders, so every determinism/walkability scenario is untouched. A human
+  pass over its two Gate 3 lines (sidewalk/plaza tone instead of blow-out,
+  road reads as road, dashes/cars still pop; the warm-sun read holds) is
+  still pending.
