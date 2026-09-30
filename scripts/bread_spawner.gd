@@ -52,6 +52,21 @@ func living_crumbs() -> Array[BreadCrumb]:
 	return _crumbs.duplicate()
 
 
+## The living crumb nearest `pos` by squared distance, `null` when none is
+## alive — the HUD bread pointer's target (T-037). Trivially cheap per frame:
+## at most `target_count` crumbs, the same nearest-N scan the capture
+## recorder already runs every frame.
+func nearest_crumb(pos: Vector3) -> BreadCrumb:
+	var nearest: BreadCrumb = null
+	var best := INF
+	for crumb in living_crumbs():
+		var d := pos.distance_squared_to(crumb.global_position)
+		if d < best:
+			best = d
+			nearest = crumb
+	return nearest
+
+
 ## Wipes and re-seeds the whole spread (first boot, city regeneration).
 func _populate() -> void:
 	for crumb in _crumbs:
@@ -101,9 +116,13 @@ func drop_crumb(global_pos: Vector3) -> void:
 func _spawn_at(spot_index: int) -> void:
 	var crumb: BreadCrumb = crumb_scene.instantiate()
 	crumb.spot_index = spot_index
-	crumb.position = city.to_global(city.bread_spots[spot_index])
 	crumb.eaten.connect(_on_crumb_eaten.bind(crumb))
 	add_child(crumb)
+	## Global, set after parenting (the drop_crumb pattern): to_global is a
+	## world value, and assigning it to the local `position` only ever worked
+	## because Main sat at the origin — any offset instance (sim harness)
+	## double-offset every seeded crumb.
+	crumb.global_position = city.to_global(city.bread_spots[spot_index])
 	_crumbs.append(crumb)
 	_occupied[spot_index] = crumb
 

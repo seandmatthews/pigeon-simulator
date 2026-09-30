@@ -122,6 +122,7 @@ func _run_scenarios() -> void:
 	await _scenario_pause_freezes()
 	await _scenario_game_over_screen()
 	await _scenario_restart_resets()
+	await _scenario_hud_bread_pointer_tracks_nearest_crumb() ## T-037 — T-019 window: unpaused tree, no live Main.
 	await _scenario_hud_hunger_tiers() ## T-019 — must follow restart_resets: unpaused tree, no live Main.
 	await _scenario_elder_placement_no_rng()
 	await _scenario_elder_shares_bread_after_hangout()
@@ -1853,6 +1854,171 @@ func _scenario_restart_resets() -> void:
 	Game.reset_run()
 	main_game.free()
 	_main_game = null
+
+
+## --- scenario (T-037 HUD bread pointer) --------------------------------------
+
+
+## Independent nearest-crumb scan for the pointer scenario: computed from
+## living_crumbs() distances — deliberately never through nearest_crumb()
+## itself, which is the code under test.
+func _scan_nearest_crumb(spawner: BreadSpawner, pos: Vector3) -> BreadCrumb:
+	var nearest: BreadCrumb = null
+	var best := INF
+	for crumb in spawner.living_crumbs():
+		var d := pos.distance_squared_to(crumb.global_position)
+		if d < best:
+			best = d
+			nearest = crumb
+	return nearest
+
+
+## Reads the "<what> <n> m" distance out of the pointer text — -1.0 when the
+## text is not in the expected shape (hidden, empty, malformed).
+func _pointer_distance_m(text: String) -> float:
+	var parts := text.strip_edges().split(" ")
+	if parts.size() != 3 or parts[2] != "m":
+		return -1.0
+	return float(parts[1])
+
+
+## Wraps a degree value into (-180, 180] so two chevron rotations compare
+## across the ±180 seam.
+func _wrap180(deg: float) -> float:
+	return fposmod(deg + 180.0, 360.0) - 180.0
+
+
+## T-037: the HUD bread pointer through the REAL main scene. Registered in the
+## T-019 window — immediately after _scenario_restart_resets, before
+## _scenario_hud_hunger_tiers: the only spot with an unpaused tree and no live
+## Main (the pointer updates in _process), with the same cleanup tail (free() →
+## Game.hunger.player = null → Game.reset_run()) handing the window back.
+## Assertions: nearest_crumb() matches an independent scan over living_crumbs()
+## (and returns null when none is alive); bread mode names the nearest crumb
+## within 1 m and carries the bearing from the nose (flipping ~180° when the
+## yaw flips at the same spot); the readout decreases on approach; eating the
+## pointed-at crumb through the real grounded waddle-in re-aims at the
+## next-nearest; beyond half the city span the same slot names "city" with the
+## horizontal distance to city.spawn_point (± 2 m), chevron pointing back; the
+## label carries the T-019 outline treatment.
+func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(3500.0, 0.0, -3500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var city: City = main_game.city
+	var pigeon: Player = main_game.player
+	var spawner: BreadSpawner = main_game.bread_spawner
+	var pointer: Label = main_game.bread_pointer
+	var chevron: Polygon2D = main_game.bread_pointer_chevron
+	## Aim the scenario at a ground-level crumb near the spawn: y < 0.3 keeps
+	## bench-seat crumbs (0.72) out, so the waddle-in happens on pavement, and
+	## ring spots sit outside every building footprint (9.75 m from the block
+	## centre vs the 7.8 m facade reach), so the hover column is always clear.
+	var target: BreadCrumb = null
+	var best := INF
+	for crumb in spawner.living_crumbs():
+		if crumb.global_position.y > 0.3:
+			continue
+		var d := city.spawn_point.distance_squared_to(crumb.global_position)
+		if d < best:
+			best = d
+			target = crumb
+	var spread_ok: bool = target != null
+	## --- bread mode: the query, the distance, the bearing ---------------------
+	## Hover south-east of the crumb (never dead above: a target straight below
+	## zeroes the flat bearing — Main keeps the last chevron rotation there).
+	var hover := city.to_local(target.global_position + Vector3(0.0, 8.0, 6.0))
+	pigeon.reset_flight(hover, 0.0)
+	await _wait_frames(2)
+	var at := pigeon.global_position
+	var want: BreadCrumb = _scan_nearest_crumb(spawner, at)
+	var query_ok: bool = spawner.nearest_crumb(at) == want and want == target
+	var d_true := at.distance_to(target.global_position)
+	var shown := _pointer_distance_m(pointer.text)
+	var dist_ok: bool = pointer.visible and shown >= 0.0 and absf(shown - d_true) <= 1.0
+	var heading := -pigeon.transform.basis.z
+	heading.y = 0.0
+	var to_crumb := target.global_position - at
+	to_crumb.y = 0.0
+	var want_rot := _wrap180(-rad_to_deg(heading.signed_angle_to(to_crumb, Vector3.UP)))
+	var rot_a := _wrap180(chevron.rotation_degrees)
+	var bearing_ok: bool = absf(rot_a - want_rot) <= 2.0
+	## --- the 180° flip: same spot, nose the other way --------------------------
+	pigeon.reset_flight(hover, 180.0)
+	await _wait_frames(2)
+	var rot_b := _wrap180(chevron.rotation_degrees)
+	var flip_ok: bool = absf(_wrap180(rot_a - rot_b)) > 150.0
+	## --- approaching the pointed-at crumb decreases the readout ----------------
+	pigeon.reset_flight(city.to_local(target.global_position + Vector3(2.6, 2.0, 0.0)), 0.0)
+	await _wait_frames(2)
+	var d_near := pigeon.global_position.distance_to(target.global_position)
+	var shown_near := _pointer_distance_m(pointer.text)
+	var approach_ok: bool = shown_near >= 0.0 and shown_near < shown \
+			and absf(shown_near - d_near) <= 1.0 and d_near < d_true
+	## --- eat the pointed-at crumb through the real grounded waddle-in ----------
+	## The drop mirrors _scenario_bread_eating: 1.8 m ahead (yaw 0 walks -Z,
+	## straight into the crumb), settle grounded, then waddle until it is eaten.
+	pigeon.reset_flight(city.to_local(target.global_position + Vector3(0.0, 0.4, 1.8)))
+	for _i in 90:
+		await get_tree().physics_frame
+		if pigeon.is_grounded:
+			break
+	Input.action_press("pitch_up")
+	var eaten := false
+	for _i in 120:
+		await get_tree().physics_frame
+		eaten = not is_instance_valid(target)
+		if eaten:
+			break
+	Input.action_release("pitch_up")
+	await _wait_frames(2) ## Pointer refresh + the queue_free flush.
+	var at2 := pigeon.global_position
+	var want2: BreadCrumb = _scan_nearest_crumb(spawner, at2)
+	var reaim_ok: bool = eaten and want2 != null and want2 != target \
+			and pointer.visible \
+			and absf(_pointer_distance_m(pointer.text)
+					- at2.distance_to(want2.global_position)) <= 1.0
+	## --- city mode beyond the ring ---------------------------------------------
+	pigeon.reset_flight(Vector3(city.city_span * 0.5 + 40.0, 30.0, 0.0), 0.0)
+	await _wait_frames(2)
+	var home := city.spawn_point
+	var flat_home := Vector2(home.x - pigeon.global_position.x,
+			home.z - pigeon.global_position.z)
+	var to_home := home - pigeon.global_position
+	to_home.y = 0.0
+	var heading_out := -pigeon.transform.basis.z
+	heading_out.y = 0.0
+	var want_city_rot := _wrap180(-rad_to_deg(heading_out.signed_angle_to(to_home, Vector3.UP)))
+	var city_ok: bool = pointer.visible and pointer.text.begins_with("city ") \
+			and absf(_pointer_distance_m(pointer.text) - flat_home.length()) <= 2.0 \
+			and absf(_wrap180(chevron.rotation_degrees) - want_city_rot) <= 2.0
+	## --- the T-019 outline treatment -------------------------------------------
+	var style_ok: bool = \
+			pointer.get_theme_color("font_outline_color").is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
+			and pointer.get_theme_constant("outline_size") == 4 \
+			and pointer.get_theme_font_size("font_size") == 14 \
+			and pointer.get_theme_color("font_color").is_equal_approx(Color(1.0, 1.0, 1.0, 0.75))
+	## --- nearest_crumb()'s null arm: an empty spawner has no nearest -----------
+	var empty := BreadSpawner.new()
+	var none_ok: bool = empty.nearest_crumb(Vector3.ZERO) == null
+	empty.free()
+	_check("hud_bread_pointer_tracks_nearest_crumb",
+			spread_ok and query_ok and dist_ok and bearing_ok and flip_ok and approach_ok
+					and reaim_ok and city_ok and style_ok and none_ok,
+			"spread=%s query=%s dist=%s (%.1f true, shows %.0f) bearing=%s (%.1f vs %.1f) flip=%s (%.1f→%.1f) approach=%s (%.0f→%.0f, near true %.1f) reaim=%s (eaten %s) city=%s ('%s' %.1f vs %.1f) style=%s none=%s" % [
+					spread_ok, query_ok, dist_ok, d_true, shown,
+					bearing_ok, rot_a, want_rot,
+					flip_ok, rot_a, rot_b,
+					approach_ok, shown, shown_near, d_near,
+					reaim_ok, eaten,
+					city_ok, pointer.text, _pointer_distance_m(pointer.text), flat_home.length(),
+					style_ok, none_ok])
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
 
 
 ## T-019: the HUD stays readable and the hunger bar warns in tiers, through the

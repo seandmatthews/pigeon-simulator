@@ -88,6 +88,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | pause_freezes_world | Esc-pausing through the real PauseMenu stops the flying pigeon dead mid-air and the hunger clock with it; resuming hands both back | T-010 |
 | game_over_shows_score_screen | starving through the real main scene opens the score screen — score, high score, tourist/car breakdown — freezes the run dead and keeps Esc locked | T-010 |
 | restart_resets_run | restart through Main.restart_run() zeroes score/breakdown, refills hunger, clears the game-over latch, regenerates the same-seed city and re-seeds every spawner with fresh nodes | T-010 |
+| hud_bread_pointer_tracks_nearest_crumb | the HUD bread pointer names the nearest living crumb (distance within 1 m; `nearest_crumb()` matches an independent scan and returns null when none is alive), the chevron carries the bearing from the nose and flips ~180° with the yaw, the readout decreases on approach, eating the pointed-at crumb through the grounded waddle-in re-aims at the next-nearest, beyond half the city span the same slot names "city" with the horizontal distance home (± 2 m) pointing back, and the label carries the T-019 outline treatment | T-037 |
 | hud_hunger_warning_tiers | the HUD score/hint outlines resolve through the theme, the hunger bar's four warning tiers map the 50/25/10% bands through the real Main scene, the danger tiers pulse in game time (tier 3 faster than tier 2) and falling back restores the rest color — via refill and restart_run | T-019 |
 | elder_placement_no_rng | the city records one pure-layout spot per plaza-ring bench and the spawner seats 4 elders on every second bench (0, 2, 4, 6 — 90° apart, on the seat line); regenerating the same seed reproduces the fingerprint, the bench/lamp/bin counts and the spot list byte-identically, a foreign seed still gets its ring, and the elders sit exactly on the chosen spots of a real generated City | T-020 |
 | elder_shares_bread_after_hangout | a GROUNDED pigeon parked in an elder's PresenceZone fills trust (~2 in ~2 s); a short walk-about decays it without wiping; back for `trust_needed` seconds the elder relays `bread_shared` exactly once and two ordinary T-005 crumbs (restore 30, hand-placed, respawn-accounted) sit on the pavement within reach in front of the bench | T-020 |
@@ -266,6 +267,9 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-016) Side-by-side with before, the city still reads warm and sunny after the sun-energy retune (the T-013 warmth judgement re-based)
 - [ ] (T-019) The score line and control hint read clearly over white pavement at the spawn corridor, over the bright sky at altitude and over the dark road (dark outlines)
 - [ ] (T-019) The hunger bar warns at a glance — white → amber → red pulse → fast flash — without staring at it, and never sits stranded mid-flash after landing to eat
+- [ ] (T-037) The bread pointer is readable at a glance mid-flight — the chevron leads the eye toward the crumb it names, and the metres count down as you close in
+- [ ] (T-037) Flying past the city edge flips the same line to "city N m" pointing home, and steering along the chevron brings the ring back into view
+- [ ] (T-037) The pointer line and chevron read over white pavement and bright sky (T-019 outline treatment) without crowding the hint above them
 - [ ] (T-017) Street canyons read as shop rows at eye level — colored ground-floor bands with doors and awnings, not blank office walls
 - [ ] (T-020) Four elders sit on the plaza benches every run, spread around the ring, and read as old people at a glance — hunch, gray hair, cane — from both flight height and ground level
 - [ ] (T-020) Landing in front of an elder and hanging out ~4 s earns a share: two crumbs toss onto the pavement in front of the bench, land where the pigeon can reach them without phasing through the bench, and eating them restores hunger
@@ -351,6 +355,17 @@ Playtest checklist (grows as tickets land):
   pulse, rest-color restore through refill and restart). A human pass over the
   T-019 lines (legibility over pavement/sky/road, tier readability at a
   glance, pulse comfort) is still pending.
+- Bread pointer (T-037) is machine-verified (Gate 1b
+  `hud_bread_pointer_tracks_nearest_crumb` — nearest-crumb query vs an
+  independent scan, distance/bearing/flip/approach, re-aim after eating
+  through the real waddle-in, city mode beyond the ring, resolved outlines)
+  and costs one nearest-N scan per frame inside the T-018 budget
+  (`density_cpu_budget` runs with the pointer live). The chevron bearing is
+  computed from the pigeon's nose, so during camera swings mid-turn it can
+  lag the view by the camera's smoothing — by design, re-evaluate at the
+  human pass. A human pass over the T-037 lines (readable at a glance
+  mid-flight, city mode reads clearly on the cruise home, legible over
+  pavement and sky) is still pending.
 - Park elders (T-020) are machine-verified (Gate 1b `elder_placement_no_rng`,
   `elder_shares_bread_after_hangout`, `elder_no_bread_airborne`,
   `elder_cooldown_blocks_second_share` — including byte-identical city

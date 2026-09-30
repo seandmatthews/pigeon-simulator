@@ -4,7 +4,8 @@ extends Node3D
 ## (bread T-005, tourists T-007, cars T-008) and the HUD. All game-wide state —
 ## score, combo, high score and the Hunger clock — lives in the Game autoload
 ## since T-009; Main attaches the player and the services to it and renders the
-## results: the HUD stats line and world-space score popups at each splat.
+## results: the HUD stats line, the bread pointer's wayfinding (T-037) and
+## world-space score popups at each splat.
 ## The fail state (T-010) listens to Game.hunger.game_over and opens the score
 ## screen; restart_run() rebuilds the run in place and menu.tscn sits in front.
 
@@ -36,6 +37,10 @@ const TIER_PULSE_TO := Color(1.0, 0.85, 0.8) ## The bright end both pulsing tier
 
 @onready var stats_label: Label = %StatsLabel
 @onready var hint_label: Label = %HintLabel
+@onready var bread_pointer: Label = %BreadPointer
+## The pointer's rotatable chevron (T-037): 0 = screen-up = nose, clockwise
+## positive on screen. Hides with the label (it is its child).
+@onready var bread_pointer_chevron: Polygon2D = bread_pointer.get_node("Chevron")
 @onready var hunger_bar: ProgressBar = %HungerBar
 @onready var pause_menu: PauseMenu = $PauseMenu
 @onready var game_over_screen: GameOverScreen = $GameOverScreen
@@ -93,6 +98,7 @@ func _process(delta: float) -> void:
 		_pulse_phase += delta * pulse_hz * TAU
 		var beat := 0.5 + 0.5 * sin(_pulse_phase)
 		hunger_bar.modulate = TIER_REST_COLORS[hud_warning_tier].lerp(TIER_PULSE_TO, beat)
+	_update_bread_pointer() ## Wayfinding (T-037) — refreshed alongside the stats line.
 
 
 ## The HUD pulse (T-013): a combo escalation bumps the score line up a size —
@@ -114,6 +120,49 @@ func _pulse_score(combo: int) -> void:
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_score_pulse.parallel().tween_property(stats_label, "theme_override_colors/font_color",
 			Color.WHITE, pulse_seconds)
+
+
+## The bread pointer (T-037): one HUD slot under the hint block, two modes, no
+## minimap. Inside the city ring it aims the chevron at the nearest living
+## crumb and counts the metres down ("bread 23 m"); beyond half the city span
+## the ring is lost and the same slot points home instead ("city 131 m",
+## horizontal distance to city.spawn_point). Hidden whenever it has nothing to
+## say. The chevron's rotation_degrees carries the bearing from the pigeon's
+## heading (-basis.z projected flat): 0 = screen-up = nose. heading.signed_
+## angle_to(target, UP) is counterclockwise-positive seen from above while
+## canvas rotation is clockwise-positive on screen, so the stored rotation is
+## the negated bearing.
+func _update_bread_pointer() -> void:
+	var pigeon_pos := player.global_position
+	var off_centre := pigeon_pos - city.global_position
+	off_centre.y = 0.0
+	if off_centre.length() > city.city_span * 0.5:
+		var home := city.spawn_point
+		var flat_home := Vector2(home.x - pigeon_pos.x, home.z - pigeon_pos.z)
+		_aim_bread_pointer(home, "city", flat_home.length())
+		return
+	var crumb := bread_spawner.nearest_crumb(pigeon_pos)
+	if crumb == null:
+		bread_pointer.visible = false
+		return
+	_aim_bread_pointer(crumb.global_position, "bread",
+			pigeon_pos.distance_to(crumb.global_position))
+
+
+## Points the shared slot at `target`: text "<what> <m> m", chevron on the flat
+## bearing. Degenerate geometry (nose straight up, or standing on the target)
+## keeps the last bearing instead of writing a NaN into the rotation.
+func _aim_bread_pointer(target: Vector3, what: String, distance: float) -> void:
+	bread_pointer.visible = true
+	bread_pointer.text = "%s %d m" % [what, roundi(distance)]
+	var heading := -player.transform.basis.z
+	heading.y = 0.0
+	var to_target := target - player.global_position
+	to_target.y = 0.0
+	if heading.length_squared() < 0.0001 or to_target.length_squared() < 0.0001:
+		return
+	bread_pointer_chevron.rotation_degrees = \
+			-rad_to_deg(heading.signed_angle_to(to_target, Vector3.UP))
 
 
 ## The hunger bar mirrors Game.hunger.changed — the number stays on the stats
