@@ -87,7 +87,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-086 | [Adopt T-025's bigger emissive drop ball — A/B-proven live, minus a latent parse bug in the ticket](T-086-poop-ball-visibility-adoption.md) | visual-design | 4 | 1 | done |
 | T-087 | [Give the off-world return a visible "came home" beat — today it is a blank frame and a hard cut](T-087-off-world-return-beat.md) | visual-design | 3 | 2 | proposed |
 | T-088 | [Make the city edge legible: T-047's near rim plus T-050's far skyline as one pass](T-088-city-edge-rim-skyline.md) | visual-design | 4 | 2 | proposed |
-| T-089 | [Unclog the band: traffic must move when you stand still](T-089-traffic-recycle-flow.md) | worldbuilding | 4 | 2 | proposed |
+| T-089 | [Unclog the band: traffic must move when you stand still](T-089-traffic-recycle-flow.md) | worldbuilding | 4 | 2 | done |
 | T-090 | [Signboards over the shop doors](T-090-shop-signboards.md) | worldbuilding | 3 | 1 | proposed |
 | T-091 | [One tall anchor per district — a destination you can steer by](T-091-district-anchors.md) | worldbuilding | 4 | 2 | proposed |
 | T-093 | [Merge the city's 840 single-shape static bodies into one body per group](T-093-city-one-body-per-group.md) | code-optimization | 2 | 2 | proposed |

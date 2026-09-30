@@ -86,6 +86,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | tourists_recycle_around_player | moving the player recycles the same tourist nodes into the spawn band around the new position | T-007 |
 | cars_traffic_loops_blocks | 20 traffic cars loop their block rings at lane speed — every car covers ground, the fleet rounds corners, no two cars ever overlap — while the parked fleet sits exactly where it was seeded | T-008 |
 | car_splat_honk_and_continue | a parked car takes a real lobbed splat (honk + score event relayed, stays parked, 30 scored through the Game autoload; the synthetic traffic hit is the ×2 → 90) and a traffic car hit through the same duck-typed entry keeps driving its loop | T-008 |
+| traffic_recycle_keeps_flow | with the pigeon parked on the plaza, 5 traffic cars re-seated onto one plaza-adjacent ring through the exact recycle insertion call (`_clear_rejoin_point`) all keep flowing — every seeded car covers ≥ 8 m of path in 10 s, seeded pairwise gaps stay ≥ 4 m (a healthy follow-gap queue still clears it), the fleet no-overlap floor stays > 2 m, velocities stay finite and no car jumps > 5 m in a frame (the whole ring lies inside the recycle radius, so the scanner must leave it alone); plus the block draw prefers rings under `ring_traffic_soft_cap` (an over-cap ring is never drawn while a lighter candidate exists) | T-089 |
 | score_combo_style_values | the Game autoload pays DESIGN values (tourist 100 · car 30), the chain escalates ×1 → ×2 → ×3 across target kinds and resets on landing and on the 20 s window, and the +50% style bonus demands a release that is fast, low and fresh | T-009 |
 | score_high_score_persists | beating the record writes user:// at once and a fresh Game loads it back | T-009 |
 | score_popup_floats_and_fades | the world-space popup shows "+100 ×2" at the hit position, floats up, fades and cleans itself up | T-009 |
@@ -255,6 +256,7 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-008) A splat on a parked car and on a moving car both honk (body flash) and tick the score by 30
 - [ ] (T-008) Cars read as visibly bigger, easier targets than tourists; a moving car is hittable with modest lead
 - [ ] (T-008) Follow one car for a full block circuit — it keeps looping normally after being splatted
+- [ ] (T-089) Standing still for a minute never parks the whole fleet; cars keep flowing past a stationary pigeon
 - [ ] (T-009) Splats pay the DESIGN points — 100 per tourist, 30 per car — and a popup at the hit reads clearly at flight speed
 - [ ] (T-009) Chained hits without landing escalate ×2, ×3… and reset when you land or after ~20 s
 - [ ] (T-009) A fast low dive hit pays the +50% style bonus — visible as a bigger popup number
@@ -457,6 +459,22 @@ Playtest checklist (grows as tickets land):
   decided against the scenario's independent scan, and selection is unchanged).
   A human pass over its Gate 3 line (the ▲ reads at a glance at 14 px before a
   roofline [screenshot]) is still pending.
+- Traffic recycle flow (T-089) is machine-verified (Gate 1b
+  `traffic_recycle_keeps_flow` — 5 probed insertions onto one plaza-adjacent
+  ring flow 39.5-50.5 m in 10 s with the pigeon parked, seeded gaps ≥ 5.67 m,
+  fleet floor 2.45 m, no mid-run teleports, and the block draw never picks an
+  over-cap ring while a lighter one exists) plus a one-line latent-bug fix
+  the scenario exposed: `Car.recycle_to` kept the old ring's armed rejoin
+  point (`_has_via`) after teleporting, dragging recycled cars off-lane into
+  walls. The recycle-path clot is fixed, but the Gate 3 line cannot pass as
+  written on ANY build — pilot A/B (same seed, no input, sessions
+  `t089stand`/`t089base`): 6/36 cars flowing on this branch vs 5/36 on
+  pristine main with the identical wall, driven by out-of-scope mechanisms
+  (FrontZone yielding queues behind the pigeon the corridor drop lands
+  mid-street; head-to-head standoffs on shared lane lines in car.gd's drive
+  model). The line stays unchecked pending a human pass; both residuals are
+  recorded as follow-up candidates in the ticket's "Known issues / follow-up"
+  section.
 - Remaining placeholder art: upper-floor facades are tinted
   boxes with a procedural window texture (ground floors carry T-017 shopfront
   bands, doors and awnings; the awnings are visual-only, no collider).

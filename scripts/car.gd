@@ -191,12 +191,16 @@ func honk() -> void:
 
 ## Teleport-recycle onto a new ring loop (spawner, T-008) — the same node, a
 ## new block, no allocation. Yaw snaps onto the loop so the car never arcs
-## across the block while turning around.
+## across the block while turning around. The armed on-lane rejoin point dies
+## with the old ring (T-089): a stale `_via_point` is tens of metres away on
+## the previous loop, and steering at it drags the fresh arrival off its new
+## lane into the curb — the wedge behind recycled-car clots.
 func recycle_to(pos: Vector3, new_path: PackedVector3Array, new_block: Vector3) -> void:
 	mode = Mode.TRAFFIC
 	global_position = pos
 	path = new_path
 	block_center = new_block
+	_has_via = false
 	_retarget_loop()
 	velocity = Vector3.ZERO
 

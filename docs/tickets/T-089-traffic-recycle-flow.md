@@ -1,6 +1,6 @@
 # T-089 — Unclog the band: traffic must move when you stand still
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** —
 - **Refs:** sweep-2 mining sessions `wbs2a`/`wbs2c` (`.captures/` in the
   worldbuilding worktree), jam frames `.captures/wbs2c_sit2.png` / `wbs2c_sit4.png`
@@ -68,13 +68,13 @@ mid-scenario by design (`tests/sim_test.gd:2030-2032`).
 
 ## Acceptance criteria
 
-- [ ] A recycled traffic car rejoins its ring at a probed point that sits >=
+- [x] A recycled traffic car rejoins its ring at a probed point that sits >=
       `follow_gap` (flat, center-to-center) from every traffic car already on
       that ring, unless every probe was blocked (the random fallback then
       applies) — visible as `_clear_rejoin_point` in `scripts/car_spawner.gd`.
-- [ ] When any band ring holds fewer than `ring_traffic_soft_cap` traffic
+- [x] When any band ring holds fewer than `ring_traffic_soft_cap` traffic
       cars, recycled traffic draws its block only from such rings.
-- [ ] (Gate 1b) new `traffic_recycle_keeps_flow` scenario in
+- [x] (Gate 1b) new `traffic_recycle_keeps_flow` scenario in
       `tests/sim_test.gd`: set up exactly like `cars_traffic`
       (`tests/sim_test.gd:2033-2040` — pigeon grounded on the plaza so the
       recycle anchor stays pinned, a `CarSpawner` wired to city + player, 4
@@ -95,13 +95,64 @@ mid-scenario by design (`tests/sim_test.gd:2030-2032`).
       discriminate: a flowing car covers 50+ m of a 116 m ring in 10 s
       (cruise 6 m/s × pace 0.9-1.15, corner cap 3.5), the mined clots crept at
       ≈ 0.5 m per 10 s, and same-ring queues hold `follow_gap` 5.6 m > 4.0 m —
-      only a standing clot fails.
-- [ ] (Gate 1b) `cars_traffic_loops_blocks` and `car_splat_honk_and_continue`
-      pass unchanged — the initial seeding path they exercise is untouched.
+      only a standing clot fails. Measured at the M1 seed: seeded cars cover
+      39.5-50.5 m, min seeded gap 5.67 m, fleet floor 2.45 m; the scenario
+      also directly probes the ring preference (`_pick_recycle_block` over an
+      over-cap vs a lighter block never draws the over-cap one).
+- [x] (Gate 1b) `cars_traffic_loops_blocks` and `car_splat_honk_and_continue`
+      pass unchanged — the initial seeding path they exercise is untouched
+      (re-run PASS in every full-suite run of this change-set).
 - [ ] (Gate 3) Park the pigeon for a minute mid a real run: traffic keeps
       circulating past the stationary bird — no static parking-lot wall forms
       (pilot harness: boot, enter the run, send no input for 60 s, review the
       frames).
+  - [pending human playtest — cannot pass as written on any build] A/B
+    evidence: same seed, no input after run start — this branch 6/36 cars
+    flowing after 60 s; pristine main control 5/36 with the identical wall.
+    Root causes are out of scope here: (a) the pigeon deterministically lands
+    in a street at (16.0, -0.12) and FrontZone yielding queues cars behind it
+    indefinitely; (b) head-to-head standoffs on shared lane lines in car.gd's
+    drive model. The recycle-path clot this ticket targets is fixed and
+    machine-proven (`traffic_recycle_keeps_flow`: 5 probed insertions flow
+    39.5-50.5 m in 10 s; all 3 recycled cars inserted cleanly in the live
+    pilot session).
+
+## Known issues / follow-up
+
+- **FrontZone yielding parks a wall behind a landed pigeon** — with no input
+  the run's corridor drop lands the bird mid-street at (16.0, -0.12) city
+  local, and every car whose lane passes it brakes forever (4-car follow-gap
+  queue observed). Fixing needs player-yield behavior in the FrontZone drive
+  model (car.gd), which this ticket explicitly does not claim. A/B: the wall
+  forms identically on pristine main (5/36 flowing vs 6/36 here).
+- **Head-to-head standoffs on shared lane lines** — opposing cars displaced
+  ~1 m off their lane (e.g. braking mid-swing) meet oncoming traffic
+  face-to-face at exactly `follow_gap` and deadlock (three 2-5 car chains
+  held at 0.00 m for minutes in the pilot session; the heads were never
+  recycled, so it is ordinary-driving, not insertion). Fixing needs lane
+  separation or a standoff break in car.gd's drive model. Candidate for a
+  future sweep ticket from this section.
+
+## Outcome notes
+
+- Deviation from "`scripts/car_spawner.gd` only": one line in
+  `scripts/car.gd` — `recycle_to` now clears the armed `_has_via`/_via_point
+  when teleporting. The Gate 1b scenario exposed it: cars seeded mid-corner
+  on their old ring (fractions 0.0/0.48/0.74 of the seeding spread) kept the
+  old ring's rejoin point armed after the re-seat and drove off-lane into a
+  block wall at 5 m/s (SIM_DEBUG trace: yaw frozen at -1.95 steering at a
+  stale via while the target corner lay due south). The same bug bites every
+  real `_recycle_far` recycle of a mid-corner car and is a direct
+  contributor to the mined standing clots — no spawner-only change can fix
+  it, and the scenario's travel >= 8.0 m criterion is unsatisfiable without
+  it. No city code, no RNG streams touched.
+- Tuned values: the ticket's own defaults — `recycle_probe_count = 5`,
+  `ring_traffic_soft_cap = 3` (no retuning needed; bars met with margin).
+- Gate evidence: Gate 1 import/boot exit 0 (the `--check-only` Sfx lines are
+  a pre-existing autoload artifact, identical on the pristine checkout);
+  Gate 1b 82/82 three consecutive runs; Gate 2 `AUTOPLAY DONE ok=true`,
+  traffic visible in the run screenshots; Gate 3 pilot A/B as recorded
+  above (sessions `t089stand` / `t089base` under `.captures/`).
 
 ## Verification
 
