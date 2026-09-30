@@ -33,6 +33,7 @@ const COLOR_LANE_MARK := Color(0.85, 0.82, 0.60)
 const COLOR_BENCH_WOOD := Color(0.55, 0.38, 0.24)
 const COLOR_METAL := Color(0.25, 0.26, 0.28)
 const COLOR_BIN := Color(0.16, 0.30, 0.20)
+const COLOR_TANK := Color(0.45, 0.53, 0.58) ## Dull plastic rooftop water tanks (T-032).
 const COLOR_LAMP_GLOW := Color(1.0, 0.9, 0.6)
 const COLOR_DOOR := Color(0.18, 0.14, 0.12)
 ## Ground-floor shopfront palette (T-017): cafés, bakeries, bookshops and delis,
@@ -57,6 +58,24 @@ const FACE_NORMALS: Array[Vector3] = [
 const CAFE_FACE_OUTSET := 0.12 ## The shop band's outset (the `_add_shopfront` band_outset).
 const CAFE_STANDOFF := 1.9 ## Table center out from the face plane (m).
 const CAFE_SIDE_OFFSET := 2.2 ## Table center along the face from the door center (m).
+
+## Rooftop clutter layout (T-032): per building, 1-3 props sit at ±0.25·footprint
+## per axis in the three non-(+,+) corner quadrants and one roof crumb at
+## ±0.28·footprint in the remaining (+,+) quadrant — both mirrored through the
+## lot_offset signs, so the geometry is corner-relative per lot. At the 7.1 m
+## minimum footprint that puts prop centers √2·0.25·7.1 ≈ 2.51 m (≥ 2.5) and
+## the spot ≈ 2.81 m from the footprint center — the `city_roof_landable` drop
+## point at the exact center stays clear — and the worst prop (the 1.4 m water
+## tank) keeps 3.55 − 1.775 − 0.7 = 1.075 m inside every roof edge. Pure layout
+## numbers: the placement draws no RNG of any stream.
+const ROOF_PROP_INSET := 0.25 ## Prop center offset from the footprint center, × footprint.
+const ROOF_BREAD_INSET := 0.28 ## Roof crumb offset from the footprint center, × footprint.
+const ROOF_PROP_KINDS: Array[String] = ["ac_box", "water_tank", "roof_vent"]
+const ROOF_PROP_SIZES: Dictionary = {
+	"ac_box": Vector3(1.2, 0.8, 1.2), ## Metal AC unit.
+	"water_tank": Vector3(1.4, 2.0, 1.4), ## Dull plastic tank.
+	"roof_vent": Vector3(0.5, 0.9, 0.5), ## Metal vent housing.
+}
 
 @export_group("Layout")
 ## Fixed M1 seed — same city every run so runs and scores stay comparable.
@@ -153,6 +172,16 @@ var elder_spots: Array[Transform3D] = []
 ## fingerprints and the pinned awning count stay byte-identical.
 var cafe_spots: Array[Transform3D] = []
 
+## Rooftop clutter (T-032): one entry per roof prop, appended in
+## `_add_building()` — `center` (global prop center), `size` (prop box),
+## `top` (global y of the prop's top face) and `kind` (`ac_box`,
+## `water_tank` or `roof_vent`). Pure layout math from the building's own
+## record (floors, footprint, lot_offset): zero RNG of any stream and no `_fp`
+## entry, so the layout fingerprint stays byte-identical to pre-T-032 builds;
+## the props are pinned by the `city_roofs_inhabited` scenario, like
+## `cafe_spots`.
+var roof_props: Array[Dictionary] = []
+
 ## Center (city-local) of every generated block — the tourist service (T-007)
 ## picks its sidewalk walking loops from these.
 var block_centers: Array[Vector3] = []
@@ -217,6 +246,7 @@ func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
 	bread_spots = []
 	elder_spots = []
 	cafe_spots = []
+	roof_props = []
 	block_centers = []
 	_static_root = Node3D.new()
 	_static_root.name = "Static"
@@ -362,6 +392,9 @@ func _make_meshes() -> void:
 		"shopfront": _unit_box(_vertex_color_material()),
 		"awning": _unit_box(_vertex_color_material()),
 		"door": _unit_box(_flat_material(COLOR_DOOR)),
+		"ac_box": _unit_box(_flat_material(COLOR_METAL)),
+		"water_tank": _unit_box(_flat_material(COLOR_TANK)),
+		"roof_vent": _unit_box(_flat_material(COLOR_METAL)),
 	}
 
 
@@ -475,6 +508,39 @@ func _add_building(base_center: Vector3, footprint: float, district: int,
 	_add_collider("Buildings",
 			Vector3(footprint, total_h, footprint),
 			base_center + Vector3(0.0, block_slab_height + total_h * 0.5, 0.0))
+	## Rooftop clutter (T-032): 1-3 deterministic props in the three non-(+,+)
+	## corner quadrants plus one roof-corner crumb spot in the remaining (+,+)
+	## quadrant — every position a pure function of this building's own layout
+	## data (floors, footprint, lot_offset). Zero RNG of any stream and no `_fp`
+	## entry, so the layout fingerprint stays byte-identical to pre-T-032
+	## builds. Each prop carries a small layer-1 collider (the bench pattern)
+	## and is landable cover; the (+,+) quadrant never hosts a prop (count ≤ 3)
+	## and nothing ever touches the footprint center — the
+	## `city_roof_landable` drop point.
+	var roof_top := block_slab_height + wall_h + roof_slab_height
+	var kind: String = ROOF_PROP_KINDS[buildings.size() % ROOF_PROP_KINDS.size()]
+	var prop_count := 1 + ((floors - building_floors_min) % 3)
+	var prop_quadrants: Array[Vector2] = [
+		Vector2(-1.0, -1.0), Vector2(1.0, -1.0), Vector2(-1.0, 1.0)]
+	for i in prop_count:
+		var quadrant := prop_quadrants[i]
+		var prop_size: Vector3 = ROOF_PROP_SIZES[kind]
+		var prop_pos := base_center + Vector3(
+				quadrant.x * signf(lot_offset.x) * footprint * ROOF_PROP_INSET,
+				roof_top + prop_size.y * 0.5,
+				quadrant.y * signf(lot_offset.y) * footprint * ROOF_PROP_INSET)
+		_add_mm(kind, _box_xf(prop_pos, prop_size))
+		_add_collider("Props", prop_size, prop_pos)
+		roof_props.append({
+			"center": to_global(prop_pos),
+			"size": prop_size,
+			"top": to_global(Vector3(0.0, roof_top + prop_size.y, 0.0)).y,
+			"kind": kind,
+		})
+	bread_spots.append(base_center + Vector3(
+			signf(lot_offset.x) * footprint * ROOF_BREAD_INSET,
+			roof_top + 0.06,
+			signf(lot_offset.y) * footprint * ROOF_BREAD_INSET))
 	buildings.append({
 		"center": to_global(Vector3(base_center.x, 0.0, base_center.z)),
 		"size": Vector2(footprint, footprint),

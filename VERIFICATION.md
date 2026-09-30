@@ -106,6 +106,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | city_shopfronts_present | every building wears a ground-floor shop band with a door on one of its two street-facing faces plus the seeded awning share (104/146 at the M1 seed), and the shopfront palette stays measurably distinct from every district palette | T-017 |
 | city_shopfronts_deterministic | regenerating the same seed reproduces every shop color, door face and awning flag exactly | T-017 |
 | city_cafe_tables_present | every awninged building gets exactly one sidewalk cafe table on a pure-layout spot recomputable from its building record (104 at the M1 seed, non-awninged buildings none), same-seed regeneration reproduces the spot list byte-identically, a spawner rig seats tables-with-sitters exactly on the spots (sitters layer-3 `npc` static bodies, 1-2 per table by the even/odd index rule — 104 tables → 156, tourist-palette shirts by index), the spots hold the street clearances (center ≥ 0.5 m inside the 10.9 m loop line, ≥ 1.0 m off the block's bread spots, ≥ 1.2 m edge-to-edge off the door line), and a grounded pigeon can perch beside a table — whose solid top stops the waddle dead | T-031 |
+| city_roofs_inhabited | every building carries 1-3 rooftop props fully on its roof (≥ 1.0 m from every edge, centers ≥ 2.5 m from the footprint center, one layer-1 `world` collider each) and exactly one roof crumb spot in the never-propped (+,+) quadrant at roof-top + 0.06, so `bread_spots` grows by exactly the building count (533 → 679 at the M1 seed); a crumb instantiated at a low roof's spot is eaten by a dropped-then-waddling pigeon through the ordinary eaten path (no BreadSpawner change), a drop onto the low roof's first prop settles grounded on its top, and a real same-seed rebuild reproduces `roof_props` and the roof spots byte-identically (zero RNG, zero new `_fp` entries) | T-032 |
 | juice_splat_burst_fires | a real lobbed splat spawns a one-shot droplet burst at the hit point on the hit body, and it cleans itself up | T-013 |
 | juice_feather_poofs_on_hard_flap | a fully-rested flap poofs feathers; a re-flap inside the throttle window doesn't spam another | T-013 |
 | juice_dust_puff_on_landing | a gentle glide touchdown kicks a dust puff at the feet, which cleans itself up | T-013 |
@@ -295,6 +296,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-031) Low street-level flight past cafe tables doesn't snag, and tables don't crowd the tourist path
 - [ ] (T-042) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home") — not a teleport glitch [screenshot]
 - [ ] (T-042) The hunger bar keeps ticking down across an off-world return — the clock never paused (compare the bar just before flying out and just after landing home)
+- [ ] (T-032) From cruise height the roofs read as inhabited — AC boxes, water tanks and vents break the gray roof planes, and a rooftop crumb is spottable from a cruise glide [screenshot]
+- [ ] (T-032) Landing on a roof near a crumb and waddling to it works like the pavement version; the props read as useful cover, not obstacles
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -430,6 +433,18 @@ Playtest checklist (grows as tickets land):
   off-world excursions now self-heal). A human pass over the two T-042 lines
   (the return reads as "came home", not a teleport glitch; the hunger bar never
   pauses across a return) is still pending.
+- Rooftop clutter (T-032) is machine-verified (Gate 1b `city_roofs_inhabited` —
+  1-3 props per building ≥ 1.0 m inside every roof edge and ≥ 2.5 m off the
+  footprint center, one layer-1 collider each, exactly one roof crumb per
+  building in the never-propped (+,+) quadrant so `bread_spots` grows by
+  exactly the building count (533 → 679 at the M1 seed), a roof crumb eaten
+  through the ordinary grounded waddle path with no BreadSpawner change, a
+  prop-top landing, and a byte-identical same-seed rebuild of `roof_props`
+  and the roof spots — the layout fingerprint stays byte-identical to
+  pre-T-032 builds: zero RNG draws, zero new `_fp` entries). The autoplay
+  cruise screenshots show the props; a human pass over the T-032 lines
+  (roofs read as inhabited from cruise height, rooftop crumbs spottable,
+  props read as cover rather than obstacles) is still pending.
 - Remaining placeholder art: upper-floor facades are tinted
   boxes with a procedural window texture (ground floors carry T-017 shopfront
   bands, doors and awnings; the awnings are visual-only, no collider).
