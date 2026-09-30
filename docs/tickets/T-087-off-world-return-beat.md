@@ -10,6 +10,11 @@ A presentation-only return beat, three files plus one new Gate 1b scenario. No
 physics change — `reset_flight` (`scripts/player.gd:131-145`) and the verified
 guard branch keep their shape except for one new line.
 
+**Consolidation (2026-09-30):** absorbs [T-100](T-100-off-world-home-note.md) — land its "home again"
+HUD note (the `%HomeNote` label + phase accumulator) in this same change-set, with ONE guard-fire
+signal (merge the two proposed signal names into one) and one main.gd handler doing the poof, the
+fade, the camera snap and the note.
+
 1. `scripts/player.gd` — a new signal beside the others (`player.gd:14-23`),
    typed like its siblings:
    `signal off_world_reset(from: Vector3)`. Emitted at the top of the guard

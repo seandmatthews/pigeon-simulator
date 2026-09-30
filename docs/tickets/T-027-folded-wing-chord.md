@@ -1,6 +1,6 @@
 # T-027 — Fix the grounded read: thin the folded wing chord at the rig level
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** superseded (T-048 — executes this plus an elder-read accent) · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-016 (root cause adjudicated, pose values held back), T-011 (the presentation rig)
 - **Refs:** `VERIFICATION.md` → Known issues (the open splay entry); visual-design lane plan, sweep 1 (2026-09-29)
 

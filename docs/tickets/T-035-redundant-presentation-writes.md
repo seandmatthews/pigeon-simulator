@@ -1,6 +1,6 @@
 # T-035 — Stop the per-frame redundant presentation writes
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 2 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** superseded (T-055 — this plus the bread-pointer churn) · **Category:** code-optimization · **Value (1-5):** 2 · **Risk (1-5):** 1
 - **Depends on:** — (T-007 and T-019, whose surfaces it touches, are landed)
 - **Refs:** `docs/tickets/T-018-performance-budget.md` → Calibration (the honest scale: this is headroom, not a bottleneck) · sweep 1 planning session
 

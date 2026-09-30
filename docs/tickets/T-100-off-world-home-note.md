@@ -1,6 +1,6 @@
 # T-100 — Whisper 'home again' when the off-world guard snaps the pigeon back
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** superseded (folded into T-087 — one return beat, one guard-fire signal; T-087 lands the HUD note too) · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** — (T-036/T-042 landed the guard this decorates)
 - **Refs:** sweep 2, ui-ux lane (2026-09-30) · T-036 + T-042 (guard, done) ·
   T-019 (game-time pattern + outline treatment) · T-040 (sibling

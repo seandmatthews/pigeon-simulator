@@ -1,6 +1,6 @@
 # T-061 — Make a stall fall: grade the velocity-align cut by stall depth
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Milestone:** Sweep backlog · **Status:** superseded (T-081 — same landing site, re-keyed on lift; T-081 also lands this ticket's scenario) · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** — (complements T-041: its brake-sink band ends at the stall, which must fall, not waft)
 - **Refs:** `scripts/player.gd` Handling / Lift & stall groups; sweep-1 flight-control lane suite logs in
   the flight-control worktree `.captures/`: `sim_baseline_flcs1.txt` (0 failures) and

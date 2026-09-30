@@ -1,6 +1,6 @@
 # T-047 — Build a readable rim at the city edge — trees/hedge ring instead of the infinite flat apron
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** superseded (executed by T-088, commit 1 — work that one) · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-004 (city blockout, landed)
 - **Refs:** sweep 2 sessions `vds2a`/`vds2b`/`vds2d` (readings recorded below); T-037's "city N m" HUD line
   (landed — the rim complements it); T-023/T-036 (proposed behavioral guards — out of scope here)

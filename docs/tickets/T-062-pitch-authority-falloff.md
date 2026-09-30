@@ -1,6 +1,6 @@
 # T-062 — Fade pitch authority near vertical — no more stuck 68–101° ballooning attitudes
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Milestone:** Sweep backlog · **Status:** superseded (T-083 — re-based adoption; work that one) · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** — (pairs with T-041: taps that can't stack past ~50° make its flare band actually reachable)
 - **Refs:** `scripts/player.gd` `_steer`; sweep-1 flight-control lane suite logs in the flight-control
   worktree `.captures/`: `sim_baseline_flcs1.txt` (0 failures) and `sim_experiment{,2,3}_flcs1.txt`

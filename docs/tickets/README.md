@@ -35,32 +35,32 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-021 | [Stick the landing: settle shallow touchdowns on contact](T-021-stick-the-landing.md) | flight-control | 4 | 2 | done |
 | T-022 | [Give pitch-up a real flare near the ground instead of a balloon](T-022-pitch-flare.md) | flight-control | 4 | 3 | done |
 | T-023 | [Edge-of-world guard: nudge the pigeon home past the apron](T-023-edge-of-world-guard.md) | flight-control | 3 | 3 | proposed |
-| T-024 | [Make the bird read at cruise: trim the FOV kick and arm](T-024-cruise-readability.md) | flight-control | 3 | 1 | proposed |
+| T-024 | [Make the bird read at cruise: trim the FOV kick and arm](T-024-cruise-readability.md) | flight-control | 3 | 1 | superseded (T-044) |
 | T-025 | [Make the falling dropping trackable: bigger ball, soft emission](T-025-poop-ball-visibility.md) | visual-design | 3 | 1 | superseded (adopted by T-086) |
 | T-026 | [Re-value the ground planes: stop the sidewalk/plaza blowout, lift the road](T-026-ground-palette-retune.md) | visual-design | 4 | 2 | proposed |
-| T-027 | [Fix the grounded read: thin the folded wing chord at the rig level](T-027-folded-wing-chord.md) | visual-design | 3 | 2 | proposed |
+| T-027 | [Fix the grounded read: thin the folded wing chord at the rig level](T-027-folded-wing-chord.md) | visual-design | 3 | 2 | superseded (T-048) |
 | T-029 | [Plaza landmark: statue on a plinth at the square's center](T-029-plaza-landmark.md) | worldbuilding | 3 | 2 | proposed |
 | T-030 | [Tree the parks (prototyped live: 4 MultiMesh trees per park block)](T-030-park-trees.md) | worldbuilding | 3 | 1 | proposed |
 | T-031 | [Cafe life under the awnings: tables with seated tourists on shop fronts](T-031-cafe-tables.md) | worldbuilding | 4 | 2 | done |
 | T-032 | [Give roofs a reason to exist: rooftop clutter and roof bread spots](T-032-roof-clutter.md) | worldbuilding | 4 | 2 | proposed |
 | T-033 | [Same-seed restart skips the city rebuild](T-033-same-seed-restart-skip.md) | code-optimization | 4 | 2 | done |
-| T-034 | [Extract the duplicated spawner band/recycle machinery](T-034-spawner-band-extraction.md) | code-optimization | 3 | 3 | proposed |
-| T-035 | [Stop the per-frame redundant presentation writes](T-035-redundant-presentation-writes.md) | code-optimization | 2 | 1 | proposed |
+| T-034 | [Extract the duplicated spawner band/recycle machinery](T-034-spawner-band-extraction.md) | code-optimization | 3 | 3 | superseded (T-054) |
+| T-035 | [Stop the per-frame redundant presentation writes](T-035-redundant-presentation-writes.md) | code-optimization | 2 | 1 | superseded (T-055) |
 | T-036 | [Guard the off-world fall with a return to the spawn corridor](T-036-off-world-fall-respawn.md) | code-optimization | 4 | 2 | done (adopted by T-042) |
 | T-037 | [HUD bread pointer & off-city "city that way"](T-037-hud-bread-pointer.md) | ui-ux | 4 | 2 | done |
 | T-038 | [Show the style bonus in the score popup](T-038-style-tag-in-popup.md) | ui-ux | 3 | 1 | proposed |
 | T-039 | [Teach the controls on the title screen](T-039-title-controls.md) | ui-ux | 3 | 1 | proposed |
 | T-040 | [HUD combo strip & hit marker: make every scored hit readable](T-040-combo-strip-hit-marker.md) | ui-ux | 4 | 2 | proposed |
-| T-041 | [Land the pitch-up flare: brake-sink instead of balloon (adopt T-022)](T-041-flare-brake-sink.md) | flight-control | 4 | 3 | proposed |
+| T-041 | [Land the pitch-up flare: brake-sink instead of balloon (adopt T-022)](T-041-flare-brake-sink.md) | flight-control | 4 | 3 | superseded (T-084) |
 | T-042 | [Guard the off-world void: respawn at the spawn corridor (adopt T-036)](T-042-off-world-void-respawn.md) | flight-control | 4 | 2 | done |
 | T-043 | [Cap the sustained-flap throttle so dives own the top end](T-043-sustained-flap-cap.md) | flight-control | 3 | 3 | proposed |
 | T-044 | [Trim the pinned FOV kick and pull the arm in at speed (adopt T-024)](T-044-fov-arm-trim.md) | flight-control | 3 | 1 | proposed |
-| T-045 | [Give the bird a pale rump/wing-bar anchor that survives roads and roofs](T-045-pale-rump-anchor.md) | visual-design | 3 | 1 | proposed |
+| T-045 | [Give the bird a pale rump/wing-bar anchor that survives roads and roofs](T-045-pale-rump-anchor.md) | visual-design | 3 | 1 | superseded (T-085) |
 | T-046 | [Add a predicted-impact ring for drops — the bombsight behind T-025's bigger ball](T-046-poop-impact-ring.md) | visual-design | 4 | 2 | proposed |
-| T-047 | [Build a readable rim at the city edge — trees/hedge ring instead of the infinite flat apron](T-047-city-edge-rim.md) | visual-design | 3 | 2 | proposed |
+| T-047 | [Build a readable rim at the city edge — trees/hedge ring instead of the infinite flat apron](T-047-city-edge-rim.md) | visual-design | 3 | 2 | superseded (T-088) |
 | T-048 | [Adopt T-027's folded-wing chord fix — confirmed live, plus an elder-read accent](T-048-folded-wing-chord-adoption.md) | visual-design | 3 | 2 | proposed |
 | T-049 | [Fit facade windows to each building's real floor count](T-049-facade-floors.md) | worldbuilding | 3 | 1 | proposed |
-| T-050 | [Put a skyline on the horizon so the world doesn't end at a cliff](T-050-horizon-skyline.md) | worldbuilding | 3 | 1 | proposed |
+| T-050 | [Put a skyline on the horizon so the world doesn't end at a cliff](T-050-horizon-skyline.md) | worldbuilding | 3 | 1 | superseded (T-088) |
 | T-051 | [Vary building footprints to break the uniform block grid](T-051-varied-footprints.md) | worldbuilding | 4 | 3 | proposed |
 | T-053 | [Land the off-world fall guard: falling past the apron returns you home](T-053-off-world-fall-guard.md) | code-optimization | 4 | 2 | done |
 | T-054 | [Extract BandSpawner and close the unverified car-recycle contract](T-054-band-spawner-extraction.md) | code-optimization | 3 | 3 | proposed |
@@ -69,8 +69,8 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-058 | [Make the off-city void readable: teach the chevron convention and cue the edge](T-058-off-city-turn-around.md) | ui-ux | 3 | 1 | proposed |
 | T-059 | [Retune the world score popup: legible at hit distances, de-cluster chained hits](T-059-score-popup-retune.md) | ui-ux | 3 | 1 | proposed |
 | T-060 | [Make the splat humanly possible and coach the lead](T-060-poop-hitbox-coach.md) | ui-ux | 4 | 2 | proposed |
-| T-061 | [Make a stall fall: grade the velocity-align cut by stall depth](T-061-stall-fall-develops.md) | flight-control | 4 | 3 | proposed |
-| T-062 | [Fade pitch authority near vertical — no more stuck 68–101° ballooning attitudes](T-062-pitch-authority-falloff.md) | flight-control | 4 | 3 | proposed |
+| T-061 | [Make a stall fall: grade the velocity-align cut by stall depth](T-061-stall-fall-develops.md) | flight-control | 4 | 3 | superseded (T-081) |
+| T-062 | [Fade pitch authority near vertical — no more stuck 68–101° ballooning attitudes](T-062-pitch-authority-falloff.md) | flight-control | 4 | 3 | superseded (T-083) |
 | T-069 | [Paint the intersections — crosswalks so streets read as streets](T-069-crosswalk-intersection-paint.md) | worldbuilding | 3 | 1 | proposed |
 | T-073 | [Take the high-score save off the scoring hot path (save once per run, flush at game over)](T-073-highscore-save-off-hot-path.md) | code-optimization | 2 | 2 | proposed |
 | T-074 | [Fix the broken failure diagnostics in two Gate 1b scenarios (string-precedence bug)](T-074-gate1b-fail-diagnostics.md) | code-optimization | 3 | 1 | proposed |
@@ -96,7 +96,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-097 | [Stop the title screen's Esc key from hard-quitting the app](T-097-title-esc-no-quit.md) | ui-ux | 3 | 1 | proposed |
 | T-098 | [Give the bread pointer an up/down cue — roof crumbs currently point into walls](T-098-bread-pointer-climb-cue.md) | ui-ux | 4 | 1 | done |
 | T-099 | [Put the controls inside the pause menu — the one screen a stuck player opens](T-099-pause-menu-controls.md) | ui-ux | 3 | 1 | proposed |
-| T-100 | [Whisper 'home again' when the off-world guard snaps the pigeon back](T-100-off-world-home-note.md) | ui-ux | 3 | 1 | proposed |
+| T-100 | [Whisper 'home again' when the off-world guard snaps the pigeon back](T-100-off-world-home-note.md) | ui-ux | 3 | 1 | superseded (T-087) |
 
 ## Milestone 2 — after the slice (not yet ticketed)
 

@@ -1,6 +1,6 @@
 # T-041 — Land the pitch-up flare: brake-sink instead of balloon (adopt T-022)
 
-- **Milestone:** Sweep 2 · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Milestone:** Sweep 2 · **Status:** superseded (T-084 — re-based adoption; work that one) · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** — (T-001 flight model is landed). Adopts [T-022](T-022-pitch-flare.md) — mark
   that ticket done/superseded when this lands; pairs with T-021 (the landing regime this makes
   controllable), no hard dependency.

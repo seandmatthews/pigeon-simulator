@@ -1,6 +1,6 @@
 # T-045 — Give the bird a pale rump/wing-bar anchor that survives roads and roofs
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** superseded (T-085 — adoption with citation corrections) · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-011 (the presentation rig, landed), T-016 (the silhouette gate this extends, landed)
 - **Refs:** visual-design lane sweep 2, session `vds2b` (frames f00019716 / f00019788 / f00003708 — under the
   lane worktree's gitignored `.captures/session_vds2b/`; the readings below are recorded in text so they survive)

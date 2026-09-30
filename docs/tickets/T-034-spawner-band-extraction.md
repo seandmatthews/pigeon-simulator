@@ -1,6 +1,6 @@
 # T-034 — Extract the duplicated spawner band/recycle machinery
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 3 · **Risk (1-5):** 3
+- **Milestone:** Sweep backlog · **Status:** superseded (T-054 — same extraction, re-verified line numbers) · **Category:** code-optimization · **Value (1-5):** 3 · **Risk (1-5):** 3
 - **Depends on:** — (T-007 and T-008, whose spawners it refactors, are landed)
 - **Refs:** sweep 1 planning session (the diff below re-verified on this tree while writing the ticket)
 

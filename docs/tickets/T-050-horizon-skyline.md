@@ -1,6 +1,6 @@
 # T-050 — Put a skyline on the horizon so the world doesn't end at a cliff
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** superseded (executed by T-088, commit 2 — work that one) · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** —
 - **Refs:** T-047 (city-edge rim — proposed, visual-design: the NEAR-field hedge/tree
   rim at the block boundary; this ticket dresses the FAR horizon beyond it —

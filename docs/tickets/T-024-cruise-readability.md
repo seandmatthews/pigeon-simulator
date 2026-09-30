@@ -1,6 +1,6 @@
 # T-024 — Make the bird read at cruise: trim the FOV kick and arm
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** superseded (T-044 — re-based adoption; work that one) · **Category:** flight-control · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-002 (the chase camera it retunes) · T-015 (the envelope that made 21–25 m/s normal cruise)
 - **Refs:** flight-control review-lane play sessions (2026-09-29, `.captures/session_flc-s1-a/`);
   baseline Gate 1b on today's tree re-run during ticket-writing: exit 0, 73/73 PASS
