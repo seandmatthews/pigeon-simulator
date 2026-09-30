@@ -57,7 +57,8 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | roof_takeoff | flapping off a roof works like off the pavement | T-003 |
 | bench_landing | a thin bench seat is landable and walkable | T-003 |
 | bench_takeoff | flapping off a bench returns to flight | T-003 |
-| hard_landing_skids | a steep fast dive skids to a stop — no instant ground, no tunneling, no NaNs | T-003 |
+| hard_landing_skids | a steep fast dive skids to a stop — no instant ground, no tunneling, no NaNs (T-021 retuned the skid detector to AIR floor frames above `skid_settle_speed`) | T-003 |
+| trim_glide_lands_clean | a natural trim-speed glide touchdown settles into the waddle on the contact frame — zero airborne floor-contact frames past the touch (no ghost-slide) | T-021 |
 | city_same_seed_deterministic | regenerating with the same seed reproduces the identical layout fingerprint | T-004 |
 | city_new_seed_guarantees | a different seed still yields a clear spawn plaza, flyable street widths, capped roof heights and enough bread-capable surfaces | T-004 |
 | city_regenerate_restores_layout | after regenerating a foreign seed, the default seed rebuilds the original city exactly | T-004 |
@@ -218,6 +219,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-003) Waddling is slow and comedic; A/D turns in place; Space takes off again
 - [ ] (T-003) A steep fast dive into the pavement skids to a stop — no crash, no falling through the world
 - [ ] (T-003) Landing and taking off on a roof and a bench works the same as on the pavement
+- [ ] (T-021) A trim-speed touchdown on the pavement or a bench sticks on contact — the pose folds and the HUD hint swaps the frame the feet touch, no ghost-slide past the touch point
+- [ ] (T-021) A deliberately hot, steep dive still reads as a comedic skid to near rest — not a soft mid-slide settle
 - [ ] (T-004) The city reads as a street grid from the air — roads with lane marks, sidewalks, varied facades, flat roofs, benches/lamps/bins
 - [ ] (T-004) Flying end-to-end along streets and between roofs never clips through a building
 - [ ] (T-004) Roofs, sidewalks and the spawn plaza are landable and walkable in a normal run
@@ -280,6 +283,11 @@ Playtest checklist (grows as tickets land):
 
 ## Known issues
 
+- Stick-the-landing (T-021) is machine-verified (Gate 1b `trim_glide_lands_clean`,
+  plus `hard_landing_skids` retuned to the skid bar `skid_settle_speed` — the
+  settle bar itself rose 12 → 16 to sit above the model's own trim-glide
+  touchdown speed); the human pass over the T-021 lines (trim touchdowns
+  *stick*, hot dives still read as comedic skids) is still pending.
 - Flight model v1 is machine-verified (Gate 1b) and its speed envelope was
   re-tuned by T-015 (flaps pace toward ~25, dives own the top end —
   `flap_speed_envelope` green); a human feel pass over the T-001 playtest

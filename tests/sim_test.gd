@@ -93,6 +93,7 @@ func _run_scenarios() -> void:
 	await _scenario_roof_landing()
 	await _scenario_bench_landing()
 	await _scenario_hard_landing()
+	await _scenario_trim_glide_lands_clean()
 	await _scenario_city_layout()
 	await _scenario_city_plaza()
 	await _scenario_city_street_flyover()
@@ -479,8 +480,13 @@ func _scenario_hard_landing() -> void:
 		await get_tree().physics_frame
 		min_y = minf(min_y, _player.position.y)
 		all_finite = all_finite and _player.velocity.is_finite() and _player.position.is_finite()
+		## (T-021) The skid detector reads the skid bar, not the settle bar:
+		## an AIR frame on the floor above `skid_settle_speed` means the touch
+		## was rejected and the pigeon is still skidding. (The old bar,
+		## `max_land_speed`, went blind when the settle bar rose to 16 — the
+		## dive's floor speeds sit below it — while the behavior stayed correct.)
 		if _player.is_on_floor() and not _player.is_grounded \
-				and _player.velocity.length() > _player.max_land_speed:
+				and _player.velocity.length() > _player.skid_settle_speed:
 			skid_was_air = true
 		if _player.is_grounded and _player.velocity.length() < 0.8:
 			break
@@ -489,6 +495,36 @@ func _scenario_hard_landing() -> void:
 	_check("hard_landing_skids", ok,
 			"fast touch stayed AIR=%s, min y %.2f, finite=%s, rest %.2f m/s grounded=%s" % [
 					skid_was_air, min_y, all_finite, _player.velocity.length(), _player.is_grounded])
+
+
+## (T-021) A natural trim-speed glide touchdown settles into the waddle ON the
+## contact frame: the pigeon ends GROUNDED having spent zero airborne
+## floor-contact frames above the skid bar — the old model ghost-slid ~3 m in
+## AIR past the touch because the settle bar sat under the glide's own arrival
+## speed. Started low (~1.5–2 m) so the touch arrives ≈ 15.3 m/s: higher starts
+## bleed less and can exceed the 16 m/s settle bar (SIM_DEBUG prints the touch).
+func _scenario_trim_glide_lands_clean() -> void:
+	await _set_up(true, Vector3(0.0, 1.8, 0.0), Vector3(0.0, 0.0, -17.0))
+	var air_floor_frames: int = 0
+	var first_air_floor_speed := 0.0 ## Speed of the first AIR frame on the floor — the touch, if the settle missed it.
+	var settle_speed := 0.0 ## Speed at the grounding frame — with a contact-frame settle this IS the touch speed.
+	for _i in 300:
+		await get_tree().physics_frame
+		if _player.is_on_floor() and not _player.is_grounded:
+			if first_air_floor_speed <= 0.0:
+				first_air_floor_speed = _player.velocity.length()
+			if _player.velocity.length() > _player.skid_settle_speed:
+				air_floor_frames += 1
+		if _player.is_grounded:
+			settle_speed = _player.velocity.length()
+			break
+	var finite := _player.velocity.is_finite() and _player.position.is_finite()
+	_dbg("trim glide: touch %.2f m/s, %d air floor frames, grounded=%s, settled at %.2f m/s" % [
+			first_air_floor_speed, air_floor_frames, _player.is_grounded, settle_speed])
+	_check("trim_glide_lands_clean", _player.is_grounded and air_floor_frames == 0 and finite,
+			"grounded=%s, %d airborne floor frames above %.1f m/s (first AIR-floor speed %.2f, settled at %.2f m/s, finite=%s)" % [
+					_player.is_grounded, air_floor_frames, _player.skid_settle_speed,
+					first_air_floor_speed, settle_speed, finite])
 
 
 ## --- scenarios (T-004 city blockout) ---------------------------------------
