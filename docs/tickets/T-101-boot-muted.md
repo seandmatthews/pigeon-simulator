@@ -43,8 +43,9 @@ existing machine check stays valid because they assert logical playback, not aud
       the `--sound` user arg opts in; no opt-in stays muted
 - [x] `pilot.py --sound` sessions are still audible (the env flag lands in the same change-set)
 - [x] The full Gate 1b suite stays green — no audio scenario depends on Master being unmuted
-- [ ] [screenshot/ear] Gate 3: a normal launch is silent; `godot --path . -- --sound` plays
-      the ambience bed and flap whooshes as before
+- [x] [screenshot/ear] Gate 3: a normal launch is silent; `godot --path . -- --sound` plays
+      the ambience bed and flap whooshes as before *(owner-confirmed 2026-09-30: "can confirm
+      that it's booting muted now")*
 
 ## Verification
 
