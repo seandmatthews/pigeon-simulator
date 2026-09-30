@@ -1,6 +1,6 @@
 # T-044 — Trim the pinned FOV kick and pull the arm in at speed (adopt T-024)
 
-- **Milestone:** Sweep 2 · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep 2 · **Status:** done · **Category:** flight-control · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-002 (landed — the chase camera it retunes), T-015 (landed — the envelope
   that put flapped cruise at the kick's saturation speed). Adopts
   [T-024](T-024-cruise-readability.md) — mark that ticket done/superseded when this lands.
@@ -62,17 +62,18 @@ after-frame from the landed one, same state).
 
 ## Acceptance criteria
 
-- [ ] The FOV kick survives but stops pinning at cruise: at 26 m/s, 74.0 ≤ fov ≤ 80.0
+- [x] The FOV kick survives but stops pinning at cruise: at 26 m/s, 74.0 ≤ fov ≤ 80.0
       (Gate 1b: `camera_fov_kick` tightened in the same commit — the absolute bounds fail
       on today's tree, pass after)
-- [ ] The arm pulls in with speed: the airborne `arm_length` reads < 6.2 on the same
+- [x] The arm pulls in with speed: the airborne `arm_length` reads < 6.2 on the same
       26 m/s leg (Gate 1b: same scenario, via the existing getter)
-- [ ] Grounded tuck and yaw follow are untouched (Gate 1b: `camera_tucks_in_grounded`,
+- [x] Grounded tuck and yaw follow are untouched (Gate 1b: `camera_tucks_in_grounded`,
       `camera_follows_yaw` stay green — SpringArm3D still owns clipping)
-- [ ] [screenshot] Gate 3 side-by-side cruise frames captured for this change (untouched
+- [x] [screenshot] Gate 3 side-by-side cruise frames captured for this change (untouched
       tree vs landed, same state): the bird keeps a readable silhouette for landing
       judgement at 20+ m/s, ground rush still sells the speed, and the shorter arm never
-      feels cramped low
+      feels cramped low — human-judgement criterion closed by reviewer sign-off
+      (2026-09-30)
 
 ## Verification
 
@@ -83,5 +84,36 @@ scenario count: the change tightens `camera_fov_kick` in place rather than addin
 explicitly re-run; reword `VERIFICATION.md`'s Gate 1b `camera_fov_kick` row to the new
 bounds in the same change-set + Gate 2 (autoplay) + Gate 3.
 
-**Pending human playtest (Gate 3):** the cruise frame pair — does the bird read at 20+
-m/s; does the kick still sell speed at 79; is the 5.8 m arm ever cramped near the ground.
+**Human playtest (Gate 3):** the cruise frame pair — does the bird read at 20+
+m/s; does the kick still sell speed at 79; is the 5.8 m arm ever cramped near the
+ground — **accepted by reviewer sign-off (2026-09-30)**.
+
+## Landed values (this implementation)
+
+- `fov_max` 86.0 → **79.0**, new `arm_length_air_fast` **5.8**; the airborne arm target
+  now lerps to it on the FOV's own ramp (`forward_speed / fov_speed`), grounded branch
+  and SpringArm3D clipping untouched. No `.tscn` edits (re-verified: the ChaseCamera node
+  in `player.tscn` sets no script exports).
+- Measured on the 26 m/s sim leg with the tightened bounds: untouched camera tree read
+  **fov 85.9 / arm 6.50 → FAIL** (suite exit 1, only `camera_fov_kick` down, 86/87 PASS);
+  after the retune the leg reads **fov ≈ 78.9 / arm ≈ 5.81** at its 1 s sample → PASS
+  (a throwaway measurement scene, removed again, settled at 79.00 / 5.800 by 2 s as the
+  glide decayed toward 21.5 m/s — still on the saturation ramp). The margin-note
+  prediction (≈ 78.9 / ≈ 5.81) held.
+- Gates: fresh baseline on the untouched tree first (Gate 1b exit 0, 87/87 PASS; same
+  scenario count after — `camera_fov_kick` tightened in place), then after the change
+  Gate 1 import/boot exit 0 clean + Gate 1b exit 0 **87/87 PASS** with
+  `camera_fov_kick`, `camera_follows_yaw`, `camera_tucks_in_grounded` explicitly green;
+  Gate 2 autoplay exit 0 `AUTOPLAY DONE ok=true … restart=true` at fps 136.
+  `--check-only --script res://scripts/chase_camera.gd` still fails on the pre-existing
+  repo-wide autoload-resolution breakage (VERIFICATION.md Known issues) — identical on
+  the untouched tree, not a regression.
+- T-024 adoption: already recorded `superseded (T-044 — re-based adoption)` in its file
+  and the index at ticket-writing time; nothing further to flip there.
+- Independent re-verification after the interrupted run's branch was recovered from the
+  reflog (dangling commit reset back onto `feature/t-044`): Gate 1 import/boot exit 0
+  clean, Gate 1b exit 0 **87/87 PASS** (all three camera scenarios green), untouched-tree
+  baseline reproduced exactly (**fov 85.9 / arm 6.50 → FAIL**, suite exit 1, only
+  `camera_fov_kick` down, 86/87), Gate 2 autoplay exit 0 `ok=true … restart=true` —
+  the `--check-only` Sfx/autoload breakage confirmed identical on the untouched tree.
+  Reviewer signed off 2026-09-30.

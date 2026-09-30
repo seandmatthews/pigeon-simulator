@@ -48,7 +48,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | stall_recovers | a flap restores flying speed out of a stall | T-001 |
 | landing_slides_to_stop | a low touchdown slides to a stop — no bounce, no NaNs | T-001 |
 | camera_follows_yaw | the rig swings around behind a turning pigeon | T-002 |
-| camera_fov_kick | FOV widens measurably with speed | T-002 |
+| camera_fov_kick | the FOV kick survives but stops pinning at cruise — at 26 m/s the damped FOV sits inside absolute bounds 74.0–80.0 (fov_air 72 below the floor; the old pinned fov_max 86 measured 85.9 there, failing) and the airborne arm reads pulled in with speed < 6.2 m (the old fixed 6.5 m target measured 6.50, failing; since T-044 it damps toward arm_length_air_fast 5.8 on the FOV ramp) | T-002, T-044 |
 | camera_tucks_in_grounded | arm shortens while grounded | T-002 |
 | waddles_on_ground | a gentle drop settles grounded and W walks forward at waddle pace | T-003 |
 | waddle_turns | A/D turn the pigeon in place while grounded | T-003 |
@@ -232,6 +232,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-002) Camera never clips ground or buildings when landing or hugging walls
 - [ ] (T-002) No visible jitter during fast turns and dives; FOV kick noticeable but not nauseating
 - [ ] (T-002) The pigeon never leaves the frame at max speed
+- [ ] (T-044) Side-by-side with the old pinned kick (untouched tree vs landed, same cruise state), at 20+ m/s the bird keeps a readable silhouette for landing judgement while the ground rush still sells the speed [screenshot]
+- [ ] (T-044) The shorter fast arm (5.8 m) never feels cramped when it pulls in low near roofs or the pavement
 - [ ] (T-003) A gentle glide touchdown settles into the waddle and the HUD hint swaps to the grounded controls
 - [ ] (T-003) Waddling is slow and comedic; A/D turns in place; Space takes off again
 - [ ] (T-003) A steep fast dive into the pavement skids to a stop — no crash, no falling through the world
@@ -521,6 +523,15 @@ Playtest checklist (grows as tickets land):
   testing its own quit. The agent-side pilot pass (title screenshot with the
   "Q quit" footer hint, Esc at the title leaves the app up, Space still starts
   a run, Q exits) is recorded in the ticket and accepted by reviewer
+  sign-off (2026-09-30).
+- FOV kick / fast-arm trim (T-044, adopting T-024) is machine-verified (Gate 1b
+  `camera_fov_kick` tightened in place to absolute bounds on the 26 m/s leg —
+  74.0 ≤ fov ≤ 80.0 plus arm < 6.2 m — which measured fov 85.9 / arm 6.50 on
+  the untouched camera tree and FAILED there, then 78.9 / 5.81 inside the
+  bounds after the retune; `camera_follows_yaw` and `camera_tucks_in_grounded`
+  re-run green, so follow and the grounded tuck are untouched). The human
+  pass over its two Gate 3 lines (the cruise silhouette pair vs the untouched
+  tree; the 5.8 m fast arm never cramped low) was accepted by reviewer
   sign-off (2026-09-30).
 - Remaining placeholder art: upper-floor facades are tinted
   boxes with a procedural window texture (ground floors carry T-017 shopfront

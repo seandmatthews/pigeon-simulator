@@ -407,8 +407,17 @@ func _scenario_chase_camera() -> void:
 	var fov_cruise := cam.fov
 	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -26.0))
 	await _wait_frames(60)
-	_check("camera_fov_kick", cam.fov > fov_cruise + 4.0,
-			"fov %.1f at 8 m/s vs %.1f at 26 m/s" % [fov_cruise, cam.fov])
+	## (T-044) Absolute bounds on the 26 m/s leg, not a relative margin: with
+	## fov_max 79 the damped 26 m/s read sits ~78.9 — under ~4.2 of margin
+	## against the old 4.0 threshold, so the relative assert had gone blind.
+	## The bounds prove the kick survives (fov_air 72 sits below the floor)
+	## but stops pinning at cruise (the old pinned fov_max 86 measured 85.9
+	## here and failed), and the arm must read pulled in with speed (the old
+	## fixed 6.5 m target measured 6.50 here and failed < 6.2).
+	_check("camera_fov_kick",
+			cam.fov <= 80.0 and cam.fov >= 74.0 and cam.arm_length < 6.2,
+			"fov %.1f at 26 m/s (bounds 74.0-80.0; 8 m/s leg read %.1f), arm %.2f m (< 6.2)" % [
+					cam.fov, fov_cruise, cam.arm_length])
 	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO)
 	await _wait_frames(60)
 	_check("camera_tucks_in_grounded", cam.arm_length < 4.5,
