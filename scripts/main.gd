@@ -29,6 +29,7 @@ const TIER_REST_COLORS: Array[Color] = [
 ]
 const TIER_PULSE_HZ: Array[float] = [0.0, 0.0, 3.0, 6.0] ## Flash rate per tier — 0 = static color.
 const TIER_PULSE_TO := Color(1.0, 0.85, 0.8) ## The bright end both pulsing tiers breathe toward.
+const POOP_READY_DIM_ALPHA := 0.25 ## (T-077) The F glyph's alpha while the poop cooldown runs — dim, but readable.
 
 @export_group("Juice") ## T-013
 @export var hit_shake: float = 0.3 ## Camera-shake fraction per scored splat — your hits land with a tick.
@@ -37,6 +38,8 @@ const TIER_PULSE_TO := Color(1.0, 0.85, 0.8) ## The bright end both pulsing tier
 
 @onready var stats_label: Label = %StatsLabel
 @onready var hint_label: Label = %HintLabel
+## The F readiness glyph (T-077) — sits beside the hint line it qualifies.
+@onready var poop_ready_label: Label = %PoopReady
 @onready var bread_pointer: Label = %BreadPointer
 ## The pointer's rotatable chevron (T-037): 0 = screen-up = nose, clockwise
 ## positive on screen. Hides with the label (it is its child).
@@ -99,6 +102,7 @@ func _process(delta: float) -> void:
 		var beat := 0.5 + 0.5 * sin(_pulse_phase)
 		hunger_bar.modulate = TIER_REST_COLORS[hud_warning_tier].lerp(TIER_PULSE_TO, beat)
 	_update_bread_pointer() ## Wayfinding (T-037) — refreshed alongside the stats line.
+	_update_poop_ready() ## The F readiness glyph (T-077) — same game-time cadence.
 
 
 ## The HUD pulse (T-013): a combo escalation bumps the score line up a size —
@@ -163,6 +167,24 @@ func _aim_bread_pointer(target: Vector3, what: String, distance: float) -> void:
 		return
 	bread_pointer_chevron.rotation_degrees = \
 			-rad_to_deg(heading.signed_angle_to(to_target, Vector3.UP))
+
+
+## The F readiness glyph (T-077): the scoring verb fails three silent ways —
+## grounded (by design), mid-cooldown, or both — and the little "F" beside the
+## hint line says which. Hidden while grounded (F cannot answer there), lit at
+## full alpha while airborne with a rested drop, dimmed to a quarter while the
+## cooldown runs. Game time like the rest of _process: pausing stops this
+## method, so the glyph freezes with the world, and restart_run() zeroes the
+## cooldown through reset_flight, so the next tick relights it on its own.
+## Both writes are guarded (the T-035/T-055 redundant-write concern): idle
+## frames touch nothing.
+func _update_poop_ready() -> void:
+	var airborne := not player.is_grounded
+	if poop_ready_label.visible != airborne:
+		poop_ready_label.visible = airborne
+	var want_alpha := 1.0 if player.poop_ready else POOP_READY_DIM_ALPHA
+	if not is_equal_approx(poop_ready_label.modulate.a, want_alpha):
+		poop_ready_label.modulate.a = want_alpha
 
 
 ## The hunger bar mirrors Game.hunger.changed — the number stays on the stats

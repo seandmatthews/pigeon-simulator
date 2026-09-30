@@ -112,6 +112,7 @@ func _run_scenarios() -> void:
 	await _scenario_poop_splat_ground()
 	await _scenario_poop_splat_wall()
 	await _scenario_poop_event_target()
+	await _scenario_poop_ready_indicator_tracks_cooldown() ## T-077 — unpaused tree, no live Main, like the poop block.
 	await _scenario_tourists_walk()
 	await _scenario_tourist_splat()
 	await _scenario_tourist_buzz()
@@ -1065,6 +1066,114 @@ func _scenario_poop_event_target() -> void:
 	_check("poop_event_reaches_any_body", fired and duck_typed and decoupled,
 			"signal_hit_pad=%s duck_typed=%s (hits %d) no_player_import=%s" % [
 					fired, duck_typed, pad_hits, decoupled])
+
+
+## The F readiness glyph (T-077), through the REAL main scene: airborne with a
+## rested drop it shows lit at full alpha, a REAL poop tap dims it to a quarter
+## immediately, it stays dim while the cooldown runs and freezes with a paused
+## tree, it relights only after poop_cooldown of game time with no further
+## press, it hides entirely while grounded, and restart_run() mid-cooldown
+## relights it. Registered beside the other poop scenarios — this stretch has
+## an unpaused tree and no live Main, and the scenario leaves it exactly that.
+func _scenario_poop_ready_indicator_tracks_cooldown() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(3500.0, 0.0, 3500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var pigeon: Player = main_game.player
+	var glyph: Label = main_game.poop_ready_label
+	var spawn_local: Vector3 = main_game.city.to_local(main_game.city.spawn_point)
+	var hover: Vector3 = spawn_local + Vector3(0.0, 5.0, 0.0) ## Above the clear spawn corridor.
+	## Airborne fresh run: hold flight the elder_no_bread_airborne way — a
+	## reset_flight per frame (which also zeroes the cooldown, keeping it
+	## "ready") — then give the driver's tick to light the glyph.
+	for _i in 8:
+		pigeon.reset_flight(hover)
+		await get_tree().physics_frame
+	var lit_ok: bool = glyph.visible and not pigeon.is_grounded \
+			and absf(glyph.modulate.a - 1.0) <= 0.01
+	## Style: plain "F" carrying the T-019 outline treatment at font 16 —
+	## equality against the tuned values, like the other HUD scenarios.
+	var style_ok: bool = glyph.text == "F" \
+			and glyph.get_theme_color("font_outline_color").is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
+			and glyph.get_theme_constant("outline_size") == 4 \
+			and glyph.get_theme_font_size("font_size") == 16
+	## A REAL poop action: the drop fires, the glyph dims immediately.
+	await _tap("poop")
+	await _wait_frames(2)
+	var dim_ok: bool = not pigeon.is_grounded and pigeon._poop_timer > 0.9 \
+			and glyph.visible and absf(glyph.modulate.a - 0.25) <= 0.01
+	## Hold the pigeon at the hover by pinning pose+velocity — reset_flight here
+	## would wipe the very cooldown being tracked — and prove it stays dim
+	## through the first 50 of the 60-frame cooldown (no early relight).
+	var early_lit := false
+	for _i in 50:
+		pigeon.velocity = Vector3(0.0, -1.0, 0.0)
+		pigeon.position = hover
+		await get_tree().physics_frame
+		early_lit = early_lit or absf(glyph.modulate.a - 1.0) <= 0.01
+	## Pause mid-cooldown: the whole tree freezes, so the glyph's dim state must
+	## hold past the point the cooldown would have expired (pause_freezes proves
+	## the mechanism; this proves the glyph freezes with it).
+	main_game.pause_menu.toggle()
+	var paused: bool = get_tree().paused and main_game.pause_menu.is_open
+	var timer_at_pause: float = pigeon._poop_timer
+	var alpha_at_pause: float = glyph.modulate.a
+	for _i in 80: ## 1.33 s paused — longer than the whole cooldown.
+		await get_tree().physics_frame
+	var frozen_ok: bool = paused and glyph.visible \
+			and absf(glyph.modulate.a - alpha_at_pause) < 0.001 \
+			and absf(pigeon._poop_timer - timer_at_pause) < 0.001
+	main_game.pause_menu.toggle()
+	await _wait_frames(2)
+	var resumed_ok: bool = not get_tree().paused and not main_game.pause_menu.is_open
+	## The cooldown finishes in game time → lit again, no further press.
+	var relit := false
+	for _i in 30:
+		pigeon.velocity = Vector3(0.0, -1.0, 0.0)
+		pigeon.position = hover
+		await get_tree().physics_frame
+		if absf(glyph.modulate.a - 1.0) <= 0.01:
+			relit = true
+			break
+	## Land on the spawn plaza: hidden entirely — no dim ghost.
+	pigeon.reset_flight(spawn_local + Vector3(0.0, 0.4, 0.0))
+	var landed := false
+	for _i in 300:
+		await get_tree().physics_frame
+		if pigeon.is_grounded:
+			landed = true
+			break
+	await _wait_frames(3) ## The driver's next tick hides it.
+	var hidden_ok: bool = landed and pigeon.is_grounded and not glyph.visible
+	## Take off, drop for real, and restart_run() MID-COOLDOWN: reset_flight
+	## zeroes the timer and returns to AIR, so the next tick relights it.
+	await _tap("flap")
+	var airborne_again := false
+	for _i in 60:
+		await get_tree().physics_frame
+		if not pigeon.is_grounded:
+			airborne_again = true
+			break
+	await _tap("poop")
+	await _wait_frames(2)
+	var cooling_again: bool = glyph.visible and absf(glyph.modulate.a - 0.25) <= 0.01 \
+			and pigeon._poop_timer > 0.9
+	main_game.restart_run()
+	await _wait_frames(3)
+	var restart_lit: bool = not get_tree().paused and glyph.visible \
+			and absf(glyph.modulate.a - 1.0) <= 0.01 and not main_game.player.is_grounded
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("poop_ready_indicator_tracks_cooldown",
+			lit_ok and style_ok and dim_ok and not early_lit and frozen_ok and resumed_ok
+					and relit and hidden_ok and airborne_again and cooling_again and restart_lit,
+			"lit=%s style=%s dim=%s early_lit=%s frozen=%s resumed=%s relit=%s hidden=%s air=%s cooling=%s restart_lit=%s" % [
+					lit_ok, style_ok, dim_ok, early_lit, frozen_ok, resumed_ok,
+					relit, hidden_ok, airborne_again, cooling_again, restart_lit])
 
 
 ## --- scenarios (T-020 park elders) ------------------------------------------

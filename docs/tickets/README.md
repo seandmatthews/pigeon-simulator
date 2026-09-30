@@ -69,6 +69,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-058 | [Make the off-city void readable: teach the chevron convention and cue the edge](T-058-off-city-turn-around.md) | ui-ux | 3 | 1 | proposed |
 | T-059 | [Retune the world score popup: legible at hit distances, de-cluster chained hits](T-059-score-popup-retune.md) | ui-ux | 3 | 1 | proposed |
 | T-060 | [Make the splat humanly possible and coach the lead](T-060-poop-hitbox-coach.md) | ui-ux | 4 | 2 | proposed |
+| T-077 | [Give F a readiness cue: three silent failure modes, one glyph](T-077-poop-ready-cue.md) | ui-ux | 4 | 1 | done |
 
 ## Milestone 2 — after the slice (not yet ticketed)
 
