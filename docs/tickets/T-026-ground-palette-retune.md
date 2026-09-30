@@ -1,6 +1,6 @@
 # T-026 — Re-value the ground planes: stop the sidewalk/plaza blowout, lift the road
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-016, T-013 (both landed — the silhouette gate and the warmth judgement this retune must respect)
 - **Refs:** `docs/DESIGN.md` → Art style (warm-sun read); visual-design lane plan, sweep 1 (2026-09-29)
 
@@ -56,16 +56,16 @@ gate measures is (0.38, 0.42, 0.47) (`scenes/pigeon_visual.tscn:6`,
 
 ## Acceptance criteria
 
-- [ ] `pigeon_silhouette_contrast` (extended, see below) stays green with the
+- [x] `pigeon_silhouette_contrast` (extended, see below) stays green with the
       new sidewalk — body ↔ sidewalk Euclidean ≥ 0.20 measured at ≥ 0.23 with
       the stated values, no gate re-basing needed
-- [ ] Gate 1b: `pigeon_silhouette_contrast` additionally asserts **sidewalk ↔
+- [x] Gate 1b: `pigeon_silhouette_contrast` additionally asserts **sidewalk ↔
       asphalt Euclidean ≥ 0.30** and **sidewalk ↔ `Mat_body` ≥ 0.20**, pinning
       the retune so a future tweak cannot silently re-merge the surfaces
       (computed today: 0.435 and 0.230 at the proposed values; the old pair
       measured 0.619, so the road/sidewalk contrast intentionally narrows but
       stays above the floor)
-- [ ] All city scenarios stay green unchanged: `city_district_palettes_distinct`,
+- [x] All city scenarios stay green unchanged: `city_district_palettes_distinct`,
       `city_shopfronts_present`, `city_shopfronts_deterministic`,
       `city_same_seed_deterministic`, `city_plaza_spawn`,
       `city_street_flyover`, `city_sidewalk_walkable` (colors are absent from
@@ -76,6 +76,19 @@ gate measures is (0.38, 0.42, 0.47) (`scenes/pigeon_visual.tscn:6`,
 - [ ] [screenshot] The city still reads "warm sun" after the retune — the
       T-013 warmth judgement holds over the new ground values (Gate 3 — human
       judgement)
+
+## Landed values & verification (2026-09-29)
+
+Landed exactly as tabled: `COLOR_SIDEWALK` (0.56, 0.55, 0.53), `COLOR_PLAZA`
+(0.60, 0.57, 0.51), `COLOR_ASPHALT` (0.29, 0.29, 0.31) — no gate re-basing was
+needed. Gate 1b measured at the landed constants (headless suite,
+`SIM SUMMARY: 0 failure(s)`, 73/73 green): sidewalk ↔ asphalt **0.435** ≥ 0.30,
+sidewalk ↔ body **0.230** ≥ 0.20 (both now pinned inside
+`pigeon_silhouette_contrast`); all seven city scenarios above green unchanged.
+Gate 2 autoplay green (`AUTOPLAY DONE ok=true`, restart=true, 136 fps avg).
+The two [screenshot] criteria are the pending human playtest pass recorded in
+VERIFICATION.md's Gate 3 list — machine checks cannot judge the blow-out fix
+or the warm-sun read.
 
 ## Verification
 

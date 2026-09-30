@@ -23,10 +23,10 @@ const DISTRICT_PALETTES: Array = [
 	[Color(0.52, 0.6, 0.7), Color(0.44, 0.53, 0.64), Color(0.6, 0.67, 0.76)], ## Cool blue-gray.
 	[Color(0.55, 0.64, 0.48), Color(0.47, 0.58, 0.43), Color(0.62, 0.69, 0.54)], ## Sage green.
 ]
-const COLOR_ASPHALT := Color(0.24, 0.24, 0.26)
+const COLOR_ASPHALT := Color(0.29, 0.29, 0.31)
 const COLOR_GRASS := Color(0.36, 0.5, 0.30)
-const COLOR_SIDEWALK := Color(0.62, 0.61, 0.58)
-const COLOR_PLAZA := Color(0.70, 0.66, 0.58)
+const COLOR_SIDEWALK := Color(0.56, 0.55, 0.53)
+const COLOR_PLAZA := Color(0.60, 0.57, 0.51)
 const COLOR_PARK := Color(0.42, 0.55, 0.34)
 const COLOR_ROOF := Color(0.33, 0.33, 0.36)
 const COLOR_LANE_MARK := Color(0.85, 0.82, 0.60)
