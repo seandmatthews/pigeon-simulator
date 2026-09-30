@@ -1,6 +1,11 @@
 # T-025 — Make the falling dropping trackable: bigger ball, soft emission
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 1
+> **Superseded 2026-09-30:** landed as [T-086](T-086-poop-ball-visibility-adoption.md)
+> with one correction — this ticket's `emission = Color(0.85, 0.78, 0.55)` is a
+> 3-arg Color, which fails `.tscn` parsing (`Expected 4 arguments for
+> constructor`); the landed form is the 4-arg `Color(0.85, 0.78, 0.55, 1)`.
+
+- **Milestone:** Sweep backlog · **Status:** superseded (adopted by T-086) · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-006 (poop mechanic, landed)
 - **Refs:** `docs/DESIGN.md` → scoring loop (leading targets is core play); visual-design lane plan, sweep 1 (2026-09-29)
 

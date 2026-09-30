@@ -78,6 +78,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | poop_splats_ground_and_fades | a floor hit fires splatted(target, impact_velocity), sticks an up-facing splat to the hit body and fades it away | T-006 |
 | poop_splats_wall | a wall hit sticks a splat facing along the wall's horizontal normal | T-006 |
 | poop_event_reaches_any_body | a plain body on the hit layers receives the hit duck-typed (on_splatted) with no player import anywhere in poop.gd | T-006 |
+| poop_ball_visible | the falling drop reads from the chase cam — BallMesh radius ≥ 0.10 (landed 0.12), Mat_ball carries the soft warm emission in the parse-safe 4-arg Color form (a 3-arg Color in a .tscn fails to parse, load() → null), albedo ≥ 0.25 Euclidean RGB from grass and plaza (measured 0.853 / 0.545) and the collider stays pinned at its landed 0.07 | T-086 |
 | poop_ready_indicator_tracks_cooldown | through the real main scene, the F glyph beside the hint line shows lit at full alpha while airborne with a rested drop, dims to ~25% the moment a REAL poop fires, stays dim through mid-cooldown, freezes with a paused tree and relights when the cooldown elapses in game time with no further press, hides entirely while grounded, and restart_run() mid-cooldown relights it (T-019 outline treatment asserted) | T-077 |
 | tourists_walk_loose_groups | 18 tourists stroll their sidewalk loops at slab level, seeded in loose groups | T-007 |
 | tourist_splat_panics_scores | a real lobbed splat panics its tourist (sprint + arms) and fires the splatted score event, scored end to end through the Game autoload (100, then the chain's ×2 → 300); a sideways hit makes the panic flee along the impact's horizontal mirror | T-007 |
@@ -243,6 +244,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-006) Mashing F while flying yields about one dropping per second — no stream
 - [ ] (T-006) F does nothing while grounded — the dropping only exists in the air
 - [ ] (T-077) The F readiness glyph beside the hint line reads at a glance over pavement and sky, and the dim (cooling) state is distinguishable from the lit one [screenshot]
+- [ ] (T-086) A freshly released drop reads as a distinct bright dot below the bird, against sunlit grass AND against shaded street, for ~2 s of fall [screenshot]
+- [ ] (T-086) The enlarged ball does not read as a premature hit during the pre-contact moment [screenshot]
 - [ ] (T-007) 15–20 tourists stroll the sidewalks and plaza in loose groups and read as believable walkers
 - [ ] (T-007) A direct splat panics its tourist — sprints away, arms up, red flush, fist shake — and Score ticks up
 - [ ] (T-007) Manual skill run: splat at least 3 tourists and buzz 3 more; watch one full panic cycle (sprint, fist shake, stroll resumes) through to the tourist eventually recycling
