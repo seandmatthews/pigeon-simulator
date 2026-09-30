@@ -1,6 +1,6 @@
 # T-033 — Same-seed restart skips the city rebuild
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** code-optimization · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** — (T-004 determinism, T-010 restart flow and the T-018 spike record it builds on are all landed)
 - **Refs:** `docs/tickets/T-018-performance-budget.md` → Failure modes (the recorded fps-2 generation frame) · sweep 1 planning session
 
@@ -59,26 +59,56 @@ project's own machine-checked invariant.
 
 ## Acceptance criteria
 
-- [ ] `City.generate(same_seed)` on a standing city performs no teardown and no
+- [x] `City.generate(same_seed)` on a standing city performs no teardown and no
       rebuild: `build_count` unchanged, `fingerprint`/`spawn_point`/`last_report`
       keep their values — and `regenerated` still fires so the spawners re-seed
-- [ ] `City.generate(foreign_seed)` and `City.generate(same_seed, true)` both do
+- [x] `City.generate(foreign_seed)` and `City.generate(same_seed, true)` both do
       a real rebuild and increment `build_count`
-- [ ] Gate 1b scenario `restart_same_seed_skips_rebuild` passes: a real
+- [x] Gate 1b scenario `restart_same_seed_skips_rebuild` passes: a real
       `main.tscn` restart through `Main.restart_run()` leaves the city standing
       (`build_count == 1` before and after, equal fingerprint) while every
       spawner re-seeds fresh tourist AND car nodes and the pigeon returns to the
       spawn corridor — and the scenario fails if the fast path forgets to emit
       `regenerated` (spawners would keep the old nodes)
-- [ ] All same-seed determinism scenarios still pass with their rebuild intent
+- [x] All same-seed determinism scenarios still pass with their rebuild intent
       intact: `city_same_seed_deterministic`, `city_regenerate_restores_layout`,
       `city_shopfronts_deterministic`, `elder_placement_no_rng` (each same-seed
       `generate()` passes `force_rebuild = true`)
-- [ ] `restart_resets_run`, `hud_hunger_warning_tiers` and `density_cpu_budget`
+- [x] `restart_resets_run`, `hud_hunger_warning_tiers` and `density_cpu_budget`
       stay green — the restart contract holds over the fast path
 - [ ] Gate 3 note: restarting from the score screen shows no generation hitch
       (feel judgement — recorded as a pending human playtest note, not
       machine-checked)
+
+## Result (2026-09-29)
+
+- `scripts/city.gd`: `generate(new_seed: int = seed_value, force_rebuild: bool = false)`
+  takes the fast path (emit `regenerated`, return) when `fingerprint != 0`,
+  `new_seed == seed_value` and `not force_rebuild`; every real rebuild bumps the
+  new public `build_count` (boot build = 1). `Main.restart_run()` unchanged —
+  `city.generate(city.seed_value)` now lands on the fast path.
+- `tests/sim_test.gd`: the five same-seed `generate()` calls named in the ticket
+  now pass `force_rebuild = true` (`:515`, `:522`, `:715`, `:1068`, `:1083`;
+  the `:518`/`:1096`/`:1098` foreign-seed calls rebuild regardless); new scenario
+  `restart_same_seed_skips_rebuild` (after `restart_resets_run`); the three
+  `city_layout` checks also assert `build_count` +1 per real rebuild.
+- Gates run: Gate 1 import + 120-frame boot exit 0 (zero ERROR lines; the
+  import run's "resources still in use at exit" line is pre-existing — the
+  pristine tree prints it too); Gate 1b full suite `SIM SUMMARY: 0 failure(s)`
+  exit 0, including `restart_same_seed_skips_rebuild`, `restart_resets_run`,
+  `hud_hunger_warning_tiers`, `density_cpu_budget` (median 234.0 ms / 100
+  frames vs 750 budget) and all retrofitted determinism scenarios. Negative
+  test: with the fast-path emit temporarily removed the suite fails
+  `restart_same_seed_skips_rebuild` (regen=0, spawns=false) AND
+  `restart_resets_run` — the scenario really guards the signal contract — then
+  restored to green. Gate 2 autoplay: `AUTOPLAY DONE ok=true … restart=true`,
+  fps 136, exit 0.
+
+## Pending human playtest (Gate 3)
+
+- [ ] (T-033) Restarting from the score screen shows no generation hitch — the
+      fresh run appears instantly on the standing same-seed city. Doubles with
+      the T-010 "restart from both screens" line.
 
 ## Verification
 

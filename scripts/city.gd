@@ -113,6 +113,11 @@ var buildings: Array[Dictionary] = []
 ## Summary of the last generation — the sim harness asserts the guarantees on it.
 var last_report: Dictionary = {}
 
+## How many real rebuilds this City has performed — the boot build makes it 1
+## (T-033). The same-seed fast path never increments it: the standing build is
+## kept, and the sim harness asserts on that (`restart_same_seed_skips_rebuild`).
+var build_count: int = 0
+
 ## Emitted at the end of every generate() — the bread service (T-005) re-seeds
 ## its pickups so they always sit on the current layout.
 signal regenerated
@@ -165,8 +170,21 @@ func _ready() -> void:
 ## Rebuilds the whole city for `new_seed`. Deterministic: the same seed always
 ## produces the same fingerprint. Safe to call again at any time (restart flow,
 ## sim harness determinism checks).
-func generate(new_seed: int = seed_value) -> void:
+##
+## Same-seed fast path (T-033): when a build already stands (`fingerprint != 0`)
+## and `new_seed` equals its seed, the rebuild is skipped entirely — the layout
+## is a pure function of the seed, so the standing build IS the rebuild output
+## (`city_same_seed_deterministic` proves it byte-identical). `regenerated`
+## still emits, because that is what a restart actually needs: the spawners
+## re-seed fresh nodes off it. `force_rebuild = true` opts out — the sim
+## harness's determinism scenarios use it so "a real rebuild reproduces X"
+## keeps proving a real rebuild.
+func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
+	if fingerprint != 0 and new_seed == seed_value and not force_rebuild:
+		regenerated.emit()
+		return
 	seed_value = new_seed
+	build_count += 1
 	_clear()
 	_rng.seed = seed_value
 	_shop_rng.seed = seed_value

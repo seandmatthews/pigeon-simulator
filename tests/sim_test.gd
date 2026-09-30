@@ -38,6 +38,7 @@ var _car_relay: int = 0 ## car_splatted relays caught from the spawner under tes
 var _score_events: Array[Dictionary] = [] ## hit_scored payloads caught from the Game autoload (T-009).
 var _main_game: MainGame ## The real main.tscn instance the T-010 flow scenarios share.
 var _bread_shared: Array[Dictionary] = [] ## bread_shared relays caught from the elder spawner under test (T-020).
+var _regen_relay: int = 0 ## regenerated relays caught from the city under restart (T-033) — signal counters survive inside lambdas only as members.
 
 
 func _ready() -> void:
@@ -122,7 +123,8 @@ func _run_scenarios() -> void:
 	await _scenario_pause_freezes()
 	await _scenario_game_over_screen()
 	await _scenario_restart_resets()
-	await _scenario_hud_hunger_tiers() ## T-019 — must follow restart_resets: unpaused tree, no live Main.
+	await _scenario_restart_same_seed_skips_rebuild()
+	await _scenario_hud_hunger_tiers() ## T-019 — must follow the restart scenarios: unpaused tree, no live Main.
 	await _scenario_elder_placement_no_rng()
 	await _scenario_elder_shares_bread_after_hangout()
 	await _scenario_elder_no_bread_airborne()
@@ -512,17 +514,21 @@ func _scenario_city_layout() -> void:
 	var default_seed: int = _city.seed_value ## generate() overwrites seed_value — capture first.
 	var fp_first: int = _city.fingerprint
 	var report_a: Dictionary = _city.last_report
-	_city.generate(default_seed)
-	_check("city_same_seed_deterministic", _city.fingerprint == fp_first,
+	var builds_before: int = _city.build_count ## T-033: every real rebuild below must bump it.
+	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces the layout.
+	_check("city_same_seed_deterministic", _city.fingerprint == fp_first
+			and _city.build_count == builds_before + 1,
 			"fingerprint %d vs %d" % [fp_first, _city.fingerprint])
 	_city.generate(424242)
 	var foreign: Dictionary = _city.last_report
-	_check("city_new_seed_guarantees", _report_holds(foreign) and _city.fingerprint != fp_first,
+	_check("city_new_seed_guarantees", _report_holds(foreign) and _city.fingerprint != fp_first
+			and _city.build_count == builds_before + 2,
 			"foreign-seed report %s" % [foreign])
-	_city.generate(default_seed)
+	_city.generate(default_seed, true) ## Real rebuild, for consistent teardown semantics.
 	_check("city_regenerate_restores_layout",
 			_city.fingerprint == fp_first and _report_holds(report_a)
-					and _report_holds(_city.last_report),
+					and _report_holds(_city.last_report)
+					and _city.build_count == builds_before + 3,
 			"fingerprint %d vs %d after foreign-seed regen" % [fp_first, _city.fingerprint])
 
 
@@ -712,7 +718,7 @@ func _scenario_city_shopfronts() -> void:
 	var snapshot: Array = []
 	for info in _city.buildings:
 		snapshot.append([info.shop_color, info.door_face, info.has_awning])
-	_city.generate(default_seed)
+	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces the rolls.
 	var reproduced := snapshot.size() == _city.buildings.size()
 	if reproduced:
 		for i in snapshot.size():
@@ -1065,7 +1071,7 @@ func _spots_equal(a: Array[Transform3D], b: Array[Transform3D]) -> bool:
 func _scenario_elder_placement_no_rng() -> void:
 	var default_seed: int = _city.seed_value
 	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed)
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
 	var spots_a := _city.elder_spots.duplicate()
 	var report_a: Dictionary = _city.last_report
 	var shape_ok: bool = spots_a.size() == 8
@@ -1080,7 +1086,7 @@ func _scenario_elder_placement_no_rng() -> void:
 	for i in angles.size():
 		spread = spread and absf(wrapf(angles[(i + 1) % angles.size()] - angles[i],
 				-PI, PI) - PI * 0.25) < 0.01
-	_city.generate(default_seed)
+	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces the spots.
 	var spots_b := _city.elder_spots.duplicate()
 	var typed_b: Array[Transform3D] = []
 	for spot in spots_b:
@@ -1855,12 +1861,73 @@ func _scenario_restart_resets() -> void:
 	_main_game = null
 
 
+## Restart over the standing city (T-033): Main.restart_run() on the same seed
+## must take the City fast path — no teardown, no rebuild (`build_count` stays
+## 1, `fingerprint`/`spawn_point`/`last_report` untouched, exactly one
+## `regenerated`) — while every spawner still re-seeds fresh tourist AND car
+## nodes and the pigeon returns to the spawn corridor. If the fast path forgot
+## to emit `regenerated`, the spawners would keep their old nodes and the
+## instance-id overlap check below would fail the scenario.
+func _scenario_restart_same_seed_skips_rebuild() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(2500.0, 0.0, 2500.0) ## Own space, clear of the test world.
+	add_child(main_game)
+	await _wait_frames(4) ## Boot build: the city stands exactly once.
+	var city: City = main_game.city
+	var pigeon: Player = main_game.player
+	var boot_count: int = city.build_count
+	var fp_before: int = city.fingerprint
+	var spawn_before: Vector3 = city.spawn_point
+	var report_before: int = city.last_report.hash()
+	_regen_relay = 0
+	city.regenerated.connect(func() -> void: _regen_relay += 1)
+	var old_tourist_ids: Array[int] = []
+	for tourist in main_game.tourist_spawner.living_tourists():
+		old_tourist_ids.append(tourist.get_instance_id())
+	var old_car_ids: Array[int] = []
+	for car in main_game.car_spawner.living_cars():
+		old_car_ids.append(car.get_instance_id())
+	## Park the pigeon high above the corridor first, so "back at the spawn
+	## point" can only come from restart_run's reset_flight.
+	pigeon.reset_flight(city.to_local(spawn_before) + Vector3(0.0, 22.0, 0.0))
+	await _wait_frames(10)
+	main_game.restart_run()
+	await _wait_frames(3) ## Let the queue_free'd old spawns flush out.
+	var city_ok := boot_count == 1 and city.build_count == boot_count \
+			and city.fingerprint == fp_before \
+			and city.spawn_point == spawn_before \
+			and city.last_report.hash() == report_before
+	var respawn_ok := pigeon.global_position.distance_to(city.spawn_point) < 1.0
+	var fresh_tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
+	var fresh_cars: Array[Car] = main_game.car_spawner.living_cars()
+	var reused := false
+	for tourist in fresh_tourists:
+		reused = reused or old_tourist_ids.has(tourist.get_instance_id())
+	for car in fresh_cars:
+		reused = reused or old_car_ids.has(car.get_instance_id())
+	var spawns_ok := fresh_tourists.size() == main_game.tourist_spawner.target_count \
+			and fresh_cars.size() == main_game.car_spawner.target_moving \
+					+ main_game.car_spawner.target_parked \
+			and not reused
+	var regen_ok := _regen_relay == 1
+	_check("restart_same_seed_skips_rebuild",
+			city_ok and respawn_ok and spawns_ok and regen_ok,
+			"city=%s respawn=%s spawns=%s regen=%d (tourists %d, cars %d, build_count %d)" % [
+					city_ok, respawn_ok, spawns_ok, _regen_relay,
+					fresh_tourists.size(), fresh_cars.size(), city.build_count])
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	main_game.free()
+
+
 ## T-019: the HUD stays readable and the hunger bar warns in tiers, through the
-## REAL main scene. Registered immediately after _scenario_restart_resets —
-## that is the only spot with an unpaused tree and no live Main (game_over_screen
-## ends paused; restart_resets unpauses, detaches the clock and frees the
-## instance), so this fresh instance's _process pulse actually advances and it
-## is the sole listener on Game.hunger.changed.
+## REAL main scene. Registered immediately after the two restart scenarios —
+## that is the only stretch with an unpaused tree and no live Main
+## (game_over_screen ends paused; the restart scenarios unpause, detach the
+## clock and free their instances), so this fresh instance's _process pulse
+## actually advances and it is the sole listener on Game.hunger.changed.
 func _scenario_hud_hunger_tiers() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
