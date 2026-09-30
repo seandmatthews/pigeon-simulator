@@ -30,6 +30,7 @@ const TIER_REST_COLORS: Array[Color] = [
 const TIER_PULSE_HZ: Array[float] = [0.0, 0.0, 3.0, 6.0] ## Flash rate per tier — 0 = static color.
 const TIER_PULSE_TO := Color(1.0, 0.85, 0.8) ## The bright end both pulsing tiers breathe toward.
 const POOP_READY_DIM_ALPHA := 0.25 ## (T-077) The F glyph's alpha while the poop cooldown runs — dim, but readable.
+const POINTER_CLIMB_CUE_M := 3.0 ## (T-098) Vertical delta beyond which the bread readout carries the ▲/▼ climb cue.
 
 @export_group("Juice") ## T-013
 @export var hit_shake: float = 0.3 ## Camera-shake fraction per scored splat — your hits land with a tick.
@@ -135,10 +136,12 @@ func _pulse_score(combo: int) -> void:
 
 ## The bread pointer (T-037): one HUD slot under the hint block, two modes, no
 ## minimap. Inside the city ring it aims the chevron at the nearest living
-## crumb and counts the metres down ("bread 23 m"); beyond half the city span
-## the ring is lost and the same slot points home instead ("city 131 m",
-## horizontal distance to city.spawn_point). Hidden whenever it has nothing to
-## say. The chevron's rotation_degrees carries the bearing from the pigeon's
+## crumb and counts the metres down ("bread 23 m", plus the T-098 climb cue —
+## " ▲"/" ▼" when that crumb sits well above/below the pigeon); beyond half the
+## city span the ring is lost and the same slot points home instead
+## ("city 131 m", horizontal distance to city.spawn_point, never arrowed).
+## Hidden whenever it has nothing to say. The chevron's rotation_degrees
+## carries the bearing from the pigeon's
 ## heading (-basis.z projected flat): 0 = screen-up = nose. heading.signed_
 ## angle_to(target, UP) is counterclockwise-positive seen from above while
 ## canvas rotation is clockwise-positive on screen, so the stored rotation is
@@ -157,15 +160,27 @@ func _update_bread_pointer() -> void:
 		bread_pointer.visible = false
 		return
 	_aim_bread_pointer(crumb.global_position, "bread",
-			pigeon_pos.distance_to(crumb.global_position))
+			pigeon_pos.distance_to(crumb.global_position), true)
 
 
 ## Points the shared slot at `target`: text "<what> <m> m", chevron on the flat
 ## bearing. Degenerate geometry (nose straight up, or standing on the target)
 ## keeps the last bearing instead of writing a NaN into the rotation.
-func _aim_bread_pointer(target: Vector3, what: String, distance: float) -> void:
+## The climb cue (T-098): only the bread mode opts in — a named crumb more than
+## POINTER_CLIMB_CUE_M above/below the pigeon gets a trailing " ▲"/" ▼", so a
+## roof crumb stops reading like a blank wall it points into. City mode never
+## carries the cue: its target is always street level.
+func _aim_bread_pointer(target: Vector3, what: String, distance: float,
+		with_climb_cue: bool = false) -> void:
 	bread_pointer.visible = true
-	bread_pointer.text = "%s %d m" % [what, roundi(distance)]
+	var climb_cue := ""
+	if with_climb_cue:
+		var dy := target.y - player.global_position.y
+		if dy > POINTER_CLIMB_CUE_M:
+			climb_cue = " ▲"
+		elif dy < -POINTER_CLIMB_CUE_M:
+			climb_cue = " ▼"
+	bread_pointer.text = "%s %d m%s" % [what, roundi(distance), climb_cue]
 	var heading := -player.transform.basis.z
 	heading.y = 0.0
 	var to_target := target - player.global_position

@@ -92,7 +92,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | game_over_shows_score_screen | starving through the real main scene opens the score screen — score, high score, tourist/car breakdown — freezes the run dead and keeps Esc locked | T-010 |
 | restart_resets_run | restart through Main.restart_run() zeroes score/breakdown, refills hunger, clears the game-over latch, re-uses the same-seed city and re-seeds every spawner with fresh nodes | T-010 |
 | restart_same_seed_skips_rebuild | a real main.tscn restart through Main.restart_run() takes the same-seed fast path — build_count stays 1, fingerprint/spawn_point/last_report untouched, exactly one regenerated — while every tourist AND car spawner re-seeds fresh nodes and the pigeon returns to the spawn corridor (fails if `regenerated` stops firing: the old nodes would survive) | T-033 |
-| hud_bread_pointer_tracks_nearest_crumb | the HUD bread pointer names the nearest living crumb (distance within 1 m; `nearest_crumb()` matches an independent scan and returns null when none is alive), the chevron carries the bearing from the nose and flips ~180° with the yaw, the readout decreases on approach, eating the pointed-at crumb through the grounded waddle-in re-aims at the next-nearest, beyond half the city span the same slot names "city" with the horizontal distance home (± 2 m) pointing back, and the label carries the T-019 outline treatment | T-037 |
+| hud_bread_pointer_tracks_nearest_crumb | the HUD bread pointer names the nearest living crumb (distance within 1 m; `nearest_crumb()` matches an independent scan and returns null when none is alive), the chevron carries the bearing from the nose and flips ~180° with the yaw, the readout decreases on approach, eating the pointed-at crumb through the grounded waddle-in re-aims at the next-nearest, beyond half the city span the same slot names "city" with the horizontal distance home (± 2 m) pointing back, and the label carries the T-019 outline treatment; since T-098 the readout carries the climb cue, decided against the independent scan — " ▲" with a hand-placed crumb ~10 m over a grounded pigeon, " ▼" from ~10 m above a street crumb, no arrow within the ±3 m band, city mode never arrowed, and `_pointer_distance_m` parses both shapes so every pre-existing numeric assert is untouched | T-037, T-098 |
 | hud_hunger_warning_tiers | the HUD score/hint outlines resolve through the theme, the hunger bar's four warning tiers map the 50/25/10% bands through the real Main scene, the danger tiers pulse in game time (tier 3 faster than tier 2) and falling back restores the rest color — via refill and restart_run | T-019 |
 | elder_placement_no_rng | the city records one pure-layout spot per plaza-ring bench and the spawner seats 4 elders on every second bench (0, 2, 4, 6 — 90° apart, on the seat line); regenerating the same seed reproduces the fingerprint, the bench/lamp/bin counts and the spot list byte-identically, a foreign seed still gets its ring, and the elders sit exactly on the chosen spots of a real generated City | T-020 |
 | elder_shares_bread_after_hangout | a GROUNDED pigeon parked in an elder's PresenceZone fills trust (~2 in ~2 s); a short walk-about decays it without wiping; back for `trust_needed` seconds the elder relays `bread_shared` exactly once and two ordinary T-005 crumbs (restore 30, hand-placed, respawn-accounted) sit on the pavement within reach in front of the bench | T-020 |
@@ -280,6 +280,7 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-037) The bread pointer is readable at a glance mid-flight — the chevron leads the eye toward the crumb it names, and the metres count down as you close in
 - [ ] (T-037) Flying past the city edge flips the same line to "city N m" pointing home, and steering along the chevron brings the ring back into view
 - [ ] (T-037) The pointer line and chevron read over white pavement and bright sky (T-019 outline treatment) without crowding the hint above them
+- [ ] (T-098) Grounded before a building with a rooftop crumb, the pointer reads "bread N m ▲" and the arrow stays readable at a glance under the T-019 outline treatment; airborne above a street crumb it reads " ▼"; within a few metres of the crumb's height and in city mode there is no arrow [screenshot]
 - [ ] (T-017) Street canyons read as shop rows at eye level — colored ground-floor bands with doors and awnings, not blank office walls
 - [ ] (T-020) Four elders sit on the plaza benches every run, spread around the ring, and read as old people at a glance — hunch, gray hair, cane — from both flight height and ground level
 - [ ] (T-020) Landing in front of an elder and hanging out ~4 s earns a share: two crumbs toss onto the pavement in front of the bench, land where the pigeon can reach them without phasing through the bench, and eating them restores hunger
@@ -445,6 +446,14 @@ Playtest checklist (grows as tickets land):
   cruise screenshots show the props; a human pass over the T-032 lines
   (roofs read as inhabited from cruise height, rooftop crumbs spottable,
   props read as cover rather than obstacles) is still pending.
+- Bread pointer climb cue (T-098) is machine-verified (Gate 1b
+  `hud_bread_pointer_tracks_nearest_crumb`'s cue arms — " ▲" with a hand-placed
+  crumb ~10 m over a grounded pigeon, " ▼" from ~10 m above a street crumb, no
+  arrow within the ±3 m band, city mode never arrowed, `_pointer_distance_m`
+  parsing both shapes with every pre-existing pointer assert untouched — all
+  decided against the scenario's independent scan, and selection is unchanged).
+  A human pass over its Gate 3 line (the ▲ reads at a glance at 14 px before a
+  roofline [screenshot]) is still pending.
 - Remaining placeholder art: upper-floor facades are tinted
   boxes with a procedural window texture (ground floors carry T-017 shopfront
   bands, doors and awnings; the awnings are visual-only, no collider).

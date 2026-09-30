@@ -2502,13 +2502,18 @@ func _scan_nearest_crumb(spawner: BreadSpawner, pos: Vector3) -> BreadCrumb:
 	return nearest
 
 
-## Reads the "<what> <n> m" distance out of the pointer text — -1.0 when the
-## text is not in the expected shape (hidden, empty, malformed).
+## Reads the "<what> <n> m[ ▲|▼]" distance out of the pointer text — -1.0 when
+## the text is not in an expected shape (hidden, empty, malformed). The fourth
+## part is the T-098 climb cue and is optional; any other fourth part (or a
+## missing "m") stays malformed.
 func _pointer_distance_m(text: String) -> float:
 	var parts := text.strip_edges().split(" ")
-	if parts.size() != 3 or parts[2] != "m":
-		return -1.0
-	return float(parts[1])
+	if parts.size() == 3 and parts[2] == "m":
+		return float(parts[1])
+	if parts.size() == 4 and parts[2] == "m" \
+			and (parts[3] == "▲" or parts[3] == "▼"):
+		return float(parts[1])
+	return -1.0
 
 
 ## Wraps a degree value into (-180, 180] so two chevron rotations compare
@@ -2529,7 +2534,11 @@ func _wrap180(deg: float) -> float:
 ## pointed-at crumb through the real grounded waddle-in re-aims at the
 ## next-nearest; beyond half the city span the same slot names "city" with the
 ## horizontal distance to city.spawn_point (± 2 m), chevron pointing back; the
-## label carries the T-019 outline treatment.
+## label carries the T-019 outline treatment. Since T-098 the readout also
+## carries the climb cue, scan-decided like every arm: " ▲" with a hand-placed
+## crumb ~10 m over a grounded pigeon, " ▼" from ~10 m above a street crumb,
+## no arrow within the ±3 m band, and city mode never arrowed
+## (_pointer_distance_m accepts both shapes).
 func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
@@ -2587,6 +2596,10 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	var shown_near := _pointer_distance_m(pointer.text)
 	var approach_ok: bool = shown_near >= 0.0 and shown_near < shown \
 			and absf(shown_near - d_near) <= 1.0 and d_near < d_true
+	## (T-098) This approach hover sits 2 m above the crumb — inside the ±3 m
+	## cue band — so the readout must carry no trailing arrow here.
+	var level_text := pointer.text
+	var level_ok: bool = not (level_text.ends_with(" ▲") or level_text.ends_with(" ▼"))
 	## --- eat the pointed-at crumb through the real grounded waddle-in ----------
 	## The drop mirrors _scenario_bread_eating: 1.8 m ahead (yaw 0 walks -Z,
 	## straight into the crumb), settle grounded, then waddle until it is eaten.
@@ -2610,6 +2623,92 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 			and pointer.visible \
 			and absf(_pointer_distance_m(pointer.text)
 					- at2.distance_to(want2.global_position)) <= 1.0
+	## --- T-098 climb cue: " ▲" for a named crumb well ABOVE the pigeon ---------
+	## The roof-crumb failure shape: a GROUNDED pigeon, a hand-placed crumb
+	## ~10 m overhead (drop_crumb — the T-020 hand-placed path). Pre-pick a
+	## street spot whose ground column is ≥ 12 m from every living crumb, so
+	## from the column the placed crumb (~10 m) beats every other crumb
+	## (≥ ~11.7 m) in the 3D scan; if the scan still names something else, a
+	## bounded search re-grounds around the column and re-scans — decided
+	## against the scan oracle, never against nearest_crumb().
+	var cue_ground := Vector3.ZERO
+	for spot in city.bread_spots:
+		var spot_world := city.to_global(spot)
+		if spot_world.y > 0.3:
+			continue
+		## Stay well inside the pointer's bread-mode ring (some street spots sit
+		## past half the city span, where the slot flips to "city" and — by
+		## design — drops the cue).
+		var off_centre: Vector3 = spot_world - city.global_position
+		off_centre.y = 0.0
+		if off_centre.length() > city.city_span * 0.35:
+			continue
+		var column_clear := true
+		for crumb in spawner.living_crumbs():
+			if spot_world.distance_to(crumb.global_position) < 12.0:
+				column_clear = false
+				break
+		if column_clear:
+			cue_ground = spot_world
+			break
+	var placed: BreadCrumb = null
+	if cue_ground != Vector3.ZERO:
+		spawner.drop_crumb(cue_ground + Vector3(0.0, 10.0, 0.0))
+		for crumb in spawner.living_crumbs():
+			if crumb.global_position.distance_to(
+					cue_ground + Vector3(0.0, 10.0, 0.0)) < 0.5:
+				placed = crumb
+				break
+	var cue_up_ok := false
+	var cue_up_shown := -1.0
+	var cue_up_true := -1.0
+	var cue_up_text := ""
+	if placed != null:
+		for nudge: Vector2 in [Vector2.ZERO, Vector2(0.6, 0.0), Vector2(-0.6, 0.0),
+				Vector2(0.0, 0.6), Vector2(0.0, -0.6)]:
+			pigeon.reset_flight(city.to_local(
+					cue_ground + Vector3(nudge.x, 0.4, nudge.y)))
+			for _i in 90:
+				await get_tree().physics_frame
+				if pigeon.is_grounded:
+					break
+			await _wait_frames(2)
+			var at_up := pigeon.global_position
+			if not pigeon.is_grounded or _scan_nearest_crumb(spawner, at_up) != placed:
+				continue
+			cue_up_true = at_up.distance_to(placed.global_position)
+			cue_up_text = pointer.text
+			cue_up_shown = _pointer_distance_m(cue_up_text)
+			cue_up_ok = pointer.visible and cue_up_text.ends_with(" ▲") \
+					and cue_up_shown >= 0.0 and absf(cue_up_shown - cue_up_true) <= 1.0
+			break
+	## --- T-098 climb cue: " ▼" for a named crumb well BELOW the pigeon ---------
+	## The airborne mirror: reset_flight ~10 m above a street crumb (6 m south
+	## so the flat bearing stays defined); probe candidates until the scan names
+	## one from its own probe point — again scan-decided. The placed ▲ crumb
+	## (~10 m up) cannot pass the y < 0.3 street filter.
+	var cue_down_crumb: BreadCrumb = null
+	var cue_down_at := Vector3.ZERO
+	for crumb in spawner.living_crumbs():
+		if crumb.global_position.y > 0.3:
+			continue
+		pigeon.reset_flight(city.to_local(
+				crumb.global_position + Vector3(0.0, 10.0, 6.0)))
+		await _wait_frames(2)
+		cue_down_at = pigeon.global_position
+		if _scan_nearest_crumb(spawner, cue_down_at) == crumb:
+			cue_down_crumb = crumb
+			break
+	var cue_down_ok := false
+	var cue_down_shown := -1.0
+	var cue_down_true := -1.0
+	var cue_down_text := ""
+	if cue_down_crumb != null:
+		cue_down_true = cue_down_at.distance_to(cue_down_crumb.global_position)
+		cue_down_text = pointer.text
+		cue_down_shown = _pointer_distance_m(cue_down_text)
+		cue_down_ok = pointer.visible and cue_down_text.ends_with(" ▼") \
+				and cue_down_shown >= 0.0 and absf(cue_down_shown - cue_down_true) <= 1.0
 	## --- city mode beyond the ring ---------------------------------------------
 	pigeon.reset_flight(Vector3(city.city_span * 0.5 + 40.0, 30.0, 0.0), 0.0)
 	await _wait_frames(2)
@@ -2622,6 +2721,7 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	heading_out.y = 0.0
 	var want_city_rot := _wrap180(-rad_to_deg(heading_out.signed_angle_to(to_home, Vector3.UP)))
 	var city_ok: bool = pointer.visible and pointer.text.begins_with("city ") \
+			and not (pointer.text.ends_with(" ▲") or pointer.text.ends_with(" ▼")) \
 			and absf(_pointer_distance_m(pointer.text) - flat_home.length()) <= 2.0 \
 			and absf(_wrap180(chevron.rotation_degrees) - want_city_rot) <= 2.0
 	## --- the T-019 outline treatment -------------------------------------------
@@ -2636,13 +2736,17 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	empty.free()
 	_check("hud_bread_pointer_tracks_nearest_crumb",
 			spread_ok and query_ok and dist_ok and bearing_ok and flip_ok and approach_ok
-					and reaim_ok and city_ok and style_ok and none_ok,
-			"spread=%s query=%s dist=%s (%.1f true, shows %.0f) bearing=%s (%.1f vs %.1f) flip=%s (%.1f→%.1f) approach=%s (%.0f→%.0f, near true %.1f) reaim=%s (eaten %s) city=%s ('%s' %.1f vs %.1f) style=%s none=%s" % [
+					and level_ok and reaim_ok and cue_up_ok and cue_down_ok
+					and city_ok and style_ok and none_ok,
+			"spread=%s query=%s dist=%s (%.1f true, shows %.0f) bearing=%s (%.1f vs %.1f) flip=%s (%.1f→%.1f) approach=%s (%.0f→%.0f, near true %.1f) level=%s ('%s') reaim=%s (eaten %s) cue_up=%s ('%s' %.1f true, shows %.0f) cue_down=%s ('%s' %.1f true, shows %.0f) city=%s ('%s' %.1f vs %.1f) style=%s none=%s" % [
 					spread_ok, query_ok, dist_ok, d_true, shown,
 					bearing_ok, rot_a, want_rot,
 					flip_ok, rot_a, rot_b,
 					approach_ok, shown, shown_near, d_near,
+					level_ok, level_text,
 					reaim_ok, eaten,
+					cue_up_ok, cue_up_text, cue_up_true, cue_up_shown,
+					cue_down_ok, cue_down_text, cue_down_true, cue_down_shown,
 					city_ok, pointer.text, _pointer_distance_m(pointer.text), flat_home.length(),
 					style_ok, none_ok])
 	main_game.free()
