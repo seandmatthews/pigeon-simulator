@@ -28,6 +28,12 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-019 | [HUD legibility & hunger warning](T-019-hud-legibility.md) | P0 | S | T-005, T-010 | done |
 | T-020 | [Park elders share bread](T-020-park-elders.md) | P1 | S | T-004, T-005, T-007 | done |
 
+## Sweep backlog (agent sweeps)
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-033 | [Same-seed restart skips the city rebuild](T-033-same-seed-restart-skip.md) | code-optimization | 4 | 2 | done |
+
 ## Milestone 2 — after the slice (not yet ticketed)
 
 Districts & palette variety · hawk hazard · seagull bread rivals · statue/landmark

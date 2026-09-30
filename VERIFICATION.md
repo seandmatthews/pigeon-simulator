@@ -87,7 +87,8 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | score_popup_floats_and_fades | the world-space popup shows "+100 ×2" at the hit position, floats up, fades and cleans itself up | T-009 |
 | pause_freezes_world | Esc-pausing through the real PauseMenu stops the flying pigeon dead mid-air and the hunger clock with it; resuming hands both back | T-010 |
 | game_over_shows_score_screen | starving through the real main scene opens the score screen — score, high score, tourist/car breakdown — freezes the run dead and keeps Esc locked | T-010 |
-| restart_resets_run | restart through Main.restart_run() zeroes score/breakdown, refills hunger, clears the game-over latch, regenerates the same-seed city and re-seeds every spawner with fresh nodes | T-010 |
+| restart_resets_run | restart through Main.restart_run() zeroes score/breakdown, refills hunger, clears the game-over latch, re-uses the same-seed city and re-seeds every spawner with fresh nodes | T-010 |
+| restart_same_seed_skips_rebuild | a real main.tscn restart through Main.restart_run() takes the same-seed fast path — build_count stays 1, fingerprint/spawn_point/last_report untouched, exactly one regenerated — while every tourist AND car spawner re-seeds fresh nodes and the pigeon returns to the spawn corridor (fails if `regenerated` stops firing: the old nodes would survive) | T-033 |
 | hud_hunger_warning_tiers | the HUD score/hint outlines resolve through the theme, the hunger bar's four warning tiers map the 50/25/10% bands through the real Main scene, the danger tiers pulse in game time (tier 3 faster than tier 2) and falling back restores the rest color — via refill and restart_run | T-019 |
 | elder_placement_no_rng | the city records one pure-layout spot per plaza-ring bench and the spawner seats 4 elders on every second bench (0, 2, 4, 6 — 90° apart, on the seat line); regenerating the same seed reproduces the fingerprint, the bench/lamp/bin counts and the spot list byte-identically, a foreign seed still gets its ring, and the elders sit exactly on the chosen spots of a real generated City | T-020 |
 | elder_shares_bread_after_hangout | a GROUNDED pigeon parked in an elder's PresenceZone fills trust (~2 in ~2 s); a short walk-about decays it without wiping; back for `trust_needed` seconds the elder relays `bread_shared` exactly once and two ordinary T-005 crumbs (restore 30, hand-placed, respawn-accounted) sit on the pavement within reach in front of the bench | T-020 |
@@ -273,6 +274,7 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-017) The shop bands read from the air and give the roofscape a visible street-level edge
 - [ ] (T-017) Shop colors harmonize with the four district palettes — distinct but not clashing
 - [ ] (T-017) Low street-level flight does not snag on or distractingly pass through awnings (visual-only by decision — `docs/tickets/T-017-shopfronts.md`)
+- [ ] (T-033) Restarting from the score screen shows no generation hitch — the fresh run appears instantly on the standing same-seed city
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -345,7 +347,9 @@ Playtest checklist (grows as tickets land):
   measured 247.5 median, ticket T-018): a busy machine can false-FAIL it
   (re-run idle), and a regression smaller than its ~3x headroom passes by
   design. The `city.generate` synchronous rebuild spike at boot/restart is
-  recorded in the ticket, not gated.
+  recorded in the ticket, not gated; since T-033 the restart half is gone (a
+  same-seed restart re-uses the standing city — `restart_same_seed_skips_rebuild`)
+  and only the one-off boot build remains.
 - HUD legibility & hunger warning (T-019) is machine-verified (Gate 1b
   `hud_hunger_warning_tiers` — resolved outlines, tier bands, in-game-time
   pulse, rest-color restore through refill and restart). A human pass over the
@@ -359,6 +363,12 @@ Playtest checklist (grows as tickets land):
   an `elders` state list for pilot sessions. A human pass over the T-020 lines
   (elder reads as an old person at a glance, ~4 s hangout feels right, tossed
   bread lands reachable) is still pending.
+- Same-seed restart fast path (T-033) is machine-verified (Gate 1b
+  `restart_same_seed_skips_rebuild` — the standing city is re-used, every
+  spawner re-seeds, and the determinism scenarios prove real rebuilds via
+  `force_rebuild = true`); the per-restart rebuild hitch is gone and only the
+  one-off boot build remains. A human pass over the T-033 Gate 3 line (no
+  generation hitch restarting from the score screen) is still pending.
 - Remaining placeholder art: upper-floor facades are tinted
   boxes with a procedural window texture (ground floors carry T-017 shopfront
   bands, doors and awnings; the awnings are visual-only, no collider).
