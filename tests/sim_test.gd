@@ -96,6 +96,7 @@ func _run_scenarios() -> void:
 	await _scenario_bench_landing()
 	await _scenario_hard_landing()
 	await _scenario_trim_glide_lands_clean()
+	await _scenario_flare_sheds_speed_low() ## T-022 — pitch-up low brakes into a nose-high sink instead of ballooning.
 	await _scenario_off_world_fall_respawns() ## T-042 — flight-model guard: the void past the apron walks home.
 	await _scenario_city_layout()
 	await _scenario_city_plaza()
@@ -536,6 +537,28 @@ func _scenario_trim_glide_lands_clean() -> void:
 			"grounded=%s, %d airborne floor frames above %.1f m/s (first AIR-floor speed %.2f, settled at %.2f m/s, finite=%s)" % [
 					_player.is_grounded, air_floor_frames, _player.skid_settle_speed,
 					first_air_floor_speed, settle_speed, finite])
+
+
+## (T-022) Holding pitch-up low sheds speed into a nose-high sink instead of
+## ballooning: from a settled ~15 m/s glide at ~6 m, 45 frames (0.75 s) of held
+## pitch-up must gain < 2.5 m of height AND end below 11 m/s. Before the flare
+## the same input traded the whole glide speed into a rocket climb (the ticket
+## measured ~+10 m of balloon on this very input).
+func _scenario_flare_sheds_speed_low() -> void:
+	await _set_up(true, Vector3(0.0, 6.0, 0.0), Vector3(0.0, 0.0, -15.0))
+	await _wait_frames(30) ## Settle into the trim glide.
+	var y0 := _player.position.y
+	var s0 := _player.velocity.length()
+	await _hold("pitch_up", 45)
+	var y1 := _player.position.y
+	var s1 := _player.velocity.length()
+	var finite := _player.velocity.is_finite()
+	_dbg("flare: y %.2f -> %.2f, speed %.2f -> %.2f, end vy %.2f" % [
+			y0, y1, s0, s1, _player.velocity.y])
+	_check("flare_sheds_speed_low",
+			s0 > 13.0 and y1 - y0 < 2.5 and s1 < 11.0 and finite,
+			"settled speed %.2f m/s, height %+.2f m over the hold, ended %.2f m/s (finite=%s)" % [
+					s0, y1 - y0, s1, finite])
 
 
 ## --- scenario (T-042 off-world guard) ---------------------------------------

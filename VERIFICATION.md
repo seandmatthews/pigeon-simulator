@@ -59,6 +59,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | bench_takeoff | flapping off a bench returns to flight | T-003 |
 | hard_landing_skids | a steep fast dive skids to a stop — no instant ground, no tunneling, no NaNs (T-021 retuned the skid detector to AIR floor frames above `skid_settle_speed`) | T-003 |
 | trim_glide_lands_clean | a natural trim-speed glide touchdown settles into the waddle on the contact frame — zero airborne floor-contact frames past the touch (no ghost-slide) | T-021 |
+| flare_sheds_speed_low | holding pitch-up in a shallow descent sheds speed into a nose-high brake instead of ballooning — from a settled ~15 m/s glide at ~6 m, 0.75 s of held pitch-up gains < 2.5 m of height and ends below 11 m/s (before the flare: +2.60 m / 11.66 m/s); climbs and level flight above the band and dives below the −8 m/s edge never flare, and the grounded skid keeps its own friction | T-022 |
 | off_world_fall_respawns | a pigeon placed below the `off_world_y` guard (−5) and past every floor is grounded on the respawn corridor within ~2 s — the guard fired exactly once (`off_world_resets` == 1, no second fire across a further ~2 s, velocity finite throughout) and the hunger clock kept draining through the reset (loss > 0.2) | T-042 |
 | city_same_seed_deterministic | regenerating with the same seed reproduces the identical layout fingerprint | T-004 |
 | city_new_seed_guarantees | a different seed still yields a clear spawn plaza, flyable street widths, capped roof heights and enough bread-capable surfaces | T-004 |
@@ -230,6 +231,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-003) Landing and taking off on a roof and a bench works the same as on the pavement
 - [ ] (T-021) A trim-speed touchdown on the pavement or a bench sticks on contact — the pose folds and the HUD hint swaps the frame the feet touch, no ghost-slide past the touch point
 - [ ] (T-021) A deliberately hot, steep dive still reads as a comedic skid to near rest — not a soft mid-slide settle
+- [ ] (T-022) Holding pitch-up near the ground reads as braking into a nose-high sink, not ballooning into a rocket climb [screenshot]
+- [ ] (T-022) A speed approach to a bench or roof stays controllable through touchdown with the flare — pitch-up bleeds the approach speed without stranding the pigeon in a climb
 - [ ] (T-004) The city reads as a street grid from the air — roads with lane marks, sidewalks, varied facades, flat roofs, benches/lamps/bins
 - [ ] (T-004) Flying end-to-end along streets and between roofs never clips through a building
 - [ ] (T-004) Roofs, sidewalks and the spawn plaza are landable and walkable in a normal run
@@ -311,6 +314,29 @@ Playtest checklist (grows as tickets land):
 
 ## Known issues
 
+- In any checkout carrying the per-machine `addons/godot_mcp/` directory
+  (untracked by policy, required on disk for the `MCPRuntimeProbe` autoload),
+  Gate 1's `--import` prints one benign core line — `ERROR: 33 resources
+  still in use at exit` — because the enabled editor plugin's GDScripts
+  release after Godot's shutdown leak check. Verified identical on cold and
+  warm cache in a throwaway clone with the addon restored; it is tooling
+  shutdown noise from the canonical setup, not a project resource leak
+  (`--quit-after` boot runs are clean with the addon present).
+- Pitch flare (T-022) is machine-verified (Gate 1b `flare_sheds_speed_low` —
+  from a settled ~15 m/s glide at ~6 m, 45 frames of held pitch-up gain
+  +1.85 m and end at 10.15 m/s against the 2.5 m / 11 m/s bars, failing both
+  before the flare at +2.60 m / 11.66 m/s; `dive_gains_speed`,
+  `pullup_gains_height`, `stall_drops`, `stall_recovers`, `banked_left_turn`
+  and `landing_slides_to_stop` re-run green, and they survive a 1.2 over-drive
+  probe, so the tuned `flare_drag` 0.8 sits well inside the protected zone).
+  A human pass over its two Gate 3 lines (nose-high brake-sink read near the
+  ground, controllable speed approach to a bench/roof) is still pending.
+- Gate 1's `--check-only --script res://scripts/player.gd` syntax check is
+  currently broken repo-wide, pre-dating T-022: check-only mode never starts
+  the project, so autoload globals (T-012's `Sfx`, referenced by `player.gd`
+  and `poop.gd`) never resolve and the compile fails identically on the
+  pristine tree. `--import` plus the 120-frame boot still exercise the script;
+  the command needs its own fix-or-drop decision, not a per-ticket workaround.
 - Stick-the-landing (T-021) is machine-verified (Gate 1b `trim_glide_lands_clean`,
   plus `hard_landing_skids` retuned to the skid bar `skid_settle_speed` — the
   settle bar itself rose 12 → 16 to sit above the model's own trim-glide

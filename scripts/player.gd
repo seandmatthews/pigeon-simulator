@@ -51,6 +51,10 @@ enum State { AIR, GROUND }
 @export var velocity_align_rate: float = 3.5 ## How hard velocity chases the nose (1/s); this is the energy exchange.
 @export var ground_friction: float = 14.0 ## Horizontal decel while sliding on the ground; landings skid to a stop.
 
+@export_group("Flare") ## T-022: pitch-up in a shallow descent sheds airspeed into a nose-high sink instead of trading it all into a climb.
+@export var flare_drag: float = 0.8 ## Extra 1/s drag on the horizontal velocity while flaring, scaled by pitch input (tune 0.5–0.8; 0.8 tuned — see T-022).
+@export var flare_max_sink: float = 8.0 ## Lower edge of the flare band (m/s): sinks steeper than this are dives — the speed tool — and keep their speed.
+
 @export_group("Bounds") ## T-042: the off-world guard — under the world there is no floor and no fail state but starvation.
 @export var off_world_y: float = -5.0 ## The guard line (m). Unreachable over real terrain — the lowest walkable surface is the ground slab top at y = 0 — so only the void past the apron ever dips below it.
 
@@ -394,6 +398,19 @@ func _apply_flight_forces(delta: float, grounded: bool) -> void:
 		var g_perp := Vector3.DOWN * gravity - g_along
 		velocity += (g_along + g_perp * softening) * delta
 	velocity *= 1.0 - drag * delta
+	# Flare (T-022): holding pitch-up while descending in the shallow band bleeds
+	# HORIZONTAL speed, scaled by the input — the brake-sink that makes slow
+	# landings settable instead of trading the whole glide into a balloon. The
+	# band keeps both neighbors honest: climbs and level flight sit above it
+	# (no mid-flight airbrake — the flare only ever fires while descending),
+	# dives sit below `flare_max_sink` (the speed tool keeps its speed), and the
+	# grounded skid keeps its own friction.
+	var pitch_input := Input.get_axis("pitch_down", "pitch_up")
+	if not grounded and pitch_input > 0.0 \
+			and velocity.y < 0.0 and velocity.y > -flare_max_sink:
+		var bleed := 1.0 - flare_drag * pitch_input * delta
+		velocity.x *= bleed
+		velocity.z *= bleed
 	# Velocity direction chases the nose (magnitude preserved — a lerp here would
 	# bleed speed during maneuvers): pitching down converts height into speed,
 	# pulling up converts it back. This is the arcade energy exchange.

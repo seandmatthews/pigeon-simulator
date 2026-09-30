@@ -1,6 +1,6 @@
 # T-022 — Give pitch-up a real flare near the ground instead of a balloon
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-001 (flight model) · pairs with T-021 (the landing regime this makes controllable) — no hard dependency
 - **Refs:** flight-control review-lane play sessions (2026-09-29, `.captures/session_flc-s1-b/`);
   baseline Gate 1b on today's tree re-run during ticket-writing: exit 0, 73/73 PASS
@@ -57,21 +57,23 @@ effectively unlandable at speed.
 
 ## Acceptance criteria
 
-- [ ] Holding pitch-up low sheds speed into a nose-high sink instead of a
+- [x] Holding pitch-up low sheds speed into a nose-high sink instead of a
       balloon: from a settled ~15 m/s glide at ~6 m, 45 frames (0.75 s) of
       held pitch-up gains < 2.5 m of height AND ends below 11 m/s — today's
       tree balloons ~+10 m on the same input (Gate 1b:
       `flare_sheds_speed_low`, expressible with `_set_up(true, Vector3(0, 6,
       0), Vector3(0, 0, -15))` + `_hold("pitch_up", 45)`,
       `tests/sim_test.gd:167-177`)
-- [ ] Diving for speed is untouched: the flare never fires in or above the
+- [x] Diving for speed is untouched: the flare never fires in or above the
       sink band's edge (Gate 1b: `dive_gains_speed` and `pullup_gains_height`
       stay green)
-- [ ] Stall behavior is untouched (Gate 1b: `stall_drops`,
+- [x] Stall behavior is untouched (Gate 1b: `stall_drops`,
       `stall_recovers` stay green)
-- [ ] Banked cruise is untouched (Gate 1b: `banked_left_turn` stays green)
+- [x] Banked cruise is untouched (Gate 1b: `banked_left_turn` stays green)
 - [ ] [screenshot] The flare reads as a nose-high brake-sink near the ground,
       and a speed approach to a bench/roof is controllable through touchdown
+      *(pending human playtest — Gate 3 lines added to VERIFICATION.md; see
+      the landed note below for what to judge)*
 
 ## Verification
 
@@ -88,3 +90,50 @@ near the ground read as braking into a sink rather than ballooning; is the
 approach to a bench controllable at flare speeds (and note in the ticket
 whether the optional `min_control_authority` 0.5 was taken or dropped, with
 the final tuned `flare_drag` and band edges).
+
+## Landed (flight-control-s2, 2026-09-30)
+
+Flare shipped in `_apply_flight_forces` (`scripts/player.gd`), ticket-sketch
+faithful: new "Flare" export group (`flare_drag`, `flare_max_sink`); while
+pitch input is held and the pigeon is airborne in the descending band
+`-flare_max_sink < velocity.y < 0`, the **horizontal** velocity takes
+`*= 1.0 - flare_drag * pitch_input * delta`. The predicate correction was
+followed as written: climbs and level flight sit above the band (no
+mid-flight airbrake), dives below the −8 m/s edge keep the speed tool, and a
+`not grounded` gate leaves the skid's own friction alone.
+
+**Tuned values:** `flare_drag` **0.8** (top of the licensed 0.5–0.8 range),
+band edges **−8 / 0 m/s**. 0.6 also passed both bars but left thinner margins
+(+2.07 m / 10.61 m/s, still climbing +6.6 m/s at release); 0.8 measures
+**+1.85 m / 10.15 m/s** with the least residual climb. The optional
+`min_control_authority` 0.35 → 0.5 relaxation was **dropped** — the flare's
+own bleed yields landable speeds without widening the change to all
+low-speed handling.
+
+**Gates run:** Gate 1b — `flare_sheds_speed_low` FAILS before the change
+(settled 14.54 m/s, +2.60 m, 11.66 m/s) and PASSES after; full suite 82/82
+PASS, exit 0, with `dive_gains_speed`, `pullup_gains_height`, `stall_drops`,
+`stall_recovers`, `banked_left_turn`, `landing_slides_to_stop` explicitly
+re-run green; a 1.2 over-drive probe also leaves every neighbor green, so 0.8
+has real headroom. Gate 1 — the first gate round failed `--import` and the
+boot in this worktree because the per-machine `addons/godot_mcp/` directory
+(deliberately untracked: `.gitignore` calls it per-machine tooling and
+requires every checkout to keep it on disk for the `MCPRuntimeProbe`
+autoload) was missing, so Godot could not create the autoload. The directory
+was restored on disk from the main checkout (untracked, policy-conformant,
+zero tracked changes) after which `--import` and the 120-frame boot exit 0 —
+boot with zero ERROR lines; import with only the benign core shutdown line
+`ERROR: 33 resources still in use at exit`, which a throwaway clone of this
+branch with the addon restored reproduces identically on cold and warm cache
+(the enabled editor plugin's GDScripts release after Godot's leak check —
+inherent to the canonical setup, recorded in VERIFICATION.md's known
+issues). `--check-only --script res://scripts/player.gd` fails **identically
+on the pristine tree** (check-only never loads autoloads, so `Sfx` doesn't
+resolve) — pre-existing, also in VERIFICATION.md's known issues. Gate 2 —
+`AUTOPLAY DONE ok=true`, `restart=true`, no SCRIPT ERROR.
+
+**Note for the Gate 3 tester:** at the 45-frame mark the pigeon may still be
+climbing gently (~+6 m/s vy at release) — the flare can only act while
+descending (the ticket's own predicate correction), so the read to judge is
+"brakes hard and stops ballooning" (baseline +2.60 m over the same window,
++10 m over a longer hold), not "never rises at all".
