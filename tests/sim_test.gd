@@ -95,6 +95,7 @@ func _run_scenarios() -> void:
 	await _scenario_bench_landing()
 	await _scenario_hard_landing()
 	await _scenario_trim_glide_lands_clean()
+	await _scenario_off_world_fall_respawns() ## T-042 — flight-model guard: the void past the apron walks home.
 	await _scenario_city_layout()
 	await _scenario_city_plaza()
 	await _scenario_city_street_flyover()
@@ -529,6 +530,58 @@ func _scenario_trim_glide_lands_clean() -> void:
 			"grounded=%s, %d airborne floor frames above %.1f m/s (first AIR-floor speed %.2f, settled at %.2f m/s, finite=%s)" % [
 					_player.is_grounded, air_floor_frames, _player.skid_settle_speed,
 					first_air_floor_speed, settle_speed, finite])
+
+
+## --- scenario (T-042 off-world guard) ---------------------------------------
+
+
+## Flying off the world — past the ±(city_span/2 + ground_extra) = ±367 m apron
+## — must not strand the pigeon under an empty plane until starvation: below
+## `off_world_y` (−5) the guard walks the fall back to `respawn_point` with the
+## existing hard reset, exactly once (a second fire would mean the respawn
+## point itself is off-world), while the hunger clock keeps draining straight
+## through it. The harness player has no city wired (`_build_world` above), so
+## the scenario sets the respawn point itself over the flat test ground,
+## mirroring what Main does. Start BELOW the guard (y −10) and past where any
+## floor exists (the harness ground spans ±100), so without the guard the
+## pigeon falls forever. (The planning sketch's y −2 start was broken as
+## written: the sink only reaches ≈ −2.4 by frame 30 and the −5 guard never
+## fires.) Hunger rides the `_scenario_hunger_drain` local-clock pattern.
+func _scenario_off_world_fall_respawns() -> void:
+	var hunger := Hunger.new()
+	hunger.player = _player
+	add_child(hunger)
+	_player.respawn_point = Vector3(0.0, 0.3, 0.0) ## Flat test ground, standing height.
+	var hunger0: float = hunger.value
+	await _set_up(true, Vector3(0.0, -10.0, -400.0), Vector3.ZERO) ## Below the guard, past every floor.
+	var all_finite := true
+	var grounded := false
+	for _i in 120: ## ~2 s to land on the corridor.
+		await get_tree().physics_frame
+		all_finite = all_finite and _player.velocity.is_finite()
+		if _player.is_grounded \
+				and _player.global_position.distance_to(_player.respawn_point) < 2.0:
+			grounded = true
+			break
+	var landed := grounded and _player.off_world_resets == 1 \
+			and _player.velocity.is_finite()
+	var stable := true
+	var rest_distance := INF
+	for _i in 120: ## ~2 s more: no second fire, no drift off the corridor.
+		await get_tree().physics_frame
+		all_finite = all_finite and _player.velocity.is_finite()
+		if _player.off_world_resets != 1:
+			stable = false
+	rest_distance = _player.global_position.distance_to(_player.respawn_point)
+	stable = stable and rest_distance < 0.5
+	var kept_draining := hunger0 - hunger.value > 0.2
+	_check("off_world_fall_respawns",
+			landed and stable and kept_draining and all_finite,
+			"grounded=%s resets=%d stable=%s (rest %.2f m) hunger_loss=%.2f finite=%s" % [
+					grounded, _player.off_world_resets, stable, rest_distance,
+					hunger0 - hunger.value, all_finite])
+	hunger.free()
+	_player.respawn_point = Vector3.ZERO ## Housekeeping — later scenarios wire none.
 
 
 ## --- scenarios (T-004 city blockout) ---------------------------------------

@@ -49,6 +49,18 @@ enum State { AIR, GROUND }
 @export var velocity_align_rate: float = 3.5 ## How hard velocity chases the nose (1/s); this is the energy exchange.
 @export var ground_friction: float = 14.0 ## Horizontal decel while sliding on the ground; landings skid to a stop.
 
+@export_group("Bounds") ## T-042: the off-world guard — under the world there is no floor and no fail state but starvation.
+@export var off_world_y: float = -5.0 ## The guard line (m). Unreachable over real terrain — the lowest walkable surface is the ground slab top at y = 0 — so only the void past the apron ever dips below it.
+
+## Where the guard sends the pigeon (T-042): LOCAL coordinates, matching
+## reset_flight's position convention. Main wires the spawn corridor in _ready()
+## (Player has no City reference); the sim harness sets it directly.
+var respawn_point: Vector3 = Vector3.ZERO
+## Times the guard has fired this run (T-042): test evidence, and proof the
+## reset cannot oscillate — the corridor sits ~360 m inside the world box, so a
+## second fire would mean the respawn point itself is off-world.
+var off_world_resets: int = 0
+
 @export_group("Landing & waddle")
 @export var max_land_speed: float = 16.0 ## Total speed below which a floor touch settles into the waddle; faster ones skid. (T-021 raised 12 → 16: the model's own trim glide touches down at 15.3–17.2 m/s, so the bar must sit above the natural arrival.)
 @export var max_land_angle_deg: float = 30.0 ## Steepest descent angle that still counts as a gentle touchdown.
@@ -127,6 +139,17 @@ func reset_flight(pos: Vector3, yaw_deg: float = 0.0) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	## (T-042) Off-world guard: past the apron there is no floor and no fail
+	## state but starvation, so the fall would run for minutes with the HUD
+	## alive. Below the line, walk the fall back to the respawn corridor with
+	## the existing hard reset — quietly (no sound, no popup; the return is the
+	## beat) — after which the pigeon drops the short spawn drop and lands
+	## normally. The counter makes a double fire loud: the corridor sits ~360 m
+	## inside the world box, so a second fire would mean the respawn point
+	## itself is off-world.
+	if global_position.y < off_world_y:
+		off_world_resets += 1
+		reset_flight(respawn_point)
 	_flap_timer = maxf(_flap_timer - delta, 0.0)
 	_poop_timer = maxf(_poop_timer - delta, 0.0)
 	_time_since_flap += delta

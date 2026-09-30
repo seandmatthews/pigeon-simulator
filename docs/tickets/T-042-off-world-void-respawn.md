@@ -1,6 +1,6 @@
 # T-042 — Guard the off-world void: respawn at the spawn corridor (adopt T-036)
 
-- **Milestone:** Sweep 2 · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep 2 · **Status:** done · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** — (T-001/T-003 flight and T-010's hunger-only fail state are landed). Adopts
   [T-036](T-036-off-world-fall-respawn.md) — mark that ticket done/superseded when this lands;
   T-023's banked home-nudge stays the softer follow-up, not the first fix.
@@ -68,21 +68,42 @@ skyline gets minutes of falling and a dead run, escapable only by starving or re
 
 ## Acceptance criteria
 
-- [ ] Gate 1b scenario `off_world_fall_respawns` passes: the player placed below
+- [x] Gate 1b scenario `off_world_fall_respawns` passes: the player placed below
       `off_world_y` and beyond any floor is grounded on the respawn point within ~2 s;
       `off_world_resets == 1`; velocity finite throughout; no second fire across a further
       ~2 s
-- [ ] Hunger keeps draining through the reset: loss > 0.2 across the scenario window (the
+- [x] Hunger keeps draining through the reset: loss > 0.2 across the scenario window (the
       existing glide-leg threshold, `tests/sim_test.gd:797`) — the reset neither refills
       nor pauses the clock (`hunger_game_over_once` stays green)
-- [ ] No false trigger in ordinary play: every existing flight/landing/density scenario
+- [x] No false trigger in ordinary play: every existing flight/landing/density scenario
       stays green (all harness `_set_up` positions are y ≥ 0.4 and every in-scenario fall
       lands on a floor — the −5 line is never approached)
-- [ ] No input actions change (no README/VERIFICATION controls-table updates); the only
+- [x] No input actions change (no README/VERIFICATION controls-table updates); the only
       new knobs are `off_world_y` and `respawn_point`
 - [ ] [screenshot] Gate 3: flying hard past the apron returns you to the spawn corridor
       within a couple of seconds, and it reads as intentional ("came home"), not a
-      teleport glitch
+      teleport glitch — **pending human playtest** (machine gates all green; the two
+      T-042 lines are in VERIFICATION.md's Gate 3 checklist, and the hunger-never-paused
+      half is machine-covered by `off_world_fall_respawns`' drain assertion)
+
+## Landed
+
+Tuned values as proposed: `off_world_y = -5.0` (default), `respawn_point` wired in
+`Main._ready()` as `city.to_local(city.spawn_point)`; the guard sits at the top of
+`Player._physics_process`. Scenario correction applied as the ticket requires: the
+harness scenario starts at y −10 (below the guard, past the ±100 test ground) and polls
+≤ 120 frames. Gates re-run on the final state: Gate 1 import/boot exit 0 with no error
+lines (import's one engine exit-cleanup line, "ERROR: 33 resources still in use at
+exit", is the benign addon-script shutdown bookkeeping that fires with the godot-mcp
+plugin loaded), Gate 1b full suite `SIM SUMMARY: 0 failure(s)` with the new scenario
+passing, Gate 2 `AUTOPLAY DONE ok=true … restart=true`.
+
+Environment note: this worktree was missing the untracked, gitignored
+`addons/godot_mcp/` directory (`.gitignore`: "project.godot references the
+MCPRuntimeProbe autoload, so every checkout needs the directory on disk") — its absence
+made the MCPRuntimeProbe autoload fail to load and spammed ERROR lines into Gate 1's
+import/boot. Restored by copying the per-machine addon from the main checkout; it stays
+untracked, so the tracked tree is unaffected.
 
 ## Verification
 
