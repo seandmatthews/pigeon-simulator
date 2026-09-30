@@ -6,7 +6,10 @@ extends Node3D
 ## around the player. A recycle scan every `recycle_interval` teleports cars
 ## that drifted beyond `recycle_radius` onto fresh blocks/spots in the spawn
 ## band — the same nodes, no allocation, and never inside `spawn_min_dist`,
-## so nothing pops into view. Seeded from the city's seed and re-seeded on
+## so nothing pops into view. Since T-089 recycled traffic prefers rings
+## holding fewer than `ring_traffic_soft_cap` cars and rejoins at a probed
+## follow-gap-clear point, so a standing player stops watching the band clot
+## into one parked wall. Seeded from the city's seed and re-seeded on
 ## city regeneration, like the tourist (T-007) and bread (T-005) services.
 ## Every car splat relays as `car_splatted` — Main wires it into the Game
 ## autoload's score table (T-009).
@@ -29,6 +32,8 @@ signal car_splatted(car: Car)
 @export var recycle_interval: float = 0.5 ## Seconds between recycle scans.
 @export var spawn_min_dist: float = 30.0 ## Recycled cars stay at least this far away (flat, m) — pop-in guard.
 @export var spawn_max_dist: float = 70.0 ## ...and at most this far, so density stays where the player is.
+@export var recycle_probe_count: int = 5 ## Evenly spaced loop fractions probed for a follow-gap-clear traffic rejoin point before the random draw (T-089).
+@export var ring_traffic_soft_cap: int = 3 ## Recycled traffic skips rings already holding this many traffic cars while any band ring is lighter (T-089).
 
 @export var city_path: NodePath
 @export var player_path: NodePath
@@ -106,9 +111,11 @@ func _populate() -> void:
 		made_parked += 1
 
 
-## Puts a traffic car that drifted beyond the recycle radius back into the
-## spawn band — the same node teleports onto a fresh block ring (the recycle
-## acceptance contract, as for tourists T-007).
+## Puts a car that drifted beyond the recycle radius back into the spawn band
+## — the same node teleports onto a fresh block ring (the recycle acceptance
+## contract, as for tourists T-007). Since T-089 the block draw prefers light
+## rings and traffic rejoins at a probed clear point, so recycled cars stop
+## stuffing full rings into braking queues.
 func _recycle_far() -> void:
 	var anchor := _anchor_flat()
 	var far: Array[Car] = []
@@ -121,7 +128,7 @@ func _recycle_far() -> void:
 	if blocks.is_empty():
 		return
 	for car in far:
-		var block: Vector3 = blocks[_rng.randi_range(0, blocks.size() - 1)]
+		var block: Vector3 = _pick_recycle_block(blocks)
 		if car.mode == Car.Mode.PARKED:
 			var spots := city.parking_spots(block)
 			var spot: Dictionary = spots[_rng.randi_range(0, spots.size() - 1)]
@@ -131,7 +138,8 @@ func _recycle_far() -> void:
 			car.park_at(global_spot, spot.yaw, city.to_global(block))
 		else:
 			var loop := _loop_for(block)
-			car.recycle_to(_point_on_loop(loop), loop, city.to_global(block))
+			var block_global := city.to_global(block)
+			car.recycle_to(_clear_rejoin_point(loop, block_global, car), loop, block_global)
 
 
 func _spawn_traffic(block_local: Vector3, index: int) -> void:
@@ -173,6 +181,11 @@ func _flat_dist(pos: Vector3, anchor: Vector2) -> float:
 	return Vector2(pos.x - anchor.x, pos.z - anchor.y).length()
 
 
+## Flat (XZ) distance between two world positions.
+func _flat_dist_pos(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
+
+
 ## City-local block centers whose global position lies inside the spawn band
 ## (flat, m) around the anchor.
 func _blocks_in_band(anchor: Vector2) -> Array[Vector3]:
@@ -207,9 +220,60 @@ func _loop_for(block_local: Vector3) -> PackedVector3Array:
 	return loop
 
 
-## A random point along the loop — recycled cars rejoin anywhere.
+## A random point along the loop — the T-089 fallback when every probed
+## rejoin point is blocked; the worst case stays exactly the old behavior.
 func _point_on_loop(loop: PackedVector3Array) -> Vector3:
 	return _point_at_fraction(loop, _rng.randf())
+
+
+## The block a recycled car draws onto (T-089): rings already holding
+## `ring_traffic_soft_cap` traffic cars are skipped while any band ring is
+## lighter — uniform draws kept stuffing the same full rings until the whole
+## band read as one parked wall. Still one `_rng` draw per recycled car from
+## the spawner's own stream; when every band ring is at cap, the draw spans
+## all band blocks exactly as before.
+func _pick_recycle_block(blocks: Array[Vector3]) -> Vector3:
+	var traffic_per_ring := {}
+	for car in _cars:
+		if is_instance_valid(car) and car.mode == Car.Mode.TRAFFIC:
+			traffic_per_ring[car.block_center] = int(traffic_per_ring.get(car.block_center, 0)) + 1
+	var light: Array[Vector3] = []
+	for block in blocks:
+		if int(traffic_per_ring.get(city.to_global(block), 0)) < ring_traffic_soft_cap:
+			light.append(block)
+	var pool := blocks
+	if not light.is_empty():
+		pool = light
+	return pool[_rng.randi_range(0, pool.size() - 1)]
+
+
+## A rejoin point on `loop` with follow-gap clearance (T-089): walks
+## `recycle_probe_count` evenly spaced loop fractions and returns the first
+## whose flat distance to every traffic car already looping this ring is at
+## least the mover's `follow_gap` — an insertion inside the gap would turn
+## both cars into a braking queue. When every probe is blocked, falls back to
+## the random `_point_on_loop` draw.
+func _clear_rejoin_point(loop: PackedVector3Array, block_global: Vector3, mover: Car) -> Vector3:
+	var probes := maxi(recycle_probe_count, 1)
+	for i in probes:
+		var probe := _point_at_fraction(loop, float(i) / float(probes))
+		if _probe_clear(probe, block_global, mover):
+			return probe
+	return _point_on_loop(loop)
+
+
+## True when `probe` sits at least `mover.follow_gap` away (flat, center to
+## center) from every traffic car looping the `block_global` ring — the car
+## being placed excepted: its old body teleports away with the rejoin.
+func _probe_clear(probe: Vector3, block_global: Vector3, mover: Car) -> bool:
+	for car in _cars:
+		if not is_instance_valid(car) or car == mover:
+			continue
+		if car.mode != Car.Mode.TRAFFIC or car.block_center != block_global:
+			continue
+		if _flat_dist_pos(probe, car.global_position) < mover.follow_gap:
+			return false
+	return true
 
 
 ## The point a fraction (0..1) of the loop perimeter along — deterministic

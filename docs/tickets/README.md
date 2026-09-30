@@ -79,6 +79,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-078 | [Make the elder's arm the trust meter — make the hangout learnable](T-078-elder-arm-trust-meter.md) | ui-ux | 3 | 1 | proposed |
 | T-079 | [Acknowledge the combo a landing kills — the loss moment is invisible](T-079-combo-landing-note.md) | ui-ux | 3 | 2 | proposed |
 | T-080 | [Give the hunger bar a dark track/border — the white bar vanishes on bright ground](T-080-hunger-bar-track.md) | ui-ux | 3 | 1 | proposed |
+| T-089 | [Unclog the band: traffic must move when you stand still](T-089-traffic-recycle-flow.md) | worldbuilding | 4 | 2 | done |
 
 ## Milestone 2 — after the slice (not yet ticketed)
 

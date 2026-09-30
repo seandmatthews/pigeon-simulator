@@ -120,6 +120,7 @@ func _run_scenarios() -> void:
 	await _scenario_tourists_recycle()
 	await _scenario_cars_traffic()
 	await _scenario_car_splat_honk()
+	await _scenario_traffic_recycle_keeps_flow() ## T-089 — the recycle insertion path must not clot a ring.
 	await _scenario_scoring_values()
 	await _scenario_high_score_persists()
 	await _scenario_score_popup()
@@ -2203,6 +2204,152 @@ func _scenario_car_splat_honk() -> void:
 			"parked fired=%s honk=%d stayed=%s · traffic honked=%s relay=%d drove %.1f m after score=%d" % [
 					fired, parked.honk_count, stayed, traffic_honked, _car_relay, drove,
 					Game.score])
+	spawner.free()
+
+
+## The recycle insertion path keeps traffic flowing while the player stands
+## still (T-089): five traffic cars re-seated onto ONE plaza-adjacent ring
+## through the exact call `_recycle_far` makes — probed follow-gap-clear
+## rejoin points — all keep looping with the pigeon parked on the plaza. The
+## bars discriminate: a flowing car covers 50+ m of a ~116 m ring in 10 s,
+## the mined standing clots crept ≈ 0.5 m per 10 s, and a healthy follow-gap
+## queue holds 5.6 m — so travel < 8 m means a standing clot and a seeded
+## gap < 4 m means an overlap. The whole chosen ring lies inside the recycle
+## radius, so the scanner must leave everyone alone all run: any single-frame
+## jump > 5 m is a recycle teleport, not a legit recycle.
+func _scenario_traffic_recycle_keeps_flow() -> void:
+	await _set_up(true, _city.position + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	add_child(spawner)
+	await _wait_frames(4)
+	## A block whose whole ring sits inside the recycle radius of the plaza
+	## anchor — prefer one the initial seeding left traffic-free, so the run
+	## reads as exactly the five re-seated cars on the ring.
+	var plaza := Vector2(_city.position.x, _city.position.z)
+	var fleet: Array[Car] = spawner.living_cars()
+	var candidates: Array[Vector3] = []
+	for center in _city.block_centers:
+		var worst := 0.0
+		for corner in spawner._loop_for(center):
+			worst = maxf(worst, Vector2(corner.x - plaza.x, corner.z - plaza.y).length())
+		if worst < spawner.recycle_radius:
+			candidates.append(center)
+	var block := Vector3.ZERO
+	var found := false
+	for candidate in candidates:
+		var ring_global := _city.to_global(candidate)
+		var occupied := false
+		for car in fleet:
+			occupied = occupied or (car.mode == Car.Mode.TRAFFIC
+					and car.block_center == ring_global)
+		if not occupied:
+			block = candidate
+			found = true
+			break
+	if not found and not candidates.is_empty():
+		block = candidates[0]
+		found = true
+	if not found:
+		_check("traffic_recycle_keeps_flow", false,
+				"no block ring inside the recycle radius of the plaza")
+		spawner.free()
+		return
+	var loop := spawner._loop_for(block)
+	var block_global := _city.to_global(block)
+	if _debug:
+		_dbg("ring block %s global %s worst-corner candidates %d" % [
+				block, block_global, candidates.size()])
+		_dbg("loop corners: %s" % str(loop))
+	var seeded: Array[Car] = []
+	for car in fleet:
+		if seeded.size() >= 5:
+			break
+		if car.mode == Car.Mode.TRAFFIC:
+			## The exact insertion `_recycle_far` performs on a drifted car.
+			car.recycle_to(spawner._clear_rejoin_point(loop, block_global, car),
+					loop, block_global)
+			seeded.append(car)
+	if seeded.size() < 5:
+		_check("traffic_recycle_keeps_flow", false,
+				"fleet holds only %d traffic cars to seed" % seeded.size())
+		spawner.free()
+		return
+	if _debug:
+		for i in seeded.size():
+			_dbg("seeded %d start %s yaw %.2f wp %d" % [
+					i, seeded[i].global_position, seeded[i].rotation.y,
+					seeded[i].waypoint_index])
+	var cars := spawner.living_cars()
+	var last: Array[Vector3] = []
+	var travel: Array[float] = []
+	var seeded_index: Array[int] = []
+	for car in cars:
+		last.append(car.global_position)
+		travel.append(0.0)
+		seeded_index.append(seeded.find(car))
+	var min_gap_seeded := 100.0
+	var min_gap_fleet := 100.0
+	var max_frame_move := 0.0
+	for f in 600: ## 10 s at the fixed 60 Hz step.
+		await get_tree().physics_frame
+		for i in cars.size():
+			var car: Car = cars[i]
+			if not is_instance_valid(car):
+				continue
+			var moved := last[i].distance_to(car.global_position)
+			travel[i] += moved
+			max_frame_move = maxf(max_frame_move, moved)
+			last[i] = car.global_position
+		if f % 8 == 0: ## Sampled pairwise gaps — no transient overlap.
+			for i in cars.size():
+				for j in range(i + 1, cars.size()):
+					var a := cars[i].global_position
+					var b := cars[j].global_position
+					var gap := Vector2(a.x - b.x, a.z - b.z).length()
+					min_gap_fleet = minf(min_gap_fleet, gap)
+					if seeded_index[i] >= 0 and seeded_index[j] >= 0:
+						min_gap_seeded = minf(min_gap_seeded, gap)
+	var seeded_travel_ok := true
+	var finite := true
+	var seeded_travels: Array[float] = []
+	for i in cars.size():
+		finite = finite and cars[i].velocity.is_finite()
+		if seeded_index[i] >= 0:
+			seeded_travel_ok = seeded_travel_ok and travel[i] >= 8.0
+			seeded_travels.append(travel[i])
+	## Ring preference (T-089): the seeded ring now holds 5 traffic cars (>= the
+	## soft cap), so a recycle draw over it and any lighter in-radius block must
+	## land ONLY on the lighter one; a lone over-cap block is still draw-able.
+	var preference_ok := true
+	for candidate in candidates:
+		if candidate != block:
+			for _i in 30:
+				preference_ok = preference_ok \
+						and spawner._pick_recycle_block([block, candidate]) == candidate
+			break
+	preference_ok = preference_ok and spawner._pick_recycle_block([block]) == block
+	var ok := seeded_travel_ok and preference_ok \
+			and min_gap_seeded >= 4.0 and min_gap_fleet > 2.0 \
+			and finite and max_frame_move <= 5.0
+	if _debug:
+		_dbg("ring block %s (global %s)" % [block, block_global])
+		_dbg("pigeon at %s grounded=%s" % [_player.global_position, _player.is_grounded])
+		for i in seeded.size():
+			var sc := seeded[i]
+			_dbg("seeded %d: travel %.1f pos %s vel %s wp %d/%d blocker_d %.2f" % [
+					i, seeded_travels[i], sc.global_position, sc.velocity,
+					sc.waypoint_index, sc.path.size(), sc._blocker_distance()])
+			for body in sc.get_node("FrontZone").get_overlapping_bodies():
+				_dbg("  seeded %d sees %s (%s) at %s layer %d" % [
+						i, body.name, body.get_class(), body.global_position,
+						body.collision_layer])
+	_check("traffic_recycle_keeps_flow", ok,
+			"seeded travels %s (all >= 8.0: %s) · ring preference %s · min seeded gap %.2f (want >= 4.0) · fleet gap %.2f (want > 2.0) · finite=%s · max frame move %.2f (want <= 5.0)" % [
+					str(seeded_travels), seeded_travel_ok, preference_ok, min_gap_seeded,
+					min_gap_fleet, finite, max_frame_move])
 	spawner.free()
 
 
