@@ -1,6 +1,6 @@
 # T-037 — HUD bread pointer & off-city "city that way"
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-005 (bread) · T-019 (HUD outline style) — both done
 - **Refs:** UI/UX lane playtest, sweep 1 (2026-09-29); evidence cited inline
 
@@ -62,25 +62,33 @@ hunger clock keeps draining. The only teacher today is the 14 px hint line
 
 ## Acceptance criteria
 
-- [ ] `BreadSpawner.nearest_crumb(pos)` returns the living crumb nearest `pos`
+- [x] `BreadSpawner.nearest_crumb(pos)` returns the living crumb nearest `pos`
       (`null` when none), through the real seeded spread — Gate 1b only
-- [ ] Inside the ring the pointer names the nearest crumb: its distance text
+      (`query`/`none` arms of `hud_bread_pointer_tracks_nearest_crumb`)
+- [x] Inside the ring the pointer names the nearest crumb: its distance text
       matches the true player→crumb distance within 1 m, and flipping the
       pigeon's yaw 180° at the same position flips the pointer to the opposite
-      bearing — Gate 1b only (needs the seeded city + real Main)
-- [ ] Approaching the pointed-at crumb decreases the readout across two known
-      positions — Gate 1b only
-- [ ] Consuming the pointed-at crumb through the real eat path (grounded
+      bearing — Gate 1b only (`dist`/`bearing`/`flip` arms)
+- [x] Approaching the pointed-at crumb decreases the readout across two known
+      positions — Gate 1b only (`approach` arm: 10 m → 3.3 m hover legs)
+- [x] Consuming the pointed-at crumb through the real eat path (grounded
       waddle-in; `main.gd:60-61` wiring) re-aims the pointer at the
-      next-nearest crumb — Gate 1b only
-- [ ] Beyond the ring (> `city_span`/2 from the city centre) the same slot
+      next-nearest crumb — Gate 1b only (`reaim` arm)
+- [x] Beyond the ring (> `city_span`/2 from the city centre) the same slot
       switches to city mode: text names "city", distance ≈ horizontal distance
       to `city.spawn_point` ± 2 m, direction pointing back — Gate 1b only
-- [ ] The pointer carries the T-019 outline treatment (14 px, outline 4,
+      (`city` arm)
+- [x] The pointer carries the T-019 outline treatment (14 px, outline 4,
       `Color(0, 0, 0, 0.85)`) and is legible over pavement and sky — [screenshot]
-- [ ] The nearest-crumb query stays inside the frame budget:
-      `density_cpu_budget` keeps passing with the pointer live
-- [ ] Existing bread/city scenarios pass unchanged (`crumbs_respawn`,
+      resolved theme getters machine-checked (`style` arm); autoplay/pilot
+      frames show `▲ bread 6 m` over white pavement at the plaza, `↖ bread
+      30 m` over bright sky mid-flight, and `▼ city 136 m` on the grass apron
+      (137 m out, chevron pointing home) — at-a-glance judgement is the
+      pending human pass below
+- [x] The nearest-crumb query stays inside the frame budget:
+      `density_cpu_budget` keeps passing with the pointer live (median
+      251.5 ms per 100 physics frames vs the 750 budget)
+- [x] Existing bread/city scenarios pass unchanged (`crumbs_respawn`,
       `restart_resets_run`) — the layout RNG sequence is untouched
 
 ## Verification
@@ -103,3 +111,63 @@ city mode. Full suite stays green, explicitly `hud_hunger_warning_tiers`,
 autoplay asserts nothing about the pointer — unaffected. Gate 3:
 [screenshot] pass — the arrow is readable at a glance mid-flight and city
 mode reads clearly on the cruise home.
+
+## Landed (implementation notes)
+
+- `scripts/bread_spawner.gd` — `nearest_crumb(pos)` over `living_crumbs()` by
+  squared distance, `null` when none (same nearest-N scan the capture
+  recorder runs every frame; ≤ 40 crumbs). **Latent bug fixed en route:**
+  `_spawn_at` assigned the WORLD value `city.to_global(spot)` to the LOCAL
+  `position` — correct only while Main sits at the origin, so any offset
+  Main instance (every sim-harness instantiation) double-offset all 40
+  seeded crumbs. Now parents first, then `global_position` (the pattern
+  `drop_crumb` already used). No RNG draws touched — same picks, same order,
+  identical layout fingerprints; at the origin the assigned value is
+  bit-identical, so `crumbs_respawn` / `restart_resets_run` pass unchanged.
+- `scenes/main.tscn` — `%BreadPointer` Label under the hint block (top 92,
+  left 34 so the chevron owns the 16 px column margin), styled exactly like
+  HintLabel (14 px, outline 4, `Color(0, 0, 0, 0.85)`, white @ 0.75), hidden
+  by default; child `Chevron` Polygon2D (black @ 0.85, uniform 1.5 px inset
+  via a `Fill` child in white @ 0.75) rotates instead of a font glyph — no
+  dependency on default-font arrow coverage. No new SubResources, so
+  `load_steps` is unchanged. T-040's combo strip can stack beneath (top 112).
+- `scripts/main.gd` — `_update_bread_pointer()` in `_process` beside the
+  stats line: beyond `city_span * 0.5` flat from `city.global_position` the
+  slot points home at `city.spawn_point` ("city <m> m", horizontal
+  distance); inside, at `nearest_crumb()` ("bread <m> m", 3D distance);
+  hidden when no crumb is alive. Chevron `rotation_degrees` =
+  `-heading.signed_angle_to(flat_to_target, UP)` in degrees (canvas rotation
+  is clockwise-positive, the angle CCW-positive from above); degenerate
+  geometry (target dead below/ahead-at-zero) keeps the last bearing. The
+  chevron reads the pigeon's NOSE, so it can lag the camera's smoothing
+  mid-turn — by design.
+- `tests/sim_test.gd` — `_scenario_hud_bread_pointer_tracks_nearest_crumb`
+  registered in the T-019 window (after `restart_resets`, before
+  `hud_hunger_tiers`), same cleanup tail. The independent expected nearest
+  comes from a private `_scan_nearest_crumb` over `living_crumbs()` — never
+  through `nearest_crumb()`, which is the code under test. The hover leg
+  offsets (0, 8, 6) rather than straight above: a target dead below zeroes
+  the flat bearing. The eat leg mirrors `_scenario_bread_eating`'s
+  drop-waddle and stops the waddle the frame the crumb frees.
+- No input changes → controls tables untouched; no new autoloads/addons.
+
+## Tuned values (final)
+
+- Pointer: top 92 / left 34, 20 px row; font 14, outline 4,
+  `Color(0, 0, 0, 0.85)`, text `Color(1, 1, 1, 0.75)`
+- Chevron: outer triangle (−5, 3.6) (5, 3.6) (0, −5.4) in `Color(0, 0, 0,
+  0.85)`, fill inset 1.5 px in white @ 0.75; sits at label-local (−12, 10)
+- Modes: city beyond `city_span * 0.5` (117 m of the 234 m span) flat from
+  the city centre; bread distance is 3D, city distance is horizontal
+- Cost: one 40-crumb scan per `_process` frame (inside the T-018 budget —
+  `density_cpu_budget` median 251.5 ms/100 frames vs 750)
+
+## Verification
+
+Gate 1 (import + boot, both exit 0; the lone "resources still in use at
+exit" line reproduces on the untouched base commit — pre-existing), Gate 1b
+74/74 PASS exit 0, Gate 2 `AUTOPLAY DONE ok=true … restart=true` (fps 136,
+`eaten=1` through the re-parented spawner). **Pending human playtest
+(Gate 3):** the arrow readable at a glance mid-flight, city mode reading
+clearly on the cruise home, pointer legible over pavement and sky without
+crowding the hint.

@@ -97,6 +97,27 @@ theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(1, 1, 1, 0.75)
 text = "W/S pitch · A/D turn · Space flap · F poop"
 
+[node name="BreadPointer" type="Label" parent="HUD"]
+unique_name_in_owner = true
+visible = false
+offset_left = 34.0
+offset_top = 92.0
+offset_right = 518.0
+offset_bottom = 112.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(1, 1, 1, 0.75)
+
+[node name="Chevron" type="Polygon2D" parent="HUD/BreadPointer"]
+position = Vector2(-12, 10)
+color = Color(0, 0, 0, 0.85)
+polygon = PackedVector2Array(-5, 3.6, 5, 3.6, 0, -5.4)
+
+[node name="Fill" type="Polygon2D" parent="HUD/BreadPointer/Chevron"]
+color = Color(1, 1, 1, 0.75)
+polygon = PackedVector2Array(-2.45, 2.1, 2.45, 2.1, 0, -2.31)
+
 [node name="PauseMenu" type="CanvasLayer" parent="."]
 layer = 10
 script = ExtResource("8_pause")
