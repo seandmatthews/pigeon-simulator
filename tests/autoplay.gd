@@ -40,6 +40,7 @@ var _hunger: Hunger
 var _spawner: BreadSpawner
 var _tourists: TouristSpawner
 var _cars: CarSpawner
+var _elders: ElderSpawner
 var _elapsed: float = 0.0
 var _next_shot: float = 1.0
 var _shot_dir: String = ""
@@ -84,6 +85,7 @@ func _ready() -> void:
 	_spawner = _game.get_node("BreadSpawner") as BreadSpawner
 	_tourists = _game.get_node("TouristSpawner") as TouristSpawner
 	_cars = _game.get_node("CarSpawner") as CarSpawner
+	_elders = _game.get_node("ElderSpawner") as ElderSpawner
 	_player.pooped.connect(_on_pilot_pooped)
 
 
@@ -126,6 +128,7 @@ func _finish() -> void:
 	var tourists: int = _tourists.living_tourists().size() if _tourists != null and is_instance_valid(_tourists) else -1
 	var panics: int = _tourists.splat_count if _tourists != null and is_instance_valid(_tourists) else -1
 	var honks: int = _cars.honk_count if _cars != null and is_instance_valid(_cars) else -1
+	var shares: int = _elders.share_count if _elders != null and is_instance_valid(_elders) else -1
 	## T-012: every event the pilot drove should have fired its sound. The bed
 	## must be looping and at least the flap whoosh must have played — the pilot
 	## flaps on every climb, so zero whooshes means the wiring is dead.
@@ -138,10 +141,10 @@ func _finish() -> void:
 	var ok: bool = alive and _restart_ok and audio_ok
 	var poses := _poses_seen.keys()
 	poses.sort()
-	print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d poses=%s effects=%d shake_peak=%.2f sfx=%s ambience=%s" % [
+	print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d shares=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d poses=%s effects=%d shake_peak=%.2f sfx=%s ambience=%s" % [
 			ok, _elapsed, fps, where.x, where.y, where.z,
 			_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
-			tourists, panics, honks, Game.score, Game.high_score,
+			tourists, panics, honks, shares, Game.score, Game.high_score,
 			_restart_ok, _pre_score, _pre_tourists, _pre_cars, ",".join(poses),
 			_max_live_effects, _peak_trauma,
 			",".join(sfx_bits), Sfx.ambience_playing])

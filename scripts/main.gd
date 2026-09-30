@@ -44,6 +44,7 @@ const TIER_PULSE_TO := Color(1.0, 0.85, 0.8) ## The bright end both pulsing tier
 @onready var bread_spawner: BreadSpawner = $BreadSpawner
 @onready var tourist_spawner: TouristSpawner = $TouristSpawner
 @onready var car_spawner: CarSpawner = $CarSpawner
+@onready var elder_spawner: ElderSpawner = $ElderSpawner
 
 var _combo_shown: int = 0 ## The multiplier the HUD last displayed — escalations past it pulse.
 var _score_pulse: Tween

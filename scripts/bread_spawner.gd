@@ -84,6 +84,20 @@ func _top_up() -> void:
 		free.remove_at(pick)
 
 
+## Hand-placed crumb (T-020): spawns one ordinary crumb at `global_pos` — the
+## park elders toss their shared bread through this. `spot_index` stays -1
+## (the hand-placed case `BreadCrumb` already supports): the crumb occupies no
+## bread spot, but it joins `_crumbs` like any other, so it is
+## respawn-accounted and its eaten signal flows through the same wiring.
+func drop_crumb(global_pos: Vector3) -> void:
+	var crumb: BreadCrumb = crumb_scene.instantiate()
+	crumb.spot_index = -1
+	crumb.eaten.connect(_on_crumb_eaten.bind(crumb))
+	add_child(crumb)
+	crumb.global_position = global_pos
+	_crumbs.append(crumb)
+
+
 func _spawn_at(spot_index: int) -> void:
 	var crumb: BreadCrumb = crumb_scene.instantiate()
 	crumb.spot_index = spot_index

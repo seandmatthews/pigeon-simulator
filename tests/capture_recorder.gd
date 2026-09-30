@@ -267,6 +267,7 @@ func _snapshot() -> Dictionary:
 		out["streak"] = game.get("_streak")
 	out["tourists"] = _collect_children(_spawner("TouristSpawner"))
 	out["cars"] = _collect_children(_spawner("CarSpawner"))
+	out["elders"] = _collect_children(_spawner("ElderSpawner"))
 	if player != null:
 		out["crumbs"] = _nearest_crumbs(player.global_position)
 	_ensure_connections(player)
@@ -367,6 +368,10 @@ func _ensure_connections(player: Node) -> void:
 	if car_spawner != null:
 		_connect_once(car_spawner, "car_splatted", func(c):
 			_log_event("car_splatted", {"p": _v((c as Node3D).global_position)}))
+	var elder_spawner := _spawner("ElderSpawner")
+	if elder_spawner != null:
+		_connect_once(elder_spawner, "bread_shared", func(e, crumbs):
+			_log_event("elder_bread_shared", {"p": _v((e as Node3D).global_position), "crumbs": crumbs}))
 	var bread_spawner := _spawner("BreadSpawner")
 	if bread_spawner != null:
 		_connect_once(bread_spawner, "crumb_eaten", func(amount):

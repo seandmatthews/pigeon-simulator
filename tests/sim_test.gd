@@ -37,6 +37,7 @@ var _tourist_relay: int = 0 ## tourist_splatted relays caught from the spawner u
 var _car_relay: int = 0 ## car_splatted relays caught from the spawner under test (T-008).
 var _score_events: Array[Dictionary] = [] ## hit_scored payloads caught from the Game autoload (T-009).
 var _main_game: MainGame ## The real main.tscn instance the T-010 flow scenarios share.
+var _bread_shared: Array[Dictionary] = [] ## bread_shared relays caught from the elder spawner under test (T-020).
 
 
 func _ready() -> void:
@@ -122,6 +123,10 @@ func _run_scenarios() -> void:
 	await _scenario_game_over_screen()
 	await _scenario_restart_resets()
 	await _scenario_hud_hunger_tiers() ## T-019 — must follow restart_resets: unpaused tree, no live Main.
+	await _scenario_elder_placement_no_rng()
+	await _scenario_elder_shares_bread_after_hangout()
+	await _scenario_elder_no_bread_airborne()
+	await _scenario_elder_cooldown_blocks_second_share()
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -1016,6 +1021,231 @@ func _scenario_poop_event_target() -> void:
 	_check("poop_event_reaches_any_body", fired and duck_typed and decoupled,
 			"signal_hit_pad=%s duck_typed=%s (hits %d) no_player_import=%s" % [
 					fired, duck_typed, pad_hits, decoupled])
+
+
+## --- scenarios (T-020 park elders) ------------------------------------------
+
+
+## The elder scenarios share one rig over the real generated city: an elder
+## spawner under test and an empty bread service, so every living crumb below
+## is a tossed one. The spawner's relays land in `_bread_shared`.
+func _add_elder_rig() -> Array:
+	_bread_shared.clear()
+	var crumbs := BreadSpawner.new()
+	crumbs.city = _city
+	crumbs.target_count = 0 ## No seeded crumbs — only tossed ones exist.
+	crumbs.respawn_interval = 9999.0
+	add_child(crumbs)
+	var spawner := ElderSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	spawner.bread_spawner = crumbs
+	add_child(spawner)
+	spawner.bread_shared.connect(func(elder: Elder, count: int) -> void:
+		_bread_shared.append({"elder": elder, "crumbs": count}))
+	return [spawner, crumbs]
+
+
+func _spots_equal(a: Array[Transform3D], b: Array[Transform3D]) -> bool:
+	if a.size() != b.size():
+		return false
+	for i in a.size():
+		if a[i] != b[i]:
+			return false
+	return true
+
+
+## The elders' plaza placement is pure layout: `elder_spots` records one spot
+## per plaza-ring bench (8), appended with zero RNG, and the spawner seats 4
+## elders on every second bench (indices 0, 2, 4, 6 — 90° apart, on the seat
+## line). Regenerating the same seed reproduces the fingerprint, the
+## bench/lamp/bin counts AND the spot list byte-identically, every seed still
+## gets its ring, and the spawner seats one elder per chosen spot on the real
+## city.
+func _scenario_elder_placement_no_rng() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed)
+	var spots_a := _city.elder_spots.duplicate()
+	var report_a: Dictionary = _city.last_report
+	var shape_ok: bool = spots_a.size() == 8
+	var angles: Array[float] = []
+	for spot in spots_a:
+		var origin: Vector3 = (spot as Transform3D).origin
+		shape_ok = shape_ok and absf(Vector2(origin.x, origin.z).length() - 8.0) < 0.01 \
+				and absf(origin.y - (_city.block_slab_height + 0.60)) < 0.001
+		angles.append(atan2(origin.z, origin.x))
+	var spread := true
+	angles.sort()
+	for i in angles.size():
+		spread = spread and absf(wrapf(angles[(i + 1) % angles.size()] - angles[i],
+				-PI, PI) - PI * 0.25) < 0.01
+	_city.generate(default_seed)
+	var spots_b := _city.elder_spots.duplicate()
+	var typed_b: Array[Transform3D] = []
+	for spot in spots_b:
+		typed_b.append(spot)
+	var typed_a: Array[Transform3D] = []
+	for spot in spots_a:
+		typed_a.append(spot)
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and report_a.benches == _city.last_report.benches \
+			and report_a.lamps == _city.last_report.lamps \
+			and report_a.bins == _city.last_report.bins \
+			and _spots_equal(typed_a, typed_b)
+	_city.generate(424242)
+	var foreign_ok := _city.elder_spots.size() == 8 and _city.fingerprint != fp_first
+	_city.generate(default_seed)
+	var rig := _add_elder_rig()
+	var spawner: ElderSpawner = rig[0]
+	await _wait_frames(4)
+	var elders := spawner.living_elders()
+	var seated := elders.size() == 4
+	for i in elders.size():
+		seated = seated and elders[i].global_position.distance_to(
+				_city.to_global((city_spot(_city, i) as Transform3D).origin)) < 0.01
+	_check("elder_placement_no_rng",
+			shape_ok and spread and deterministic and foreign_ok and seated,
+			"spots %d, on-ring=%s, spread=%s, deterministic=%s, foreign=%s, seated=%d/4" % [
+					spots_a.size(), shape_ok, spread, deterministic, foreign_ok, elders.size()])
+	spawner.free()
+	(rig[1] as Node).free()
+
+
+## The bench spot the i-th elder sits on: every second entry of `elder_spots`
+## (the spawner's ring rule, mirrored for the assertion).
+func city_spot(city: City, elder_index: int) -> Variant:
+	return city.elder_spots[elder_index * 2]
+
+
+## A GROUNDED pigeon parked in an elder's PresenceZone fills trust; a short
+## walk-about decays it without wiping; back for the full hangout the elder
+## tosses two ordinary T-005 crumbs (restore 30, hand-placed, respawn-
+## accounted) onto the pavement in front of the bench and relays exactly once.
+func _scenario_elder_shares_bread_after_hangout() -> void:
+	var rig := _add_elder_rig()
+	var spawner: ElderSpawner = rig[0]
+	var crumbs: BreadSpawner = rig[1]
+	await _wait_frames(4)
+	var elders := spawner.living_elders()
+	if elders.is_empty():
+		_check("elder_shares_bread_after_hangout", false, "no elder spawned")
+		spawner.free()
+		(rig[1] as Node).free()
+		return
+	var elder: Elder = elders[0]
+	## Park 2.6 m in front of the elder's facing — inside the PresenceZone,
+	## clear of the 1.1 m crumb eat radius (the toss lands 1.2 m out ±0.4).
+	var park := elder.global_position - elder.global_transform.basis.z * 2.6
+	park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
+	await _set_up(true, park, Vector3.ZERO)
+	await _await_grounded(90)
+	var parked := _player.is_grounded and _player.position.distance_to(park) < 0.5
+	await _wait_frames(130) ## ~2.2 s of company banks ~2 trust.
+	var banked: float = elder._trust
+	var away := park + Vector3(6.0, 0.0, 0.0) ## Outside the 3.0 m zone, still on the plaza.
+	await _set_up(true, away, Vector3.ZERO)
+	await _await_grounded(90)
+	await _wait_frames(30) ## ~0.7 s alone decays it but must not wipe it.
+	var decayed: float = elder._trust
+	await _set_up(true, park, Vector3.ZERO)
+	await _await_grounded(90)
+	await _wait_frames(280) ## trust_needed (4 s) of company plus margin — the share fires mid-wait.
+	var shared_once: bool = _bread_shared.size() == 1 and _bread_shared[0].elder == elder \
+			and int(_bread_shared[0].crumbs) == elder.crumbs_per_share
+	var live := 0
+	var ordinary := true
+	for crumb in crumbs.living_crumbs():
+		var flat := Vector2(crumb.global_position.x - elder.global_position.x,
+				crumb.global_position.z - elder.global_position.z)
+		if flat.length() <= elder.toss_distance + elder.toss_spread + 0.05:
+			live += 1
+			ordinary = ordinary and crumb.restore == 30.0 and crumb.spot_index == -1
+	_check("elder_shares_bread_after_hangout",
+			parked and banked > 1.5 and decayed > 0.1 and decayed < banked - 0.5
+					and shared_once and live >= 2 and ordinary,
+			"parked=%s trust %.2f→%.2f decay, relays %d, live crumbs in reach %d, ordinary=%s" % [
+					parked, banked, decayed, _bread_shared.size(), live, ordinary])
+	spawner.free()
+	(rig[1] as Node).free()
+
+
+## A FLYING pigeon held inside the same PresenceZone for longer than
+## trust_needed banks nothing: zero crumbs, zero relays, trust never leaves 0.
+func _scenario_elder_no_bread_airborne() -> void:
+	var rig := _add_elder_rig()
+	var spawner: ElderSpawner = rig[0]
+	var crumbs: BreadSpawner = rig[1]
+	await _wait_frames(4)
+	var elders := spawner.living_elders()
+	if elders.is_empty():
+		_check("elder_no_bread_airborne", false, "no elder spawned")
+		spawner.free()
+		(rig[1] as Node).free()
+		return
+	var elder: Elder = elders[0]
+	var hold := elder.global_position - elder.global_transform.basis.z * 1.5
+	hold.y = elder.global_position.y + 1.2 ## In the zone, above the pavement.
+	for _i in 300: ## 5 s of held flight — longer than trust_needed.
+		_player.reset_flight(hold)
+		await get_tree().physics_frame
+	var clean := _bread_shared.is_empty() and crumbs.living_crumbs().is_empty() \
+			and elder._trust <= 0.0 and not _player.is_grounded
+	_check("elder_no_bread_airborne", clean,
+			"relays %d, crumbs %d, trust %.2f, held airborne=%s" % [
+					_bread_shared.size(), crumbs.living_crumbs().size(),
+					elder._trust, not _player.is_grounded])
+	spawner.free()
+	(rig[1] as Node).free()
+
+
+## After a share the elder goes quiet: the pigeon hanging out CONTINUOUSLY
+## through the whole share_cooldown earns nothing until it expires — then one
+## more share, exactly.
+func _scenario_elder_cooldown_blocks_second_share() -> void:
+	var rig := _add_elder_rig()
+	var spawner: ElderSpawner = rig[0]
+	var crumbs: BreadSpawner = rig[1]
+	await _wait_frames(4)
+	var elders := spawner.living_elders()
+	if elders.is_empty():
+		_check("elder_cooldown_blocks_second_share", false, "no elder spawned")
+		spawner.free()
+		(rig[1] as Node).free()
+		return
+	var elder: Elder = elders[0]
+	var park := elder.global_position - elder.global_transform.basis.z * 2.6
+	park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
+	await _set_up(true, park, Vector3.ZERO)
+	await _await_grounded(90)
+	var first_at := -1
+	for f in 600:
+		await get_tree().physics_frame
+		if _bread_shared.size() >= 1:
+			first_at = f
+			break
+	var shared_first: bool = _bread_shared.size() == 1 and _bread_shared[0].elder == elder
+	## Keep hanging straight through the cooldown window (stop just before it
+	## expires): not one further relay.
+	var quiet := true
+	for _f in int(elder.share_cooldown * 60.0) - maxi(first_at, 0) - 30:
+		await get_tree().physics_frame
+		if _bread_shared.size() != 1:
+			quiet = false
+			break
+	var second_at := -1
+	for f in 600: ## Trust refills in trust_needed — the second share must come.
+		await get_tree().physics_frame
+		if _bread_shared.size() >= 2:
+			second_at = f
+			break
+	_check("elder_cooldown_blocks_second_share",
+			shared_first and quiet and second_at > 0 and _bread_shared.size() == 2
+					and _bread_shared[1].elder == elder,
+			"first relay at f%d, quiet through cooldown=%s, second at f%d, relays %d" % [
+					first_at, quiet, second_at, _bread_shared.size()])
+	spawner.free()
+	(rig[1] as Node).free()
 
 
 ## --- scenarios (T-007 tourists) ---------------------------------------------
