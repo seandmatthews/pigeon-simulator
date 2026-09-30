@@ -78,6 +78,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | poop_splats_ground_and_fades | a floor hit fires splatted(target, impact_velocity), sticks an up-facing splat to the hit body and fades it away | T-006 |
 | poop_splats_wall | a wall hit sticks a splat facing along the wall's horizontal normal | T-006 |
 | poop_event_reaches_any_body | a plain body on the hit layers receives the hit duck-typed (on_splatted) with no player import anywhere in poop.gd | T-006 |
+| poop_ready_indicator_tracks_cooldown | through the real main scene, the F glyph beside the hint line shows lit at full alpha while airborne with a rested drop, dims to ~25% the moment a REAL poop fires, stays dim through mid-cooldown, freezes with a paused tree and relights when the cooldown elapses in game time with no further press, hides entirely while grounded, and restart_run() mid-cooldown relights it (T-019 outline treatment asserted) | T-077 |
 | tourists_walk_loose_groups | 18 tourists stroll their sidewalk loops at slab level, seeded in loose groups | T-007 |
 | tourist_splat_panics_scores | a real lobbed splat panics its tourist (sprint + arms) and fires the splatted score event, scored end to end through the Game autoload (100, then the chain's ×2 → 300); a sideways hit makes the panic flee along the impact's horizontal mirror | T-007 |
 | tourist_buzz_flinch | a slow pass through the buzz zone earns nothing; a fast one earns a flinch duck, never a panic | T-007 |
@@ -239,6 +240,7 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-006) Droppings splat on streets, walls and roofs, stick to the surface, and fade out after a few seconds
 - [ ] (T-006) Mashing F while flying yields about one dropping per second — no stream
 - [ ] (T-006) F does nothing while grounded — the dropping only exists in the air
+- [ ] (T-077) The F readiness glyph beside the hint line reads at a glance over pavement and sky, and the dim (cooling) state is distinguishable from the lit one [screenshot]
 - [ ] (T-007) 15–20 tourists stroll the sidewalks and plaza in loose groups and read as believable walkers
 - [ ] (T-007) A direct splat panics its tourist — sprints away, arms up, red flush, fist shake — and Score ticks up
 - [ ] (T-007) Manual skill run: splat at least 3 tourists and buzz 3 more; watch one full panic cycle (sprint, fist shake, stroll resumes) through to the tourist eventually recycling
@@ -394,6 +396,13 @@ Playtest checklist (grows as tickets land):
   an `elders` state list for pilot sessions. A human pass over the T-020 lines
   (elder reads as an old person at a glance, ~4 s hangout feels right, tossed
   bread lands reachable) is still pending.
+- Poop readiness cue (T-077) is machine-verified (Gate 1b
+  `poop_ready_indicator_tracks_cooldown` — lit airborne, dim the frame a real
+  poop fires, no early relight, freeze under pause, relight on cooldown expiry,
+  hidden while grounded, restart mid-cooldown relights) and the glyph freezes
+  with the world because it is driven from `_process` game time like the rest
+  of the HUD. A human pass over its Gate 3 line (glyph legibility beside the
+  hint line over pavement and sky, dim-vs-lit distinguishable) is still pending.
 - Same-seed restart fast path (T-033) is machine-verified (Gate 1b
   `restart_same_seed_skips_rebuild` — the standing city is re-used, every
   spawner re-seeds, and the determinism scenarios prove real rebuilds via

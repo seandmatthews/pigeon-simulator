@@ -104,6 +104,11 @@ var bank_angle: float:
 var is_grounded: bool:
 	get: return state == State.GROUND
 
+
+## True while the poop cooldown has elapsed — the F readiness cue (T-077) reads this.
+var poop_ready: bool:
+	get: return _poop_timer <= 0.0
+
 @onready var chase_camera: ChaseCamera = $ChaseCamera
 @onready var pigeon: PigeonVisual = $Pigeon ## The T-011 presentation, driven from this state machine.
 
