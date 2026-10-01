@@ -6,8 +6,9 @@ extends CharacterBody3D
 ## touches settle into a slow comedic waddle and flap takes off again. Hard
 ## touchdowns just skid — no damage model in M1. Every tunable is an @export
 ## for live tweaking. Since T-015 the airborne flap is mostly lift: its
-## forward shove fades out across `flap_push_taper`, so flaps pace toward
-## roughly glide_speed plus a few m/s and dives own the top end. Since T-036
+## forward shove fades out across `flap_push_taper`, and since T-043 the
+## impulse itself fades with the same blend (`flap_sustained_fade`) — pacing
+## flaps converge in the low 20s of m/s and dives own the top end. Since T-036
 ## a fall past the `off_world_y` guard line — off the world's edge — quietly
 ## snaps home to `respawn_point` (Main wires the spawn corridor in).
 
@@ -31,6 +32,7 @@ enum State { AIR, GROUND }
 @export var flap_min_fraction: float = 0.25 ## Impulse fraction when mash-spamming with no rest.
 @export var flap_cooldown: float = 0.12 ## Hard floor between two flaps.
 @export var flap_push_taper: float = 10.0 ## (T-015) m/s band over which the airborne flap's forward shove fades: full 45° shove at glide_speed - taper, pure lift at glide_speed — flaps climb and pace, dives add speed. Tune-safe: values ≤ 0 degrade to the old fixed 45° flap.
+@export var flap_sustained_fade: float = 0.5 ## (T-043) Fraction of the flap impulse removed at full taper blend, so sustained flapping converges below the dive cap instead of at it. Tune 0.35–0.6 in playtest; 0 keeps the old full-power flap. Ground takeoffs and stall-recovery flaps (blend == 0) keep full power by construction.
 
 @export_group("Lift & stall")
 @export var gravity: float = 12.0
@@ -316,11 +318,13 @@ func _flap() -> void:
 	if not Input.is_action_just_pressed("flap") or _flap_timer > 0.0:
 		return
 	var rested := clampf(_time_since_flap / flap_interval, flap_min_fraction, 1.0)
+	var power := 1.0
 	var flap_dir: Vector3
 	if state == State.GROUND:
 		# A startled takeoff fires up-and-forward from level attitude — the body
 		# may still be nose-down right after a touchdown, and flapping along it
-		# would lunge along the pavement instead of launching.
+		# would lunge along the pavement instead of launching. Full power: the
+		# sustained fade below is airborne-branch-only by construction.
 		var fwd := -transform.basis.z
 		fwd.y = 0.0
 		flap_dir = (Vector3.UP + fwd.normalized()).normalized()
@@ -330,13 +334,19 @@ func _flap() -> void:
 		# stall recovery keeps its old bite), pure body-up lift at cruise. A
 		# flap buys climb and pacing, never the top end; only diving adds real
 		# speed. The maxf guard makes taper ≤ 0 degrade to the old fixed flap.
+		# Since T-043 the impulse itself also fades with the same blend — at
+		# cruise a flap is half strength, so sustained flapping converges below
+		# the dive cap instead of at it (`flap_sustained_fade`; the ground
+		# branch never computes `blend`, so takeoffs and blend == 0 recoveries
+		# keep the exact old bite).
 		var blend := clampf(
 				(forward_speed - (glide_speed - flap_push_taper)) / maxf(flap_push_taper, 0.5),
 				0.0, 1.0)
+		power = 1.0 - flap_sustained_fade * blend
 		flap_dir = (transform.basis.y - transform.basis.z).normalized().slerp(
 				transform.basis.y, blend).normalized()
 	var pre_vy := velocity.y ## The climb the pigeon was already working with.
-	velocity += flap_dir * flap_impulse * rested
+	velocity += flap_dir * flap_impulse * rested * power
 	_flap_timer = flap_cooldown
 	_time_since_flap = 0.0
 	if state == State.GROUND:
