@@ -66,21 +66,25 @@ const CAFE_FACE_OUTSET := 0.12 ## The shop band's outset (the `_add_shopfront` b
 const CAFE_STANDOFF := 1.9 ## Table center out from the face plane (m).
 const CAFE_SIDE_OFFSET := 2.2 ## Table center along the face from the door center (m).
 
-## Intersection crosswalk layout (T-069): one zebra band per intersection
-## approach, its center CROSSWALK_OUTSET out from the road-center node along
-## the approach axis, on the road centerline. The band is CROSSWALK_STRIPE_COUNT
-## stripes stacked along the approach axis at CROSSWALK_STRIPE_PITCH on centers;
-## each stripe is a box CROSSWALK_STRIPE_DEPTH along the road x road_width
-## across x 0.01 thick. With the defaults the band footprint spans 5.0–7.4 m out
-## — its 5.0 m inner edge clears the corner-cut area turning cars sweep through
-## (traffic_lane_offset 3.5 m) by 1.5 m — and an approach whose band would leave
-## the asphalt (node ± 7.4 m past ±city_span * 0.5) is skipped, dropping the 32
-## outward approaches of the outer ring: 224 bands, 1,120 stripes. Pure layout
-## numbers; the placement draws no RNG and appends no `_fp` entry.
+## Intersection crosswalk layout (T-069, bars re-oriented longitudinal by
+## T-102): one zebra band per intersection approach, its center CROSSWALK_OUTSET
+## out from the road-center node along the approach axis, on the road
+## centerline. Real zebra geometry (UK Highway Code: longitudinal stripes): the
+## bars run ALONG the road and repeat ACROSS it — the band is a
+## CROSSWALK_BAND_DEPTH-deep run of road, tiled edge-to-edge by
+## CROSSWALK_BAR_WIDTH-wide bars at CROSSWALK_BAR_PITCH on centers,
+## road_width / CROSSWALK_BAR_PITCH bars per band (10 at the defaults, 0.25 m
+## of asphalt left clear at each road edge). With the defaults the band
+## footprint spans 5.0–7.4 m out — its 5.0 m inner edge clears the corner-cut
+## area turning cars sweep through (traffic_lane_offset 3.5 m) by 1.5 m — and an
+## approach whose band would leave the asphalt (node ± 7.4 m past ±city_span *
+## 0.5) is skipped, dropping the 32 outward approaches of the outer ring: 224
+## bands, 2,240 bars. Pure layout numbers; the placement draws no RNG and
+## appends no `_fp` entry.
 const CROSSWALK_OUTSET := 6.2 ## Band center out from the node (m).
-const CROSSWALK_STRIPE_PITCH := 0.5 ## Stripe spacing along the approach axis (m).
-const CROSSWALK_STRIPE_DEPTH := 0.4 ## Stripe depth along the road (m).
-const CROSSWALK_STRIPE_COUNT := 5 ## Stripes per band.
+const CROSSWALK_BAND_DEPTH := 2.4 ## Band depth along the road (m).
+const CROSSWALK_BAR_PITCH := 1.0 ## Bar spacing across the road (m).
+const CROSSWALK_BAR_WIDTH := 0.5 ## Bar width across the road (m).
 
 ## Rooftop clutter layout (T-032): per building, 1-3 props sit at ±0.25·footprint
 ## per axis in the three non-(+,+) corner quadrants and one roof crumb at
@@ -567,24 +571,24 @@ func _near_road(z: float, centers: Array[float]) -> bool:
 	return false
 
 
-## Zebra crosswalks (T-069): one 5-stripe band per unblocked intersection
-## approach, painted like the lane dashes — queued MultiMesh instances, no new
-## nodes per stripe, and ZERO colliders (the T-017 visual-only decision), so
-## cars and pigeon never sense the paint. Zero RNG draws and zero `_fp.append`
-## calls (the T-031 precedent): the fingerprint and every RNG stream stay
-## byte-identical to pre-T-069 builds. The dash gate (`_near_road`) already
-## skips everything within `road_width * 0.5 + 1.5` = 6.5 m of a node, so the
-## bands never overlap a center dash — the nearest dash sits 10.0 m out and its
-## 1.8 m length stops 9.1 m out, 1.7 m clear of the band's 7.4 m outer edge.
+## Zebra crosswalks (T-069, longitudinal bars per T-102): one bar-tiled band
+## per unblocked intersection approach, painted like the lane dashes — queued
+## MultiMesh instances, no new nodes per bar, and ZERO colliders (the T-017
+## visual-only decision), so cars and pigeon never sense the paint. Zero RNG
+## draws and zero `_fp.append` calls (the T-031 precedent): the fingerprint and
+## every RNG stream stay byte-identical to pre-T-069 builds. The dash gate
+## (`_near_road`) already skips everything within `road_width * 0.5 + 1.5` =
+## 6.5 m of a node, so the bands never overlap a center dash — the nearest dash
+## sits 10.0 m out and its 1.8 m length stops 9.1 m out, 1.7 m clear of the
+## band's 7.4 m outer edge.
 func _build_crossings() -> void:
 	var half := city_span * 0.5
 	var centers: Array[float] = []
 	for i in blocks_per_side + 1:
 		centers.append(-half + road_width * 0.5 + i * block_pitch)
-	## How far the band reaches from the node: outermost stripe center plus its
-	## half depth (6.2 + 2 * 0.5 + 0.2 = 7.4 m at the defaults).
-	var reach := CROSSWALK_OUTSET + (CROSSWALK_STRIPE_COUNT - 1) * CROSSWALK_STRIPE_PITCH * 0.5 \
-			+ CROSSWALK_STRIPE_DEPTH * 0.5
+	## How far the band reaches from the node: band center plus half depth
+	## (6.2 + 2.4 * 0.5 = 7.4 m at the defaults).
+	var reach := CROSSWALK_OUTSET + CROSSWALK_BAND_DEPTH * 0.5
 	for cx: float in centers:
 		for cz: float in centers:
 			## Approaches along x — bands on the horizontal road (its centerline
@@ -603,20 +607,22 @@ func _build_crossings() -> void:
 				_add_crosswalk_band(Vector3(cx, 0.0, cz), false, -1.0)
 
 
-## Queues one band's stripes for one intersection approach (T-069). `along_x`
-## picks the road family the band paints (true = the horizontal road the
-## ±x approaches cross), `side` the approach direction. Stripe centers sit
-## CROSSWALK_STRIPE_PITCH apart along the approach axis around CROSSWALK_OUTSET,
-## on the road centerline; each stripe runs CROSSWALK_STRIPE_DEPTH along the
-## road x road_width across x 0.01 thick, 5 mm proud of its slab family.
+## Queues one band's bars for one intersection approach (T-069, T-102).
+## `along_x` picks the road family the band paints (true = the horizontal road
+## the ±x approaches cross), `side` the approach direction. The band is one
+## CROSSWALK_BAND_DEPTH-deep run of road centered CROSSWALK_OUTSET out from the
+## node on the road centerline; its bars run WITH the road and repeat ACROSS it
+## at CROSSWALK_BAR_PITCH on centers, each CROSSWALK_BAR_WIDTH across x 0.01
+## thick, 5 mm proud of its slab family.
 func _add_crosswalk_band(node: Vector3, along_x: bool, side: float) -> void:
-	for i in CROSSWALK_STRIPE_COUNT:
-		var out := side * (CROSSWALK_OUTSET
-				+ (float(i) - (CROSSWALK_STRIPE_COUNT - 1) * 0.5) * CROSSWALK_STRIPE_PITCH)
-		var size := Vector3(CROSSWALK_STRIPE_DEPTH, 0.01, road_width) if along_x \
-				else Vector3(road_width, 0.01, CROSSWALK_STRIPE_DEPTH)
+	var bars := int(road_width / CROSSWALK_BAR_PITCH)
+	var out := side * CROSSWALK_OUTSET
+	for j in bars:
+		var across := (float(j) - (float(bars) - 1.0) * 0.5) * CROSSWALK_BAR_PITCH
+		var size := Vector3(CROSSWALK_BAND_DEPTH, 0.01, CROSSWALK_BAR_WIDTH) if along_x \
+				else Vector3(CROSSWALK_BAR_WIDTH, 0.01, CROSSWALK_BAND_DEPTH)
 		var y := road_slab_height if along_x else road_slab_height + 0.005
-		var pos := node + (Vector3(out, y, 0.0) if along_x else Vector3(0.0, y, out))
+		var pos := node + (Vector3(out, y, across) if along_x else Vector3(across, y, out))
 		_add_mm("crosswalk", _box_xf(pos, size))
 
 
