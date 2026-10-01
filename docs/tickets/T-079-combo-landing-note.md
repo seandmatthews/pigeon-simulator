@@ -1,6 +1,6 @@
 # T-079 — Acknowledge the combo a landing kills — the loss moment is invisible
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** — (no code dependency; the player value lands once T-060 makes hits reachable)
 - **Refs:** `docs/DESIGN.md` → scoring (streaks without landing multiply) · T-040 (hit strip —
   shows what you hit; this shows what landing cost) · T-060 (makes hits reachable)
@@ -48,13 +48,13 @@ hits reachable.
 
 ## Acceptance criteria
 
-- [ ] Landing while a ×2+ combo is live shows "landing ended the ×2 combo" for 2.5 s of game
+- [x] Landing while a ×2+ combo is live shows "landing ended the ×2 combo" for 2.5 s of game
       time, then clears without disturbing the rest of the HUD
-- [ ] Landing with no live combo shows nothing
-- [ ] `restart_run()` mid-display clears the note immediately
-- [ ] Gate 1b scenario `combo_note_on_landing` passes (below), driving the REAL
+- [x] Landing with no live combo shows nothing
+- [x] `restart_run()` mid-display clears the note immediately
+- [x] Gate 1b scenario `combo_note_on_landing` passes (below), driving the REAL
       `grounding_changed` signal rather than calling the private handler
-- [ ] Full Gate 1b suite green, explicitly `scoring_values` and both HUD scenarios
+- [x] Full Gate 1b suite green, explicitly `scoring_values` and both HUD scenarios
 
 ## Verification
 
@@ -76,3 +76,31 @@ Register it in `_run_scenarios` (`tests/sim_test.gd:84`+). Gate 2 runs normally.
 line: with a live combo (needs T-060-era hit rates, or a debug affordance), the note reads
 at a glance and doesn't crowd the pointer row — if it can't be played yet, record it as a
 pending human note in the ticket.
+
+## Implementation notes (this change-set)
+
+- **Tuned values (final):** note lifetime `COMBO_NOTE_SECONDS := 2.5` s of game time
+  (`scripts/main.gd`, beside the hint consts); note text "landing ended the ×%d combo"
+  from the live pre-reset multiplier; rect 16..500 × 140..160 (one 20 px row under the
+  T-040 strip's 116..136, same 4 px rhythm as pointer→strip); the pointer's exact T-019
+  recipe — `font_outline_color Color(0, 0, 0, 0.85)`, `outline_size` 4, `font_size` 14,
+  `font_color Color(1, 1, 1, 0.75)`; expiry and restart clear wipe text + visibility +
+  countdown together.
+- **Placement deviation from the suggested rect.** The suggested 16..500 × 112..132 was
+  written before T-040's `ComboStrip` occupied that exact row (116..136, `main.tscn`) — the
+  two would overlap, and both are transient notes that are routinely visible together
+  (hit → land within 2.5 s). The `ComboNote` sits one row *under* the strip instead:
+  16..500 × 140..160, same 4 px rhythm as pointer→strip, same span, the pointer's exact
+  T-019 recipe (outline black 0.85, outline_size 4, font_size 14, white 0.75). The scenario
+  pins `note.offset_top >= combo_strip.offset_bottom` so the stacking stays honest.
+- **Gate evidence (run in this change-set):** Gate 1 `--import` exit 0 and 120-frame boot
+  exit 0 (no ERROR/SCRIPT ERROR/Parse Error; the ObjectDB-leak WARNING and the `--import`
+  "33 resources still in use" line pre-exist on the pristine tree — verified by stash
+  round-trip); Gate 1b full suite 97 PASS / 0 FAIL, exit 0, no SCRIPT ERROR, explicitly
+  `combo_note_on_landing`, `score_combo_style_values`, `hud_hunger_warning_tiers`,
+  `hud_combo_strip_reports_last_hit` (and `hud_bread_pointer_tracks_nearest_crumb`);
+  Gate 2 autoplay `AUTOPLAY DONE ok=true … restart=true`, exit 0.
+- **PENDING HUMAN PLAYTEST NOTE (Gate 3):** with a live combo the note must read at a
+  glance and not crowd the strip/pointer rows — not playable at current hit rates (no
+  session has ever built a streak; needs T-060-era hit rates or a debug affordance). The
+  pending line lives in VERIFICATION.md's Gate 3 checklist, T-079 entry.
