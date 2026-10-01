@@ -106,7 +106,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | elder_no_bread_airborne | a FLYING pigeon held inside the same PresenceZone for longer than `trust_needed` banks nothing — zero crumbs, zero relays, trust never leaves zero | T-020 |
 | elder_cooldown_blocks_second_share | a pigeon hanging out CONTINUOUSLY through the whole `share_cooldown` after a share earns nothing until it expires — then exactly one more share | T-020 |
 | pigeon_air_poses_track_flight | wings out in a glide, a wing beat on every real flap impulse (and the beat ends), wings swept back in a dive — the pose mirrors the flight state | T-011 |
-| pigeon_ground_poses_track_waddle | grounded settles into the folded stand, waddling flips to the waddle pose, stopping settles back to stand | T-011 |
+| pigeon_ground_poses_track_waddle | grounded settles into the folded stand, waddling flips to the waddle pose, stopping settles back to stand; since T-048 the fold also thins the wing chord — the grounded legs assert the pivots' eased Z scale ≤ 0.5 (default 0.35), a fresh airborne set-up re-opens it to ≥ 0.95, and reset_pose() returns it to exactly 1.0 with both wing pivots' scale.z back at 1.0 (the root-only scale reset never reached them) | T-011, T-048 |
 | pigeon_pecks_when_eating | eating a crumb through Main's exact wiring (crumb.eaten → Player.peck) plays the peck — the beak dives down and the overlay ends | T-011 |
 | pigeon_silhouette_contrast | the bird's body is ≥ 0.20 Euclidean RGB from the sidewalk and the cream facade family, darker than every district backdrop's mean luminance by ≥ 0.05, with wingtips ≥ 0.15 darker and the head lighter (the 12-color sweep prints informationally); since T-026 the ground planes stay distinct — sidewalk ↔ asphalt ≥ 0.30 and sidewalk ↔ body ≥ 0.20 (measured 0.435 / 0.230 at the retuned values); since T-045/T-085 the bird also keeps one bright anchor over the dark road/roof family its gray body melts into — head and pale rump patch each ≥ 0.30 Euclidean RGB from asphalt and roof (measured 0.572 / 0.497 and 0.964 / 0.889), both underwings wearing the exact Mat_rump the Rump wears, and the bird scene still visual-only (Node3D/MeshInstance3D, no physics nodes) | T-016, T-026, T-045, T-085 |
 | city_district_palettes_distinct | every building wears a color from its own district's palette, all four districts appear, the palettes are measurably distinct and the quadrant mapping is pure | T-013 |
@@ -331,6 +331,9 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-088) From the apron (300+ m out) the horizon reads as a distant city under haze, not a void edge — the towers read as background (muted, low-contrast), not as landable-looking foreground buildings [screenshot]
 - [x] (T-102) Walking down a road toward an intersection, the band ahead reads as a zebra — bars running away with the road, step-over rungs — matching `.captures/xwalk-refs/ref08` (agent grab `.captures/t102_eyelevel_zebra.png`; reviewer sign-off 2026-10-01) [screenshot]
 - [x] (T-102) From the air each crossing reads as a ladder with rails parallel to traffic (compare `ref11`) (agent grab `.captures/t102_aerial_ladder.png`; reviewer sign-off 2026-10-01) [screenshot]
+- [x] (T-048) At the chase cam's grounded distance (~3.5 m) the bird reads at a glance as a compact pigeon with wings hugging the flanks — not a biplane (reviewer sign-off 2026-10-01) [screenshot]
+- [x] (T-048) The takeoff moment (fold → GLIDE) shows the wings re-opening smoothly, without a pop as the chord re-expands over the pose lerp (reviewer sign-off 2026-10-01) [screenshot]
+- [x] (T-048) Elders read as people at a glance at 20 m — the rust cardigan separates them from the pavement (reviewer sign-off 2026-10-01; judgable in the same play session as T-020's pending lines) [screenshot]
 - [ ] Pigeon lands on the ground and does not fall through the world
 - [ ] HUD hunger ticks down over time
 - [ ] Camera does not clip through the ground while landing
@@ -569,10 +572,13 @@ Playtest checklist (grows as tickets land):
 - T-016 machine-checked the pigeon's material contrast and capped the sun, but
   the human pass over its two new Gate 3 lines (bird readable on sidewalk and
   facade at ~20 m; city still reads warm after the energy retune) is pending.
-  The grounded "folded wings still read as splayed" issue remains open: pose
-  retuning alone (−0.35 lift / 1.5 sweep) was A/B-tested in play and narrows
-  the wing plane only ~15 % — invisible at a glance; the splay comes from the
-  0.24 m wing chord presenting laterally, which needs a mesh/rig change.
+  The grounded "folded wings still read as splayed" issue is CLOSED (T-048,
+  reviewer sign-off 2026-10-01): the rig-level chord fix T-016 called for
+  landed — `folded_chord_scale` 0.35 eases the wing pivots' Z scale down while
+  grounded (`pigeon_ground_poses_track_waddle` asserts it, plus the
+  re-open/reset legs) — and the three T-048 Gate 3 screenshot lines (grounded
+  non-biplane read, pop-free fold → GLIDE re-expansion, elder rust accent)
+  passed human review.
 - Ground palette retune (T-026) is machine-verified: the Gate 1b
   `pigeon_silhouette_contrast` scenario gained the ground-pair floors
   (sidewalk ↔ asphalt ≥ 0.30, sidewalk ↔ body ≥ 0.20 — measured 0.435 / 0.230

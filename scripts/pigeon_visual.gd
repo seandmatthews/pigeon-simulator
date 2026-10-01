@@ -27,6 +27,7 @@ enum Pose { GLIDE, DIVE, WADDLE, STAND }
 @export var glide_sweep: float = 0.0 ## Wing sweep-back (rad) in the glide pose.
 @export var dive_sweep: float = 1.0 ## Wing sweep-back while diving — wings pinned, dive pose.
 @export var folded_sweep: float = 1.3 ## Wing sweep-back when folded on the ground.
+@export var folded_chord_scale: float = 0.35 ## Wing pivots' Z scale while grounded (T-048) — thins the 0.24 m chord so the fold reads as tucked wings, not a biplane.
 @export var pose_lerp_rate: float = 9.0 ## 1/s the wing joints ease toward the pose targets.
 
 @export_group("Flap beat")
@@ -66,12 +67,19 @@ var wing_sweep: float:
 	get: return _sweep
 
 
+## Smoothed wing-pivot chord scale (1.0 = full chord) — the fold read the sim
+## harness asserts on (T-048).
+var wing_chord: float:
+	get: return _chord
+
+
 ## Current head pitch (rad; negative = beak toward the ground).
 var head_pitch: float:
 	get: return _head.rotation.x if _head != null else 0.0
 
 var _lift: float = 0.0
 var _sweep: float = 0.0
+var _chord: float = 1.0
 var _flap_left: float = 0.0
 var _peck_left: float = 0.0
 var _phase: float = 0.0
@@ -103,6 +111,7 @@ func drive(grounded: bool, moving: bool, diving: bool, delta: float) -> void:
 	pose = Pose.WADDLE if grounded and moving else (Pose.STAND if grounded else (Pose.DIVE if diving else Pose.GLIDE))
 	var lift_target := 0.0
 	var sweep_target := 0.0
+	var chord_target := 1.0
 	match pose:
 		Pose.DIVE:
 			lift_target = dive_lift
@@ -110,12 +119,14 @@ func drive(grounded: bool, moving: bool, diving: bool, delta: float) -> void:
 		Pose.WADDLE, Pose.STAND:
 			lift_target = folded_lift
 			sweep_target = folded_sweep
+			chord_target = folded_chord_scale
 		_:
 			lift_target = glide_lift
 			sweep_target = glide_sweep
 	var k := 1.0 - exp(-pose_lerp_rate * delta)
 	_lift = lerpf(_lift, lift_target, k)
 	_sweep = lerpf(_sweep, sweep_target, k)
+	_chord = lerpf(_chord, chord_target, k)
 
 	_flap_left = maxf(_flap_left - delta, 0.0)
 	_peck_left = maxf(_peck_left - delta, 0.0)
@@ -128,11 +139,15 @@ func drive(grounded: bool, moving: bool, diving: bool, delta: float) -> void:
 		peck = sin(PI * (1.0 - _peck_left / peck_seconds)) ## Smooth down-and-back envelope.
 
 	## Wing joints. Left extends along −X, right along +X — mirrored signs.
+	## The chord thinning rides beside the rotations (T-048): grounded the
+	## pivots' Z scale eases to `folded_chord_scale`, in the air back to 1.0.
 	var lift := _lift + flap_add
 	_wing_l.rotation.z = -lift
 	_wing_r.rotation.z = lift
 	_wing_l.rotation.y = _sweep
 	_wing_r.rotation.y = -_sweep
+	_wing_l.scale.z = _chord
+	_wing_r.scale.z = _chord
 
 	## Root cosmetics (moved verbatim from player.gd's old sphere handling):
 	## the grounded squat, the waddle bob + sway, the peck's forward lean.
@@ -169,11 +184,15 @@ func trigger_peck() -> void:
 
 
 ## Hard-resets the whole presentation (flight reset, restart flow): base pose,
-## overlays, joint angles, root cosmetics and the head rig.
+## overlays, joint angles, root cosmetics and the head rig. The wing pivots'
+## chord scale resets to full too (T-048) — the root `scale = Vector3.ONE`
+## never reaches them, so a restart mid-fold would otherwise re-open in the
+## air with thin wings.
 func reset_pose() -> void:
 	pose = Pose.GLIDE
 	_lift = glide_lift
 	_sweep = glide_sweep
+	_chord = 1.0
 	_flap_left = 0.0
 	_peck_left = 0.0
 	_phase = 0.0
@@ -181,6 +200,10 @@ func reset_pose() -> void:
 	scale = Vector3.ONE
 	position = Vector3.ZERO
 	rotation = Vector3.ZERO
+	if _wing_l != null:
+		_wing_l.scale.z = 1.0
+	if _wing_r != null:
+		_wing_r.scale.z = 1.0
 	if _head != null:
 		_head.rotation = Vector3.ZERO
 		_head.position.z = _head_base_z

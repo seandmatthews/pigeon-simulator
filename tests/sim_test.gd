@@ -3707,22 +3707,51 @@ func _scenario_pigeon_air_poses() -> void:
 
 
 ## The grounded poses follow the waddle: folded wings standing still, the
-## waddle pose while walking, back to stand when the waddle stops.
+## waddle pose while walking, back to stand when the waddle stops. Since
+## T-048 the fold also thins the wing chord (the pivots' eased Z scale): the
+## grounded legs assert it settled ≤ 0.5 (default 0.35), a fresh airborne
+## set-up eases it back to ≥ 0.95, and reset_pose() returns it to exactly
+## 1.0 — wing pivots included, which the root-only `scale = Vector3.ONE`
+## never reached — so no restart can leave a folded chord in the air.
 func _scenario_pigeon_ground_poses() -> void:
 	var bird: PigeonVisual = _player.pigeon
 	await _set_up(true, Vector3(0.0, 3.0, 0.0), Vector3.ZERO)
 	await _await_grounded(120)
 	await _wait_frames(45) ## Let the touchdown slide bleed and the wings fold.
-	var standing := bird.pose == PigeonVisual.Pose.STAND \
-			and bird.wing_sweep > 0.7 and bird.wing_lift < 0.0
+	var stand_pose: PigeonVisual.Pose = bird.pose
+	var stand_sweep: float = bird.wing_sweep
+	var stand_lift: float = bird.wing_lift
+	var stand_chord: float = bird.wing_chord
+	var standing := stand_pose == PigeonVisual.Pose.STAND \
+			and stand_sweep > 0.7 and stand_lift < 0.0 and stand_chord <= 0.5
 	await _hold("pitch_up", 30) ## Half a second of waddling.
-	var waddling := bird.pose == PigeonVisual.Pose.WADDLE
+	var waddle_pose: PigeonVisual.Pose = bird.pose
+	var waddle_chord: float = bird.wing_chord
+	var waddling := waddle_pose == PigeonVisual.Pose.WADDLE and waddle_chord <= 0.5
 	await _wait_frames(50) ## Past the walk_decel stop.
-	var rested := bird.pose == PigeonVisual.Pose.STAND
-	_check("pigeon_ground_poses_track_waddle", standing and waddling and rested,
-			"stand=%s (pose %d sweep %.2f lift %.2f) waddle=%s rested=%s (pose %d)" % [
-					standing, bird.pose, bird.wing_sweep, bird.wing_lift,
-					waddling, rested, bird.pose])
+	var rest_pose: PigeonVisual.Pose = bird.pose
+	var rest_chord: float = bird.wing_chord
+	var rested := rest_pose == PigeonVisual.Pose.STAND and rest_chord <= 0.5
+	## The airborne leg: a fresh airborne set-up, joints eased ~45 frames.
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	await _wait_frames(45) ## The wing joints ease to the glide targets.
+	var air_pose: PigeonVisual.Pose = bird.pose
+	var air_chord: float = bird.wing_chord
+	var reopened := air_pose == PigeonVisual.Pose.GLIDE and air_chord >= 0.95
+	## The restart path: reset_pose() must land the chord on exactly 1.0 —
+	## and on the pivots themselves, the root-only-reset gap this closes.
+	bird.reset_pose()
+	var wing_l: Node3D = bird.get_node("WingL")
+	var wing_r: Node3D = bird.get_node("WingR")
+	var reset_ok := bird.wing_chord == 1.0 \
+			and wing_l.scale.z == 1.0 and wing_r.scale.z == 1.0
+	_check("pigeon_ground_poses_track_waddle",
+			standing and waddling and rested and reopened and reset_ok,
+			"stand=%s (pose %d sweep %.2f lift %.2f chord %.2f) waddle=%s (pose %d chord %.2f) rested=%s (pose %d chord %.2f) reopened=%s (pose %d chord %.3f) reset=%s (chord %.2f pivots %.2f/%.2f)" % [
+					standing, stand_pose, stand_sweep, stand_lift, stand_chord,
+					waddling, waddle_pose, waddle_chord, rested, rest_pose,
+					rest_chord, reopened, air_pose, air_chord, reset_ok,
+					bird.wing_chord, wing_l.scale.z, wing_r.scale.z])
 
 
 ## Eating a crumb plays the peck — the same wiring Main uses (crumb.eaten →

@@ -46,7 +46,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-024 | [Make the bird read at cruise: trim the FOV kick and arm](T-024-cruise-readability.md) | flight-control | 3 | 1 | superseded (T-044) |
 | T-025 | [Make the falling dropping trackable: bigger ball, soft emission](T-025-poop-ball-visibility.md) | visual-design | 3 | 1 | superseded (adopted by T-086) |
 | T-026 | [Re-value the ground planes: stop the sidewalk/plaza blowout, lift the road](T-026-ground-palette-retune.md) | visual-design | 4 | 2 | done |
-| T-027 | [Fix the grounded read: thin the folded wing chord at the rig level](T-027-folded-wing-chord.md) | visual-design | 3 | 2 | superseded (T-048) |
+| T-027 | [Fix the grounded read: thin the folded wing chord at the rig level](T-027-folded-wing-chord.md) | visual-design | 3 | 2 | done (T-048) |
 | T-029 | [Plaza landmark: statue on a plinth at the square's center](T-029-plaza-landmark.md) | worldbuilding | 3 | 2 | proposed |
 | T-030 | [Tree the parks (prototyped live: 4 MultiMesh trees per park block)](T-030-park-trees.md) | worldbuilding | 3 | 1 | proposed |
 | T-031 | [Cafe life under the awnings: tables with seated tourists on shop fronts](T-031-cafe-tables.md) | worldbuilding | 4 | 2 | done |
@@ -66,7 +66,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-045 | [Give the bird a pale rump/wing-bar anchor that survives roads and roofs](T-045-pale-rump-anchor.md) | visual-design | 3 | 1 | superseded (T-085) |
 | T-046 | [Add a predicted-impact ring for drops — the bombsight behind T-025's bigger ball](T-046-poop-impact-ring.md) | visual-design | 4 | 2 | proposed |
 | T-047 | [Build a readable rim at the city edge — trees/hedge ring instead of the infinite flat apron](T-047-city-edge-rim.md) | visual-design | 3 | 2 | superseded (T-088) |
-| T-048 | [Adopt T-027's folded-wing chord fix — confirmed live, plus an elder-read accent](T-048-folded-wing-chord-adoption.md) | visual-design | 3 | 2 | proposed |
+| T-048 | [Adopt T-027's folded-wing chord fix — confirmed live, plus an elder-read accent](T-048-folded-wing-chord-adoption.md) | visual-design | 3 | 2 | done |
 | T-049 | [Fit facade windows to each building's real floor count](T-049-facade-floors.md) | worldbuilding | 3 | 1 | proposed |
 | T-050 | [Put a skyline on the horizon so the world doesn't end at a cliff](T-050-horizon-skyline.md) | worldbuilding | 3 | 1 | superseded (T-088) |
 | T-051 | [Vary building footprints to break the uniform block grid](T-051-varied-footprints.md) | worldbuilding | 4 | 3 | proposed |

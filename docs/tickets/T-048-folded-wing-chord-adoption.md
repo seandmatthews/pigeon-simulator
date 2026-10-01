@@ -1,6 +1,6 @@
 # T-048 — Adopt T-027's folded-wing chord fix — confirmed live, plus an elder-read accent
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-011 (the presentation rig, landed), T-016 (root-cause adjudication, landed); **executes T-027 (proposed) as written**
 - **Refs:** sweep 2 session `vds2b` frames f00003708 / f00019560; `VERIFICATION.md` → Known issues (the open splay entry)
 
@@ -68,32 +68,41 @@ files are open.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: `pigeon_ground_poses_track_waddle` extended — the grounded
+- [x] Gate 1b: `pigeon_ground_poses_track_waddle` extended — the grounded
       stand/waddle legs additionally assert `wing_chord` ≤ 0.5 once the fold has
       settled (default 0.35)
-- [ ] Gate 1b: the same scenario gains an airborne leg — a fresh airborne
+- [x] Gate 1b: the same scenario gains an airborne leg — a fresh airborne
       `_set_up`, joints eased ~45 frames, asserting `wing_chord` ≥ 0.95 — and a
       `reset_pose()` call asserting it returns to exactly 1.0 (no restart can
       leave a folded chord in the air)
-- [ ] `pigeon_air_poses_track_flight`, `pigeon_pecks_when_eating` and the full
+- [x] `pigeon_air_poses_track_flight`, `pigeon_pecks_when_eating` and the full
       suite stay green — air visuals and the peck overlay unchanged
-- [ ] `elder_placement_no_rng`, `elder_shares_bread_after_hangout`,
+- [x] `elder_placement_no_rng`, `elder_shares_bread_after_hangout`,
       `elder_no_bread_airborne` and `elder_cooldown_blocks_second_share` stay
       green — the accent touches a color constant, not trust/sharing/placement
       math (no scenario asserts cardigan colors — verified by grep over
       `tests/sim_test.gd`, 2026-09-30)
-- [ ] Both ticket files update in the same commit: T-027 → done with an
+- [x] Both ticket files update in the same commit: T-027 → done with an
       executed-by-T-048 note; the VERIFICATION.md `pigeon_ground_poses_track_waddle`
       row reworded to include the chord legs
-- [ ] [screenshot] At the chase cam's grounded distance (~3.5 m) the bird reads at
+- [x] [screenshot] At the chase cam's grounded distance (~3.5 m) the bird reads at
       a glance as a compact pigeon with wings hugging the flanks — not a biplane
-      (Gate 3 — human judgement)
-- [ ] [screenshot] The takeoff moment (fold → GLIDE) shows the wings re-opening
+      (Gate 3 — human judgement; reviewer sign-off 2026-10-01)
+- [x] [screenshot] The takeoff moment (fold → GLIDE) shows the wings re-opening
       smoothly, without a pop as the chord re-expands over the pose lerp (Gate 3 —
-      human judgement)
-- [ ] [screenshot] Elders read as people at a glance at 20 m — the rust cardigan
-      separates them from the pavement (Gate 3 — human judgement; judgable in the
-      same play session as T-020's pending lines)
+      human judgement; reviewer sign-off 2026-10-01)
+- [x] [screenshot] Elders read as people at a glance at 20 m — the rust cardigan
+      separates them from the pavement (Gate 3 — human judgement; reviewer
+      sign-off 2026-10-01; judgable in the same play session as T-020's pending lines)
+
+## Landed values
+
+- `folded_chord_scale` 0.35 — the wing pivots' eased Z scale while grounded
+  (`scripts/pigeon_visual.gd:30`); the air target stays 1.0, both eased by the
+  shared `pose_lerp_rate` 9.0 exp-lerp inside `drive()`.
+- Cardigan rust `Color(0.70, 0.35, 0.26)` — the replaced third
+  `CARDIGAN_PALETTE` entry (`scripts/elder.gd:26`), ≈ 0.36 Euclidean from the
+  sidewalk gray.
 
 ## Verification
 
