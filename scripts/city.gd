@@ -478,7 +478,6 @@ func _make_meshes() -> void:
 		"dash": _unit_box(_flat_material(COLOR_LANE_MARK)),
 		"crosswalk": _unit_box(_flat_material(COLOR_CROSSWALK)),
 		"slab": _unit_box(_vertex_color_material()),
-		"facade": _unit_box(_facade_material()),
 		"roof": _unit_box(_flat_material(COLOR_ROOF)),
 		"bench_seat": _unit_box(_flat_material(COLOR_BENCH_WOOD)),
 		"bench_leg": _unit_box(_flat_material(COLOR_METAL)),
@@ -499,6 +498,11 @@ func _make_meshes() -> void:
 		"skyline": _unit_box(_vertex_color_material()),
 		"skyline_tall": _unit_box(_vertex_color_material()),
 	}
+	## Facades (T-049): one key per floor count a building can have — each its
+	## own material drawing exactly that many window rows, so a BoxMesh face
+	## maps one row per real floor instead of one fixed sticker at five scales.
+	for f: int in range(building_floors_min, building_floors_max + 1):
+		_meshes["facade%d" % f] = _unit_box(_facade_material(f))
 
 
 func _build_ground() -> void:
@@ -750,7 +754,7 @@ func _add_building(base_center: Vector3, footprint: float, district: int,
 	var total_h := wall_h + roof_slab_height
 	var palette: Array = DISTRICT_PALETTES[district]
 	var color: Color = palette[_rng.randi_range(0, palette.size() - 1)]
-	_add_mm("facade", _box_xf(
+	_add_mm("facade%d" % floors, _box_xf(
 			base_center + Vector3(0.0, block_slab_height + wall_h * 0.5, 0.0),
 			Vector3(footprint, wall_h, footprint)), color)
 	_add_mm("roof", _box_xf(
@@ -1021,17 +1025,27 @@ func _vertex_color_material() -> StandardMaterial3D:
 	return mat
 
 
-## Facades: a tiny procedural window grid, tinted per building via instance color.
-func _facade_material() -> StandardMaterial3D:
+## Facades: a tiny procedural window grid, tinted per building via instance
+## color. One material per floor count (T-049): exactly `floors` window rows,
+## with the row pitch derived from the count so every row sits fully inside the
+## 64 px texture with even spacing at any count in
+## `building_floors_min..building_floors_max` — the old fixed 15 px pitch would
+## push a 5th row past y 64. The count rides the material as `window_rows`
+## metadata, the machine-readable test channel (no GPU readback).
+func _facade_material(floors: int) -> StandardMaterial3D:
 	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
 	img.fill(Color(0.95, 0.95, 0.95))
-	for row in 4:
+	var pitch := (64.0 - 8.0) / float(floors)
+	var window_h := int(pitch) - 5
+	for row in floors:
 		for col in 3:
-			img.fill_rect(Rect2i(5 + col * 20, 4 + row * 15, 13, 10), Color(0.25, 0.30, 0.38))
+			img.fill_rect(Rect2i(5 + col * 20, 4 + int(float(row) * pitch), 13, window_h),
+					Color(0.25, 0.30, 0.38))
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = ImageTexture.create_from_image(img)
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 0.9
+	mat.set_meta("window_rows", floors)
 	return mat
 
 

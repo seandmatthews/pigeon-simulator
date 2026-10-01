@@ -120,6 +120,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_roof()
 	await _scenario_city_sidewalk()
 	await _scenario_city_district_palettes()
+	await _scenario_city_facades_fit_floors() ## T-049 — after the palettes, same standing-city audit shape.
 	await _scenario_city_shopfronts()
 	await _scenario_hunger_drain()
 	await _scenario_hunger_game_over()
@@ -879,6 +880,135 @@ func _scenario_city_district_palettes() -> void:
 			"members=%s distinct=%s mapping=%s districts_seen=%d/%d" % [
 					members_ok, distinct, mapping_ok,
 					districts_seen.size(), _city.DISTRICT_PALETTES.size()])
+
+
+## --- scenario (T-049 facades fit floors) -------------------------------------
+
+
+## The standing `Visuals/Facade<N>` node for floor count `f` — resolved FRESH
+## on every call, because `City.generate()` frees and rebuilds the whole
+## Visuals root, so any node reference held across a rebuild dangles.
+func _facade_node(f: int) -> MultiMeshInstance3D:
+	var visuals := _city.get_node_or_null("Visuals") as Node3D
+	if visuals == null:
+		return null
+	return visuals.get_node_or_null(("facade%d" % f).to_pascal_case()) as MultiMeshInstance3D
+
+
+## The facade windows fit each building's real floor count (T-049): one
+## `Visuals/Facade<N>` MultiMesh per floor count actually present in
+## `buildings[]` — none for a count no building has — each class carrying as
+## many instances as it has buildings, every instance transform equal to its
+## building's expected facade box (recomputed from the record's public
+## center/size/top, floors derived per record), and each class material
+## reporting its floor count as `window_rows` metadata, distinct across
+## classes. A forced same-seed rebuild reproduces every class's instance set
+## byte-identically (`_spots_equal`) and the fingerprint stays at the pre-T-049
+## baseline pins — the change is keys/materials only: zero RNG draws, zero
+## `_fp` entries. Layout asserts on the standing city, no flight (the
+## district-palettes scenario shape).
+func _scenario_city_facades_fit_floors() -> void:
+	var pin_default := 2492360539 ## Fingerprint baseline, re-derived on the untouched tree with a headless City.generate probe.
+	var pin_foreign := 2662825400 ## Foreign-seed fingerprint, ditto.
+	var baseline_ok: bool = _city.fingerprint == pin_default
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	## Tally the buildings by floor count, derived from each record alone.
+	var per_floors: Dictionary = {} ## floors -> Array[Dictionary], in buildings[] order.
+	for info in _city.buildings:
+		var floors := roundi((float(info.top) - _city.block_slab_height
+				- _city.roof_slab_height) / _city.floor_height)
+		if not per_floors.has(floors):
+			per_floors[floors] = []
+		(per_floors[floors] as Array).append(info)
+	var visuals := _city.get_node("Visuals") as Node3D
+	var facade_nodes: Array[MultiMeshInstance3D] = []
+	for child in visuals.get_children():
+		if child is MultiMeshInstance3D and (child as Node).name.begins_with("Facade"):
+			facade_nodes.append(child)
+	var names_ok: bool = facade_nodes.size() == per_floors.size()
+	var counts_ok := true
+	var transforms_ok := true
+	var meta_ok := true
+	var rows_seen: Array[int] = []
+	var sets_before: Dictionary = {} ## floors -> Array[Transform3D], the standing class queues.
+	for f: int in per_floors:
+		var records: Array = per_floors[f]
+		var node := _facade_node(f)
+		names_ok = names_ok and node != null
+		if node == null:
+			continue
+		counts_ok = counts_ok and node.multimesh.instance_count == records.size()
+		## Instance transforms read from the class queue — the exact arrays fed
+		## into `set_instance_transform` (the park-trees/crosswalks channel):
+		## `MultiMesh.get_instance_transform` reads back identity on this
+		## engine build, so the node itself cannot answer per-instance data.
+		var xfs: Array[Transform3D] = []
+		for xf: Transform3D in _city._visuals["facade%d" % f].xfs:
+			xfs.append(xf)
+		counts_ok = counts_ok and xfs.size() == records.size()
+		for i in records.size():
+			var info: Dictionary = records[i]
+			var center := info.center as Vector3
+			var size := info.size as Vector2
+			var expected_origin := _city.to_local(center) \
+					+ Vector3(0.0, _city.block_slab_height + float(f) * _city.floor_height * 0.5, 0.0)
+			var expected_scale := Vector3(size.x, float(f) * _city.floor_height, size.y)
+			var xf := xfs[i]
+			transforms_ok = transforms_ok \
+					and xf.origin.distance_to(expected_origin) < 0.01 \
+					and absf(xf.basis.get_scale().x - expected_scale.x) < 0.01 \
+					and absf(xf.basis.get_scale().y - expected_scale.y) < 0.01 \
+					and absf(xf.basis.get_scale().z - expected_scale.z) < 0.01
+		var mat := node.multimesh.mesh.surface_get_material(0) as StandardMaterial3D
+		meta_ok = meta_ok and mat != null and mat.has_meta("window_rows") \
+				and int(mat.get_meta("window_rows")) == f
+		rows_seen.append(int(mat.get_meta("window_rows")))
+		sets_before[f] = xfs
+	var rows_distinct := true
+	for i in rows_seen.size():
+		for j in range(i + 1, rows_seen.size()):
+			rows_distinct = rows_distinct and rows_seen[i] != rows_seen[j]
+	## Determinism: a real rebuild reproduces every class's instance set byte-identically.
+	_city.generate(default_seed, true)
+	var deterministic: bool = _city.fingerprint == fp_first and not per_floors.is_empty()
+	for f: int in per_floors:
+		var node := _facade_node(f)
+		if node == null:
+			deterministic = false
+			continue
+		var xfs_after: Array[Transform3D] = []
+		for xf: Transform3D in _city._visuals["facade%d" % f].xfs:
+			xfs_after.append(xf)
+		deterministic = deterministic and _spots_equal(sets_before[f], xfs_after)
+	## A foreign seed keeps the same law — its own floor classes, each present.
+	_city.generate(424242)
+	var foreign_floors: Dictionary = {}
+	for info in _city.buildings:
+		var foreign_floors_i := roundi((float(info.top) - _city.block_slab_height
+				- _city.roof_slab_height) / _city.floor_height)
+		foreign_floors[foreign_floors_i] = true
+	var foreign_ok: bool = not foreign_floors.is_empty()
+	for f: int in foreign_floors:
+		foreign_ok = foreign_ok and _facade_node(f) != null
+	var pin_foreign_ok: bool = _city.fingerprint == pin_foreign
+	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
+	var pin_default_ok: bool = _city.fingerprint == pin_default
+	var counts_line := PackedStringArray()
+	for f: int in per_floors:
+		counts_line.append("%d:%d" % [f, (per_floors[f] as Array).size()])
+	_check("city_facades_fit_floors",
+			baseline_ok and names_ok and counts_ok and transforms_ok and meta_ok
+					and rows_distinct and deterministic and foreign_ok
+					and pin_foreign_ok and pin_default_ok,
+			"baseline=%s nodes=%d/%d counts=%s transforms=%s meta=%s rows=%s det=%s foreign=%s pins=%s/%s" % [
+					baseline_ok, facade_nodes.size(), per_floors.size(),
+					" ".join(counts_line), transforms_ok, meta_ok, rows_seen,
+					deterministic, foreign_ok, pin_foreign_ok, pin_default_ok])
+	## Informational: the per-class tally — the ticket's roofscape read, re-printed.
+	print("SIM DATA city_facades_fit_floors: classes=%d tally=[%s] fingerprint=%d" % [
+			per_floors.size(), " ".join(counts_line), fp_first])
 
 
 ## --- scenarios (T-017 shopfront ground floors) ------------------------------
