@@ -46,8 +46,10 @@ const POINTER_CLIMB_CUE_M := 3.0 ## (T-098) Vertical delta beyond which the brea
 @onready var bread_pointer: Label = %BreadPointer
 ## The last-hit line (T-040) — sits under the pointer slot in the left column.
 @onready var combo_strip: Label = %ComboStrip
-## The pointer's rotatable chevron (T-037): 0 = screen-up = nose, clockwise
-## positive on screen. Hides with the label (it is its child).
+## The pointer's rotatable chevron (T-037): 0 = screen-up, clockwise positive
+## on screen. Since T-057 it carries the target's direction ON SCREEN —
+## where the target actually sits in the frame — not a bearing from the nose.
+## Hides with the label (it is its child).
 @onready var bread_pointer_chevron: Polygon2D = bread_pointer.get_node("Chevron")
 @onready var hunger_bar: ProgressBar = %HungerBar
 @onready var pause_menu: PauseMenu = $PauseMenu
@@ -157,12 +159,11 @@ func _pulse_score(combo: int) -> void:
 ## " ▲"/" ▼" when that crumb sits well above/below the pigeon); beyond half the
 ## city span the ring is lost and the same slot points home instead
 ## ("city 131 m", horizontal distance to city.spawn_point, never arrowed).
-## Hidden whenever it has nothing to say. The chevron's rotation_degrees
-## carries the bearing from the pigeon's
-## heading (-basis.z projected flat): 0 = screen-up = nose. heading.signed_
-## angle_to(target, UP) is counterclockwise-positive seen from above while
-## canvas rotation is clockwise-positive on screen, so the stored rotation is
-## the negated bearing.
+## Hidden whenever it has nothing to say. Since T-057 the chevron's
+## rotation_degrees carries the target's direction ON SCREEN — both ends
+## unprojected through the live chase camera, 0° = screen-up, clockwise
+## positive — so the chevron points where the target actually sits in the
+## frame, whatever the pigeon's nose or the camera's yaw is doing.
 func _update_bread_pointer() -> void:
 	var pigeon_pos := player.global_position
 	var off_centre := pigeon_pos - city.global_position
@@ -180,9 +181,14 @@ func _update_bread_pointer() -> void:
 			pigeon_pos.distance_to(crumb.global_position), true)
 
 
-## Points the shared slot at `target`: text "<what> <m> m", chevron on the flat
-## bearing. Degenerate geometry (nose straight up, or standing on the target)
-## keeps the last bearing instead of writing a NaN into the rotation.
+## Points the shared slot at `target`: text "<what> <m> m", chevron along the
+## target's on-screen direction from the pigeon (T-057): both ends unprojected
+## through the live chase camera, 0° = screen-up (+90 over the atan2 because
+## canvas y is down). Off-camera protection: with no camera, a target behind
+## the lens (anything sterner than roughly abeam — its unprojection would be
+## mirrored garbage), or a degenerate delta (the target unprojects onto the
+## pigeon's anchor), the last chevron rotation is kept instead — never a
+## mirrored direction, never a NaN.
 ## The climb cue (T-098): only the bread mode opts in — a named crumb more than
 ## POINTER_CLIMB_CUE_M above/below the pigeon gets a trailing " ▲"/" ▼", so a
 ## roof crumb stops reading like a blank wall it points into. City mode never
@@ -198,14 +204,15 @@ func _aim_bread_pointer(target: Vector3, what: String, distance: float,
 		elif dy < -POINTER_CLIMB_CUE_M:
 			climb_cue = " ▼"
 	bread_pointer.text = "%s %d m%s" % [what, roundi(distance), climb_cue]
-	var heading := -player.transform.basis.z
-	heading.y = 0.0
-	var to_target := target - player.global_position
-	to_target.y = 0.0
-	if heading.length_squared() < 0.0001 or to_target.length_squared() < 0.0001:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null or camera.is_position_behind(target):
 		return
-	bread_pointer_chevron.rotation_degrees = \
-			-rad_to_deg(heading.signed_angle_to(to_target, Vector3.UP))
+	var target_s := camera.unproject_position(target)
+	var anchor_s := camera.unproject_position(player.global_position)
+	var d := target_s - anchor_s
+	if d.length_squared() < 1.0:
+		return
+	bread_pointer_chevron.rotation_degrees = rad_to_deg(atan2(d.y, d.x)) + 90.0
 
 
 ## The F readiness glyph (T-077): the scoring verb fails three silent ways —
