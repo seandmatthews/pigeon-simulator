@@ -1,6 +1,6 @@
 # T-078 — Make the elder's arm the trust meter — make the hangout learnable
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** — (T-020 landed; this retunes only its presentation)
 - **Refs:** sweep 1 session `uiuxs3c` (`.captures/session_uiuxs3c/`, readings below)
 
@@ -47,17 +47,47 @@ The design paid for a learnable behavior the player cannot see happening. Sessio
 
 ## Acceptance criteria
 
-- [ ] Mid-hangout (present, no cooldown) the near arm sits visibly part-raised and keeps
+- [x] Mid-hangout (present, no cooldown) the near arm sits visibly part-raised and keeps
       rising as trust grows toward `trust_needed`
-- [ ] After a share, with the pigeon still present, the arm eases back down and stays down
+- [x] After a share, with the pigeon still present, the arm eases back down and stays down
       through the whole cooldown — even though trust refills and pins at `trust_needed`
       during it
-- [ ] With no pigeon present the arm never rises
-- [ ] `_scenario_elder_shares_bread_after_hangout` (`tests/sim_test.gd:1169`) extended with
+- [x] With no pigeon present the arm never rises
+- [x] `_scenario_elder_shares_bread_after_hangout` (`tests/sim_test.gd:1169`) extended with
       three arm assertions in its existing windows (below) passes
-- [ ] `elder_no_bread_airborne` and `elder_cooldown_blocks_second_share` pass untouched
-- [ ] [screenshot] pass: the arm is visibly part-raised mid-hangout at ground level (a
-      chase-cam frame from inside the zone)
+- [x] `elder_no_bread_airborne` and `elder_cooldown_blocks_second_share` pass untouched
+- [x] [screenshot] pass: the arm is visibly part-raised mid-hangout at ground level (a
+      chase-cam frame from inside the zone) — agent grabs
+      `.captures/t078_arm_midhangout.png` / `.captures/t078_arm_after_leave.png`;
+      reviewer sign-off 2026-10-01
+
+## Tuned values
+
+None changed — the ticket explicitly retunes only the presentation. Landed pins:
+`arm_raise_seconds` 0.5, `arm_raise_rate` 8.0/s, `share_cooldown` 25.0,
+`trust_needed` 4.0. Measured presentation on the landed build: mid-hangout
+`_arm_raise` ≈ 0.58 at trust ≈ 2.3 (window screenshot), arm back to exactly 0 from
+0.63 s after the share (0.5 s beat + 0.125 s sweep at 8.0/s).
+
+## Runs (agent, 2026-10-01 — feature/t-078 worktree)
+
+- Gate 1: `--import` exit 0 (only the VERIFICATION.md-documented benign
+  `33 resources still in use at exit` addon line); `--quit-after 120` exit 0, zero
+  error lines; `--check-only --script res://scripts/elder.gd` exit 0 with no
+  `elder.gd` diagnostics (the transitive `Sfx` autoload noise from
+  `player.gd`/`poop.gd` reproduces byte-identically on the untouched base tree —
+  pre-existing `--check-only`-without-autoloads behavior, not this change).
+- Gate 1b: full suite `godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn`
+  → exit 0, all 95 `SIM PASS` lines including `elder_shares_bread_after_hangout`
+  (with the three new arm assertions), `elder_no_bread_airborne`,
+  `elder_cooldown_blocks_second_share`.
+- Gate 2: `AUTOPLAY DONE ok=true … restart=true`, exit 0.
+- Gate 3 agent grabs (reviewer sign-off 2026-10-01):
+  `.captures/t078_arm_midhangout.png` (chase cam inside the zone, `arm_raise=0.579`
+  at trust 2.32/4.0 — the elder's near arm reads clearly raised over the bench;
+  compare the arms-down elders elsewhere in frame) and
+  `.captures/t078_arm_after_leave.png` (pigeon stepped out of the zone,
+  `arm_raise=0.000` — arm back at rest).
 
 ## Verification
 
