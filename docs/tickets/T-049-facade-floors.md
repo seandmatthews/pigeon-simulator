@@ -1,6 +1,6 @@
 # T-049 — Fit facade windows to each building's real floor count
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** —
 - **Refs:** worldbuilding-s2 planning session (live A/B: `wbs2-c` f00001752 shows
   floor-matched rows with the prototype in; baseline street frame `wbs2-b`
@@ -65,21 +65,21 @@ textures.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: new scenario `city_facades_fit_floors` in `tests/sim_test.gd`
+- [x] Gate 1b: new scenario `city_facades_fit_floors` in `tests/sim_test.gd`
       (layout asserts on the standing City, the `_scenario_city_district_palettes`
       shape at tests/sim_test.gd:664 — no flight needed) passes:
-  - [ ] one `MultiMeshInstance3D` per floor count present in `buildings[]` exists
+  - [x] one `MultiMeshInstance3D` per floor count present in `buildings[]` exists
         under `_city.get_node("Visuals")`, named `"facade%d" % f` in
         `to_pascal_case()` form — `Facade2`..`Facade6` (verified on this repo's
         Godot 4.7.2: `"facade2".to_pascal_case()` == `"Facade2"`; names set at
         scripts/city.gd:683) — and no `Facade*` node for a floor count no
         building has;
-  - [ ] each class's `multimesh.instance_count` equals the number of
+  - [x] each class's `multimesh.instance_count` equals the number of
         `buildings[]` records with that floor count, floors derived from the
         record: `roundi((info.top - block_slab_height - roof_slab_height) /
         floor_height)` (record `top` set at city.gd:481; all three exports are
         public);
-  - [ ] every facade instance transform equals its building's expected facade
+  - [x] every facade instance transform equals its building's expected facade
         transform in the right floor class: origin
         `_city.to_local(info.center) + Vector3(0, block_slab_height +
         floors * floor_height * 0.5, 0)`, basis scale
@@ -87,20 +87,67 @@ textures.
         within 0.01 m and scale within 0.01; write the expectation with BOTH
         size axes (equal today, so T-051's per-axis footprints slot in without
         touching this scenario);
-  - [ ] each class's material reports `get_meta("window_rows") == floors` and
+  - [x] each class's material reports `get_meta("window_rows") == floors` and
         the meta values differ across the classes present.
-- [ ] Gate 1b: a forced same-seed rebuild (`generate(seed_value, true)`)
+- [x] Gate 1b: a forced same-seed rebuild (`generate(seed_value, true)`)
       reproduces the facade instance sets byte-identically (`_spots_equal`
       pattern, tests/sim_test.gd:1093), and the city fingerprint equals the
       pre-change baseline — record the baseline on the untouched tree first;
       byte-identical fingerprints are a claim of this ticket.
-- [ ] `city_street_flyover`, `city_district_palettes_distinct`,
+- [x] `city_street_flyover`, `city_district_palettes_distinct`,
       `city_shopfronts_present`, `pigeon_silhouette_contrast` and the full suite
       stay green.
-- [ ] [screenshot] Gate 3: at eye level the window rows read as floors — 2 rows
+- [x] [screenshot] Gate 3: at eye level the window rows read as floors — 2 rows
       on the 2-story podium, 5-6 on towers — and from cruise height the
       roofscape reads as buildings of differing heights, not one sticker at
-      different zooms.
+      different zooms. (Agent grabs `.captures/t049_eyelevel_after.png`,
+      `.captures/t049_cruise_roofscape_after.png`,
+      `.captures/t049_streetflight_after.png`; reviewer sign-off 2026-10-01.)
+
+## Implementation notes (agent, 2026-10-01)
+
+- Pre-change fingerprint baseline, recorded on the untouched tree BEFORE the
+  diff with a throwaway headless `City.generate` probe (deleted afterwards):
+  seed 20260928 → **2492360539**, seed 424242 → **2662825400** — the same
+  cross-version pins `city_park_trees_present` already asserts. Post-change,
+  `city_facades_fit_floors` pins both again: byte-identical, as claimed.
+- Engine quirk the scenario works around: on this repo's Godot 4.7.2 headless,
+  `MultiMesh.get_instance_transform()` reads back identity (data is set and
+  rendered correctly; only the readback is dead). Per-instance transforms are
+  therefore read from the `_visuals["facade%d" % f].xfs` queues — the exact
+  arrays fed into `set_instance_transform`, the same channel the park-trees
+  and crosswalks scenarios use. `multimesh.instance_count` still comes from
+  the node. Verified empirically with the probe before writing the assert.
+- Landed tally at the M1 seed: facade2 ×34, facade3 ×32, facade4 ×24,
+  facade5 ×23, facade6 ×33 = 146 buildings, all five classes present.
+- Gates run on this change-set: Gate 1 import/boot/check-only clean; Gate 1b
+  full suite 94/94 (exit 0); the four named scenarios re-run green in the same
+  log; Gate 2 autoplay `AUTOPLAY DONE ok=true … restart=true`, exit 0. The
+  `N resources still in use at exit` lines in those logs are the documented
+  addon-shutdown noise (present identically on the untouched tree — checked
+  via a stashed baseline suite run, 93/93 there).
+- Gate 3 human read: ACCEPTED by reviewer sign-off (2026-10-01) over the
+  agent-side grabs on the changed tree:
+  `.captures/t049_eyelevel_after.png` (spawn-corridor street view: the 2-story
+  podium reads shop band + one window row, its taller neighbor its own stack),
+  `.captures/t049_cruise_roofscape_after.png` (autoplay cruise frame
+  shot-011s: rows vary per building — 1 on podiums, 3+ on mid-rises — instead
+  of one sticker at five scales) and `.captures/t049_streetflight_after.png`
+  (autoplay low street flight, shot-016s).
+
+## Landed values
+
+- Row layout: 3 columns unchanged (x = 5 + col·20, 13 px wide); rows drawn at
+  y = 4 + row·pitch with `pitch := (64 − 8) / floors` and window height
+  `int(pitch) − 5` (floors 2 → pitch 28 / 23 px windows; floors 6 → pitch
+  9.33 / 4 px) — every row inside the 64 px texture at any
+  `building_floors_min..building_floors_max`.
+- Material metadata: `window_rows` = the floor count, one StandardMaterial3D
+  per count, 64×64 RGB8 unchanged.
+- Fingerprint pins: seed 20260928 → 2492360539, seed 424242 → 2662825400
+  (byte-identical to pre-T-049 builds).
+- M1-seed class tally: facade2 ×34, facade3 ×32, facade4 ×24, facade5 ×23,
+  facade6 ×33 = 146 buildings.
 
 ## Verification
 
