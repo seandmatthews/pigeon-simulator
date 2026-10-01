@@ -118,6 +118,24 @@ const RIM_TRUNK_SIZE := Vector3(0.35, 2.2, 0.35) ## Rising from the apron (y 0).
 const RIM_CROWN_SIZE := Vector3(2.6, 2.2, 2.6) ## Centered 3.3 m up — sits on the 2.2 m trunk.
 const RIM_CROWN_CENTER_Y := 3.3 ## Crown box center height (m).
 
+## Park tree layout (T-030): four trees per park block at the fixed (±5, ±5)
+## offsets from the block center — the same trunk/crown recipe as the rim
+## trees (T-088), so the whole city wears one tree: bench-wood trunks under
+## the hedge-family crown green, which holds 0.28 Euclidean RGB from COLOR_PARK
+## (the lawn) so crowns read against their own grass. Fully inside the block
+## (5.0 + 1.3 = 6.3 m < the 11.0 m half footprint) and ≥ 1.5 m clear of
+## everything `_build_block_props` shares the block with — worst approach is a
+## max-jitter bin at (8, 8), 4.24 m center-to-center from the (5, 5) tree,
+## vs the crown's 1.84 m horizontal half-diagonal plus a ~0.9 m worst prop
+## half-extent. Pure layout numbers; the placement draws no RNG of any stream
+## and appends no `_fp` entry (the T-020 `elder_spots` precedent), so the
+## layout fingerprint stays byte-identical to pre-T-030 builds; visual-only
+## (the T-017 decision), pinned by the `city_park_trees_present` scenario.
+const PARK_TREE_OFFSET := 5.0 ## Tree center out from the block center, per axis (m).
+const PARK_TRUNK_SIZE := Vector3(0.35, 2.2, 0.35) ## Rising from the slab.
+const PARK_CROWN_SIZE := Vector3(2.6, 2.2, 2.6) ## Centered 3.3 m up — sits on the 2.2 m trunk.
+const PARK_CROWN_CENTER_Y := 3.3 ## Crown box center height above the slab top (m).
+
 ## Distant skyline layout (T-088 commit 2): a ring of flat-shaded background
 ## towers on the grass apron — the horizon reads as a larger city under haze
 ## instead of a void edge. Placement is a deterministic hash chain (one
@@ -476,6 +494,8 @@ func _make_meshes() -> void:
 		"rim_hedge": _unit_box(_flat_material(COLOR_RIM_HEDGE)),
 		"rim_trunk": _unit_box(_flat_material(COLOR_BENCH_WOOD)),
 		"rim_crown": _unit_box(_flat_material(COLOR_RIM_CROWN)),
+		"tree_trunk": _unit_box(_flat_material(COLOR_BENCH_WOOD)),
+		"tree_crown": _unit_box(_flat_material(COLOR_RIM_CROWN)),
 		"skyline": _unit_box(_vertex_color_material()),
 		"skyline_tall": _unit_box(_vertex_color_material()),
 	}
@@ -673,9 +693,28 @@ func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 		_build_plaza(center)
 	elif is_park:
 		_counts.parks += 1
+		_build_park_trees(center)
 	else:
 		_build_block_buildings(center, district_of(bx, bz))
 	_build_block_props(center, is_plaza)
+
+
+## Park trees (T-030): four per park block at the fixed (±PARK_TREE_OFFSET,
+## ±PARK_TREE_OFFSET) offsets — the vacant-lot fix, a grove read from the air.
+## Trunks rise from the slab, crowns sit on them (crown bottom at trunk top),
+## all visual-only so the pigeon brushes through at park-cruise altitude (the
+## T-017 awning decision). Zero RNG and zero `_fp` entries: the park branch's
+## only draw remains the park roll in `_build_block`, and every tree position
+## is a pure function of the block center — the layout fingerprint stays
+## byte-identical to pre-T-030 builds. Pinned by `city_park_trees_present`.
+func _build_park_trees(center: Vector3) -> void:
+	for sx: float in [PARK_TREE_OFFSET, -PARK_TREE_OFFSET]:
+		for sz: float in [PARK_TREE_OFFSET, -PARK_TREE_OFFSET]:
+			var base := center + Vector3(sx, block_slab_height, sz)
+			_add_mm("tree_trunk", _box_xf(
+					base + Vector3.UP * (PARK_TRUNK_SIZE.y * 0.5), PARK_TRUNK_SIZE))
+			_add_mm("tree_crown", _box_xf(
+					base + Vector3.UP * PARK_CROWN_CENTER_Y, PARK_CROWN_SIZE))
 
 
 ## Subdivides a block interior into 2x2 lots and fills 2–4 of them with

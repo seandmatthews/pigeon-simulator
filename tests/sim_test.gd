@@ -160,6 +160,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_crosswalks() ## T-069 — after the roofs block, same audit pattern.
 	await _scenario_city_apron_rim() ## T-088 commit 1 — after the crosswalks block, same audit pattern.
 	await _scenario_city_horizon_skyline() ## T-088 commit 2 — after the rim, same audit pattern.
+	await _scenario_city_park_trees() ## T-030 — after the skyline, same audit pattern.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -2341,6 +2342,167 @@ func _scenario_city_horizon_skyline() -> void:
 	var skyline_data := "SIM DATA city_horizon_skyline: total=%d tall=%d inner=%.0f outer=%.0f fingerprint=%d" % [
 			total, tall_xfs.size(), inner, outer, fp_first]
 	print(skyline_data)
+
+
+## Park trees (T-030): four per park block at the fixed (±5, ±5) offsets —
+## audited like the rim (`city_apron_rim_present` pattern). Counts = 4 × the
+## reported park count off the TreeTrunk/TreeCrown MultiMesh queues; the park
+## blocks recomputed independently from the slab queue (exactly the slabs
+## wearing COLOR_PARK); every trunk (1.1 m up on the slab) and crown (3.3 m
+## up, bottom at trunk top) over exactly one expected offset, every tree fully
+## inside its block footprint; the crown green ≥ 0.15 Euclidean RGB from
+## COLOR_PARK (the lawn — distance printed informationally); every tree ≥ 2.0 m
+## XZ from every `bread_spots` entry at the M1 seed (includes the bench seats)
+## plus the constants-level ≥ 1.5 m lamp/bin arithmetic that holds at every
+## seed; zero CollisionObject3D under the Visuals root; a forced same-seed
+## rebuild reproducing both instance queues byte-identically; a foreign seed
+## keeping the 4 × parks law; and the layout fingerprint still equal to the
+## cross-version pins (see `_scenario_city_apron_rim`).
+##
+## Transform source: the queues that feed the two MultiMeshes
+## (`MultiMesh.get_instance_transform` reads back identity headless — the
+## `city_crosswalks_present` note).
+func _scenario_city_park_trees() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	var parks: int = _city.last_report.parks
+	## Park block centers, recomputed independently: the slab queue wears
+	## COLOR_PARK on exactly the park blocks (plaza wears COLOR_PLAZA, every
+	## other block COLOR_SIDEWALK). The slab instance sits at center
+	## + UP * block_slab_height * 0.5.
+	var park_centers: Array[Vector3] = []
+	var slab_xfs: Array = _city._visuals["slab"].xfs
+	var slab_colors: Array = _city._visuals["slab"].colors
+	for i in slab_xfs.size():
+		if slab_colors[i] == _city.COLOR_PARK:
+			park_centers.append((slab_xfs[i] as Transform3D).origin)
+	var expected_count := 4 * parks
+	var count_ok: bool = park_centers.size() == parks \
+			and (_city._visuals["tree_trunk"].xfs as Array).size() == expected_count \
+			and (_city._visuals["tree_crown"].xfs as Array).size() == expected_count
+	## Expected tree bases: the four fixed offsets of every park center, on the
+	## slab (y = block_slab_height).
+	var expected_pos: Array[Vector3] = []
+	var expected_center: Array[Vector3] = []
+	for c: Vector3 in park_centers:
+		for sx: float in [1.0, -1.0]:
+			for sz: float in [1.0, -1.0]:
+				expected_pos.append(Vector3(
+						c.x + sx * _city.PARK_TREE_OFFSET, _city.block_slab_height,
+						c.z + sz * _city.PARK_TREE_OFFSET))
+				expected_center.append(c)
+	## --- trunks and crowns, off the actual MultiMesh queues -------------------
+	var trunk_xfs: Array[Transform3D] = []
+	var crown_xfs: Array[Transform3D] = []
+	if _city._visuals.has("tree_trunk"):
+		for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
+			trunk_xfs.append(xf)
+	if _city._visuals.has("tree_crown"):
+		for xf: Transform3D in _city._visuals["tree_crown"].xfs:
+			crown_xfs.append(xf)
+	## --- geometry: heights, one offset each, fully inside the block ----------
+	var trees_3d_ok: bool = count_ok
+	for xf: Transform3D in trunk_xfs:
+		trees_3d_ok = trees_3d_ok and absf(xf.origin.y
+				- (_city.block_slab_height + _city.PARK_TRUNK_SIZE.y * 0.5)) < 0.001
+	for xf: Transform3D in crown_xfs:
+		trees_3d_ok = trees_3d_ok and absf(xf.origin.y
+				- (_city.block_slab_height + _city.PARK_CROWN_CENTER_Y)) < 0.001
+	var place_ok: bool = count_ok
+	var inside_ok: bool = count_ok
+	var crown_matched: Array[bool] = []
+	crown_matched.resize(expected_pos.size())
+	crown_matched.fill(false)
+	var crown_half := _city.PARK_CROWN_SIZE.x * 0.5
+	for xf: Transform3D in crown_xfs:
+		var o: Vector3 = xf.origin
+		var hit := false
+		for e in expected_pos.size():
+			if crown_matched[e]:
+				continue
+			var ep: Vector3 = expected_pos[e]
+			if Vector2(o.x - ep.x, o.z - ep.z).length_squared() < 1e-8:
+				crown_matched[e] = true
+				hit = true
+				var c: Vector3 = expected_center[e]
+				inside_ok = inside_ok \
+						and absf(o.x - c.x) + crown_half <= _city.block_size * 0.5 + 0.001 \
+						and absf(o.z - c.z) + crown_half <= _city.block_size * 0.5 + 0.001
+				break
+		place_ok = place_ok and hit
+	var trunk_matched: Array[bool] = []
+	trunk_matched.resize(expected_pos.size())
+	trunk_matched.fill(false)
+	for xf: Transform3D in trunk_xfs:
+		var o: Vector3 = xf.origin
+		var hit := false
+		for e in expected_pos.size():
+			if trunk_matched[e]:
+				continue
+			var ep: Vector3 = expected_pos[e]
+			if Vector2(o.x - ep.x, o.z - ep.z).length_squared() < 1e-8:
+				trunk_matched[e] = true
+				hit = true
+				break
+		place_ok = place_ok and hit
+	## --- the crowns read against their own lawn: green vs COLOR_PARK ---------
+	var crown_green := _mm_mesh_albedo(_city, "Visuals/TreeCrown")
+	var crown_dist := _rgb(crown_green).distance_to(_rgb(_city.COLOR_PARK))
+	var green_ok := crown_dist >= 0.15
+	## --- clearance: trees vs everything sharing a park block ------------------
+	var clear_ok := true
+	var worst_bread := INF
+	for xf: Transform3D in trunk_xfs:
+		for spot: Vector3 in _city.bread_spots:
+			var d := Vector2(xf.origin.x - spot.x, xf.origin.z - spot.z).length()
+			worst_bread = minf(worst_bread, d)
+			clear_ok = clear_ok and d >= 2.0
+	## The lamp/bin half at every seed: worst center-to-center approach is a
+	## max-jitter bin at (9−1, 9−1) from a tree at (5, 5) — 4.24 m — against
+	## the crown's horizontal half-diagonal plus a ~0.9 m worst prop
+	## half-extent (the bench).
+	var center_dist := Vector2(5.0, 5.0).distance_to(Vector2(8.0, 8.0))
+	var crown_half_diag := sqrt(2.0) * crown_half
+	var arithmetic_ok := center_dist - crown_half_diag - 0.9 >= 1.5
+	## --- visual-only: zero colliders anywhere under the Visuals root ----------
+	var visuals := _city.get_node("Visuals") as Node3D
+	var colliders := visuals.find_children("*", "CollisionObject3D", true, false)
+	var visual_only := colliders.is_empty()
+	## --- determinism: a real rebuild reproduces both queues byte-identically --
+	var trunk_a := trunk_xfs.duplicate()
+	var crown_a := crown_xfs.duplicate()
+	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
+	var trunk_b: Array[Transform3D] = []
+	var crown_b: Array[Transform3D] = []
+	for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
+		trunk_b.append(xf)
+	for xf: Transform3D in _city._visuals["tree_crown"].xfs:
+		crown_b.append(xf)
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and _spots_equal(trunk_a, trunk_b) and _spots_equal(crown_a, crown_b)
+	## --- foreign seed keeps the 4 × parks law; cross-version pins hold --------
+	_city.generate(424242)
+	var foreign_parks: int = _city.last_report.parks
+	var foreign_ok: bool = (_city._visuals["tree_trunk"].xfs as Array).size() == 4 * foreign_parks \
+			and (_city._visuals["tree_crown"].xfs as Array).size() == 4 * foreign_parks
+	var pin_foreign: bool = _city.fingerprint == 2662825400
+	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
+	var pin_default: bool = _city.fingerprint == 2492360539
+	var trees_detail := "parks=%d trees=%d/%d centers=%d place=%s inside=%s trees_3d=%s green=%s (%.3f) clear=%s (worst %.2f m) arith=%s (%.2f m margin) colliders=%d det=%s foreign=%s pins=%s/%s" % [
+			parks, trunk_xfs.size(), expected_count, park_centers.size(), place_ok,
+			inside_ok, trees_3d_ok, green_ok, crown_dist, clear_ok, worst_bread,
+			arithmetic_ok, center_dist - crown_half_diag - 0.9, colliders.size(),
+			deterministic, foreign_ok, pin_foreign, pin_default]
+	_check("city_park_trees_present",
+			count_ok and place_ok and inside_ok and trees_3d_ok and green_ok
+					and clear_ok and arithmetic_ok and visual_only and deterministic
+					and foreign_ok and pin_foreign and pin_default,
+			trees_detail)
+	## Informational: the park trees' tuned numbers — the ticket's counts and
+	## distances, re-printed on every re-verification.
+	print("SIM DATA city_park_trees: parks=%d trees=%d crown_green_dist=%.3f worst_bread_dist=%.2f fingerprint=%d" % [
+			parks, trunk_xfs.size(), crown_dist, worst_bread, fp_first])
 
 
 ## --- scenarios (T-007 tourists) ---------------------------------------------
