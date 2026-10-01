@@ -8,8 +8,9 @@ extends Node
 ## attach a player to it — attach_player() for late wiring, or plain
 ## assignment before add_child.
 
-## Emitted on every value change — the HUD bar (and later the game-over flow)
-## listens to this.
+## Emitted only when the clamped value actually changes (T-075) — a write that
+## lands on the value already stored stays silent. The HUD bar (and later the
+## game-over flow) listens to this.
 signal changed(value: float, max_value: float)
 
 ## Emitted exactly once, the tick hunger reaches zero. Never again until
@@ -34,11 +35,18 @@ signal game_over
 var player: Player
 @export var player_path: NodePath
 
-## Current hunger, always clamped to [0, max_value]; every write emits changed.
+## Current hunger, always clamped to [0, max_value]; a write that lands on the
+## value already stored stays silent — changed fires only on a real change
+## (T-075), so the drain parked at zero and eating at a full bar stop
+## re-broadcasting every tick. While draining, consecutive ticks always differ,
+## so live-drain emissions are unchanged.
 var value: float:
 	get: return _value
 	set(new_value):
-		_value = clampf(new_value, 0.0, max_value)
+		var clamped := clampf(new_value, 0.0, max_value)
+		if clamped == _value:
+			return
+		_value = clamped
 		changed.emit(_value, max_value)
 
 ## True once game_over has fired; stays true until reset().

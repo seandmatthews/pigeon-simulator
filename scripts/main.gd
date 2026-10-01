@@ -65,6 +65,9 @@ var _combo_shown: int = 0 ## The multiplier the HUD last displayed — escalatio
 var _stats_cache: String = "" ## (T-055) The stats line last pushed to the label — the string is recomposed every frame but assigned only when score, combo or the rounded hunger percent actually moved.
 var _score_pulse: Tween
 var hud_warning_tier: int = 0 ## The hunger warning band the bar currently shows (0 healthy … 3 critical).
+## (T-075) The rounded hunger percent the bar last painted — −1 so the _ready
+## re-fire paints the initial full bar.
+var _hunger_percent_shown: int = -1
 var _pulse_phase: float = 0.0 ## Game-time phase of the tier flash — advanced only while a tier pulses.
 var _last_hit_kind: String = "" ## (T-040) "Tourist"/"Car", stashed by the splat handlers — hit_scored carries points but not the target kind.
 var _combo_strip_left: float = 0.0 ## (T-040) Game-time seconds left before the strip clears; 0 = at rest, empty.
@@ -234,14 +237,21 @@ func _update_poop_ready() -> void:
 
 
 ## The hunger bar mirrors Game.hunger.changed — the number stays on the stats
-## line, and the bar carries the T-019 warning tiers. The setter emits on
-## EVERY drain tick (~60/s), so this only touches state on a tier CHANGE:
-## entering a tier paints its rest color and rewinds the pulse phase (entering
-## a quiet tier leaves the bar parked there — never stranded mid-flash), while
-## the _process pulse owns the animation between ticks.
+## line, and the bar carries the T-019 warning tiers. (T-075) The write-back is
+## guarded: max_value is assigned only when it differs, and the bar's value
+## only when the rounded percent OR the warning tier changes — a tier boundary
+## can cross while the rounded percent stands still (50.4% → percent 50,
+## tier 0; 49.98% → percent 50, tier 1) — so the setter's per-drain-tick
+## emissions for a bar creeping 0.45%/s leave the Control untouched between
+## real changes. Entering a tier paints its rest color and rewinds the pulse
+## phase (entering a quiet tier leaves the bar parked there — never stranded
+## mid-flash), while the _process pulse owns the animation between ticks. The
+## explicit re-fires in _ready and restart_run stay: idempotent against the
+## caches, so a skipped write only happens when the bar already shows that
+## state.
 func _on_hunger_changed(value: float, max_value: float) -> void:
-	hunger_bar.max_value = max_value
-	hunger_bar.value = value
+	if hunger_bar.max_value != max_value:
+		hunger_bar.max_value = max_value
 	var fraction := value / max_value if max_value > 0.0 else 0.0
 	var tier := 3
 	if fraction > HUNGER_TIER_CRITICAL:
@@ -250,6 +260,10 @@ func _on_hunger_changed(value: float, max_value: float) -> void:
 		tier = 1
 	if fraction > HUNGER_TIER_WARN:
 		tier = 0
+	var percent := roundi(fraction * 100.0)
+	if percent != _hunger_percent_shown or tier != hud_warning_tier:
+		_hunger_percent_shown = percent
+		hunger_bar.value = value
 	if tier != hud_warning_tier:
 		hud_warning_tier = tier
 		_pulse_phase = 0.0
