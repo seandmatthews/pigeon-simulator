@@ -1980,19 +1980,23 @@ func _scenario_city_roofs_inhabited() -> void:
 			_city.bread_spots.size(), fp_first])
 
 
-## Zebra crosswalks (T-069): the `Visuals/Crosswalk` MultiMesh carries exactly
-## 1,120 stripes with default exports (224 bands x 5 — every unblocked
-## intersection approach, the 32 rim outward approaches skipped), every stripe
-## is an axis-aligned 0.4 x road_width x 0.01 box at the right dash-family
-## height, every stripe center sits >= 5.0 m from every intersection node in XZ
-## (the 3.5 m corner-cut swing area stays clear) and inside its approach road's
-## asphalt rect, the stripe multiset matches an independent recomputation
-## (5 stripes per unblocked approach at 5.2 / 5.7 / 6.2 / 6.7 / 7.2 m on the
-## approach axis, on the road centerline — the `_expected_cafe_spot` pattern),
-## a forced same-seed rebuild reproduces all transforms byte-identically
-## (`_spots_equal`, the `elder_placement_no_rng` pattern), the paint is
-## visual-only (no StaticBody3D anywhere under `Visuals`), and the fingerprint
-## stays byte-identical (zero RNG, zero `_fp` entries).
+## Zebra crosswalks (T-069, bars re-oriented longitudinal by T-102): the
+## `Visuals/Crosswalk` MultiMesh carries exactly 2,240 bars with default exports
+## (224 bands x 10 — every unblocked intersection approach, the 32 rim outward
+## approaches skipped), every bar is an axis-aligned 2.4 along-road x 0.5
+## across x 0.01 box at the right dash-family height (horizontal roads at
+## `road_slab_height`, vertical at `road_slab_height + 0.005`), every bar center
+## sits >= 5.0 m from every intersection node in XZ (the 3.5 m corner-cut swing
+## area stays clear), every bar stays on its approach road's asphalt (its
+## across-extent inside the road edges, its along-coordinate inside the city),
+## the bar multiset matches an independent recomputation (per unblocked
+## approach, one 2.4 m-deep band centered 6.2 m out on the road centerline,
+## tiled by road_width / 1.0 = 10 bars running WITH the road, repeating ACROSS
+## it at a 1.0 m pitch on centers — the `_expected_cafe_spot` pattern), a forced
+## same-seed rebuild reproduces all transforms byte-identically (`_spots_equal`,
+## the `elder_placement_no_rng` pattern), the paint is visual-only (no
+## StaticBody3D anywhere under `Visuals`), and the fingerprint stays
+## byte-identical (zero RNG, zero `_fp` entries).
 ##
 ## Transform source: `MultiMesh.get_instance_transform` reads back identity for
 ## EVERY key in headless runs (the dummy RenderingServer never uploads the
@@ -2007,7 +2011,7 @@ func _scenario_city_crosswalks() -> void:
 	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
 	var mm := (_city.get_node("Visuals/Crosswalk") as MultiMeshInstance3D).multimesh
 	var queue: Array = _city._visuals["crosswalk"].xfs
-	var count_ok: bool = mm.instance_count == 1120 and queue.size() == 1120
+	var count_ok: bool = mm.instance_count == 2240 and queue.size() == 2240
 	var xfs: Array[Transform3D] = []
 	for xf: Transform3D in queue:
 		xfs.append(xf)
@@ -2023,9 +2027,10 @@ func _scenario_city_crosswalks() -> void:
 	for cx: float in centers:
 		for cz: float in centers:
 			nodes.append(Vector2(cx, cz))
-	## Expected stripe centers: per node, per approach whose band stays on the
-	## asphalt (outer band edge node + side * 7.4 m inside ± half), five stripes
-	## at 5.2–7.2 m out along the approach axis.
+	## Expected bar centers: per node, per approach whose band stays on the
+	## asphalt (outer band edge node + side * 7.4 m inside ± half), one 2.4 m
+	## deep band centered 6.2 m out — ten bars running WITH the road, repeating
+	## ACROSS it at a 1.0 m pitch on centers (T-102 longitudinal zebra).
 	var expected: Array[Vector3] = []
 	for cx: float in centers:
 		for cz: float in centers:
@@ -2034,16 +2039,17 @@ func _scenario_city_crosswalks() -> void:
 					var node_c: float = cx if axis == 0 else cz
 					if absf(node_c + side * 7.4) > half:
 						continue ## The band would leave the asphalt.
-					for k in 5:
-						var out: float = side * (6.2 + (float(k) - 2.0) * 0.5)
+					var out: float = side * 6.2
+					for k in 10:
+						var across: float = (float(k) - 4.5) * 1.0
 						expected.append(Vector3(
-								cx + (out if axis == 0 else 0.0),
+								cx + (out if axis == 0 else across),
 								slab_y if axis == 0 else slab_y + 0.005,
-								cz + (0.0 if axis == 0 else out)))
-	count_ok = count_ok and expected.size() == 1120
-	## Per-stripe geometry / y-family / clearance / asphalt-rect criteria, plus a
-	## multiset match against the expected centers (each expected stripe exactly
-	## once proves the 5-per-unblocked-approach placement).
+								cz + (across if axis == 0 else out)))
+	count_ok = count_ok and expected.size() == 2240
+	## Per-bar geometry / y-family / clearance / asphalt-rect criteria, plus a
+	## multiset match against the expected centers (each expected bar exactly
+	## once proves the 10-per-unblocked-approach placement at the 1.0 m pitch).
 	var matched: Array[bool] = []
 	matched.resize(expected.size())
 	matched.fill(false)
@@ -2054,19 +2060,27 @@ func _scenario_city_crosswalks() -> void:
 	for xf in xfs:
 		var o: Vector3 = xf.origin
 		var sc: Vector3 = xf.basis.get_scale()
-		var along_x := absf(sc.x - 0.4) < 0.001 and absf(sc.z - road_w) < 0.001
-		var along_z := absf(sc.z - 0.4) < 0.001 and absf(sc.x - road_w) < 0.001
+		## Bars run ALONG the road (2.4 m deep) and repeat ACROSS it (0.5 m wide)
+		## — the T-102 flip of T-069's transverse piano-key band.
+		var along_x := absf(sc.x - 2.4) < 0.001 and absf(sc.z - 0.5) < 0.001
+		var along_z := absf(sc.z - 2.4) < 0.001 and absf(sc.x - 0.5) < 0.001
 		geometry_ok = geometry_ok and (along_x or along_z) and absf(sc.y - 0.01) < 0.001
 		y_ok = y_ok and absf(o.y - (slab_y if along_x else slab_y + 0.005)) < 0.001
 		var nearest := INF
 		for node_pos in nodes:
 			nearest = minf(nearest, Vector2(o.x - node_pos.x, o.z - node_pos.y).length())
 		clear_ok = clear_ok and nearest >= 5.0
-		var on_centerline := false
+		## On its approach road's asphalt: the across-extent (center ± 0.25 m)
+		## stays inside that road's edges, the along-coordinate inside the city.
+		var across_c: float = o.z if along_x else o.x
+		var along_c: float = o.x if along_x else o.z
+		var near_center: float = centers[0]
 		for c: float in centers:
-			on_centerline = on_centerline or absf((o.z if along_x else o.x) - c) < 0.001
-		asphalt_ok = asphalt_ok and on_centerline \
-				and absf((o.x if along_x else o.z)) <= half + 0.001
+			if absf(across_c - c) < absf(across_c - near_center):
+				near_center = c
+		asphalt_ok = asphalt_ok \
+				and absf(across_c - near_center) + 0.25 <= road_w * 0.5 + 0.001 \
+				and absf(along_c) <= half + 0.001
 		for e in expected.size():
 			if not matched[e] and (expected[e] - o).length_squared() < 1e-8:
 				matched[e] = true
@@ -2074,7 +2088,7 @@ func _scenario_city_crosswalks() -> void:
 	var placement_ok: bool = count_ok
 	for m in matched:
 		placement_ok = placement_ok and m
-	## A forced same-seed rebuild reproduces all 1,120 transforms byte-identically.
+	## A forced same-seed rebuild reproduces all 2,240 transforms byte-identically.
 	var xfs_a := xfs.duplicate()
 	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
 	var mm_b := (_city.get_node("Visuals/Crosswalk") as MultiMeshInstance3D).multimesh
@@ -2082,7 +2096,7 @@ func _scenario_city_crosswalks() -> void:
 	var xfs_b: Array[Transform3D] = []
 	for xf: Transform3D in queue_b:
 		xfs_b.append(xf)
-	var deterministic: bool = mm_b.instance_count == 1120 and queue_b.size() == 1120 \
+	var deterministic: bool = mm_b.instance_count == 2240 and queue_b.size() == 2240 \
 			and _city.fingerprint == fp_first and _spots_equal(xfs_a, xfs_b)
 	## Visual-only (T-017): no StaticBody3D anywhere under the city's Visuals root.
 	var visuals := _city.get_node("Visuals") as Node3D
@@ -2096,8 +2110,8 @@ func _scenario_city_crosswalks() -> void:
 					placement_ok, deterministic, colliders.size()])
 	## Informational: the M1-seed paint counts — the ticket's tuned numbers,
 	## re-printed on every re-verification.
-	print("SIM DATA city_crosswalks: stripes=%d bands=%d fingerprint=%d" % [
-			xfs.size(), xfs.size() / 5, fp_first])
+	print("SIM DATA city_crosswalks: bars=%d bands=%d fingerprint=%d" % [
+			xfs.size(), xfs.size() / 10, fp_first])
 
 
 ## City-edge rim (T-088 commit 1): the rim is pure layout — audited like the
