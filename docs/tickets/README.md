@@ -89,7 +89,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-080 | [Give the hunger bar a dark track/border — the white bar vanishes on bright ground](T-080-hunger-bar-track.md) | ui-ux | 3 | 1 | done |
 | T-081 | [Make sub-glide flight fall: key the align cut on lift, not stall depth](T-081-lift-keyed-align-cut.md) | flight-control | 4 | 4 | proposed |
 | T-082 | [Give released pitch inputs a hands-off trim toward the velocity vector](T-082-released-pitch-trim.md) | flight-control | 4 | 3 | proposed |
-| T-083 | [Adopt T-062: bound pitch attitude with authority falloff near vertical](T-083-pitch-attitude-bound.md) | flight-control | 4 | 3 | proposed |
+| T-083 | [Adopt T-062: bound pitch attitude with authority falloff near vertical](T-083-pitch-attitude-bound.md) | flight-control | 4 | 3 | done |
 | T-084 | [Adopt T-041: pitch-up near the ground becomes a brake-sink, not a balloon](T-084-flare-brake-sink.md) | flight-control | 4 | 3 | superseded (T-022 landed the flare; audit 2026-09-30: stale) |
 | T-085 | [Adopt T-045's pale rump/underwing anchor — the player bird is a gray smudge on road and roof](T-085-pale-rump-anchor-adoption.md) | visual-design | 3 | 1 | done |
 | T-086 | [Adopt T-025's bigger emissive drop ball — A/B-proven live, minus a latent parse bug in the ticket](T-086-poop-ball-visibility-adoption.md) | visual-design | 4 | 1 | done |

@@ -10,7 +10,11 @@ extends CharacterBody3D
 ## impulse itself fades with the same blend (`flap_sustained_fade`) — pacing
 ## flaps converge in the low 20s of m/s and dives own the top end. Since T-036
 ## a fall past the `off_world_y` guard line — off the world's edge — quietly
-## snaps home to `respawn_point` (Main wires the spawn corridor in).
+## snaps home to `respawn_point` (Main wires the spawn corridor in). Since
+## T-083 the input pitch term fades to zero across `pitch_auth_full_deg` /
+## `pitch_auth_zero_deg` of |body pitch|, so held pitch-up asymptotes the nose
+## just under the zero line instead of stacking degrees past vertical —
+## symmetric, so steep dive entries past -50° fade progressively too.
 
 ## Emitted when the pigeon lands or takes off — the HUD swaps its control hint.
 signal grounding_changed(grounded: bool)
@@ -50,6 +54,8 @@ enum State { AIR, GROUND }
 @export var full_bank_yaw_rate: float = 1.5 ## Yaw rate (rad/s) at full bank, before authority scaling.
 @export var pitch_speed: float = 2.2 ## Rad/s pitch rate, before authority scaling.
 @export var min_control_authority: float = 0.35 ## Control floor at zero airspeed so stall recovery inputs still work.
+@export var pitch_auth_full_deg: float = 50.0 ## (T-083) |Body pitch| at or below which the input pitch term keeps full authority; symmetric — the falloff bites pitch-down past -50° too.
+@export var pitch_auth_zero_deg: float = 85.0 ## (T-083) |Body pitch| at or above which the input pitch term reaches zero — the attitude bound that stops held pitch-up from parking the nose at or past vertical.
 @export var velocity_align_rate: float = 3.5 ## How hard velocity chases the nose (1/s); this is the energy exchange.
 @export var ground_friction: float = 14.0 ## Horizontal decel while sliding on the ground; landings skid to a stop.
 
@@ -386,7 +392,21 @@ func _steer(delta: float) -> void:
 		# Yaw follows the bank: pigeon-like, not tank-like.
 		rotate_y((_roll / max_bank) * full_bank_yaw_rate * authority * delta)
 	var pitch_input := Input.get_axis("pitch_down", "pitch_up")
-	rotate_object_local(Vector3.RIGHT, pitch_input * pitch_speed * authority * delta)
+	# (T-083, adopting T-062) Bound the attitude at the input: the pitch term
+	# fades to zero across the band from `pitch_auth_full_deg` to
+	# `pitch_auth_zero_deg` of |body pitch| — the same nose-sine read the sim's
+	# `_pitch_until` uses — so held or tapped W asymptotes the nose just under
+	# the zero line instead of stacking degrees past vertical. Symmetric by
+	# design (the tested variant): steep dive entries past -50° lose authority
+	# progressively too. Roll is already bounded by `max_bank_deg` above; the
+	# falloff scales the input term only — the stall nose drop in
+	# `_apply_flight_forces` and the no-input attitude freeze are untouched.
+	var pitch := asin(clampf((-transform.basis.z).y, -1.0, 1.0))
+	var fade := clampf(
+			(deg_to_rad(pitch_auth_zero_deg) - absf(pitch))
+					/ deg_to_rad(pitch_auth_zero_deg - pitch_auth_full_deg),
+			0.0, 1.0)
+	rotate_object_local(Vector3.RIGHT, pitch_input * pitch_speed * authority * fade * delta)
 
 
 func _apply_flight_forces(delta: float, grounded: bool) -> void:
