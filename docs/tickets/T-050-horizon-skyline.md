@@ -1,6 +1,6 @@
 # T-050 — Put a skyline on the horizon so the world doesn't end at a cliff
 
-- **Milestone:** Sweep backlog · **Status:** superseded (executed by T-088, commit 2 — work that one) · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** superseded (executed by T-088 commit 2 — landed 2026-10-01; the commit carrying this flip IS that landing) · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** —
 - **Refs:** T-047 (city-edge rim — proposed, visual-design: the NEAR-field hedge/tree
   rim at the block boundary; this ticket dresses the FAR horizon beyond it —
@@ -68,30 +68,43 @@ every one of those frames actually shows a player.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: new scenario `city_horizon_skyline` in `tests/sim_test.gd`
+- [x] Gate 1b: new scenario `city_horizon_skyline` in `tests/sim_test.gd`
       (layout asserts on the standing City — the `_scenario_city_district_palettes`
       access pattern, tests/sim_test.gd:664; no flight required) passes:
-  - [ ] `Skyline` and `SkylineTall` MultiMeshInstance3D nodes exist under
+      (landed 2026-10-01: scenario PASS — total=64 tall=6, band 192–347 m)
+  - [x] `Skyline` and `SkylineTall` MultiMeshInstance3D nodes exist under
         `_city.get_node("Visuals")`; total instances across both in [40, 80],
         `skyline_tall` instances in [2, 8];
-  - [ ] every instance origin's XZ radius from the city center lies in
+        (64 total / 6 tall at the M1 seed; 61+3 at seed 424242)
+  - [x] every instance origin's XZ radius from the city center lies in
         `[city_span * 0.5 + ground_extra * 0.3, city_span * 0.5 + ground_extra - 20.0]`
         (192-347 m at defaults) — beyond the blocks, strictly inside the apron
         box including the tower's own ≤ 9 m half-width;
-  - [ ] every instance's `scale.y ∈ [15, 60]` and XZ extents ≤ 18 m;
-  - [ ] zero `StaticBody3D` (or any `CollisionObject3D`) nodes anywhere under
+        (the scenario recomputes the band from the exports and adds the
+        apron-box leg: |x|,|z| + 9 ≤ 367)
+  - [x] every instance's `scale.y ∈ [15, 60]` and XZ extents ≤ 18 m;
+        (also asserted ≥ 6 m and origin y = scale.y/2 over the y 0 apron)
+  - [x] zero `StaticBody3D` (or any `CollisionObject3D`) nodes anywhere under
         the Visuals root — colliders live only under `Static`
         (scripts/city.gd:221-226);
-  - [ ] a forced same-seed rebuild (`generate(seed_value, true)`) reproduces
+        (walked every Visuals descendant with a typed `is CollisionObject3D`)
+  - [x] a forced same-seed rebuild (`generate(seed_value, true)`) reproduces
         both instance sets byte-identically (`_spots_equal` pattern on the
         collected transform arrays, tests/sim_test.gd:1093).
-- [ ] Gate 1b: the city fingerprint equals the pre-change baseline (record it on
+- [x] Gate 1b: the city fingerprint equals the pre-change baseline (record it on
       the untouched tree first) — zero `_fp` entries is a claim of this ticket;
       a foreign seed still changes the fingerprint and passes
       `city_new_seed_guarantees` unchanged.
-- [ ] `city_street_flyover`, `city_plaza_spawn`, the determinism trio
+      (re-derived 2026-10-01 on this worktree with a headless `City.generate`
+      probe, with the skyline landed: `PROBE_FP seed_20260928=2492360539 /
+      seed_424242=2662825400 / default_again=2492360539` — byte-identical to
+      pre-T-088; the scenario also asserts the tall split changes 6 → 3 at
+      seed 424242, and `city_new_seed_guarantees` passes unchanged)
+- [x] `city_street_flyover`, `city_plaza_spawn`, the determinism trio
       (`city_same_seed_deterministic` / `city_new_seed_guarantees` /
       `city_regenerate_restores_layout`) and the full suite stay green.
+      (landed: full suite 89/89 PASS, exit 0; Gate 2 autoplay `ok=true
+      restart=true` at fps 135)
 - [ ] [screenshot] Gate 3: from the apron the horizon reads as a distant city
       under haze, not a void edge — compare directly against the `wbs2-a`
       f00094800 baseline frame; the towers must read as background (muted,

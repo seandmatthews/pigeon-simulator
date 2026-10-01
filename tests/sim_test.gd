@@ -143,6 +143,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_roofs_inhabited() ## T-032 — after the cafe block, same audit pattern.
 	await _scenario_city_crosswalks() ## T-069 — after the roofs block, same audit pattern.
 	await _scenario_city_apron_rim() ## T-088 commit 1 — after the crosswalks block, same audit pattern.
+	await _scenario_city_horizon_skyline() ## T-088 commit 2 — after the rim, same audit pattern.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -2149,6 +2150,94 @@ func _scenario_city_apron_rim() -> void:
 	var rim_data := "SIM DATA city_apron_rim: hedges=4 trees=%d hedge_green_dist=%.3f crown_green_dist=%.3f fingerprint=%d" % [
 			trees.size(), hedge_dist, crown_dist, fp_first]
 	print(rim_data)
+
+
+## Distant skyline (T-088 commit 2): layout asserts on the standing City — no
+## flight, the `_scenario_city_district_palettes` access pattern, audited like
+## the crosswalks. `Skyline`/`SkylineTall` MultiMesh nodes exist under
+## `Visuals`; total instances in [40, 80] with tall landmarks in [2, 8]; every
+## origin's XZ radius in the band recomputed from the default exports
+## (192-347 m at defaults — beyond the blocks, strictly inside the apron box
+## including the tower's own ≤ 9 m half-width) with box origins at height/2
+## (the apron top is y 0); every scale.y in [15, 60] and XZ extents 6-18 m;
+## zero CollisionObject3D anywhere under the Visuals root; a forced same-seed
+## rebuild reproduces both instance sets byte-identically; and the fingerprint
+## still equals the cross-version pins (see `_scenario_city_apron_rim`).
+##
+## Transform source: the queues that feed the two MultiMeshes
+## (`MultiMesh.get_instance_transform` reads back identity headless — the
+## `city_crosswalks_present` note).
+func _scenario_city_horizon_skyline() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	var nodes_ok: bool = _city.get_node_or_null("Visuals/Skyline") is MultiMeshInstance3D \
+			and _city.get_node_or_null("Visuals/SkylineTall") is MultiMeshInstance3D
+	var skyline_xfs: Array[Transform3D] = []
+	var tall_xfs: Array[Transform3D] = []
+	if _city._visuals.has("skyline"):
+		for xf: Transform3D in _city._visuals["skyline"].xfs:
+			skyline_xfs.append(xf)
+	if _city._visuals.has("skyline_tall"):
+		for xf: Transform3D in _city._visuals["skyline_tall"].xfs:
+			tall_xfs.append(xf)
+	var total := skyline_xfs.size() + tall_xfs.size()
+	var count_ok: bool = nodes_ok and total >= 40 and total <= 80 \
+			and tall_xfs.size() >= 2 and tall_xfs.size() <= 8
+	## --- placement and size legs, off the actual instance transforms ---------
+	var inner := _city.city_span * 0.5 + _city.ground_extra * 0.3
+	var outer := _city.city_span * 0.5 + _city.ground_extra - 20.0
+	var apron_half := _city.city_span * 0.5 + _city.ground_extra
+	var place_ok := count_ok
+	var size_ok := true
+	for source: Array in [skyline_xfs, tall_xfs]:
+		for xf: Transform3D in source:
+			var o: Vector3 = xf.origin
+			var sc: Vector3 = xf.basis.get_scale()
+			var radius := Vector2(o.x, o.z).length()
+			place_ok = place_ok and radius >= inner - 0.001 and radius <= outer + 0.001 \
+					and absf(o.x) + 9.0 <= apron_half and absf(o.z) + 9.0 <= apron_half
+			size_ok = size_ok and sc.y >= 15.0 - 0.001 and sc.y <= 60.0 + 0.001 \
+					and sc.x >= 6.0 - 0.001 and sc.x <= 18.0 + 0.001 \
+					and sc.z >= 6.0 - 0.001 and sc.z <= 18.0 + 0.001 \
+					and absf(o.y - sc.y * 0.5) < 0.001
+	## --- visual-only: zero colliders anywhere under the Visuals root ----------
+	var visuals := _city.get_node("Visuals") as Node3D
+	var collider_count := 0
+	for node in visuals.find_children("*", "", true, false):
+		if node is CollisionObject3D:
+			collider_count += 1
+	var visual_only := collider_count == 0
+	## --- determinism: a real rebuild reproduces both instance sets ------------
+	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
+	var skyline_b: Array[Transform3D] = []
+	var tall_b: Array[Transform3D] = []
+	if _city._visuals.has("skyline"):
+		for xf: Transform3D in _city._visuals["skyline"].xfs:
+			skyline_b.append(xf)
+	if _city._visuals.has("skyline_tall"):
+		for xf: Transform3D in _city._visuals["skyline_tall"].xfs:
+			tall_b.append(xf)
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and _spots_equal(skyline_xfs, skyline_b) and _spots_equal(tall_xfs, tall_b)
+	## --- cross-version pins and the foreign-seed contract ---------------------
+	_city.generate(424242)
+	var pin_foreign: bool = _city.fingerprint == 2662825400 \
+			and _city._visuals["skyline_tall"].xfs.size() != tall_xfs.size()
+	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
+	var pin_default: bool = _city.fingerprint == 2492360539
+	var skyline_detail := "nodes=%s total=%d tall=%d place=%s size=%s colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
+			nodes_ok, total, tall_xfs.size(), place_ok, size_ok, collider_count,
+			deterministic, pin_foreign, pin_default]
+	_check("city_horizon_skyline",
+			count_ok and place_ok and size_ok and visual_only and deterministic
+					and pin_foreign and pin_default,
+			skyline_detail)
+	## Informational: the skyline's tuned numbers — the ticket's bands, re-printed
+	## on every re-verification.
+	var skyline_data := "SIM DATA city_horizon_skyline: total=%d tall=%d inner=%.0f outer=%.0f fingerprint=%d" % [
+			total, tall_xfs.size(), inner, outer, fp_first]
+	print(skyline_data)
 
 
 ## --- scenarios (T-007 tourists) ---------------------------------------------

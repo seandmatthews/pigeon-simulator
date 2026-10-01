@@ -114,6 +114,22 @@ const RIM_TRUNK_SIZE := Vector3(0.35, 2.2, 0.35) ## Rising from the apron (y 0).
 const RIM_CROWN_SIZE := Vector3(2.6, 2.2, 2.6) ## Centered 3.3 m up — sits on the 2.2 m trunk.
 const RIM_CROWN_CENTER_Y := 3.3 ## Crown box center height (m).
 
+## Distant skyline layout (T-088 commit 2): a ring of flat-shaded background
+## towers on the grass apron — the horizon reads as a larger city under haze
+## instead of a void edge. Placement is a deterministic hash chain (one
+## `_skyline_roll` per attribute, each with its own salt): ZERO draws from
+## `_rng`/`_shop_rng` (both sequences stay byte-identical), ZERO `_fp` entries
+## and ZERO `_add_collider` calls (visual-only, the T-017 decision — colliders
+## live only under `Static`).
+const SKYLINE_COUNT := 64 ## Total background towers (the harness gates [40, 80]).
+const SKYLINE_TALL_TARGET := 6 ## Landmark towers the class roll aims at (the harness gates [2, 8]).
+const SKYLINE_SALT_RADIUS := 101
+const SKYLINE_SALT_ANGLE := 211
+const SKYLINE_SALT_CLASS := 307
+const SKYLINE_SALT_HEIGHT := 401
+const SKYLINE_SALT_WIDTH := 503
+const SKYLINE_SALT_SHADE := 601
+
 @export_group("Layout")
 ## Fixed M1 seed — same city every run so runs and scores stay comparable.
 @export var seed_value: int = 20260928
@@ -312,6 +328,7 @@ func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
 	_plaza_center = _block_center(plaza_i, plaza_i)
 	_make_meshes()
 	_build_ground()
+	_build_skyline() ## T-088 commit 2 — the distant background towers, visual-only.
 	_build_roads()
 	_build_rim() ## T-088 commit 1 — the city-edge rim, visual-only.
 	_build_crossings() ## T-069 — intersection paint, visual-only.
@@ -455,6 +472,8 @@ func _make_meshes() -> void:
 		"rim_hedge": _unit_box(_flat_material(COLOR_RIM_HEDGE)),
 		"rim_trunk": _unit_box(_flat_material(COLOR_BENCH_WOOD)),
 		"rim_crown": _unit_box(_flat_material(COLOR_RIM_CROWN)),
+		"skyline": _unit_box(_vertex_color_material()),
+		"skyline_tall": _unit_box(_vertex_color_material()),
 	}
 
 
@@ -469,6 +488,48 @@ func _build_ground() -> void:
 	mesh_instance.position = Vector3(0.0, -0.5, 0.0)
 	body.add_child(mesh_instance)
 	_fp.append(["ground", size])
+
+
+## One normalized [0, 1] roll of the skyline's deterministic hash chain (T-088
+## commit 2): folds `hash(Vector3i(i, seed_value, salt))` — a pure function of
+## the tower index, the seed and the attribute's salt. No RNG stream is
+## touched, so `_rng`/`_shop_rng` sequences and the layout fingerprint stay
+## byte-identical to pre-T-088 builds.
+func _skyline_roll(i: int, salt: int) -> float:
+	return float(hash(Vector3i(i, seed_value, salt)) & 0x7fffffff) / 2147483647.0
+
+
+## Distant skyline (T-088 commit 2, executing T-050): a ring of slim background
+## towers on the apron, every origin at ground radius
+## [city_span * 0.5 + ground_extra * 0.3, city_span * 0.5 + ground_extra - 20.0]
+## (192-347 m at defaults — beyond the blocks, ON the apron box; the planning
+## sketch's 1.3-2.2x span overran the apron edge, so the top of the range is
+## clamped). Heights 15-60 m with the `skyline_tall` landmarks at 40-60, XZ
+## footprints 6-18 m, muted DISTRICT_PALETTES members darkened() 0.30-0.45 —
+## the tower's angle quadrant picks its district family, so the ring reads as
+## the city's wider surroundings. Box origins sit at height/2: the apron top
+## is y 0, the towers rise from the grass. Zero RNG draws from any stream,
+## zero `_fp` entries, zero colliders (visual-only, the T-017 decision);
+## pinned by the `city_horizon_skyline` scenario.
+func _build_skyline() -> void:
+	var half := city_span * 0.5
+	var inner := half + ground_extra * 0.3
+	var outer := half + ground_extra - 20.0
+	for i in SKYLINE_COUNT:
+		var radius := inner + _skyline_roll(i, SKYLINE_SALT_RADIUS) * (outer - inner)
+		var angle := _skyline_roll(i, SKYLINE_SALT_ANGLE) * TAU
+		var tall := _skyline_roll(i, SKYLINE_SALT_CLASS) \
+				< float(SKYLINE_TALL_TARGET) / float(SKYLINE_COUNT)
+		var height: float = 40.0 + _skyline_roll(i, SKYLINE_SALT_HEIGHT) * 20.0
+		if not tall:
+			height = 15.0 + _skyline_roll(i, SKYLINE_SALT_HEIGHT) * 30.0
+		var width := 6.0 + _skyline_roll(i, SKYLINE_SALT_WIDTH) * 12.0
+		var pos := Vector3(cos(angle) * radius, height * 0.5, sin(angle) * radius)
+		var palette: Array = DISTRICT_PALETTES[int(angle / (PI * 0.5)) % 4]
+		var shade: Color = (palette[i % palette.size()] as Color).darkened(
+				0.3 + _skyline_roll(i, SKYLINE_SALT_SHADE) * 0.15)
+		_add_mm("skyline_tall" if tall else "skyline",
+				_box_xf(pos, Vector3(width, height, width)), shade)
 
 
 ## Streets: two slab families (5 mm apart at crossings to avoid z-fighting),
