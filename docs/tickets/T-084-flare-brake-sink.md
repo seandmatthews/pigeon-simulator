@@ -1,6 +1,6 @@
 # T-084 — Adopt T-041: pitch-up near the ground becomes a brake-sink, not a balloon
 
-- **Milestone:** Sweep 2 · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Milestone:** Sweep 2 · **Status:** superseded (T-022 already landed the pitch flare — machine-verified as `flare_sheds_speed_low`; audit 2026-09-30: stale) · **Category:** flight-control · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** — (adopts [T-041](T-041-flare-brake-sink.md) — mark it done/superseded when this lands; its T-022 lineage carries over. Re-based to today's tree: T-041's line numbers predate the T-036 merge)
 - **Refs:** `scripts/player.gd` `_apply_flight_forces` `:378-407` — velocity-align exchange `:400-403`, `max_speed` clamp `:404`, stall flag `:380`; T-041 cited `:348-377`/`:374` on the older tree, and its `min_control_authority` cite is now `:50` (clamp `:364`) · sweep-2 brake trace `.captures/session_flcs2s2-b/state.jsonl` (re-verified this session) · T-041's recorded flcs2-c trace (that capture no longer exists in either tree; numbers as recorded in the ticket) · untouched-tree baseline `.captures/sim_baseline_flcs2s2_tickets.txt` (81 SIM PASS / 0 FAIL / exit 0, this session, worktree @ ee84292)
 

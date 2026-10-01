@@ -37,12 +37,12 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-023 | [Edge-of-world guard: nudge the pigeon home past the apron](T-023-edge-of-world-guard.md) | flight-control | 3 | 3 | proposed |
 | T-024 | [Make the bird read at cruise: trim the FOV kick and arm](T-024-cruise-readability.md) | flight-control | 3 | 1 | superseded (T-044) |
 | T-025 | [Make the falling dropping trackable: bigger ball, soft emission](T-025-poop-ball-visibility.md) | visual-design | 3 | 1 | superseded (adopted by T-086) |
-| T-026 | [Re-value the ground planes: stop the sidewalk/plaza blowout, lift the road](T-026-ground-palette-retune.md) | visual-design | 4 | 2 | proposed |
+| T-026 | [Re-value the ground planes: stop the sidewalk/plaza blowout, lift the road](T-026-ground-palette-retune.md) | visual-design | 4 | 2 | done |
 | T-027 | [Fix the grounded read: thin the folded wing chord at the rig level](T-027-folded-wing-chord.md) | visual-design | 3 | 2 | superseded (T-048) |
 | T-029 | [Plaza landmark: statue on a plinth at the square's center](T-029-plaza-landmark.md) | worldbuilding | 3 | 2 | proposed |
 | T-030 | [Tree the parks (prototyped live: 4 MultiMesh trees per park block)](T-030-park-trees.md) | worldbuilding | 3 | 1 | proposed |
 | T-031 | [Cafe life under the awnings: tables with seated tourists on shop fronts](T-031-cafe-tables.md) | worldbuilding | 4 | 2 | done |
-| T-032 | [Give roofs a reason to exist: rooftop clutter and roof bread spots](T-032-roof-clutter.md) | worldbuilding | 4 | 2 | proposed |
+| T-032 | [Give roofs a reason to exist: rooftop clutter and roof bread spots](T-032-roof-clutter.md) | worldbuilding | 4 | 2 | done |
 | T-033 | [Same-seed restart skips the city rebuild](T-033-same-seed-restart-skip.md) | code-optimization | 4 | 2 | done |
 | T-034 | [Extract the duplicated spawner band/recycle machinery](T-034-spawner-band-extraction.md) | code-optimization | 3 | 3 | superseded (T-054) |
 | T-035 | [Stop the per-frame redundant presentation writes](T-035-redundant-presentation-writes.md) | code-optimization | 2 | 1 | superseded (T-055) |
@@ -82,7 +82,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-081 | [Make sub-glide flight fall: key the align cut on lift, not stall depth](T-081-lift-keyed-align-cut.md) | flight-control | 4 | 4 | proposed |
 | T-082 | [Give released pitch inputs a hands-off trim toward the velocity vector](T-082-released-pitch-trim.md) | flight-control | 4 | 3 | proposed |
 | T-083 | [Adopt T-062: bound pitch attitude with authority falloff near vertical](T-083-pitch-attitude-bound.md) | flight-control | 4 | 3 | proposed |
-| T-084 | [Adopt T-041: pitch-up near the ground becomes a brake-sink, not a balloon](T-084-flare-brake-sink.md) | flight-control | 4 | 3 | proposed |
+| T-084 | [Adopt T-041: pitch-up near the ground becomes a brake-sink, not a balloon](T-084-flare-brake-sink.md) | flight-control | 4 | 3 | superseded (T-022 landed the flare; audit 2026-09-30: stale) |
 | T-085 | [Adopt T-045's pale rump/underwing anchor — the player bird is a gray smudge on road and roof](T-085-pale-rump-anchor-adoption.md) | visual-design | 3 | 1 | proposed |
 | T-086 | [Adopt T-025's bigger emissive drop ball — A/B-proven live, minus a latent parse bug in the ticket](T-086-poop-ball-visibility-adoption.md) | visual-design | 4 | 1 | done |
 | T-087 | [Give the off-world return a visible "came home" beat — today it is a blank frame and a hard cut](T-087-off-world-return-beat.md) | visual-design | 3 | 2 | proposed |
