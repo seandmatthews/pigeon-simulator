@@ -260,12 +260,15 @@ func _snapshot() -> Dictionary:
 			"stalled": player.get("stalled"),
 		}
 		out["poops"] = _collect_poops(player)
+		out["off_world_resets"] = player.get("off_world_resets") ## (T-095) Guard-fire count in the state stream.
 	if hunger_node != null:
 		out["hunger"] = snappedf(hunger_node.get("value"), 0.01)
 	if game != null:
 		out["score"] = game.get("score")
 		out["streak"] = game.get("_streak")
-	out["tourists"] = _collect_children(_spawner("TouristSpawner"))
+	var buzz: Array = []
+	out["tourists"] = _collect_tourists(_spawner("TouristSpawner"), buzz)
+	out["buzz"] = buzz ## (T-095) Flinch counts — index i here is tourist i in "tourists", same pass.
 	out["cars"] = _collect_children(_spawner("CarSpawner"))
 	out["elders"] = _collect_children(_spawner("ElderSpawner"))
 	if player != null:
@@ -327,6 +330,20 @@ func _collect_children(spawner: Node) -> Array:
 	return list
 
 
+## Tourist positions plus each one's `buzz_count` (T-095) in a single pass over
+## the spawner's children: the `buzz` list the caller passes in stays
+## index-aligned with the returned positions list by construction.
+func _collect_tourists(spawner: Node, buzz: Array) -> Array:
+	var list: Array = []
+	if spawner == null:
+		return list
+	for child in spawner.get_children():
+		if child is Node3D:
+			list.append(_v(child.global_position))
+			buzz.append(int(child.get("buzz_count")))
+	return list
+
+
 func _collect_poops(player: Node) -> Array:
 	var list: Array = []
 	for child in player.get_children():
@@ -357,6 +374,10 @@ func _ensure_connections(player: Node) -> void:
 		_connect_once(player, "flapped", func(): _log_event("flap", {}))
 		_connect_once(player, "pooped", func(p): _log_event("poop", {"p": _v((p as Node3D).global_position)}))
 		_connect_once(player, "grounding_changed", func(g): _log_event("grounded" if g else "airborne", {}))
+		## (T-095) The guard's snap home, with the void position it fired from —
+		## the emit runs before `reset_flight`, so this reads the fall, not home.
+		_connect_once(player, "off_world_reset",
+				func(): _log_event("off_world_reset", {"p": _v((player as Node3D).global_position)}))
 	var hunger := get_tree().root.get_node_or_null("Game/Hunger")
 	if hunger != null:
 		_connect_once(hunger, "game_over", func(): _log_event("game_over", {}))

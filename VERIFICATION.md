@@ -129,7 +129,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | sfx_splat_yelp_panic_honk | a real lobbed splat plays the splat plus its tourist's yelp, the indignant shout joins the fist shake ~1.8 s later, and a duck-typed car hit blasts the horn | T-012 |
 | ambience_loops_under_game | main.tscn starts both ambience beds on the Ambience bus, start_ambience() is idempotent across restarts and the bed survives the scene teardown | T-012 |
 | density_cpu_budget | the real main scene at full density (18 tourists + 36 cars asserted) keeps the calibrated headless CPU budget — median wall-time of three 100-frame windows under --fixed-fps 60 | T-018 |
-| off_world_fall_returns_home | a fall below the off-world guard line (past any floor) fires the reset exactly once, snaps the pigeon home to the respawn corridor and lands it there within ~2 s, stays parked home with no second fire over the following ~2 s, and the hunger clock keeps draining straight through the reset | T-036 |
+| off_world_fall_returns_home | a fall below the off-world guard line (past any floor) fires the reset exactly once — counted twice since T-095, through the `off_world_resets` counter AND a local counter wired to the new `off_world_reset` signal, each exactly once across the whole window — snaps the pigeon home to the respawn corridor and lands it there within ~2 s, stays parked home with no second fire over the following ~2 s, and the hunger clock keeps draining straight through the reset | T-036, T-095 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -624,3 +624,18 @@ Playtest checklist (grows as tickets land):
   `.captures/t036_return_home.png`). A human pass over the T-036 Gate 3 lines
   (the return reads as "came home", not a teleport glitch [screenshot]; the
   hunger bar visibly keeps ticking through a return) is still pending.
+- Off-world return & buzz-flinch observability (T-095) is machine-verified:
+  `off_world_fall_returns_home` now counts the guard's new `off_world_reset`
+  signal beside the counter — exactly one of each across the whole window —
+  and the full suite stays green (93 scenarios, 0 failures), so the emit is
+  behavior-neutral. The pilot evidence path is live and flown: session
+  `t095out4` shows the `off_world_reset` events line with the void position
+  (`p=[16.0,-5.22,-756.45]`, 389 m past the apron edge) between the last
+  outbound state and the corridor `grounded`, with `off_world_resets` rising
+  0 → 1 exactly once in the state stream and hunger draining straight
+  through; session `t095buzz` shows the per-tourist `buzz` array flinch
+  counts landing on exactly the indices of the loose-group pair the pigeon
+  overflew at ~2.7 m and 12–17.6 m/s (evidence in `.captures/session_t095out4/`
+  and `.captures/session_t095buzz/`, tables in the ticket). The T-042/T-036
+  Gate 3 lines keep their pending human-pass status — this ticket gives them
+  the pilot-evidence path they were missing.

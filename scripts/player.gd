@@ -27,6 +27,11 @@ signal flapped
 ## autoplay pilot count drops through it; HUD/ammo readouts may later too.
 signal pooped(poop: Poop)
 
+## Emitted when the off-world guard snaps the pigeon home (T-095) — fired right
+## before `reset_flight(respawn_point)`, so a synchronous handler still reads
+## the void position. Pure pilot/sim evidence; nothing in-game listens.
+signal off_world_reset
+
 ## AIR covers flying *and* the skid after a hard touchdown; GROUND is the waddle.
 enum State { AIR, GROUND }
 
@@ -168,6 +173,7 @@ func _physics_process(delta: float) -> void:
 	## itself is off-world.
 	if global_position.y < off_world_y:
 		off_world_resets += 1
+		off_world_reset.emit() ## (T-095) Beside the increment, before the reset — handlers see the void position.
 		reset_flight(respawn_point)
 	_flap_timer = maxf(_flap_timer - delta, 0.0)
 	_poop_timer = maxf(_poop_timer - delta, 0.0)
