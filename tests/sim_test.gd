@@ -136,6 +136,7 @@ func _run_scenarios() -> void:
 	await _scenario_restart_same_seed_skips_rebuild()
 	await _scenario_hud_bread_pointer_tracks_nearest_crumb() ## T-037 — T-019 window: unpaused tree, no live Main.
 	await _scenario_hud_hunger_tiers() ## T-019 — must follow the restart scenarios: unpaused tree, no live Main.
+	await _scenario_combo_strip_reports_last_hit() ## T-040 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_elder_placement_no_rng()
 	await _scenario_elder_shares_bread_after_hangout()
 	await _scenario_elder_no_bread_airborne()
@@ -3482,6 +3483,107 @@ func _scenario_hud_hunger_tiers() -> void:
 					pulse2, tier2_lo, tier2_hi, tier2_crossings,
 					pulse3, tier3_lo, tier3_hi, tier3_crossings,
 					faster, refill_rest, restart_rest])
+
+
+## --- scenario (T-040 HUD combo strip & hit marker) ---------------------------
+
+
+## Finds a live hit_marker.tscn burst parented to `body` via the shared
+## `juice_effects` group — the same group scan _count_effects uses, plus the
+## parenting half of the assert.
+func _find_hit_marker_on(body: Node) -> OneShotBurst:
+	for node in get_tree().get_nodes_in_group("juice_effects"):
+		if node is OneShotBurst and node.scene_file_path.ends_with("hit_marker.tscn") \
+				and node.get_parent() == body:
+			return node
+	return null
+
+
+## T-040: the HUD combo strip and the hit-marker burst through the REAL main
+## scene. Registered in the T-019 window — immediately after
+## _scenario_hud_hunger_tiers, which frees its instance: unpaused tree, no live
+## Main — with the same cleanup tail (free() → Game.hunger.player = null →
+## Game.reset_run()). The splat relays are EMITTED, not simulated: real
+## tourists/cars picked off the spawners, tourist_splatted / car_splatted
+## emitted straight, so the full handler → Game → hit_scored chain runs with no
+## physics. Assertions: the strip sits under the pointer block with the T-019
+## outline treatment and starts empty; a tourist splat reads "Tourist +100",
+## the chained second one "Tourist +200 ×2", and a car splat after a landing
+## replaces it with "Car +30"; every hit spawns a hit_marker.tscn burst ON the
+## hit body (parent + position asserted, found via the group like
+## juice_splat_burst_fires) that cleans itself up; the strip clears itself
+## after combo_strip_seconds of game time and stays cleared; one more hit then
+## restart_run() proves the restart clear mid-display (_scenario_restart_resets
+## itself stays untouched).
+func _scenario_combo_strip_reports_last_hit() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(-3500.0, 0.0, 3500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var strip: Label = main_game.combo_strip
+	## Park the pigeon high so its spawn drop (and the combo-ending landing it
+	## fires) cannot land inside the chain legs below — every combo state here
+	## is set explicitly, never by the pigeon's own touchdown.
+	main_game.player.reset_flight(main_game.city.to_local(
+			main_game.city.spawn_point) + Vector3(0.0, 40.0, 0.0))
+	## Under the pointer block, the T-019 outline treatment, empty at rest.
+	var style_ok: bool = \
+			strip.get_theme_color("font_outline_color").is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
+			and strip.get_theme_constant("outline_size") == 4 \
+			and strip.get_theme_font_size("font_size") == 14 \
+			and strip.get_theme_color("font_color").is_equal_approx(Color(1.0, 1.0, 1.0, 0.75))
+	var placed_ok: bool = strip.offset_top >= main_game.bread_pointer.offset_bottom
+	var empty_at_rest: bool = strip.text == ""
+	var tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
+	var cars: Array[Car] = main_game.car_spawner.living_cars()
+	var spread_ok: bool = tourists.size() >= 2 and not cars.is_empty()
+	var before := _count_effects("hit_marker.tscn")
+	## Leg 1 — first tourist hit: kind + points, no multiplier yet, marker on
+	## the hit body at the hit point.
+	main_game.tourist_spawner.tourist_splatted.emit(tourists[0])
+	var text_a := strip.text
+	var marker_a: OneShotBurst = _find_hit_marker_on(tourists[0])
+	var at_hit: bool = marker_a != null and marker_a.global_position \
+			.distance_to(tourists[0].global_position) < 0.1
+	## Leg 2 — the chained second tourist: the ×N suffix replaces the line.
+	main_game.tourist_spawner.tourist_splatted.emit(tourists[1])
+	var text_b := strip.text
+	## Leg 3 — a landing ends the chain; the car hit replaces the line at ×1.
+	Game.on_grounding_changed(true)
+	main_game.car_spawner.car_splatted.emit(cars[0])
+	var text_c := strip.text
+	var marker_c: OneShotBurst = _find_hit_marker_on(cars[0])
+	var texts_ok: bool = text_a == "Tourist +100" and text_b == "Tourist +200 ×2" \
+			and text_c == "Car +30"
+	var markers_ok: bool = marker_a != null and marker_c != null and at_hit \
+			and _count_effects("hit_marker.tscn") == before + 3
+	## Game-time expiry: ~3.1 s at the fixed 60 Hz pace clears the strip and it
+	## stays cleared; the bursts have burnt out by then too (0.35 s + margin).
+	await _wait_frames(187)
+	var expired: bool = strip.text == ""
+	await _wait_frames(30)
+	var stays_cleared: bool = strip.text == ""
+	var cleaned: bool = _count_effects("hit_marker.tscn") == before
+	## One more hit (chain ended first, so plain ×1 again), then the restart
+	## clear mid-display.
+	Game.on_grounding_changed(true)
+	main_game.car_spawner.car_splatted.emit(cars[0])
+	var refilled := strip.text == "Car +30"
+	main_game.restart_run()
+	var restart_cleared := strip.text == ""
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("combo_strip_reports_last_hit",
+			spread_ok and style_ok and placed_ok and empty_at_rest and texts_ok
+					and markers_ok and expired and stays_cleared and cleaned
+					and refilled and restart_cleared,
+			"spread=%s style=%s placed=%s empty=%s texts=%s ('%s' → '%s' → '%s') markers=%s at_hit=%s expired=%s stays=%s cleaned=%s refilled=%s restart=%s" % [
+					spread_ok, style_ok, placed_ok, empty_at_rest, texts_ok,
+					text_a, text_b, text_c, markers_ok, at_hit, expired,
+					stays_cleared, cleaned, refilled, restart_cleared])
 
 
 ## --- scenarios (T-011 pigeon presentation) ----------------------------------
