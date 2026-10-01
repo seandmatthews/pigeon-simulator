@@ -16,7 +16,7 @@ answer "what are we building right now, and in what order."
 | M1 — vertical slice | One stretch of city where the whole loop works and feels good | T-001..T-020 done, gates green | done 2026-09-29 |
 | Sweep — readability, feel, perf (waves W1–W8) | Make the slice legible and pleasant: the bird readable against the city, every scored moment visible, flight well-behaved at its edges, boot scene affordable | Every W1–W8 ticket merged or flagged; backlog re-audited against the new tree | in progress — W4 of W8 |
 | W9 overflow | T-081 (gated on a T-082 rewrite) and T-039 | — | not authorized — plan stops after W8 |
-| M2 — the town's pigeon | Goal layer: befriend the locals, drive off the rowdy visitors (DESIGN.md → Milestone 2) | Open forks decided; M2 tickets forged and run | proposed 2026-10-01 — not yet ticketed |
+| M2 — the town's pigeon | Goal layer: befriend the locals, drive off the rowdy visitors (DESIGN.md → Milestone 2) | Open forks decided; M2 tickets forged and run | proposed 2026-10-01, deferred by user steer — mayhem-first for now |
 
 ## Wave schedule (sweep phase)
 

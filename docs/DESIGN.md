@@ -107,6 +107,10 @@ title/pause/game-over flow. Placeholder art is acceptable; sound optional but ni
 Direction from the 2026-10-01 design session. The open forks at the end are the
 user's to settle before anything is ticketed; leans are recorded, not decided.
 
+**User steer, same day:** mayhem stays the mode for now — causing chaos is the
+fun, and "defend the city" is the *eventual* shape, not a schedule. Nothing in
+this section is on any runway until the user says go.
+
 **Pitch extension:** the town is yours. The locals know you and feed you; the
 visiting fans don't, and get what's coming. Be a good bird to your town.
 
