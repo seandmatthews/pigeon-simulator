@@ -32,12 +32,18 @@ const TIER_PULSE_HZ: Array[float] = [0.0, 0.0, 3.0, 6.0] ## Flash rate per tier 
 const TIER_PULSE_TO := Color(1.0, 0.85, 0.8) ## The bright end both pulsing tiers breathe toward.
 const POOP_READY_DIM_ALPHA := 0.25 ## (T-077) The F glyph's alpha while the poop cooldown runs — dim, but readable.
 const POINTER_CLIMB_CUE_M := 3.0 ## (T-098) Vertical delta beyond which the bread readout carries the ▲/▼ climb cue.
+const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds the "home again" note stays up.
 
 @export_group("Juice") ## T-013
 @export var hit_shake: float = 0.3 ## Camera-shake fraction per scored splat — your hits land with a tick.
 @export var pulse_base_scale: float = 1.14 ## HUD pulse size at a ×2 escalation, growing per extra combo step.
 @export var pulse_seconds: float = 0.3 ## Seconds the HUD pulse takes to settle back.
 @export var combo_strip_seconds: float = 2.5 ## (T-040) Seconds the HUD combo strip keeps showing the last hit — game time, so it freezes with a paused or ended run.
+
+@export_group("Off-world return") ## T-087: the guard's presentation beat — feathers at the departure point, a warm fade over the cut, the camera snapped home, the note.
+@export var return_fade_peak: float = 0.65 ## Peak alpha of the warm full-screen fade that covers the guard's hard cut (taste value — Gate 3).
+@export var return_fade_seconds: float = 0.6 ## Total game-time seconds the fade takes to rise to its peak and fall back to transparent.
+@export var return_fade_color: Color = Color(1.0, 0.85, 0.6, 1.0) ## Warm tone of the fade — "came home", not danger.
 
 @onready var stats_label: Label = %StatsLabel
 @onready var hint_label: Label = %HintLabel
@@ -52,6 +58,13 @@ const POINTER_CLIMB_CUE_M := 3.0 ## (T-098) Vertical delta beyond which the brea
 ## Hides with the label (it is its child).
 @onready var bread_pointer_chevron: Polygon2D = bread_pointer.get_node("Chevron")
 @onready var hunger_bar: ProgressBar = %HungerBar
+## The "home again" note (T-087, folded from T-100) — sits under the combo
+## strip in the left column, shown by the return beat, self-hiding.
+@onready var home_note: Label = %HomeNote
+## The warm full-screen fade (T-087) that covers the guard's hard cut. Its
+## alpha is driven by `_process` from `return_fade_peak`/`return_fade_seconds`;
+## the scene only carries the at-rest transparent warm tone.
+@onready var return_fade: ColorRect = %ReturnFade
 @onready var pause_menu: PauseMenu = $PauseMenu
 @onready var game_over_screen: GameOverScreen = $GameOverScreen
 @onready var player: Player = $Player
@@ -71,6 +84,8 @@ var _hunger_percent_shown: int = -1
 var _pulse_phase: float = 0.0 ## Game-time phase of the tier flash — advanced only while a tier pulses.
 var _last_hit_kind: String = "" ## (T-040) "Tourist"/"Car", stashed by the splat handlers — hit_scored carries points but not the target kind.
 var _combo_strip_left: float = 0.0 ## (T-040) Game-time seconds left before the strip clears; 0 = at rest, empty.
+var _return_fade_phase: float = -1.0 ## (T-087) <0 idle; 0..return_fade_seconds while the return fade runs — game time, like the tier pulse.
+var _home_note_phase: float = 0.0 ## (T-087, folded from T-100) Game-time seconds the note has shown; advanced only while visible.
 
 
 func _ready() -> void:
@@ -78,6 +93,7 @@ func _ready() -> void:
 	player.grounding_changed.connect(_on_grounding_changed)
 	player.grounding_changed.connect(Game.on_grounding_changed) ## Landing ends the combo.
 	player.pooped.connect(_on_player_pooped) ## Release conditions feed the style bonus.
+	player.off_world_reset.connect(_on_off_world_reset) ## (T-087) The guard's return beat: poof, fade, camera snap, note.
 	bread_spawner.crumb_eaten.connect(Game.hunger.eat)
 	bread_spawner.crumb_eaten.connect(player.peck) ## Every swallowed crumb plays the eat peck (T-011).
 	tourist_spawner.tourist_splatted.connect(_on_tourist_splatted)
@@ -133,6 +149,20 @@ func _process(delta: float) -> void:
 		if _combo_strip_left <= 0.0:
 			_combo_strip_left = 0.0
 			combo_strip.text = ""
+	if _return_fade_phase >= 0.0: ## (T-087) The return fade runs in game time like the tier pulse —
+		_return_fade_phase += delta ## deterministic under --fixed-fps, frozen with a paused world.
+		if _return_fade_phase >= return_fade_seconds:
+			_return_fade_phase = -1.0
+			return_fade.color.a = 0.0
+		else:
+			var half := return_fade_seconds * 0.5
+			var rise := _return_fade_phase / half
+			return_fade.color.a = return_fade_peak * minf(rise, 2.0 - rise) ## Rise over the first half, fall over the rest.
+	if home_note.visible: ## (T-087, folded from T-100) The note expires in game time like the combo strip.
+		_home_note_phase += delta
+		if _home_note_phase >= HOME_NOTE_SECONDS:
+			home_note.visible = false
+			_home_note_phase = 0.0
 
 
 ## The HUD pulse (T-013): a combo escalation bumps the score line up a size —
@@ -276,6 +306,31 @@ func _on_player_pooped(poop: Poop) -> void:
 	Game.on_poop_released(poop.global_position, poop.linear_velocity)
 
 
+## The return beat (T-087): Main's half of the off-world guard's presentation,
+## fired synchronously from the guard while `from` is still the void position
+## (the emit precedes reset_flight). Feathers poof at the departure point — the
+## same OneShotBurst the flap uses, self-cleaning via the juice_effects group —
+## the chase camera snaps onto its corridor follow target so the next frame
+## dampens in place instead of lerping ~755 m across the world, the warm HUD
+## fade starts rising to cover the cut, and the "home again" note shows (the
+## T-100 consolidation). The snap is deferred because the emit fires BEFORE
+## reset_flight: called synchronously it would read the void position and
+## re-create the very cross-world chase it exists to kill — deferred, it runs
+## after the same frame's reset and lands on the corridor target. Still no
+## sound, no popup: the guard's quiet contract keeps its audio silence — this
+## is only the visual beat.
+func _on_off_world_reset(from: Vector3) -> void:
+	var poof: OneShotBurst = player.feather_scene.instantiate()
+	add_child(poof)
+	poof.global_transform = Transform3D(Basis.IDENTITY, from)
+	player.chase_camera.call_deferred("snap_home") ## (T-087) After this frame's reset_flight — see above.
+	return_fade.color = Color(return_fade_color.r, return_fade_color.g,
+			return_fade_color.b, 0.0)
+	_return_fade_phase = 0.0
+	home_note.visible = true
+	_home_note_phase = 0.0
+
+
 ## Tourist splats feed the Game autoload's table (100 base, DESIGN); the popup
 ## spawns from the hit_scored event. (T-040) hit_scored carries points but not
 ## the target kind, so the kind word for the HUD combo strip is stashed here —
@@ -350,6 +405,10 @@ func restart_run() -> void:
 		poop.queue_free()
 	combo_strip.text = "" ## (T-040) A fresh run starts with no last hit on the strip.
 	_combo_strip_left = 0.0
+	_return_fade_phase = -1.0 ## (T-087) A fresh run never inherits a mid fade or a stale note.
+	return_fade.color.a = 0.0
+	home_note.visible = false
+	_home_note_phase = 0.0
 	city.generate(city.seed_value)
 	player.reset_flight(city.to_local(city.spawn_point))
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)

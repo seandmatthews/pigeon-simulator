@@ -86,6 +86,19 @@ func add_shake(amount: float) -> void:
 	_trauma = minf(_trauma + amount, 1.0)
 
 
+## (T-087) Teleports the rig onto the follow target it already chases and zeros
+## the lens shake — Main calls this from the off-world guard's return beat, so
+## the next `_physics_process` dampens in place from the respawn corridor
+## instead of exponentially lerping hundreds of metres across the world (the
+## blank chase frames the beat exists to cover). Yaw/pitch stay damped: they
+## catch up in a few frames from wherever the pigeon now faces.
+func snap_home() -> void:
+	global_position = _player.global_position + Vector3.UP * _pivot_height
+	_camera.h_offset = 0.0
+	_camera.v_offset = 0.0
+	_camera.rotation.z = 0.0
+
+
 func _physics_process(delta: float) -> void:
 	var grounded := _player.is_on_floor()
 	var fwd := -_player.transform.basis.z

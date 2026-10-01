@@ -133,6 +133,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | ambience_loops_under_game | main.tscn starts both ambience beds on the Ambience bus, start_ambience() is idempotent across restarts and the bed survives the scene teardown | T-012 |
 | density_cpu_budget | the real main scene at full density (18 tourists + 36 cars asserted) keeps the calibrated headless CPU budget — median wall-time of three 100-frame windows under --fixed-fps 60 | T-018 |
 | off_world_fall_returns_home | a fall below the off-world guard line (past any floor) fires the reset exactly once — counted twice since T-095, through the `off_world_resets` counter AND a local counter wired to the new `off_world_reset` signal, each exactly once across the whole window — snaps the pigeon home to the respawn corridor and lands it there within ~2 s, stays parked home with no second fire over the following ~2 s, and the hunger clock keeps draining straight through the reset | T-036, T-095 |
+| off_world_return_beat | the PRESENTED return through the real main scene (instanced-Main pattern, own space): the guard fires exactly once — counter AND signal, the signal's `from` equal to the void departure position — and Main answers with the full beat: a `juice_effects` feather poof at `from` on the reset frame, the warm HUD fade up right after the reset and fully gone (≤ 0.01) within ~1 s of game time, the chase camera within ~1.5 m of pigeon + UP × 1.4 on the first frame after the reset (the snap, not a lerp), the "home again — mind the edge" note shown then self-expired, grounded on the respawn corridor within ~2 s, no second fire across a further ~2 s, Game.hunger drained > 0.2 across the window; a second fire re-runs the beat and restart_run() mid-note clears note and fade unpaused | T-087 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -330,8 +331,10 @@ Playtest checklist (grows as tickets land):
 - [x] (T-030) Parks read as parks from the air — a grove of four crowns against the lawn, not a vacant lot — and the crowns never visually collide with benches or lamps (agent grabs: same-camera before/after pairs `.captures/t030_park_grove_z64_{before,after}.png` and `.captures/t030_park_grove_corner_{before,after}.png`; author A/B: `wb3b` vs `wb4-trees` frames; reviewer sign-off 2026-10-01) [screenshot]
 - [ ] (T-031) Awninged fronts read as cafes at eye level — table and seated people under the awning, not a bare door slab [screenshot]
 - [ ] (T-031) Low street-level flight past cafe tables doesn't snag, and tables don't crowd the tourist path
-- [ ] (T-042) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home") — not a teleport glitch [screenshot]
-- [ ] (T-042) The hunger bar keeps ticking down across an off-world return — the clock never paused (compare the bar just before flying out and just after landing home)
+- [x] (T-042) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home") — not a teleport glitch (retired by T-087's reviewer sign-off 2026-10-01: the pass judged the return WITH the presentation beat live) [screenshot]
+- [x] (T-042) The hunger bar keeps ticking down across an off-world return — the clock never paused (retired by T-087's reviewer sign-off 2026-10-01; the machine half is `off_world_return_beat`'s drain leg) [screenshot]
+- [x] (T-087) Flying hard past the apron now reads as "came home" — a warm fade covers the cut, feathers mark the departure point, and the lens is already home when the fade lifts (reviewer sign-off 2026-10-01; retires T-042's pending teleport-glitch line, jointly with T-036's) [screenshot]
+- [x] (T-087) Across a presented return the hunger bar visibly keeps ticking down (reviewer sign-off 2026-10-01; retires the human half of T-042's drain line — the machine half is `off_world_return_beat`'s drain leg) [screenshot]
 - [ ] (T-032) From cruise height the roofs read as inhabited — AC boxes, water tanks and vents break the gray roof planes, and a rooftop crumb is spottable from a cruise glide [screenshot]
 - [ ] (T-032) Landing on a roof near a crumb and waddling to it works like the pavement version; the props read as useful cover, not obstacles
 - [ ] (T-085) In flight at cruise and in a dive, the bird reads at a glance against road AND roof at ~20 m — one bright anchor (rump/underwing) visible from the chase angle [screenshot]
@@ -513,9 +516,9 @@ Playtest checklist (grows as tickets land):
   throughout, and the hunger clock draining straight through the reset; every
   pre-existing flight/landing/density scenario re-run green, so the −5 line is
   never approached in ordinary play) and live in the autoplay run (the pilot's
-  off-world excursions now self-heal). A human pass over the two T-042 lines
-  (the return reads as "came home", not a teleport glitch; the hunger bar never
-  pauses across a return) is still pending.
+  off-world excursions now self-heal). Its two human lines were retired by
+  T-087's reviewer sign-off 2026-10-01 — the pass judged the return as "came
+  home", hunger ticking, WITH the presentation beat live.
 - Rooftop clutter (T-032) is machine-verified (Gate 1b `city_roofs_inhabited` —
   1-3 props per building ≥ 1.0 m inside every roof edge and ≥ 2.5 m off the
   footprint center, one layer-1 collider each, exactly one roof crumb per
@@ -646,3 +649,23 @@ Playtest checklist (grows as tickets land):
   and `.captures/session_t095buzz/`, tables in the ticket). The T-042/T-036
   Gate 3 lines keep their pending human-pass status — this ticket gives them
   the pilot-evidence path they were missing.
+- Off-world return beat (T-087, absorbing T-100) is machine-verified (Gate 1b
+  `off_world_return_beat` — through the real main scene the guard fires exactly
+  once with `from` = the void departure position, a feather poof marks `from`,
+  the warm HUD fade covers the cut and is fully out within ~1 s of game time,
+  the camera is snapped home on the first frame after the reset, the "home
+  again" note shows and self-expires, the pigeon grounds within ~2 s with no
+  second fire over ~2 more, and Game.hunger drains > 0.2 through the window;
+  the bare-harness guard scenarios stay untouched and green, proving the emit
+  alone is a no-op). The T-095 pilot evidence path survives the signal's new
+  `from` argument: the recorder's listener accepts it (a 0-arg callable is
+  never called by a 1-arg signal in Godot 4.7 — it printed an engine ERROR per
+  fire and logged nothing, caught in review round 1), and session `t087rv1b`
+  re-flew the excursion past the apron — dive from ~1194 m out, events line
+  `{"ev":"off_world_reset","p":[16.0,-5.48,-1194.33],"t_ms":146436}` between
+  the last outbound state and the corridor `grounded`, `off_world_resets`
+  stepping 0 → 1 exactly once across the stream, zero ERROR lines in the
+  session's godot.log. Its two Gate 3 screenshot lines passed human review
+  (reviewer sign-off 2026-10-01) — the return reads as "came home" with the
+  fade, feathers and pre-snapped lens, and the hunger bar visibly keeps
+  ticking — retiring T-042's pending teleport-glitch line.
