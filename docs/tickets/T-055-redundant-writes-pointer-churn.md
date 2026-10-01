@@ -1,6 +1,6 @@
 # T-055 — Stop the per-frame redundant presentation writes and the HUD pointer's per-frame array churn
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 2 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** code-optimization · **Value (1-5):** 2 · **Risk (1-5):** 1
 - **Depends on:** — (T-007 and T-019, whose surfaces it touches, are landed) · implements **T-035** plus one extension the ticket missed
 - **Refs:** `docs/tickets/T-018-performance-budget.md` → Calibration (the honest scale: headroom, not a bottleneck) · sweep 2 planning lane · line numbers on commit b76ec96, this tree
 
@@ -65,24 +65,52 @@ together with the first machine proof of the flush.
 
 ## Acceptance criteria
 
-- [ ] Extended `tourist_splat_panics_scores` proves the flush: the tourist's shirt
+- [x] Extended `tourist_splat_panics_scores` proves the flush: the tourist's shirt
       material albedo equals `shirt_color` while calm and equals
       `Tourist.PANIC_TINT` mid-panic (exact — the tint is a binary write), read via
       the established `material_override as StandardMaterial3D` pattern
-- [ ] `nearest_crumb()` stays behavior-identical:
+- [x] `nearest_crumb()` stays behavior-identical:
       `hud_bread_pointer_tracks_nearest_crumb` stays green unchanged — its
       independent-scan contract (`spawner.nearest_crumb(at)` matches a scan over
       `living_crumbs()`, `sim_test.gd:2197-2198`) and the empty-spawner null arm
       (`sim_test.gd:2265-2266`) both still hold
-- [ ] HUD string content unchanged: `hit_shake_and_score_pulse` still sees
+- [x] HUD string content unchanged: `hit_shake_and_score_pulse` still sees
       "×2 combo" in `stats_label.text` (`sim_test.gd:2642-2652`) and the
       pulse/settle behavior is untouched
-- [ ] `hud_hunger_warning_tiers` and `density_cpu_budget` stay green (the tier pulse
+- [x] `hud_hunger_warning_tiers` and `density_cpu_budget` stay green (the tier pulse
       is driven by the same `_process`, and the budget re-proves no CPU regression)
-- [ ] The panic flush still reads on screen exactly as before — [screenshot] Gate 3
+- [x] The panic flush still reads on screen exactly as before — [screenshot] Gate 3
       spot-check during the T-007 panic playtest line (arms-up sprint with the red
       flush, then back to the palette shirt)
-- [ ] No new @export tunables, no input actions, no scene changes
+- [x] No new @export tunables, no input actions, no scene changes
+
+## Landed (implementation note, 2026-10-01)
+
+All three edits shipped as specified: `_tint_panic` guard in `tourist.gd:_animate`,
+`_stats_cache` change-only write in `Main._process`, in-place `nearest_crumb` scan in
+`bread_spawner.gd`. Gate 1 green (import + 120-frame boot, exit 0; only the documented
+benign `33 resources still in use` import line). Gate 1b full suite green — 91/91
+`SIM PASS`, exit 0 — including every explicitly-named re-run: `tourist_buzz_flinch`,
+`sfx_splat_yelp_panic_honk`, `hud_bread_pointer_tracks_nearest_crumb`,
+`hud_hunger_warning_tiers`, `hit_shake_and_score_pulse`, `density_cpu_budget`
+(median 302.6 ms per 100 physics frames vs the 750 budget). Gate 2 autoplay green
+(`AUTOPLAY DONE ok=true restart=true`, no SCRIPT ERROR). Negative control: with the
+calm arm deliberately pointed at `PANIC_TINT` the scenario FAILs
+(`calm=false flush=true ((0.92, 0.22, 0.18, 1.0))` — the flush sample is exactly
+PANIC_TINT), so neither new arm is vacuous.
+
+**Tuned values:** none — the ticket adds no @export and touches no tunable; every
+value involved is an unchanged constant (`Tourist.PANIC_TINT` (0.92, 0.22, 0.18),
+the palette `shirt_color`s, the stats format string), which is exactly what the
+new flush assertion pins.
+
+**Criterion 5 close-out:** the tint's on-screen read is accepted by reviewer
+sign-off (2026-10-01) on the machine-proven value contract — the flush is a
+binary write of exactly the same two colors as before (calm `shirt_color`,
+panic `PANIC_TINT`, asserted both ways by `tourist_splat_panics_scores`), so the
+pixels can only read as before. The broader T-007 panic playtest line
+(arms-up sprint readability) stays open in VERIFICATION.md as its own human
+pass, unchanged by this ticket.
 
 ## Verification
 

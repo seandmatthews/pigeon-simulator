@@ -64,6 +64,7 @@ var _shouted: bool = true ## True except mid-panic — the shout fires once per 
 var _flinch_left: float = 0.0
 var _buzz_cd: float = 0.0
 var _arm_raise: float = 0.0 ## 0 = arms down, 1 = arms up; doubles as the panic tint intensity.
+var _tint_panic: bool = false ## (T-055) Panic state the shirt material last showed — false matches _ready's initial shirt_color write, so the flush is written only on a change, not every tick.
 var _phase: float = 0.0
 
 @onready var _visual: Node3D = $Visual
@@ -212,5 +213,10 @@ func _animate(delta: float) -> void:
 	var duck := flinch_squash if mood == Mood.FLINCH else 1.0
 	_visual.scale.y = lerpf(_visual.scale.y, duck, 1.0 - exp(-18.0 * delta))
 	var mat := _body_mesh.material_override as StandardMaterial3D
-	if mat != null:
+	## (T-055) The tint is a hard binary — calm is always shirt_color, panic
+	## always PANIC_TINT — so it is written only when the state flips, not on
+	## every physics tick. The bob/arm/lean/scale writes above stay per-frame:
+	## they change continuously by design.
+	if mat != null and panicking != _tint_panic:
 		mat.albedo_color = PANIC_TINT if panicking else shirt_color
+		_tint_panic = panicking
