@@ -3232,6 +3232,25 @@ func _wrap180(deg: float) -> float:
 	return fposmod(deg + 180.0, 360.0) - 180.0
 
 
+## T-057: the chevron's drawn direction as a screen-space unit vector from its
+## rotation_degrees θ — (sin θ, −cos θ): canvas rotation is clockwise-positive
+## with y down, and the chevron mesh points screen-up at θ = 0. Dotted with the
+## NORMALIZED screen delta from the pigeon's projected position to the target's
+## projected position (both through the live camera), a positive value means
+## the chevron points into the target's screen half-plane — an expectation that
+## shares no formula with the implementation (no atan2 over the
+## implementation's own delta, no signed_angle_to). Returns −2.0 for a
+## degenerate delta (no honest direction to point at), which reads as a fail.
+func _chevron_screen_dot(chevron: Polygon2D, camera: Camera3D,
+		pigeon: Node3D, target: Vector3) -> float:
+	var d := camera.unproject_position(target) \
+			- camera.unproject_position(pigeon.global_position)
+	if d.length_squared() < 1.0:
+		return -2.0
+	var theta := deg_to_rad(chevron.rotation_degrees)
+	return Vector2(sin(theta), -cos(theta)).dot(d.normalized())
+
+
 ## T-037: the HUD bread pointer through the REAL main scene. Registered in the
 ## T-019 window — immediately after _scenario_restart_resets, before
 ## _scenario_hud_hunger_tiers: the only spot with an unpaused tree and no live
@@ -3239,16 +3258,30 @@ func _wrap180(deg: float) -> float:
 ## Game.hunger.player = null → Game.reset_run()) handing the window back.
 ## Assertions: nearest_crumb() matches an independent scan over living_crumbs()
 ## (and returns null when none is alive); bread mode names the nearest crumb
-## within 1 m and carries the bearing from the nose (flipping ~180° when the
-## yaw flips at the same spot); the readout decreases on approach; eating the
-## pointed-at crumb through the real grounded waddle-in re-aims at the
-## next-nearest; beyond half the city span the same slot names "city" with the
-## horizontal distance to city.spawn_point (± 2 m), chevron pointing back; the
-## label carries the T-019 outline treatment. Since T-098 the readout also
-## carries the climb cue, scan-decided like every arm: " ▲" with a hand-placed
-## crumb ~10 m over a grounded pigeon, " ▼" from ~10 m above a street crumb,
-## no arrow within the ±3 m band, and city mode never arrowed
-## (_pointer_distance_m accepts both shapes).
+## within 1 m and — since T-057, the chevron carries the target's ON-SCREEN
+## direction — the chevron's drawn direction (sin θ, −cos θ) from
+## rotation_degrees θ has a positive dot with the normalized
+## unproject_position(target) − unproject_position(pigeon) delta through the
+## live camera: an independent half-plane check sharing no formula with the
+## implementation (no atan2 over the implementation's delta, no
+## signed_angle_to), sampled at the reset_flight hover at two opposing yaws —
+## the flip arm 2 frames in, while the damped chase camera has barely swung
+## and the crumb still rides the stale camera's forward hemisphere. The
+## behind-camera arm proves the guard: once the converged flip camera has
+## swung the crumb behind the lens, the chevron holds its last honest rotation
+## unchanged (never a mirrored rewrite, never a NaN); a synthetic degenerate
+## target unprojecting onto the pigeon's own anchor pixel holds it too. The
+## readout decreases on approach; eating the pointed-at crumb through the real
+## grounded waddle-in re-aims at the next-nearest; beyond half the city span
+## the same slot names "city" with the horizontal distance to
+## city.spawn_point (± 2 m) and the same half-plane chevron check (teleport
+## yaw 90 so home sits dead ahead — at the old abeam teleport home rode the
+## screen edge, where the on-screen read is unreliable); the label carries the
+## T-019 outline treatment. Since T-098 the readout also carries the climb
+## cue, scan-decided like every arm: " ▲" with a hand-placed crumb ~10 m over
+## a grounded pigeon, " ▼" from ~10 m above a street crumb, no arrow within
+## the ±3 m band, and city mode never arrowed (_pointer_distance_m accepts
+## both shapes).
 func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
@@ -3275,30 +3308,112 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 			best = d
 			target = crumb
 	var spread_ok: bool = target != null
-	## --- bread mode: the query, the distance, the bearing ---------------------
+	## --- bread mode: the query, the distance, the on-screen chevron -----------
 	## Hover south-east of the crumb (never dead above: a target straight below
-	## zeroes the flat bearing — Main keeps the last chevron rotation there).
+	## would sit degenerate on screen). (T-057) The chase camera damps
+	## (position_rate 12/s), and mid-transit the pigeon itself can sit behind
+	## the lens — so the camera is converged onto the reset_flight hover first
+	## (re-pinning reset_flight every 5 frames, so the pigeon never falls away
+	## from the teleported pose) and only then is the chevron judged: its drawn
+	## direction must have a positive dot with the on-screen delta from the
+	## pigeon's projection to the crumb's projection — the independent
+	## half-plane check, no formula shared with the implementation.
 	var hover := city.to_local(target.global_position + Vector3(0.0, 8.0, 6.0))
 	pigeon.reset_flight(hover, 0.0)
-	await _wait_frames(2)
+	for _i in 9:
+		pigeon.reset_flight(hover, 0.0)
+		await _wait_frames(5)
 	var at := pigeon.global_position
 	var want: BreadCrumb = _scan_nearest_crumb(spawner, at)
 	var query_ok: bool = spawner.nearest_crumb(at) == want and want == target
 	var d_true := at.distance_to(target.global_position)
 	var shown := _pointer_distance_m(pointer.text)
 	var dist_ok: bool = pointer.visible and shown >= 0.0 and absf(shown - d_true) <= 1.0
-	var heading := -pigeon.transform.basis.z
-	heading.y = 0.0
-	var to_crumb := target.global_position - at
-	to_crumb.y = 0.0
-	var want_rot := _wrap180(-rad_to_deg(heading.signed_angle_to(to_crumb, Vector3.UP)))
+	var camera := get_viewport().get_camera_3d()
 	var rot_a := _wrap180(chevron.rotation_degrees)
-	var bearing_ok: bool = absf(rot_a - want_rot) <= 2.0
+	var dot_a := -2.0
+	if camera != null:
+		dot_a = _chevron_screen_dot(chevron, camera, pigeon, target.global_position)
+	var bearing_ok: bool = dot_a > 0.0
 	## --- the 180° flip: same spot, nose the other way --------------------------
+	## (T-057) Sampled 2 frames after the flip, while the damped chase camera
+	## (yaw_rate_air 4.5/s) has barely swung: the camera follows the pigeon's
+	## position, not its new heading, so the crumb still rides the stale
+	## camera's forward hemisphere and both projections stay honest. The old
+	## angle-vs-angle compare died exactly here (the honest chevron barely
+	## rotates across a 180° reset); the half-plane form is camera-yaw-
+	## independent and still kills every 180°-off bug — the nose-relative
+	## chevron now points ~opposite the crumb's screen direction, a negative
+	## dot.
 	pigeon.reset_flight(hover, 180.0)
 	await _wait_frames(2)
 	var rot_b := _wrap180(chevron.rotation_degrees)
-	var flip_ok: bool = absf(_wrap180(rot_a - rot_b)) > 150.0
+	var dot_b := -2.0
+	var flip_ok: bool = false
+	if camera != null and not camera.is_position_behind(target.global_position):
+		dot_b = _chevron_screen_dot(chevron, camera, pigeon, target.global_position)
+		flip_ok = dot_b > 0.0
+	## --- behind-camera targets hold the last honest chevron (T-057) ------------
+	## The target must actually cross behind the lens — and from the bread
+	## hover it never can: the chase lens parks ~2 m above and ~6 m behind the
+	## pigeon, so an 8 m-below crumb ends up nearly straight UNDER the lens,
+	## inside every yaw's forward hemisphere. So this arm re-hovers the pigeon
+	## BEYOND the crumb, nose pointed away: converged, the lens sits between
+	## the pigeon and the crumb's side of the world and the crumb reads behind
+	## the camera plane. Candidate spots are scan-decided like every arm (the
+	## pointer must still name THIS crumb, or the hold says nothing); while
+	## the camera transits, in-front frames refresh the last honest rotation,
+	## behind frames must hold it exactly — never a mirrored rewrite, never a
+	## NaN.
+	var held_rot := rot_b
+	var ever_behind := false
+	var behind_ok := camera != null
+	if camera != null:
+		for spot: Vector3 in [
+				target.global_position + Vector3(0.0, 4.0, -10.0),
+				target.global_position + Vector3(6.0, 4.0, -10.0),
+				target.global_position + Vector3(-6.0, 4.0, -10.0),
+				target.global_position + Vector3(0.0, 4.0, -14.0),
+				target.global_position + Vector3(0.0, 6.0, -20.0)]:
+			var spot_local := city.to_local(spot)
+			for _i in 45: ## Converge onto the candidate (re-pinned, no fall).
+				pigeon.reset_flight(spot_local, 0.0)
+				await _wait_frames(1)
+			if _scan_nearest_crumb(spawner, pigeon.global_position) != target \
+					or not camera.is_position_behind(target.global_position):
+				continue
+			held_rot = chevron.rotation_degrees ## The mid-transit crossing froze the pen.
+			for _i in 45:
+				pigeon.reset_flight(spot_local, 0.0)
+				await _wait_frames(1)
+				if camera.is_position_behind(target.global_position):
+					ever_behind = true
+					behind_ok = behind_ok and absf(
+							_wrap180(chevron.rotation_degrees - held_rot)) < 0.01
+				else:
+					held_rot = chevron.rotation_degrees
+			break
+	behind_ok = behind_ok and ever_behind and is_finite(chevron.rotation_degrees)
+	## --- degenerate targets hold the last honest chevron (T-057) ---------------
+	## Converge the camera back onto the yaw-0 hover, then aim the pointer at a
+	## synthetic point ON the camera→pigeon axis, 12 m past the pigeon: it
+	## unprojects onto the pigeon's own anchor pixel (the d² < 1 contract), so
+	## the rotation must not move. Premise-proven: the synthetic point is in
+	## FRONT (the behind-guard must not be the thing holding the pen), and the
+	## call and the read-back share one frame — no await between them, so no
+	## _process tick can interleave.
+	var degenerate_ok := false
+	if camera != null:
+		for _i in 9:
+			pigeon.reset_flight(hover, 0.0)
+			await _wait_frames(5)
+		var axis := (pigeon.global_position - camera.global_position).normalized()
+		var past := pigeon.global_position + axis * 12.0
+		var held_before := chevron.rotation_degrees
+		main_game._aim_bread_pointer(past, "bread", 12.0)
+		degenerate_ok = not camera.is_position_behind(past) \
+				and absf(chevron.rotation_degrees - held_before) < 0.01 \
+				and is_finite(chevron.rotation_degrees)
 	## --- approaching the pointed-at crumb decreases the readout ----------------
 	pigeon.reset_flight(city.to_local(target.global_position + Vector3(2.6, 2.0, 0.0)), 0.0)
 	await _wait_frames(2)
@@ -3420,20 +3535,27 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 		cue_down_ok = pointer.visible and cue_down_text.ends_with(" ▼") \
 				and cue_down_shown >= 0.0 and absf(cue_down_shown - cue_down_true) <= 1.0
 	## --- city mode beyond the ring ---------------------------------------------
-	pigeon.reset_flight(Vector3(city.city_span * 0.5 + 40.0, 30.0, 0.0), 0.0)
-	await _wait_frames(2)
-	var home := city.spawn_point
-	var flat_home := Vector2(home.x - pigeon.global_position.x,
-			home.z - pigeon.global_position.z)
-	var to_home := home - pigeon.global_position
-	to_home.y = 0.0
-	var heading_out := -pigeon.transform.basis.z
-	heading_out.y = 0.0
-	var want_city_rot := _wrap180(-rad_to_deg(heading_out.signed_angle_to(to_home, Vector3.UP)))
-	var city_ok: bool = pointer.visible and pointer.text.begins_with("city ") \
-			and not (pointer.text.ends_with(" ▲") or pointer.text.ends_with(" ▼")) \
-			and absf(_pointer_distance_m(pointer.text) - flat_home.length()) <= 2.0 \
-			and absf(_wrap180(chevron.rotation_degrees) - want_city_rot) <= 2.0
+	## (T-057) Teleport yaw 90 — home (city.spawn_point, city-local (16, 0.6, 0))
+	## sits due −X from the (span/2+40, 30, 0) city-edge hover, so it reads dead
+	## ahead instead of riding the screen edge abeam, where the on-screen read
+	## is unreliable. The camera is converged onto the teleport (re-pinned, as
+	## in the bread arm) before sampling. Text asserts unchanged; the chevron
+	## gets the same independent half-plane check.
+	var city_hover := Vector3(city.city_span * 0.5 + 40.0, 30.0, 0.0)
+	var city_dot := -2.0
+	var city_ok := false
+	if camera != null:
+		for _i in 9:
+			pigeon.reset_flight(city_hover, 90.0)
+			await _wait_frames(5)
+		var home := city.spawn_point
+		var flat_home := Vector2(home.x - pigeon.global_position.x,
+				home.z - pigeon.global_position.z)
+		city_dot = _chevron_screen_dot(chevron, camera, pigeon, home)
+		city_ok = pointer.visible and pointer.text.begins_with("city ") \
+				and not (pointer.text.ends_with(" ▲") or pointer.text.ends_with(" ▼")) \
+				and absf(_pointer_distance_m(pointer.text) - flat_home.length()) <= 2.0 \
+				and not camera.is_position_behind(home) and city_dot > 0.0
 	## --- the T-019 outline treatment -------------------------------------------
 	var style_ok: bool = \
 			pointer.get_theme_color("font_outline_color").is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
@@ -3445,19 +3567,21 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	var none_ok: bool = empty.nearest_crumb(Vector3.ZERO) == null
 	empty.free()
 	_check("hud_bread_pointer_tracks_nearest_crumb",
-			spread_ok and query_ok and dist_ok and bearing_ok and flip_ok and approach_ok
-					and level_ok and reaim_ok and cue_up_ok and cue_down_ok
-					and city_ok and style_ok and none_ok,
-			"spread=%s query=%s dist=%s (%.1f true, shows %.0f) bearing=%s (%.1f vs %.1f) flip=%s (%.1f→%.1f) approach=%s (%.0f→%.0f, near true %.1f) level=%s ('%s') reaim=%s (eaten %s) cue_up=%s ('%s' %.1f true, shows %.0f) cue_down=%s ('%s' %.1f true, shows %.0f) city=%s ('%s' %.1f vs %.1f) style=%s none=%s" % [
+			spread_ok and query_ok and dist_ok and bearing_ok and flip_ok and behind_ok
+					and degenerate_ok and approach_ok and level_ok and reaim_ok
+					and cue_up_ok and cue_down_ok and city_ok and style_ok and none_ok,
+			"spread=%s query=%s dist=%s (%.1f true, shows %.0f) bearing=%s (rot %.1f dot %.2f) flip=%s (rot %.1f dot %.2f) behind=%s (last honest %.1f) degenerate=%s approach=%s (%.0f→%.0f, near true %.1f) level=%s ('%s') reaim=%s (eaten %s) cue_up=%s ('%s' %.1f true, shows %.0f) cue_down=%s ('%s' %.1f true, shows %.0f) city=%s ('%s' dot %.2f) style=%s none=%s" % [
 					spread_ok, query_ok, dist_ok, d_true, shown,
-					bearing_ok, rot_a, want_rot,
-					flip_ok, rot_a, rot_b,
+					bearing_ok, rot_a, dot_a,
+					flip_ok, rot_b, dot_b,
+					behind_ok, held_rot,
+					degenerate_ok,
 					approach_ok, shown, shown_near, d_near,
 					level_ok, level_text,
 					reaim_ok, eaten,
 					cue_up_ok, cue_up_text, cue_up_true, cue_up_shown,
 					cue_down_ok, cue_down_text, cue_down_true, cue_down_shown,
-					city_ok, pointer.text, _pointer_distance_m(pointer.text), flat_home.length(),
+					city_ok, pointer.text, city_dot,
 					style_ok, none_ok])
 	main_game.free()
 	Game.hunger.player = null ## The autoload's clock outlives this scene instance.

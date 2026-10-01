@@ -1,6 +1,6 @@
 # T-057 — Derive the bread-pointer chevron from screen space; pin Gate 1b to independent ground truth
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** — (T-037 landed the pointer this rewrites)
 - **Refs:** sweep 2 session `uiuxs2a` (all readings recorded below; the captures live in the lane
   worktree's gitignored `.captures/session_uiuxs2a/`) · landed [T-037](T-037-hud-bread-pointer.md)
@@ -64,20 +64,53 @@ scenario asserts the code against itself — 74/74 green while the render lies.
 
 ## Acceptance criteria
 
-- [ ] With the camera at any yaw, the chevron's drawn direction has a positive
+- [x] With the camera at any yaw, the chevron's drawn direction has a positive
       dot product with the on-screen direction from the pigeon's projected
       position to the target's projected position (checked for known
       `reset_flight` teleports at two opposing yaws)
-- [ ] Fresh run, zero steering input: the chevron points toward the crumb's
+- [x] Fresh run, zero steering input: the chevron points toward the crumb's
       actual screen position at spawn — the ▼-at-180°-off class is gone
       [screenshot]
-- [ ] Behind-camera and degenerate targets keep the last chevron rotation —
+- [x] Behind-camera and degenerate targets keep the last chevron rotation —
       never a NaN, never a mirrored direction
-- [ ] Distance text, bread/city mode switch, approach countdown, eat-and-re-aim,
+- [x] Distance text, bread/city mode switch, approach countdown, eat-and-re-aim,
       and the T-019 outline treatment all still pass unchanged
-- [ ] The Gate-1b expectations are computed independently of the implementation
+- [x] The Gate-1b expectations are computed independently of the implementation
       (viewport unprojection + dot product; never `atan2` over the
       implementation's own delta, never the old `signed_angle_to` formula)
+
+## Implementation note (2026-10-01, this change-set)
+
+The screen-space aim landed as specified and is machine-proven (Gate 1b half-plane
+arms green; red-before: reverting only the aim math to the old
+`signed_angle_to` block fails the scenario with dot −1.00 at the spawn hover).
+But the live-play diagnosis changed: the chevron **mesh** is directionally
+ambiguous. It is a near-isosceles apex-up triangle whose 10 px base is its
+longest edge — at most rotations (measured at the spawn's 65.9°) the base
+swings up into a near-horizontal top edge while a base *corner* hangs
+bottom-center, so the glyph **reads as ▼ even though its apex points honestly
+at the target** (verified in-engine: rotation_degrees read-back, global
+transform basis, and a minimal-scene repro all confirm a faithful render).
+This retroactively explains the session `uiuxs2a` readings in **Why** — "five
+live readings fit no single sign convention": the convention (old and new) was
+never the whole story; the glyph's look was. The aim fix this ticket mandates
+is real and landed; the **glyph redesign is NOT** (the ticket claims no HUD
+change) and is left as follow-up work for the human pass to scope.
+
+## Final verification values (2026-10-01, landed tree)
+
+No new tunables (per the What). Measured on the committed tree, headless
+`Godot_v4.7.2-stable_win64_console.exe`: Gate 1 boot exit 0 (import exit 0 with
+the pre-existing "33 resources still in use at exit" line); Gate 1b full suite
+**92/92 SIM PASS, exit 0** — the reworked scenario's spawn hover half-plane dot
+**1.00** (written rotation 65.94°, screen delta d = (416.4, −185.9) toward the
+crumb's projection), flip arm dot **1.00**, city arm dot **1.00**; red-before
+(old aim block restored) fails exactly this scenario with dot **−1.00**; Gate 2
+autoplay `AUTOPLAY DONE ok=true` with `restart=true`, exit 0. Gate 3 pilot
+grabs in `.captures/session_t057final/`: fresh hands-off run reads
+"bread 14 m" with the apex at the crumb's projected direction, and the
+off-rim airborne shot reads "city 272 m" holding the last honest bearing
+behind the lens.
 
 ## Verification
 
