@@ -142,6 +142,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_cafe_tables() ## T-031 — after the elder block, same rig pattern.
 	await _scenario_city_roofs_inhabited() ## T-032 — after the cafe block, same audit pattern.
 	await _scenario_city_crosswalks() ## T-069 — after the roofs block, same audit pattern.
+	await _scenario_city_apron_rim() ## T-088 commit 1 — after the crosswalks block, same audit pattern.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -2007,6 +2008,147 @@ func _scenario_city_crosswalks() -> void:
 	## re-printed on every re-verification.
 	print("SIM DATA city_crosswalks: stripes=%d bands=%d fingerprint=%d" % [
 			xfs.size(), xfs.size() / 5, fp_first])
+
+
+## City-edge rim (T-088 commit 1): the rim is pure layout — audited like the
+## crosswalks. Counts (4 hedges, 2·4·(blocks_per_side+1) trees), hedge
+## placement on the boundary line (|x| or |z| = city_span·0.5 + 0.5, oriented
+## (city_span, 1.2, 0.8) size), tree placement against an independent
+## recomputation from the default exports (two per street exit at
+## road_width·0.5 + 1.5 m along the side axis, on the apron at y 0), trunk and
+## crown geometry off the actual MultiMesh queues (trunk center 1.1 m up,
+## crown 3.3 m up, every crown over a tree spot), the rim green ≥ 0.15
+## Euclidean RGB from COLOR_GRASS (distances printed informationally), zero
+## CollisionObject3D under the Visuals root, a forced same-seed rebuild
+## reproducing both spot lists byte-identically, and the layout fingerprint
+## still equal to the cross-version pins recorded by T-047 (seed 20260928 →
+## 2492360539, seed 424242 → 2662825400 — re-derived on the untouched tree
+## 2026-10-01 with a headless `City.generate` probe before this scenario
+## landed; zero RNG draws, zero `_fp` entries).
+##
+## Transform source: the public `rim_hedge_spots`/`rim_tree_spots` arrays for
+## the placement legs; the trunk/crown legs walk the queues that feed the
+## RimTrunk/RimCrown MultiMeshes (`MultiMesh.get_instance_transform` reads
+## back identity headless — the `city_crosswalks_present` note).
+## The albedo of the shared mesh behind a MultiMeshInstance3D — how the rim's
+## greens are authored (`_mesh_albedo` is for MeshInstance3D; a MultiMesh
+## instance is NOT one, so the cast there would yield Nil).
+func _mm_mesh_albedo(root: Node, node_path: String) -> Color:
+	var mm: MultiMesh = (root.get_node(node_path) as MultiMeshInstance3D).multimesh
+	return (mm.mesh.surface_get_material(0) as StandardMaterial3D).albedo_color
+
+
+func _scenario_city_apron_rim() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	var hedges: Array[Transform3D] = []
+	for xf: Transform3D in _city.rim_hedge_spots:
+		hedges.append(xf)
+	var trees: Array[Transform3D] = []
+	for xf: Transform3D in _city.rim_tree_spots:
+		trees.append(xf)
+	## --- counts --------------------------------------------------------------
+	var expected_trees := 2 * 4 * (_city.blocks_per_side + 1)
+	var count_ok: bool = hedges.size() == 4 and trees.size() == expected_trees
+	## --- hedge placement: boundary line, band height, oriented size ----------
+	var line := _city.city_span * 0.5 + 0.5
+	var hedge_place_ok: bool = hedges.size() == 4
+	for xf: Transform3D in hedges:
+		var o: Vector3 = xf.origin
+		var sc: Vector3 = xf.basis.get_scale()
+		hedge_place_ok = hedge_place_ok \
+				and (absf(absf(o.x) - line) < 0.01 or absf(absf(o.z) - line) < 0.01) \
+				and absf(o.y - 0.6) < 0.01 and absf(sc.y - 1.2) < 0.01 \
+				and ((absf(sc.x - _city.city_span) < 0.01 and absf(sc.z - 0.8) < 0.01) \
+						or (absf(sc.z - _city.city_span) < 0.01 and absf(sc.x - 0.8) < 0.01))
+	## --- tree placement vs an independent recomputation -----------------------
+	var edge := _city.city_span * 0.5
+	var centers: Array[float] = []
+	for i in _city.blocks_per_side + 1:
+		centers.append(-edge + _city.road_width * 0.5 + i * _city.block_pitch)
+	var expected: Array[Vector3] = []
+	for normal: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD]:
+		var along := Vector3(-normal.z, 0.0, normal.x)
+		for c: float in centers:
+			for s: float in [1.0, -1.0]:
+				expected.append(normal * line
+						+ along * (c + s * (_city.road_width * 0.5 + 1.5)))
+	var tree_place_ok: bool = expected.size() == trees.size()
+	var matched: Array[bool] = []
+	matched.resize(expected.size())
+	matched.fill(false)
+	for spot: Transform3D in trees:
+		var o: Vector3 = spot.origin
+		var hit := false
+		for e in expected.size():
+			if not matched[e] and (expected[e] - o).length_squared() < 1e-6:
+				matched[e] = true
+				hit = true
+				break
+		tree_place_ok = tree_place_ok and hit and absf(o.y) < 0.001 ## On the apron (y 0).
+	## --- trunks and crowns, off the actual MultiMesh queues -------------------
+	var trunk_xfs: Array[Transform3D] = []
+	var crown_xfs: Array[Transform3D] = []
+	if _city._visuals.has("rim_trunk"):
+		for xf: Transform3D in _city._visuals["rim_trunk"].xfs:
+			trunk_xfs.append(xf)
+	if _city._visuals.has("rim_crown"):
+		for xf: Transform3D in _city._visuals["rim_crown"].xfs:
+			crown_xfs.append(xf)
+	var trees_3d_ok: bool = trunk_xfs.size() == expected_trees \
+			and crown_xfs.size() == expected_trees
+	var crown_matched: Array[bool] = []
+	crown_matched.resize(trees.size())
+	crown_matched.fill(false)
+	for xf: Transform3D in trunk_xfs:
+		trees_3d_ok = trees_3d_ok and absf(xf.origin.y - 1.1) < 0.001
+	for cf: Transform3D in crown_xfs:
+		trees_3d_ok = trees_3d_ok and absf(cf.origin.y - 3.3) < 0.001
+		for t in trees.size():
+			var spot_o: Vector3 = (trees[t] as Transform3D).origin
+			var flat := Vector2(cf.origin.x - spot_o.x, cf.origin.z - spot_o.z)
+			if not crown_matched[t] and flat.length_squared() < 1e-6:
+				crown_matched[t] = true
+				break
+	for m in crown_matched:
+		trees_3d_ok = trees_3d_ok and m
+	## --- the rim reads against its own apron: green vs COLOR_GRASS ------------
+	var hedge_green := _mm_mesh_albedo(_city, "Visuals/RimHedge")
+	var crown_green := _mm_mesh_albedo(_city, "Visuals/RimCrown")
+	var grass_v := _rgb(_city.COLOR_GRASS)
+	var hedge_dist := _rgb(hedge_green).distance_to(grass_v)
+	var crown_dist := _rgb(crown_green).distance_to(grass_v)
+	var green_ok := hedge_dist >= 0.15 and crown_dist >= 0.15
+	## --- visual-only: zero colliders anywhere under the Visuals root ----------
+	var visuals := _city.get_node("Visuals") as Node3D
+	var colliders := visuals.find_children("*", "CollisionObject3D", true, false)
+	var visual_only := colliders.is_empty()
+	## --- determinism: a real rebuild reproduces both spot lists ---------------
+	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and _spots_equal(hedges, _city.rim_hedge_spots) \
+			and _spots_equal(trees, _city.rim_tree_spots) \
+			and (_city._visuals["rim_trunk"].xfs as Array).size() == expected_trees \
+			and (_city._visuals["rim_crown"].xfs as Array).size() == expected_trees
+	## --- cross-version pins: the fingerprint never moved ----------------------
+	_city.generate(424242)
+	var pin_foreign: bool = _city.fingerprint == 2662825400
+	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
+	var pin_default: bool = _city.fingerprint == 2492360539
+	var rim_detail := "hedges=%d trees=%d/%d hedge_place=%s tree_place=%s trees_3d=%s green=%s (%.3f/%.3f) colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
+			hedges.size(), trees.size(), expected_trees, hedge_place_ok,
+			tree_place_ok, trees_3d_ok, green_ok, hedge_dist, crown_dist,
+			colliders.size(), deterministic, pin_foreign, pin_default]
+	_check("city_apron_rim_present",
+			count_ok and hedge_place_ok and tree_place_ok and trees_3d_ok and green_ok
+					and visual_only and deterministic and pin_foreign and pin_default,
+			rim_detail)
+	## Informational: the rim's tuned numbers — the ticket's counts and green
+	## distances, re-printed on every re-verification.
+	var rim_data := "SIM DATA city_apron_rim: hedges=4 trees=%d hedge_green_dist=%.3f crown_green_dist=%.3f fingerprint=%d" % [
+			trees.size(), hedge_dist, crown_dist, fp_first]
+	print(rim_data)
 
 
 ## --- scenarios (T-007 tourists) ---------------------------------------------
