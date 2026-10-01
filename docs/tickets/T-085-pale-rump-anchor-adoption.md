@@ -1,6 +1,6 @@
 # T-085 — Adopt T-045's pale rump/underwing anchor — the player bird is a gray smudge on road and roof
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-011 (the presentation rig, landed), T-016 (the silhouette gate this extends, landed). Adopts [T-045](T-045-pale-rump-anchor.md) — mark that ticket done/superseded when this lands.
 - **Refs:** visual-design lane sweep 2, sessions `vds3a`/`vds3b` (frame readings recorded below in text — the session dirs are not present in this repo, checked both checkouts 2026-09-30, so the at-a-glance failure is re-confirmed at Gate 3); [T-045](T-045-pale-rump-anchor.md), executed here with two corrections: its stale scenario line citation (see What) and the live-frame provenance note.
 
@@ -75,24 +75,52 @@ complementing, not replacing, T-016's dark body.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: `pigeon_silhouette_contrast` gains the road/roof leg — `Mat_head`
+- [x] Gate 1b: `pigeon_silhouette_contrast` gains the road/roof leg — `Mat_head`
       ≥ 0.30 Euclidean RGB from `City.COLOR_ASPHALT` and `City.COLOR_ROOF`
       (passes today at 0.572/0.497, so the gate pins reality and forces future
       retunes to keep a dark-backdrop anchor), distances printed informationally
-- [ ] Gate 1b: the same leg covers the new patch — `Mat_rump` ≥ 0.30 from
+- [x] Gate 1b: the same leg covers the new patch — `Mat_rump` ≥ 0.30 from
       asphalt and roof (≈ 0.964/0.889 at the proposed albedo), the four
       distances printed like the existing sweep
-- [ ] The instantiated bird carries `Rump`, `WingL/Under` and `WingR/Under` all
+- [x] The instantiated bird carries `Rump`, `WingL/Under` and `WingR/Under` all
       wearing `Mat_rump`, and the scene still contains no physics nodes
       (Node3D/MeshInstance3D only)
-- [ ] `pigeon_air_poses_track_flight`, `pigeon_ground_poses_track_waddle`,
+- [x] `pigeon_air_poses_track_flight`, `pigeon_ground_poses_track_waddle`,
       `pigeon_pecks_when_eating` and the full Gate 1b suite stay green — the
       patches ride existing pivots and change no pose math
-- [ ] [screenshot] In flight at cruise and in a dive, the bird reads at a glance
+- [x] [screenshot] In flight at cruise and in a dive, the bird reads at a glance
       against road AND roof at ~20 m — one bright anchor (rump/underwing) visible
-      from the chase angle (Gate 3 — human judgement)
-- [ ] [screenshot] Grounded, the pale rump reads against asphalt so the bird no
-      longer melts into the road (Gate 3 — human judgement)
+      from the chase angle (Gate 3 — human judgement — passed by reviewer signoff)
+- [x] [screenshot] Grounded, the pale rump reads against asphalt so the bird no
+      longer melts into the road (Gate 3 — human judgement — passed by reviewer signoff)
+
+## Implementation notes (2026-09-30, machine-verified)
+
+Gate 1b run on the feature tree: full suite 87/87, `SIM SUMMARY: 0 failure(s)`,
+exit 0. The extended scenario's informational line measured
+`head-asphalt=0.572 head-roof=0.497 rump-asphalt=0.964 rump-roof=0.889` — the
+exact values predicted above — and the new rig pins (both `Under` materials are
+the `Mat_rump` sub-resource; every node in the instantiated bird is
+Node3D/MeshInstance3D) hold. Gate 1 (import + 120-frame boot) and Gate 2
+(autoplay `ok=true restart=true`, no SCRIPT ERROR) green. The two [screenshot]
+criteria above remain a pending human playtest (Gate 3) — the on-screen read of
+the patch at ~20 m is exactly the judgement this ticket defers to a human, per
+the What section. Gate 2 numbers for the record: 33 s run, fps=137, 10 splats,
+1 crumb eaten, poses DIVE/FLAP/GLIDE/PECK/STAND/WADDLE all shown.
+
+## Accepted (2026-09-30)
+
+Reviewer signoff received; the two [screenshot] criteria above pass as that Gate 3
+human judgement. The gate evidence was re-run on the final tree this session and
+matches the implementation run exactly: Gate 1b full suite 87/87,
+`SIM SUMMARY: 0 failure(s)`, exit 0, informational line
+`head-asphalt=0.572 head-roof=0.497 rump-asphalt=0.964 rump-roof=0.889 (all >= 0.30)`;
+Gate 1 (import + 120-frame boot) exit 0 with no ERROR lines; Gate 2 autoplay
+`ok=true restart=true` (33 s run, fps=136, 10 splats, 1 crumb eaten, all six poses
+shown). Final tuned values: `Mat_rump` albedo `Color(0.85, 0.85, 0.86, 1)`,
+roughness 0.85; rump patch pitched +0.25 rad X in `pigeon_visual.gd` `_ready()`;
+underwing panels BoxMesh 0.22 × 0.02 × 0.16 hung at (±0.13, −0.04, −0.01) under the
+wing pivots. T-045 stands superseded by this adoption (index row updated on main).
 
 ## Verification
 
