@@ -14,8 +14,8 @@ as **1612 individual MeshInstance3D** (104×2 + 156×9) and **260 single-shape
 static bodies** (104 layer-1 `world` tables, `cafe_table.tscn:24-26`; 156
 layer-4 `npc` sitters, `cafe_sitter.tscn:61-64`). The city's own props already
 solve this exact problem: one MultiMeshInstance3D per visual key with
-per-instance colors (`scripts/city.gd:727-751` `_add_mm`/`_spawn_visuals`,
-`use_colors` + a `vertex_color_use_as_albedo` material, `city.gd:765-769`).
+per-instance colors (`scripts/city.gd:799-823` `_add_mm`/`_spawn_visuals`,
+`use_colors` + a `vertex_color_use_as_albedo` material, `city.gd:837-841`).
 
 Batch the furniture in `scripts/cafe_spawner.gd` on populate, in the T-093
 merged-body mold:
@@ -52,8 +52,15 @@ merged-body mold:
 
 What this does **not** claim: no today-bottleneck. The planning Gate 2
 autoplay printed fps = 132 with all furniture live (planner-supplied). The
-honest claim: scene weight (≈ −2270 boot nodes) and render headroom (1612 mesh
-instances → ~9 draw keys). Any fps delta lands as a Gate 3 human note, not a
+honest claim: scene weight ≈ **−2016 boot nodes** (2289 → ~273) and render
+headroom (1612 mesh instances → ~9 draw keys). The arithmetic, kept honest:
+the collision design above KEEPS 260 `CollisionShape3D` nodes (104 + 156 —
+shapes are nodes, and today's shape nodes are inside the 2289 baseline at
+`cafe_table.tscn:29-31` / `cafe_sitter.tscn:66-68`), so after = 1 spawner +
+1 `CafeVisuals` + 9 MultiMeshInstance3D + 2 merged `StaticBody3D` + 260
+shapes ≈ 273 nodes — not −2270, and not "~12 nodes" (that count drops the
+shapes; T-093 counts its identical pattern honestly as bodies-removed-only).
+Any fps delta lands as a Gate 3 human note, not a
 gate.
 
 ## Why
@@ -68,13 +75,14 @@ records and byte-identical across same-seed regeneration, the index rule,
 street clearances, the perch-and-snag physics legs), so the batch is
 machine-provable — but the work must be honest that this is a **rewrite** of
 the scenario's rig section, not an extension: three read paths disappear
-(`table.sitters` at `tests/sim_test.gd:1573`, `sitter.collision_layer` at
-`:1577`, the shirt `material_override` at `:1579`).
+(`table.sitters` at `tests/sim_test.gd:1640`, `sitter.collision_layer` at
+`:1644`, the shirt `material_override` at `:1647`), while the perch-and-snag
+physics legs (`tests/sim_test.gd:1652-1670`) survive on the merged bodies.
 
 ## Acceptance criteria
 
 - [ ] Gate 1b `city_cafe_tables_present` stays green with its rig section
-      rewritten against the batch (`tests/sim_test.gd:1569-1581`): sitter
+      rewritten against the batch (`tests/sim_test.gd:1630-1650`): sitter
       count per spot via a new spawner exposure (transforms or counts per
       spot — replaces `table.sitters`), the two merged bodies' layers
       asserted (`Tables` = 1, `Sitters` = 4, both mask 0 — replaces
@@ -83,10 +91,11 @@ the scenario's rig section, not an extension: three read paths disappear
       albedo). The spot-layout, clearance and determinism legs pass untouched.
 - [ ] The perch-and-snag physics legs re-run unchanged: a grounded pigeon
       perches beside table 0 and the solid tabletop stops the waddle dead
-      (`tests/sim_test.gd:1583-1602` — the two merged bodies collide the
+      (`tests/sim_test.gd:1652-1670` — the two merged bodies collide the
       CharacterBody3D exactly as the 260 individual ones did)
-- [ ] Gate 1b `density_cpu_budget` stays green (the furniture contributes ~12
-      nodes + 2 bodies instead of 2289 + 260)
+- [ ] Gate 1b `density_cpu_budget` stays green (the furniture contributes
+      ~273 nodes — 260 of them `CollisionShape3D` — and 2 bodies, instead of
+      today's 2289 nodes / 260 bodies)
 - [ ] Gate 1b `city_same_seed_deterministic` and
       `restart_same_seed_skips_rebuild` stay green — the batch rebuilds
       identically on every `regenerated` (zero RNG anywhere in the lift)
@@ -96,14 +105,14 @@ the scenario's rig section, not an extension: three read paths disappear
       Gate 3 note)
 - [ ] Boot node count and the MultiMesh key list recorded before/after in
       this ticket from the landed tree (the density print
-      `tests/sim_test.gd:3284-3289` plus a boot probe)
+      `tests/sim_test.gd:3782-3787` plus a boot probe)
 - [ ] No dangling references to the retired scenes/scripts — Gate 1 import and
       boot exit 0 with zero ERROR lines
 
 ## Verification
 
 Gate 1 + Gate 1b (rewrite `city_cafe_tables_present`'s rig section as above —
-a real rewrite of ~`tests/sim_test.gd:1569-1581`, physics legs kept as-is —
+a real rewrite of ~`tests/sim_test.gd:1630-1650`, physics legs kept as-is —
 plus a full suite re-run, with `density_cpu_budget` and both determinism
 scenarios explicitly re-run) + Gate 2 re-run for the render side (autoplay
 DONE fps line, informational — compare against the pre-change fps on the same
