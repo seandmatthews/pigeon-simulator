@@ -123,6 +123,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_sidewalk()
 	await _scenario_city_district_palettes()
 	await _scenario_city_facades_fit_floors() ## T-049 — after the palettes, same standing-city audit shape.
+	await _scenario_city_footprints_vary() ## T-051 — after the facades, same audit shape; leaves the default city standing.
 	await _scenario_city_shopfronts()
 	await _scenario_hunger_drain()
 	await _scenario_hunger_game_over()
@@ -911,8 +912,8 @@ func _facade_node(f: int) -> MultiMeshInstance3D:
 ## `_fp` entries. Layout asserts on the standing city, no flight (the
 ## district-palettes scenario shape).
 func _scenario_city_facades_fit_floors() -> void:
-	var pin_default := 2492360539 ## Fingerprint baseline, re-derived on the untouched tree with a headless City.generate probe.
-	var pin_foreign := 2662825400 ## Foreign-seed fingerprint, ditto.
+	var pin_default := 4188136223 ## Fingerprint baseline — moved once for T-051's two-axis footprint `_fp` entry, re-derived with a headless City.generate probe (pre-T-051: 2492360539).
+	var pin_foreign := 547420287 ## Foreign-seed fingerprint, ditto (pre-T-051: 2662825400).
 	var baseline_ok: bool = _city.fingerprint == pin_default
 	var default_seed: int = _city.seed_value
 	var fp_first: int = _city.fingerprint
@@ -1012,6 +1013,94 @@ func _scenario_city_facades_fit_floors() -> void:
 	## Informational: the per-class tally — the ticket's roofscape read, re-printed.
 	print("SIM DATA city_facades_fit_floors: classes=%d tally=[%s] fingerprint=%d" % [
 			per_floors.size(), " ".join(counts_line), fp_first])
+
+
+## --- scenario (T-051 varied footprints) --------------------------------------
+
+
+## The per-lot, per-axis footprint scale the ticket's pure hash claims — the
+## harness owns its copy of the fold (the `_expected_cafe_spot`
+## harness-owns-its-copy pattern) so the scenario proves the sizes, not just
+## the city function that filled them. Same fold as `City._lot_footprint_scale`:
+## (bx, bz, quadrant folded as qx·2+qz, axis+1) hashed, folded once with the
+## seed, mapped to [0.78, 1.0].
+func _expected_footprint_scale(bx: int, bz: int, qx: int, qz: int, axis: int,
+		seed_value: int) -> float:
+	var h := hash(Vector4i(bx, bz, qx * 2 + qz, axis + 1))
+	h = hash(h ^ seed_value)
+	return 0.78 + 0.22 * float(h % 1001) / 1000.0
+
+
+## Varied footprints (T-051): the roofscape is no longer a waffle grid of equal
+## 7.1 m squares — ≥ 3 distinct footprint sizes city-wide, every footprint
+## fully inside its lot with the `lot_gap` kept (per axis
+## `size ≤ (block_size − sidewalk_width·2)·0.5 − lot_gap`, size > 0), and every
+## record's size recomputable from the pure per-block/quadrant/axis hash plus
+## the seed (within 0.01) — with the observed scales spread across the mapped
+## [0.78, 1.0] band, not degenerate. The hash draws from NO RNG stream: the
+## pinned 104-of-146 awning count (`city_shopfronts_present`) and the byte
+## counts elsewhere prove both streams untouched; a forced same-seed rebuild
+## reproduces every size exactly and the fingerprint holds. Layout asserts on
+## the standing city, no flight (the facades-audit pattern).
+func _scenario_city_footprints_vary() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	var sizes: Array[Vector2] = []
+	var distinct := {}
+	for info in _city.buildings:
+		var size: Vector2 = info.size
+		sizes.append(size)
+		distinct[size] = true
+	var distinct_ok := distinct.size() >= 3
+	## Every footprint inside its lot with the gap kept, per axis, and positive.
+	var size_max := (_city.block_size - _city.sidewalk_width * 2.0) * 0.5 - _city.lot_gap
+	var bounds_ok := not sizes.is_empty()
+	for size in sizes:
+		bounds_ok = bounds_ok and size.x > 0.0 and size.y > 0.0 \
+				and size.x <= size_max and size.y <= size_max
+	## Every record's size recomputable from the harness-owned hash fold.
+	var half_blocks := float(_city.blocks_per_side - 1) * 0.5
+	var footprint_max := (_city.block_size - _city.sidewalk_width * 2.0) * 0.5 - _city.lot_gap
+	var recompute_ok := not sizes.is_empty()
+	var min_scale := INF
+	var max_scale := -INF
+	for info in _city.buildings:
+		var center_local := _city.to_local(info.center)
+		var bx := roundi(center_local.x / _city.block_pitch + half_blocks)
+		var bz := roundi(center_local.z / _city.block_pitch + half_blocks)
+		var lot: Vector2 = info.lot_offset
+		var qx := int(signf(lot.x))
+		var qz := int(signf(lot.y))
+		var expected := Vector2(
+				footprint_max * _expected_footprint_scale(bx, bz, qx, qz, 0, default_seed),
+				footprint_max * _expected_footprint_scale(bx, bz, qx, qz, 1, default_seed))
+		var size: Vector2 = info.size
+		recompute_ok = recompute_ok \
+				and absf(size.x - expected.x) < 0.01 and absf(size.y - expected.y) < 0.01
+		min_scale = minf(min_scale, size.x / footprint_max)
+		min_scale = minf(min_scale, size.y / footprint_max)
+		max_scale = maxf(max_scale, size.x / footprint_max)
+		max_scale = maxf(max_scale, size.y / footprint_max)
+	## Uniform-ish across the mapped band: with 292 axis samples over 146
+	## buildings the extremes must reach both ends of [0.78, 1.0].
+	var spread_ok := min_scale <= 0.80 and max_scale >= 0.98
+	## Determinism: a real rebuild reproduces every size exactly, fp self-to-self.
+	_city.generate(default_seed, true)
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and _city.buildings.size() == sizes.size()
+	if deterministic:
+		for i in sizes.size():
+			deterministic = deterministic \
+					and (_city.buildings[i].size as Vector2) == sizes[i]
+	_check("city_footprints_vary",
+			distinct_ok and bounds_ok and recompute_ok and spread_ok and deterministic,
+			"sizes=%d distinct=%d bounds=%s recompute=%s spread=[%.3f..%.3f] det=%s" % [
+					sizes.size(), distinct.size(), bounds_ok, recompute_ok,
+					min_scale, max_scale, deterministic])
+	## Informational: the ticket's roofscape read, re-printed on every re-run.
+	print("SIM DATA city_footprints_vary: buildings=%d distinct_sizes=%d scale_range=[%.3f..%.3f] fingerprint=%d"
+			% [sizes.size(), distinct.size(), min_scale, max_scale, fp_first])
 
 
 ## --- scenarios (T-017 shopfront ground floors) ------------------------------
@@ -1791,7 +1880,8 @@ func _scenario_elder_cooldown_blocks_second_share() -> void:
 ## The cafe table transform the ticket's pure math claims for one awninged
 ## building — an independent re-derivation (the harness owns its copy of the
 ## layout numbers) so the scenario proves the spots, not just the city
-## function that filled them.
+## function that filled them. The face distance uses the footprint component
+## ALONG the door-face normal (T-051: `size.x` on ±x faces, `size.y` on ±z).
 func _expected_cafe_spot(city: City, info: Dictionary) -> Transform3D:
 	var normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][
 			int(info.door_face)]
@@ -1799,8 +1889,10 @@ func _expected_cafe_spot(city: City, info: Dictionary) -> Transform3D:
 	var face_axis_x := absf(normal.x) > 0.5
 	var along := Vector3(0.0, 0.0, signf(lot.y)) if face_axis_x \
 			else Vector3(signf(lot.x), 0.0, 0.0)
+	var face_out: float = (info.size as Vector2).x if face_axis_x \
+			else (info.size as Vector2).y
 	var pos: Vector3 = city.to_local(info.center) \
-			+ normal * ((info.size as Vector2).x * 0.5 + 0.12 + 1.9) \
+			+ normal * (face_out * 0.5 + 0.12 + 1.9) \
 			+ along * 2.2
 	pos.y = city.block_slab_height
 	return Transform3D(Basis(Vector3.UP, atan2(-normal.x, -normal.z)), pos)
@@ -1876,8 +1968,11 @@ func _scenario_city_cafe_tables() -> void:
 		var face_axis_x := absf(normal.x) > 0.5
 		var along_dir := Vector3(0.0, 0.0, signf(lot.y)) if face_axis_x \
 				else Vector3(signf(lot.x), 0.0, 0.0)
+		## T-051: the face plane sits at the footprint extent along the normal.
+		var face_out: float = (info.size as Vector2).x if face_axis_x \
+				else (info.size as Vector2).y
 		var face_center: Vector3 = _city.to_local(info.center) \
-				+ normal * ((info.size as Vector2).x * 0.5 + 0.12)
+				+ normal * (face_out * 0.5 + 0.12)
 		var along_dist: float = absf((spot.origin - face_center).dot(along_dir))
 		door_ok = door_ok and along_dist - 0.475 - 0.45 >= 1.2
 		spot_i += 1
@@ -1956,16 +2051,18 @@ func _low_roof_building() -> Dictionary:
 
 
 ## The `roof_props` entries of one building: centers inside its footprint XZ,
-## in array order. Prop insets keep every center ≤ 2.81 m from the footprint
-## center, so a prop can never sit inside a neighbor (lot centers are 8.5 m
-## apart, footprints 7.1 m wide).
+## in array order. Prop insets keep every center ≤ √2·0.25·footprint from the
+## footprint center (≤ 2.51 m pre-T-051, ≤ 1.96 m at the 0.78-scaled minimum),
+## so a prop can never sit inside a neighbor (lot centers are 8.5 m apart,
+## footprints ≤ 7.1 m wide). T-051: the halves are per-axis — footprints vary
+## per axis.
 func _props_of(building: Dictionary) -> Array[Dictionary]:
 	var props: Array[Dictionary] = []
-	var half: float = (building.size as Vector2).x * 0.5
+	var size: Vector2 = building.size
 	var c: Vector3 = building.center
 	for prop in _city.roof_props:
 		var p: Vector3 = prop.center
-		if absf(p.x - c.x) <= half and absf(p.z - c.z) <= half:
+		if absf(p.x - c.x) <= size.x * 0.5 and absf(p.z - c.z) <= size.y * 0.5:
 			props.append(prop)
 	return props
 
@@ -2006,9 +2103,12 @@ func _vec_spots_equal(a: Array[Vector3], b: Array[Vector3]) -> bool:
 
 
 ## Rooftop clutter (T-032): every building carries 1-3 roof props — fully on
-## its roof (≥ 1.0 m from every edge), centers ≥ 2.5 m from the footprint
-## center (the `city_roof_landable` drop point at the exact center stays
-## clear) with one layer-1 `world` collider each — and exactly one crumb spot
+## its roof (≥ 0.6 m from every edge since T-051, re-derived for the varying
+## footprints: 0.25·5.54 − 0.7 ≈ 0.685 m at the 0.78-scaled minimum), centers
+## at the exact corner-relative ±0.25·footprint inset per axis (≥ 1.9 m from
+## the footprint center at the smallest — the `city_roof_landable` drop point
+## at the exact center stays ≥ 0.96 m clear of the worst prop) with one
+## layer-1 `world` collider each — and exactly one crumb spot
 ## in the never-propped (+,+) quadrant at roof-top + 0.06, so city-wide
 ## `bread_spots` grows by exactly the building count (8 ring spots × 49 blocks
 ## + one per bench seat + one per building). A crumb instantiated at a low
@@ -2034,16 +2134,24 @@ func _scenario_city_roofs_inhabited() -> void:
 	var one_per_building := true
 	for info in _city.buildings:
 		var props := _props_of(info)
-		var half: float = (info.size as Vector2).x * 0.5
+		var size: Vector2 = info.size
 		props_ok = props_ok and props.size() >= 1 and props.size() <= 3
 		for prop in props:
 			var c: Vector3 = prop.center
 			var s: Vector3 = prop.size
 			var flat := Vector2(c.x - info.center.x, c.z - info.center.z)
+			## T-051 re-derivation (footprints vary per axis in [0.78, 1.0]·7.1):
+			## the corner-relative inset law is pinned exactly per axis
+			## (√2·0.25·5.54 ≈ 1.96 m at the smallest footprint — the exact-center
+			## `city_roof_landable` drop stays ≥ 0.96 m clear of the worst prop,
+			## the tank's 0.99 m half-diagonal), and the on-roof margin floor is
+			## re-derived to 0.6 m (2.77 − 1.385 − 0.7 ≈ 0.685 m at the minimum).
 			props_ok = props_ok \
-					and flat.length() >= 2.5 \
-					and half - absf(flat.x) - s.x * 0.5 >= 1.0 \
-					and half - absf(flat.y) - s.z * 0.5 >= 1.0 \
+					and flat.length() >= 1.9 \
+					and absf(absf(flat.x) - size.x * 0.25) < 0.001 \
+					and absf(absf(flat.y) - size.y * 0.25) < 0.001 \
+					and size.x * 0.5 - absf(flat.x) - s.x * 0.5 >= 0.6 \
+					and size.y * 0.5 - absf(flat.y) - s.z * 0.5 >= 0.6 \
 					and absf((prop.top as float) - (info.top as float) - s.y) < 0.001
 		## Exactly one roof spot per building, in the (+,+) quadrant mirrored by
 		## lot_offset at ±0.28·footprint per axis — never a prop quadrant.
@@ -2052,15 +2160,15 @@ func _scenario_city_roofs_inhabited() -> void:
 			var g := _city.to_global(spot)
 			var flat_s := Vector2(g.x - info.center.x, g.z - info.center.z)
 			if absf(g.y - (info.top as float) - 0.06) > 0.001 \
-					or absf(flat_s.x) > half or absf(flat_s.y) > half:
+					or absf(flat_s.x) > size.x * 0.5 or absf(flat_s.y) > size.y * 0.5:
 				continue
 			found += 1
 			var lot: Vector2 = info.lot_offset
 			one_per_building = one_per_building \
 					and signf(flat_s.x) == signf(lot.x) \
 					and signf(flat_s.y) == signf(lot.y) \
-					and absf(absf(flat_s.x) - (info.size as Vector2).x * 0.28) < 0.001 \
-					and absf(absf(flat_s.y) - (info.size as Vector2).x * 0.28) < 0.001
+					and absf(absf(flat_s.x) - size.x * 0.28) < 0.001 \
+					and absf(absf(flat_s.y) - size.y * 0.28) < 0.001
 		one_per_building = one_per_building and found == 1
 	## --- colliders: one layer-1 body per prop, high above the street props ---
 	var high_bodies := 0
@@ -2087,12 +2195,12 @@ func _scenario_city_roofs_inhabited() -> void:
 		var hunger := Hunger.new()
 		hunger.player = _player
 		add_child(hunger)
-		var half: float = (roof.size as Vector2).x * 0.5
+		var roof_size: Vector2 = roof.size
 		var center_local := _city.to_local(roof.center)
 		var spot_local := Vector3.INF
 		for spot in _city.bread_spots:
-			if spot.y > 1.0 and absf(spot.x - center_local.x) <= half \
-					and absf(spot.z - center_local.z) <= half:
+			if spot.y > 1.0 and absf(spot.x - center_local.x) <= roof_size.x * 0.5 \
+					and absf(spot.z - center_local.z) <= roof_size.y * 0.5:
 				spot_local = spot
 				break
 		physical_ok = spot_local.is_finite()
@@ -2103,8 +2211,9 @@ func _scenario_city_roofs_inhabited() -> void:
 			add_child(crumb)
 			crumb.eaten.connect(hunger.eat)
 			## Drop 1.8 m from the crumb along z, toward the footprint center
-			## (the spot sits 0.28·footprint ≈ 2.0 m out per axis, so the drop
-			## stays on the roof, clear of the propped quadrants), facing it.
+			## (the spot sits 0.28·footprint ≈ 1.55–2.0 m out per axis — T-051:
+			## footprints vary — so the drop stays on the roof, clear of the
+			## propped quadrants), facing it.
 			var dir_z := signf(spot_global.z - (roof.center as Vector3).z)
 			var walk_dir := Vector3(0.0, 0.0, dir_z)
 			await _set_up(true, spot_global + Vector3(0.0, 0.4, -dir_z * 1.8),
@@ -2292,9 +2401,9 @@ func _scenario_city_crosswalks() -> void:
 ## CollisionObject3D under the Visuals root, a forced same-seed rebuild
 ## reproducing both spot lists byte-identically, and the layout fingerprint
 ## still equal to the cross-version pins recorded by T-047 (seed 20260928 →
-## 2492360539, seed 424242 → 2662825400 — re-derived on the untouched tree
-## 2026-10-01 with a headless `City.generate` probe before this scenario
-## landed; zero RNG draws, zero `_fp` entries).
+## 4188136223, seed 424242 → 547420287 — the values moved ONCE for T-051's
+## mandated two-axis footprint `_fp` entry, re-derived 2026-10-01 with a
+## headless `City.generate` probe; pre-T-051 they were 2492360539 / 2662825400).
 ##
 ## Transform source: the public `rim_hedge_spots`/`rim_tree_spots` arrays for
 ## the placement legs; the trunk/crown legs walk the queues that feed the
@@ -2401,11 +2510,11 @@ func _scenario_city_apron_rim() -> void:
 			and _spots_equal(trees, _city.rim_tree_spots) \
 			and (_city._visuals["rim_trunk"].xfs as Array).size() == expected_trees \
 			and (_city._visuals["rim_crown"].xfs as Array).size() == expected_trees
-	## --- cross-version pins: the fingerprint never moved ----------------------
+	## --- cross-version pins (moved once for T-051's two-axis `_fp` entry) -----
 	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 2662825400
+	var pin_foreign: bool = _city.fingerprint == 547420287
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 2492360539
+	var pin_default: bool = _city.fingerprint == 4188136223
 	var rim_detail := "hedges=%d trees=%d/%d hedge_place=%s tree_place=%s trees_3d=%s green=%s (%.3f/%.3f) colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
 			hedges.size(), trees.size(), expected_trees, hedge_place_ok,
 			tree_place_ok, trees_3d_ok, green_ok, hedge_dist, crown_dist,
@@ -2491,10 +2600,10 @@ func _scenario_city_horizon_skyline() -> void:
 			and _spots_equal(skyline_xfs, skyline_b) and _spots_equal(tall_xfs, tall_b)
 	## --- cross-version pins and the foreign-seed contract ---------------------
 	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 2662825400 \
+	var pin_foreign: bool = _city.fingerprint == 547420287 \
 			and _city._visuals["skyline_tall"].xfs.size() != tall_xfs.size()
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 2492360539
+	var pin_default: bool = _city.fingerprint == 4188136223
 	var skyline_detail := "nodes=%s total=%d tall=%d place=%s size=%s colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
 			nodes_ok, total, tall_xfs.size(), place_ok, size_ok, collider_count,
 			deterministic, pin_foreign, pin_default]
@@ -2651,9 +2760,9 @@ func _scenario_city_park_trees() -> void:
 	var foreign_parks: int = _city.last_report.parks
 	var foreign_ok: bool = (_city._visuals["tree_trunk"].xfs as Array).size() == 4 * foreign_parks \
 			and (_city._visuals["tree_crown"].xfs as Array).size() == 4 * foreign_parks
-	var pin_foreign: bool = _city.fingerprint == 2662825400
+	var pin_foreign: bool = _city.fingerprint == 547420287
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 2492360539
+	var pin_default: bool = _city.fingerprint == 4188136223
 	var trees_detail := "parks=%d trees=%d/%d centers=%d place=%s inside=%s trees_3d=%s green=%s (%.3f) clear=%s (worst %.2f m) arith=%s (%.2f m margin) colliders=%d det=%s foreign=%s pins=%s/%s" % [
 			parks, trunk_xfs.size(), expected_count, park_centers.size(), place_ok,
 			inside_ok, trees_3d_ok, green_ok, crown_dist, clear_ok, worst_bread,

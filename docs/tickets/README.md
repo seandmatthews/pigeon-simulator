@@ -69,7 +69,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-048 | [Adopt T-027's folded-wing chord fix — confirmed live, plus an elder-read accent](T-048-folded-wing-chord-adoption.md) | visual-design | 3 | 2 | done |
 | T-049 | [Fit facade windows to each building's real floor count](T-049-facade-floors.md) | worldbuilding | 3 | 1 | done |
 | T-050 | [Put a skyline on the horizon so the world doesn't end at a cliff](T-050-horizon-skyline.md) | worldbuilding | 3 | 1 | superseded (T-088) |
-| T-051 | [Vary building footprints to break the uniform block grid](T-051-varied-footprints.md) | worldbuilding | 4 | 3 | proposed |
+| T-051 | [Vary building footprints to break the uniform block grid](T-051-varied-footprints.md) | worldbuilding | 4 | 3 | done |
 | T-053 | [Land the off-world fall guard: falling past the apron returns you home](T-053-off-world-fall-guard.md) | code-optimization | 4 | 2 | done |
 | T-054 | [Extract BandSpawner and close the unverified car-recycle contract](T-054-band-spawner-extraction.md) | code-optimization | 3 | 3 | proposed |
 | T-055 | [Stop the per-frame redundant presentation writes and the HUD pointer's per-frame array churn](T-055-redundant-writes-pointer-churn.md) | code-optimization | 2 | 1 | done |
