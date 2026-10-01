@@ -3,18 +3,27 @@
 - **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** —
 - **Refs:** sweep 2 sessions `uiuxs2b`/`uiuxs2bx` (readings below; captures in the lane worktree's
-  gitignored `.captures/`) · T-025 (bigger VISIBLE ball — separate fix) · T-046 (predicted-impact
-  ring — separate fix) · the autoplay's lead pilot, `tests/autoplay.gd:326-343`
+  gitignored `.captures/`) · T-086 (bigger emissive VISIBLE ball — landed 2026-09-30; this
+  ticket is collider-only and must own amending T-086's collider pin, see What) · T-046
+  (predicted-impact ring — separate fix) · the autoplay's lead pilot, `tests/autoplay.gd:326-343`
+  · re-based during the 2026-09-30 backlog audit
 
 ## What
 
 Two changes, one ticket, clearly separable in the commit:
 
-1. **Hit tolerance.** `scenes/poop.tscn:13-14`: the `SphereShape3D` "BallShape"
-   radius 0.07 → **0.30** (tuned value recorded here). The VISIBLE ball
-   (`BallMesh`, radius 0.07, `scenes/poop.tscn:8-11`) stays as is — visibility is
-   T-025's separate fix; this ticket changes the collider only. `collision_layer`
-   32 / `collision_mask` 13 (`scenes/poop.tscn:26-27`) untouched, so every
+1. **Hit tolerance.** `scenes/poop.tscn:16-18`: the `SphereShape3D` "BallShape"
+   radius 0.07 → **0.30** (tuned value recorded here). The VISIBLE ball is NOT
+   touched — it is already T-086's landed emissive `BallMesh` radius 0.12
+   (`scenes/poop.tscn:12-14`); this ticket changes the collider only. **It must
+   own the T-086 pin amendment in the same change-set:** `poop_ball_visible`
+   pins the collider with `absf(collider.radius - 0.07) < 0.005`
+   (`tests/sim_test.gd:1180-1182`) and its VERIFICATION.md row promises "the
+   collider stays pinned at its landed 0.07" (`VERIFICATION.md:82`) — re-pin
+   both to 0.30 (the pin's purpose, collider distinct from the 0.12 mesh,
+   survives), or criterion 5's "full suite green" fails on a landed gate.
+   `collision_layer`
+   32 / `collision_mask` 13 (`scenes/poop.tscn:29-30`) untouched, so every
    T-006 / T-007 / T-008 contact path keeps its meaning. Contact reach against a
    tourist becomes 0.30 + 0.25 (capsule radius, `scenes/tourist.tscn:5-7`) =
    0.55 m center-to-axis vs 0.32 m today — at ~20 m/s closure the timing window
@@ -33,24 +42,24 @@ Two changes, one ticket, clearly separable in the commit:
      `hint_label.text` = `COACH_POOP` if eligible, else the grounding hint
      (`HINT_GROUND if player.is_grounded else HINT_AIR`). Guard the write with a
      text-changed check so idle frames don't dirty the label (T-035's concern).
-     `_on_grounding_changed` (`scripts/main.gd:265-266`) keeps its edge write; the
+     `_on_grounding_changed` (`scripts/main.gd:307-310`) keeps its edge write; the
      next `_process` reconciles, so there is no fight and no flicker.
-   - Keyed on `Game.tourist_hits` (`scripts/game.gd:42`), NOT on any
+   - Keyed on `Game.tourist_hits` (`scripts/game.gd:54`), NOT on any
      `hit_scored`: a car splat must not kill the poop coach. Per-run semantics —
-     `reset_run` zeroes `tourist_hits` (`scripts/game.gd:121`), so a fresh run
+     `reset_run` zeroes `tourist_hits` (`scripts/game.gd:132-139`), so a fresh run
      re-teaches; Game has no cross-run save and none is added here.
 
 What this does NOT claim: no release/lead mechanic or cooldown change
-(`scripts/player.gd:68` untouched); no visible-ball change (T-025's); no
-bombsight (T-046's); no scoring-values change; no coach persistence.
+(`scripts/player.gd:86` untouched); no visible-ball change (T-086's, landed);
+no bombsight (T-046's); no scoring-values change; no coach persistence.
 
 ## Why
 
 The core scoring verb essentially never fires. Geometry today: a 0.07 m poop
-sphere (`scenes/poop.tscn:14`) must graze a 0.25 m-radius strolling capsule
+collider (`scenes/poop.tscn:17`) must graze a 0.25 m-radius strolling capsule
 (`scenes/tourist.tscn:5-7`) while you lead a target at cruise — summed tolerance
 0.32 m at ~20 m/s ≈ a ~16 ms window, with `poop_cooldown` 1.0
-(`scripts/player.gd:68`) allowing one attempt per second. Session evidence: 25+
+(`scripts/player.gd:86`) allowing one attempt per second. Session evidence: 25+
 airborne drops across `uiuxs2b`/`uiuxs2bx` landing 5–40 m from tourist clusters,
 zero hits; and the project's OWN pilot — the Gate-2 autoplay, which predicts
 impact points and pulls the trigger when a tourist lines up
@@ -71,7 +80,7 @@ the existing hint slot.
       connect: the lead stays a skill, not a shotgun (a ground splat may fire;
       no tourist splat, no panic)
 - [ ] `tourist_splat_panics_scores` — the frozen-target lob,
-      `tests/sim_test.gd:1518` — still connects and scores end to end
+      `tests/sim_test.gd:2070-2126` — still connects and scores end to end
 - [ ] Airborne within `coach_range` ahead of a living tourist with zero tourist
       hits, the hint slot shows the coach line; grounded shows the ground hint
       regardless; after the first tourist hit the coach never shows again that run
@@ -79,16 +88,18 @@ the existing hint slot.
       `poop_grounded_no_drop`, `poop_cooldown_blocks_stream`,
       `poop_splats_ground_and_fades`, `poop_splats_wall`,
       `poop_event_reaches_any_body`, `tourist_splat_panics_scores`,
-      `car_splat_honk_and_continue`, `density_cpu_budget`
+      `car_splat_honk_and_continue`, `density_cpu_budget` — with
+      `poop_ball_visible` green under its RE-PINNED collider assertion (the
+      0.07 → 0.30 amendment owned in What)
 
 ## Verification
 
 Gate 1 + Gate 1b, two new scenarios:
 
 - `coach_hint_shows_until_first_hit` through a real Main: seat a tourist via a
-  tight-band `TouristSpawner` (the `tests/sim_test.gd:1524-1528` pattern),
+  tight-band `TouristSpawner` (the `tests/sim_test.gd:2074-2079` pattern),
   `reset_flight` airborne ~20 m ahead of it → hint reads `COACH_POOP`;
-  `Game.add_tourist_hit(pos)` (the synthetic relay `tests/sim_test.gd:1535-1537`
+  `Game.add_tourist_hit(pos)` (the synthetic relay `tests/sim_test.gd:2093-2094`
   uses) → hint reads `HINT_AIR` again; land grounded → `HINT_GROUND` regardless
   of coach eligibility.
 - `poop_hits_tourist_within_lead_window`: a tourist KEEPING its stroll loop;
@@ -100,9 +111,10 @@ Gate 1 + Gate 1b, two new scenarios:
   was numerically impossible: contact reach is 0.55 m, so 1.5 m serves as the
   NEGATIVE arm instead.)
 
-VERIFICATION.md: two new Gate-1b rows + Gate 3 lines in the same change-set.
-Gate 2: run normally — the DONE line reports `panics`/`honks` and those counts
+VERIFICATION.md: two new Gate-1b rows + Gate 3 lines in the same change-set,
+plus the `poop_ball_visible` row amendment (collider pin 0.07 → 0.30) owned in
+What. Gate 2: run normally — the DONE line reports `panics`/`honks` and those counts
 may rise now that the pilot's 1.5 m predictive tolerance connects; the gate's
 pass criteria (frozen-world score screen, restart check) are unchanged.
 Gate 3 [screenshot]: coach line visible in flight near pedestrians; the dropping
-still reads small mid-air (T-025 owns making it trackable).
+reads as T-086's landed bright dot mid-air (that ticket owns visibility).
