@@ -319,3 +319,42 @@ Checked and clean: the code claims are true, the fix would work, every criterion
 - **Verdict:** solid
 - **Verified:** every code claim matches scripts/city.gd and tests/sim_test.gd; the proposed flip solves the named problem at the named site with correct arithmetic; all five in-repo reference images plus both Gate 3 anchor captures support its real-world claims.
 - **Residual (non-blocking):** none noted.
+## Addendum — re-review and fixes applied (2026-09-30)
+
+All 16 flagged entries were re-reviewed and fixed in the ticket files (docs
+only — no game code, harness or VERIFICATION.md changes; the tickets keep
+Status: proposed and still own the in-change-set amendments they now
+describe). The three bookkeeping flips landed first (commit `9e95e48`), then
+one commit per rewritten ticket:
+
+| Ticket | Was | Fix applied | Commit |
+| ------ | --- | ----------- | ------ |
+| T-026 | needs-fixes | index row flipped to done (file already said done) | `9e95e48` |
+| T-032 | needs-fixes | index row flipped to done (file already said done) | `9e95e48` |
+| T-084 | stale | file + index marked superseded (T-022 landed the flare) | `9e95e48` |
+| T-023 | needs-fixes | rewritten against the landed T-036/T-042 teleport guard (nudge = prevention layer, interaction with `reset_flight` stated); constants corrected to span 234 / apron 367 / ~250 m past the edge; unsatisfiable `--check-only` Gate 1 leg dropped; refs re-based | `77e08e5` |
+| T-029 | needs-fixes | hazard inventory corrected to FOUR scenarios / FIVE drops (adds `traffic_recycle_keeps_flow`); AC + re-run lists updated; suite count 73→74 corrected to 87→88; refs re-based | `43829f5` |
+| T-038 | needs-fixes | Verification corrected: the juice scenario never records a poop release, so the style assertions now ADD one (the scoring scenario's fast/low pattern); refs re-based | `7bec39f` |
+| T-046 | needs-fixes | Gate 1b split across two rigs (bare rig + direct marker instantiation for the analytic leg; real-Main rig for the spawn wiring); T-025 framing replaced with landed T-086; damp note added; incoherent T-025 docs step removed | `cdaee00` |
+| T-054 | needs-fixes | coverage claim re-narrowed to what T-089's `traffic_recycle_keeps_flow` leaves unasserted (timer-driven scan + PARKED branch); `_pick_block` mechanism fixed (car recycle draws via `_pick_recycle_block` since T-089); T-089 specifics added to the keep-list; re-run list extended | `4ecd845` |
+| T-058 | needs-fixes | stern suffix now COMPOSES with T-098's landed climb cue (cue first, suffix last, city-mode never-arrowed noted); dedicated abeam arm replaces the yaw-0 arm T-057 deletes; refs re-based | `8e72709` |
+| T-059 | needs-fixes | Gate 1b expected labels corrected to the bare combo values (+100 / +200 ×2) with the escalation arithmetic; Gate 2 sentence fixed (autoplay never sees popups — DONE line counts `juice_effects`); refs re-based | `582b2ee` |
+| T-060 | needs-fixes | ticket now owns the T-086 collider-pin amendment (poop_ball_visible 0.07 → 0.30, VERIFICATION.md row in the same change-set); visible ball described at its landed 0.12; T-025 refs → T-086; refs re-based | `d2e9a4f` |
+| T-073 | needs-fixes | first-beat values corrected to 300 / 21,000 with the combo-escalation arithmetic shown; refs re-based past T-101 | `75e110e` |
+| T-082 | needs-fixes | unsatisfiable `--check-only` gate leg dropped (broken repo-wide per VERIFICATION.md:343-348; Sfx at player.gd:305); red-before rationale corrected to the aligner mechanism with a measure-and-stop rule; refs re-based | `b077e2d` |
+| T-090 | needs-fixes | size spec corrected to the awning convention (thin 0.08 m on the face-normal axis, 2.2 m along the wall); the landed door's own inverted swap flagged as a separate T-017-lineage defect; A/B claim downgraded to suggestive (frames absent, prototype used the inverted swap); harness re-derivations required to encode the corrected convention; refs re-based | `6f58b34` |
+| T-091 | needs-fixes | phantom citation (`sim_test.gd:599`) removed and replaced with a REAL pin: the new `city_district_anchors_present` scenario now asserts `report.max_roof_height` equals the max building top (anchors excluded); refs re-based | `3eb9b63` |
+| T-094 | needs-fixes | node-savings arithmetic corrected to ≈ −2016 (2289 → ~273, counting the 260 kept CollisionShape3D nodes), matching T-093's convention; refs re-based | `e480e6b` |
+
+**Open follow-up surfaced by the audit (not fixed here — it is a code defect,
+not a ticket-text defect):** the landed shop door's axis swap
+(`scripts/city.gd:668-669`, T-017 lineage) is inverted and renders doors as
+thin fins protruding from the band. It needs its own ticket + fix; T-090 now
+documents it and avoids inheriting it.
+
+**Caveat on the fixes:** every correction is sourced from the audit's
+independently confirmed findings; load-bearing line references were
+spot-checked against the tree at fix time. Tickets go stale fast in this
+repo — seven of these sixteen were accurate when written and were overtaken
+by landings within hours — so re-verify the current-state section of any
+ticket immediately before pulling it into a build lane.

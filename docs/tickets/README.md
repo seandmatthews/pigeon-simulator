@@ -101,9 +101,11 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-102 | [Zebra stripes run with the traffic: flip T-069's crossing stripes 90°](T-102-crosswalk-stripe-orientation.md) | visual-design | 3 | 1 | proposed |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
-22 solid, 15 need fixes, 1 stale (T-084). Blocking problems, evidence and per-ticket
-fix lines: [backlog-audit-2026-09-30.md](backlog-audit-2026-09-30.md). Fix the flagged
-tickets before pulling them into a build lane.
+22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since
+been re-reviewed and fixed in their files (see the addendum at the end of
+[backlog-audit-2026-09-30.md](backlog-audit-2026-09-30.md) for the per-ticket
+fixes and commits). Tickets still go stale fast — re-verify a ticket's
+current-state section right before building it.
 
 ## Milestone 2 — after the slice (not yet ticketed)
 
