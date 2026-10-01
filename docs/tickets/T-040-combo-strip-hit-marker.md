@@ -1,6 +1,6 @@
 # T-040 — HUD combo strip & hit marker: make every scored hit readable
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-009 · T-013 (both done); T-038 (the strip appends the STYLE tag once it lands — land T-038 first, or leave the suffix to it)
 - **Refs:** UI/UX lane playtest, sweep 1 (2026-09-29)
 
@@ -60,17 +60,17 @@ must count.
 
 ## Acceptance criteria
 
-- [ ] The HUD has a `%ComboStrip` label under the hint block with the T-019
+- [x] The HUD has a `%ComboStrip` label under the hint block with the T-019
       outline treatment, empty at run start (Gate 1b)
-- [ ] Through the real Main's spawner→Game wiring, a tourist splat shows the
+- [x] Through the real Main's spawner→Game wiring, a tourist splat shows the
       strip with kind + points ("Tourist +100"; ×N when chained) and a
       following car splat replaces it with "Car +30" — Gate 1b only (needs
       the real relay)
-- [ ] The strip clears itself after `combo_strip_seconds` of game time and
+- [x] The strip clears itself after `combo_strip_seconds` of game time and
       stays cleared — Gate 1b only (game-time expiry is only provable under
       `--fixed-fps`)
-- [ ] `restart_run()` clears the strip mid-display (Gate 1b)
-- [ ] A scored hit spawns a self-cleaning marker burst at the hit point on
+- [x] `restart_run()` clears the strip mid-display (Gate 1b)
+- [x] A scored hit spawns a self-cleaning marker burst at the hit point on
       the hit body, present in the `juice_effects` group (Gate 1b — assert
       via the group, mirroring `juice_splat_burst_fires`)
 - [ ] The strip is readable mid-flight wherever the pigeon flew and the
@@ -92,3 +92,26 @@ tail as the T-019 window: `free()` → `Game.hunger.player = null` →
 and `density_cpu_budget`. Gate 2: unaffected — the DONE line's `effects`
 peak moves informationally only. Gate 3: [screenshot] pass — the strip is
 readable at cruise and the marker draws the eye to the hit.
+
+## Implementation notes (2026-10-01, reviewer sign-off: accepted)
+
+- T-038 has NOT landed (still proposed), so the strip composes
+  `"%s +%d"` + `" ×%d"` (multiplier ≥ 2) and the `" STYLE"` suffix is left to
+  T-038, per the dependency note.
+- Landed values: `combo_strip_seconds` 2.5 (ticket default); the marker is a
+  0.35 s one-shot ring — 12 billboard quads on a horizontal emission ring
+  (radius 0.28 m) with radial velocity 2.6–3.4 m/s, fading out — at the hit
+  body's origin, the same point the score popup uses.
+- The scenario lands in the T-019 window right after
+  `_scenario_hud_hunger_tiers`; it parks the Main instance's pigeon 40 m up so
+  the spawn drop's landing (which ends the combo) can never interleave with
+  the chain legs — combo state is driven explicitly.
+- Gates run on this branch (2026-10-01): Gate 1 import + 120-frame boot exit 0
+  (only the documented per-machine-addon shutdown line); Gate 1b full suite
+  88/88 `SIM SUMMARY: 0 failure(s)`, including `combo_strip_reports_last_hit`,
+  `hit_shake_and_score_pulse` and `density_cpu_budget`; Gate 2
+  `AUTOPLAY DONE ok=true` (`effects=3` peak, `restart=true`).
+- PENDING human playtest (kept open per the house pattern — machine gates
+  green, ticket accepted by reviewer sign-off 2026-10-01): the last AC
+  ([screenshot] — strip readable at cruise/low/road, marker draws the eye to
+  the panicking body) plus its two Gate 3 lines in VERIFICATION.md.

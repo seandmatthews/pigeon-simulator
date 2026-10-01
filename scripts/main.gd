@@ -12,6 +12,7 @@ extends Node3D
 const HINT_AIR := "W/S pitch · A/D turn · Space flap · F poop · land by bread to eat"
 const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off · walk into crumbs to eat"
 const SCORE_POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
+const HIT_MARKER_SCENE: PackedScene = preload("res://scenes/hit_marker.tscn")
 const MENU_SCENE_PATH := "res://scenes/menu.tscn"
 
 ## Hunger warning tiers (T-019): the bar is the fail state's messenger, so it
@@ -36,12 +37,15 @@ const POINTER_CLIMB_CUE_M := 3.0 ## (T-098) Vertical delta beyond which the brea
 @export var hit_shake: float = 0.3 ## Camera-shake fraction per scored splat — your hits land with a tick.
 @export var pulse_base_scale: float = 1.14 ## HUD pulse size at a ×2 escalation, growing per extra combo step.
 @export var pulse_seconds: float = 0.3 ## Seconds the HUD pulse takes to settle back.
+@export var combo_strip_seconds: float = 2.5 ## (T-040) Seconds the HUD combo strip keeps showing the last hit — game time, so it freezes with a paused or ended run.
 
 @onready var stats_label: Label = %StatsLabel
 @onready var hint_label: Label = %HintLabel
 ## The F readiness glyph (T-077) — sits beside the hint line it qualifies.
 @onready var poop_ready_label: Label = %PoopReady
 @onready var bread_pointer: Label = %BreadPointer
+## The last-hit line (T-040) — sits under the pointer slot in the left column.
+@onready var combo_strip: Label = %ComboStrip
 ## The pointer's rotatable chevron (T-037): 0 = screen-up = nose, clockwise
 ## positive on screen. Hides with the label (it is its child).
 @onready var bread_pointer_chevron: Polygon2D = bread_pointer.get_node("Chevron")
@@ -59,6 +63,8 @@ var _combo_shown: int = 0 ## The multiplier the HUD last displayed — escalatio
 var _score_pulse: Tween
 var hud_warning_tier: int = 0 ## The hunger warning band the bar currently shows (0 healthy … 3 critical).
 var _pulse_phase: float = 0.0 ## Game-time phase of the tier flash — advanced only while a tier pulses.
+var _last_hit_kind: String = "" ## (T-040) "Tourist"/"Car", stashed by the splat handlers — hit_scored carries points but not the target kind.
+var _combo_strip_left: float = 0.0 ## (T-040) Game-time seconds left before the strip clears; 0 = at rest, empty.
 
 
 func _ready() -> void:
@@ -111,6 +117,11 @@ func _process(delta: float) -> void:
 		hunger_bar.modulate = TIER_REST_COLORS[hud_warning_tier].lerp(TIER_PULSE_TO, beat)
 	_update_bread_pointer() ## Wayfinding (T-037) — refreshed alongside the stats line.
 	_update_poop_ready() ## The F readiness glyph (T-077) — same game-time cadence.
+	if _combo_strip_left > 0.0: ## (T-040) The strip expires in game time like the tier pulse —
+		_combo_strip_left -= delta ## deterministic under --fixed-fps, frozen while paused/over.
+		if _combo_strip_left <= 0.0:
+			_combo_strip_left = 0.0
+			combo_strip.text = ""
 
 
 ## The HUD pulse (T-013): a combo escalation bumps the score line up a size —
@@ -239,25 +250,48 @@ func _on_player_pooped(poop: Poop) -> void:
 
 
 ## Tourist splats feed the Game autoload's table (100 base, DESIGN); the popup
-## spawns from the hit_scored event.
+## spawns from the hit_scored event. (T-040) hit_scored carries points but not
+## the target kind, so the kind word for the HUD combo strip is stashed here —
+## the synchronous add_tourist_hit → hit_scored chain reads it right back.
 func _on_tourist_splatted(tourist: Tourist) -> void:
+	_last_hit_kind = "Tourist"
+	_spawn_hit_marker(tourist) ## The ring marks WHICH body took the hit (T-040).
 	Game.add_tourist_hit(tourist.global_position)
 
 
 ## Car splats feed the Game autoload's table (30 base — the cheap target,
-## DESIGN pillar 3); the popup spawns from the hit_scored event.
+## DESIGN pillar 3); the popup spawns from the hit_scored event. Same kind
+## stash and marker as the tourist path (T-040).
 func _on_car_splatted(car: Car) -> void:
+	_last_hit_kind = "Car"
+	_spawn_hit_marker(car) ## The ring marks WHICH body took the hit (T-040).
 	Game.add_car_hit(car.global_position)
+
+
+## The hit marker (T-040): a one-shot ring burst at the hit point, parented to
+## the hit body (the poop.gd burst-parenting pattern) so it rides a moving
+## tourist/car for its brief life; OneShotBurst frees it when it burns out.
+func _spawn_hit_marker(target: Node3D) -> void:
+	var marker: OneShotBurst = HIT_MARKER_SCENE.instantiate()
+	target.add_child(marker)
+	marker.global_transform = Transform3D(Basis.IDENTITY, target.global_position)
 
 
 ## Every scored hit gets a floating "+100 ×2" at the splat (T-009), a tiny
 ## camera shake on the pigeon's own handiwork (T-013) and the HUD pulse when
-## the combo escalates (fired from _process).
+## the combo escalates (fired from _process). (T-040) It also composes the HUD
+## combo strip — kind + points, " ×N" once chained — the "what/worth" line that
+## outlives the world popup's short life on screen. The STYLE suffix is
+## T-038's, once that lands.
 func _on_hit_scored(points: int, multiplier: int, pos: Vector3, _style: bool) -> void:
 	var popup: ScorePopup = SCORE_POPUP_SCENE.instantiate()
 	popup.setup(points, multiplier, pos)
 	add_child(popup)
 	player.chase_camera.add_shake(hit_shake)
+	combo_strip.text = "%s +%d" % [_last_hit_kind, points]
+	if multiplier >= 2:
+		combo_strip.text += " ×%d" % multiplier
+	_combo_strip_left = combo_strip_seconds
 
 
 ## The fail state (T-010): starvation opens the score screen — final score,
@@ -287,6 +321,8 @@ func restart_run() -> void:
 		popup.queue_free()
 	for poop in get_tree().get_nodes_in_group("poops"):
 		poop.queue_free()
+	combo_strip.text = "" ## (T-040) A fresh run starts with no last hit on the strip.
+	_combo_strip_left = 0.0
 	city.generate(city.seed_value)
 	player.reset_flight(city.to_local(city.spawn_point))
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)
