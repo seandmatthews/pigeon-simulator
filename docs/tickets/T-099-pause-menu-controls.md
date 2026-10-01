@@ -1,6 +1,6 @@
 # T-099 — Put the controls inside the pause menu — the one screen a stuck player opens
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** —
 - **Refs:** sweep 2, ui-ux lane (2026-09-30) · T-019 (outline treatment + hint
   styling) · T-010 (pause flow, done) · T-039 (copy-duplication precedent) ·
@@ -55,19 +55,21 @@ that gap.
 
 ## Acceptance criteria
 
-- [ ] While paused through the real Main, the pause panel shows both control
+- [x] While paused through the real Main, the pause panel shows both control
       lines and they are visible; during normal play and after unpausing they
       are hidden with the panel — Gate 1b only (new scenario
       `pause_menu_shows_controls`)
-- [ ] Each line carries its constant's key families — air: W/S, A/D, Space,
+- [x] Each line carries its constant's key families — air: W/S, A/D, Space,
       F; ground: W/S, A/D, Space — checked against `MainGame.HINT_AIR` /
       `HINT_GROUND` so a future constant edit that drops a family fails the
       gate — Gate 1b only
-- [ ] Both labels carry the T-019 treatment (14 px, outline 4, black-0.85
+- [x] Both labels carry the T-019 treatment (14 px, outline 4, black-0.85
       outline, white-0.75 fill) — Gate 1b theme check
-- [ ] The panel with its control lines reads at a glance over the dimmed
-      world — [screenshot] (open pause panel, mid-run)
-- [ ] `scripts/pause_menu.gd`, `scripts/main.gd` and `project.godot` are
+- [x] The panel with its control lines reads at a glance over the dimmed
+      world — [screenshot] (open pause panel, mid-run; agent grab
+      `.captures/t099_pause_controls.png`, unpause confirm
+      `.captures/t099_pause_unpaused.png`; reviewer sign-off 2026-10-01)
+- [x] `scripts/pause_menu.gd`, `scripts/main.gd` and `project.godot` are
       untouched by the diff; only `scenes/main.tscn` gains the two labels
 
 ## Verification
@@ -87,3 +89,36 @@ pause into later scenarios (the `_scenario_pause_freezes` tail,
 autoplay never opens the pause menu; run it anyway). Gate 3: [screenshot]
 pass — the recap reads at a glance beside the button labels, and the
 "one controls block per screen" tone holds.
+
+## Recorded verification (agent, 2026-10-01 — accepted by reviewer sign-off)
+
+**Tuned values:** the two recap lines, as landed in `scenes/main.tscn:223-238`
+— `%AirControls` `Air: W/S pitch · A/D turn · Space flap · F poop` and
+`%GroundControls` `Ground: W/S waddle · A/D turn · Space flap off · walk into
+crumbs to eat`, both with the T-019 treatment (`font_size 14`,
+`outline_size 4`, `font_outline_color Color(0, 0, 0, 0.85)`,
+`font_color Color(1, 1, 1, 0.75)`, `horizontal_alignment` centered to match the
+Title), appended below the four buttons; the ground line drives the panel's
+width. Copy intentionally duplicates `MainGame.HINT_AIR` / `HINT_GROUND`
+(only the key families — the constants' "land by bread to eat" tail is
+recap-specific and stays hint-only); the Gate 1b bi-directional family match
+is the drift guard. No script or input changes.
+
+- **Gate 1:** `--import` exit 0 with the one documented benign line
+  (`ERROR: 33 resources still in use at exit` — see VERIFICATION.md known
+  issues); `--quit-after 120` exit 0, zero ERROR lines.
+- **Gate 1b:** full suite `godot --headless --fixed-fps 60 --path .
+  res://tests/sim_test.tscn` → exit 0, `SIM SUMMARY: 0 failure(s)`, 95 PASS
+  including the new `pause_menu_shows_controls` (re-run on the final tree).
+- **Gate 2:** `godot --path . res://tests/autoplay.tscn` → exit 0,
+  `AUTOPLAY DONE ok=true … restart=true` (fps 135) — the autoplay never opens
+  the pause menu, run anyway per the ticket.
+- **Gate 3, agent-side via the pilot harness** (session `t099pause`, muted,
+  persistence off): Space started a run (`wait --scene Main`), four flap
+  commands drove mid-run, `send {"key":"Escape"}` opened the panel —
+  screenshot `.captures/t099_pause_controls.png` shows PAUSED with both recap
+  lines legible below the four buttons over the dimmed world (the HUD hint
+  above shows only the grounded copy, the gap this ticket closes); a second
+  Escape resumed play — `.captures/t099_pause_unpaused.png` shows the panel
+  and recap gone with hunger still ticking (90% → 89%). Raw session kept at
+  `.captures/session_t099pause/`. Reviewer sign-off 2026-10-01.
