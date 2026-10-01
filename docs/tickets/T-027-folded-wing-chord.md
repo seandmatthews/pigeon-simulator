@@ -1,8 +1,13 @@
 # T-027 — Fix the grounded read: thin the folded wing chord at the rig level
 
-- **Milestone:** Sweep backlog · **Status:** superseded (T-048 — executes this plus an elder-read accent) · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done (executed by T-048) · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-016 (root cause adjudicated, pose values held back), T-011 (the presentation rig)
 - **Refs:** `VERIFICATION.md` → Known issues (the open splay entry); visual-design lane plan, sweep 1 (2026-09-29)
+
+> Executed by T-048 (2026-10-01): the chord fix ships exactly as ticketed, with
+> one correction — `reset_pose()` restores the pivots to identity 1.0, not the
+> "zero" this text typo'd (zero would collapse the wings) — plus the elder-read
+> cardigan accent. T-048's file owns the Gate 3 screenshot judgements.
 
 ## What
 
@@ -59,23 +64,23 @@ mesh/rig change is required.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: `pigeon_ground_poses_track_waddle` extended — the grounded
+- [x] Gate 1b: `pigeon_ground_poses_track_waddle` extended — the grounded
       stand/waddle legs additionally assert `wing_chord` (both wing pivots'
       scale.z) ≤ 0.5 once the fold has settled
-- [ ] Gate 1b: the same scenario gains an airborne leg (fresh airborne
+- [x] Gate 1b: the same scenario gains an airborne leg (fresh airborne
       `_set_up`, joints eased ~45 frames) asserting `wing_chord` returns to
       ≥ 0.95, and a `reset_pose()` call asserting it returns to exactly 1.0 —
       no restart can leave a folded chord in the air
-- [ ] `pigeon_air_poses_track_flight`, `pigeon_pecks_when_eating` and the whole
+- [x] `pigeon_air_poses_track_flight`, `pigeon_pecks_when_eating` and the whole
       suite stay green — air visuals and the peck overlay unchanged
-- [ ] [screenshot] At the chase cam's grounded distance (~3.5 m) the bird reads
+- [x] [screenshot] At the chase cam's grounded distance (~3.5 m) the bird reads
       at a glance as a compact pigeon with wings hugging the flanks — not a
       biplane — next to a bench elder (Gate 3 — human judgement; the plan's own
       experiment was proposed, not prototyped, so the visual win itself still
-      needs eyes)
-- [ ] [screenshot] The takeoff moment (fold → GLIDE) shows the wings re-opening
+      needs eyes; proven via T-048, reviewer sign-off 2026-10-01)
+- [x] [screenshot] The takeoff moment (fold → GLIDE) shows the wings re-opening
       smoothly, without a pop as the chord re-expands over the pose lerp
-      (Gate 3 — human judgement)
+      (Gate 3 — human judgement; proven via T-048, reviewer sign-off 2026-10-01)
 
 ## Verification
 

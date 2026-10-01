@@ -23,7 +23,7 @@ signal shared(elder: Elder, crumbs: int)
 const CARDIGAN_PALETTE: Array[Color] = [
 	Color(0.42, 0.55, 0.52), ## Faded teal.
 	Color(0.62, 0.48, 0.38), ## Warm tan.
-	Color(0.55, 0.45, 0.60), ## Dusty lilac.
+	Color(0.70, 0.35, 0.26), ## Warm rust (T-048) — the old dusty lilac sat 0.12 from the sidewalk gray and plaza elders washed out at range.
 	Color(0.48, 0.52, 0.42), ## Sage.
 ]
 const SKIN := Color(0.87, 0.68, 0.55) ## Same skin family as the tourists (T-007).
