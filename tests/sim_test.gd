@@ -55,6 +55,7 @@ var _score_events: Array[Dictionary] = [] ## hit_scored payloads caught from the
 var _main_game: MainGame ## The real main.tscn instance the T-010 flow scenarios share.
 var _bread_shared: Array[Dictionary] = [] ## bread_shared relays caught from the elder spawner under test (T-020).
 var _regen_relay: int = 0 ## regenerated relays caught from the city under restart (T-033) — signal counters survive inside lambdas only as members.
+var _off_world_signal_fires: int = 0 ## `off_world_reset` emissions caught in the T-036 scenario (T-095) — same member rule as `_regen_relay`.
 
 
 func _ready() -> void:
@@ -4632,7 +4633,10 @@ func _scenario_density_cpu_budget() -> void:
 ## the following ~2 s: the corridor sits far inside the world, so a second fire
 ## would mean the respawn point itself is off-world. The standalone harness
 ## player has no city, so the scenario points `respawn_point` at a known spot
-## over the flat test ground itself — mirroring what Main wires in.
+## over the flat test ground itself — mirroring what Main wires in. Since T-095
+## the exactly-once claim is double-checked through the guard's new
+## `off_world_reset` signal: emissions counted beside the counter, exactly one
+## across the whole window.
 func _scenario_off_world_fall_returns_home() -> void:
 	var hunger := Hunger.new()
 	hunger.player = _player
@@ -4642,6 +4646,14 @@ func _scenario_off_world_fall_returns_home() -> void:
 	## `off_world_fall_respawns` (which runs earlier) already fired the guard
 	## once — zero the counter so this window asserts its OWN exactly-one fire.
 	_player.off_world_resets = 0
+	## (T-095) The guard also emits `off_world_reset` now — count the emissions
+	## beside the counter. The connect precedes `_set_up` because the guard can
+	## already fire inside its 2 settle frames; the lambda lives in a var so the
+	## scenario can disconnect it (the harness player is shared across
+	## scenarios, like the `hunger.free()` housekeeping below).
+	_off_world_signal_fires = 0
+	var on_off_world_reset := func() -> void: _off_world_signal_fires += 1
+	_player.off_world_reset.connect(on_off_world_reset)
 	var home: Vector3 = _player.respawn_point
 	var hunger0: float = hunger.value
 	## Below the guard (−5) AND past where any floor exists (the test ground
@@ -4653,20 +4665,22 @@ func _scenario_off_world_fall_returns_home() -> void:
 		if _player.is_grounded and _player.position.distance_to(home) < 1.0:
 			grounded_home = true
 			break
-	var fired_once := _player.off_world_resets == 1
+	var fired_once := _player.off_world_resets == 1 and _off_world_signal_fires == 1
 	var landed := _player.is_grounded
 	## No oscillation: two more seconds parked home — the counter must not move.
 	await _wait_frames(120)
 	var stable := fired_once and grounded_home and _player.is_grounded \
 			and _player.position.distance_to(home) < 1.0 \
-			and _player.off_world_resets == 1
+			and _player.off_world_resets == 1 \
+			and _off_world_signal_fires == 1
 	var hunger_loss: float = hunger0 - hunger.value
 	var finite := _player.velocity.is_finite() and _player.position.is_finite()
 	var at_rest := _player.velocity.length() < 1.0
+	_player.off_world_reset.disconnect(on_off_world_reset) ## Housekeeping: the shared player must not carry this scenario's listener on.
 	hunger.free()
 	_check("off_world_fall_returns_home",
 			fired_once and grounded_home and landed and stable and hunger_loss > 0.2
 					and finite and at_rest,
-			"counter=%d grounded_home=%s stable=%s hunger lost %.2f, rest %.2f m/s at %s (finite=%s)" % [
-					_player.off_world_resets, grounded_home, stable, hunger_loss,
+			"counter=%d signal=%d grounded_home=%s stable=%s hunger lost %.2f, rest %.2f m/s at %s (finite=%s)" % [
+					_player.off_world_resets, _off_world_signal_fires, grounded_home, stable, hunger_loss,
 					_player.velocity.length(), _player.position, finite])

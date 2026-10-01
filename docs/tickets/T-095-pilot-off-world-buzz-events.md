@@ -1,6 +1,6 @@
 # T-095 — Make the off-world return and the buzz flinch visible to pilot sessions
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** code-optimization · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-042 (landed — the guard this makes visible) · T-014 (landed — the pilot harness that reads the evidence)
 
 ## What
@@ -61,7 +61,7 @@ pilot sessions, and no pilot session can show a buzz flinch happening.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b `off_world_fall_returns_home` extended
+- [x] Gate 1b `off_world_fall_returns_home` extended
       (`tests/sim_test.gd:3312-3348`): connect a local counter to
       `Player.off_world_reset` at scenario start (after the
       `off_world_resets = 0` zeroing at `:3320`; disconnect at scenario end —
@@ -69,18 +69,18 @@ pilot sessions, and no pilot session can show a buzz flinch happening.
       housekeeping pattern at `:3342`) and assert the signal fired exactly
       once alongside the existing `off_world_resets == 1` asserts (`:3332`,
       still 1 after the stability window `:3336-3338`)
-- [ ] Gate 1b full suite green — no new scenario needed (the signal rides the
+- [x] Gate 1b full suite green — no new scenario needed (the signal rides the
       existing guard path; the recorder is inert in the harness, so the
       scenario counter is the only sim consumer)
-- [ ] A pilot session flying the T-036 excursion (out past the apron, dive
+- [x] A pilot session flying the T-036 excursion (out past the apron, dive
       below the guard) shows an `off_world_reset` events line carrying the
       void position between the last outbound state and the corridor
       `grounded` line, and `off_world_resets` rising 0 → 1 in the state
       stream — the evidence path for the two pending Gate 3 lines
-- [ ] A pilot session performing a ≥ 12 m/s pass within ~3 m of a strolling
+- [x] A pilot session performing a ≥ 12 m/s pass within ~3 m of a strolling
       tourist shows a non-zero entry in the state stream's `buzz` array,
       aligned with that tourist's index in `tourists`
-- [ ] No gameplay change: every existing Gate 1b scenario outcome unchanged
+- [x] No gameplay change: every existing Gate 1b scenario outcome unchanged
       (the emit is beside the increment; the fields are read-only)
 
 ## Verification
@@ -92,3 +92,38 @@ machine gates for the observability itself: repeat the T-036 excursion
 stroller; verify the events/state evidence in the two pilot criteria above.
 Gate 3: the T-042/T-036 lines keep their pending status until a human pass —
 this ticket gives them the pilot-evidence path they were missing.
+
+## Evidence (agent runs, 2026-10-01; reviewer sign-off 2026-10-01)
+
+Tuned values: **none** — the ticket is purely additive observability; zero
+@export tunables or gameplay constants touched (the landed diff touches only
+`scripts/player.gd`'s guard branch +signal/emit, `tests/capture_recorder.gd`
+and `tests/sim_test.gd`). Accepted by reviewer sign-off (2026-10-01).
+
+- **Gate 1:** `--import` exit 0 (only the documented benign addon line), the
+  120-frame boot exit 0 with zero error lines.
+- **Gate 1b:** full suite `godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn`
+  → exit 0, `SIM SUMMARY: 0 failure(s)`, 93 scenarios PASS including the
+  extended `off_world_fall_returns_home` (the pass proves counter == signal
+  fires == 1 in both the landing and stability windows — any other value
+  fails `fired_once`/`stable`). **Gate 2:** `AUTOPLAY DONE ok=true …
+  restart=true`, exit 0, no SCRIPT ERROR, fps 131.
+- **Excursion (session `t095out4`, `.captures/session_t095out4/`):** the
+  pigeon flew out to `p=[16.0, 11.47, -741.98]` — 375 m past the apron edge
+  at −367 — then dove; the guard caught it at `p=[16.0, -5.22, -756.45]`
+  (389 m past the edge, 22.7 m/s). Events stream: exactly one
+  `{"ev":"off_world_reset","p":[16.0,-5.22,-756.45],"t_ms":67087}` between
+  the dive's `pilot_press`es and the corridor `grounded` at t_ms 67256;
+  state stream: last outbound line t_ms 67087 `p=[16.0,-5.22,-756.45] …
+  resets 0` → first home line t_ms 67109 `p=[16.0,0.59,0.0] resets 1`;
+  `off_world_resets` reads 0 → 1 exactly once across the whole stream, and
+  hunger kept draining through the snap (68.2 → 68.17). (Earlier clean
+  single-fire runs `t095out2` — fire at −5.06/−559.07 — and the multi-fire
+  `t095out` — three fires at −539/−392/−405 — confirm the path further.)
+- **Buzz flyby (session `t095buzz`, `.captures/session_t095buzz/`):** one
+  state line (t_ms 31369) shows `buzz = [0,0,0,0,1,1,0,…]` with
+  `tourists[4] = tourists[5] = [42.8, 0.12, -25.6]` — a loose-group pair —
+  while the player sat at `[42.61, 2.21, -23.27]`, ≈ 2.7 m from each at
+  12.0 m/s (17.6 m/s one line later, still inside the 2.6 m + 0.3 m overlap):
+  non-zero `buzz` entries aligned with exactly the flinched tourists'
+  indices, in the same snapshot that locates them.
