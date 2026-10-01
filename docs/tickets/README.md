@@ -3,6 +3,14 @@
 One file per ticket. Workflow, statuses and definition-of-done: [`AGENTS.md`](../../AGENTS.md).
 Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale: [`DESIGN.md`](../DESIGN.md).
 
+## Current phase
+
+**Sweep polish, waves W1–W8** — readability, flight feel and performance over
+the M1 slice. Schedule, phase goals and exit criteria:
+[`docs/ROADMAP.md`](../ROADMAP.md). M2 (the town-vs-visitors goal layer) is
+proposed but **not yet ticketed** — see [`DESIGN.md`](../DESIGN.md) →
+Milestone 2; don't pull M2 work into sweep waves.
+
 ## Milestone 1 — vertical slice
 
 | ID | Ticket | Priority | Size | Depends on | Status |
@@ -108,11 +116,16 @@ been re-reviewed and fixed in their files (see the addendum at the end of
 fixes and commits). Tickets still go stale fast — re-verify a ticket's
 current-state section right before building it.
 
-## Milestone 2 — after the slice (not yet ticketed)
+## Milestone 2 — the town's pigeon (proposed, not yet ticketed)
 
-Districts & palette variety · hawk hazard · seagull bread rivals · statue/landmark
-bonus targets · objectives & missions · gamepad support · settings (sensitivity,
-invert-Y, volume) · performance budget pass · Windows export builds.
+Direction proposed 2026-10-01 — detail and the four open forks in
+[`DESIGN.md`](../DESIGN.md) → Milestone 2. Short version: the town gets memory
+and sides — befriend the locals (park elders first), drive off the rowdy
+visiting fans, game-day arc, Ames setting, no quest machinery. The old M2
+sketch folds in where it serves that spine (hawk hazard, seagull rivals at the
+tailgates, districts as campus/main-street/tailgate palettes, landmark bonus
+targets, gamepad, settings, export builds); objectives & missions stay out.
+No M2 tickets until the forks are decided.
 
 ## Suggested build order
 

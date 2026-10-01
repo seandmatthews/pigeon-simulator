@@ -46,4 +46,5 @@ Main Run Args.
 - [`AGENTS.md`](AGENTS.md) — conventions for working in this repo (read this first)
 - [`VERIFICATION.md`](VERIFICATION.md) — the test gates every change must pass
 - [`docs/DESIGN.md`](docs/DESIGN.md) — the game design
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — phase plan: what's being built now and what's next
 - [`docs/tickets/`](docs/tickets/README.md) — backlog and ticket workflow
