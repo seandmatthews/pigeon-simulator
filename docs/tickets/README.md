@@ -53,7 +53,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-040 | [HUD combo strip & hit marker: make every scored hit readable](T-040-combo-strip-hit-marker.md) | ui-ux | 4 | 2 | proposed |
 | T-041 | [Land the pitch-up flare: brake-sink instead of balloon (adopt T-022)](T-041-flare-brake-sink.md) | flight-control | 4 | 3 | superseded (T-084) |
 | T-042 | [Guard the off-world void: respawn at the spawn corridor (adopt T-036)](T-042-off-world-void-respawn.md) | flight-control | 4 | 2 | done |
-| T-043 | [Cap the sustained-flap throttle so dives own the top end](T-043-sustained-flap-cap.md) | flight-control | 3 | 3 | proposed |
+| T-043 | [Cap the sustained-flap throttle so dives own the top end](T-043-sustained-flap-cap.md) | flight-control | 3 | 3 | done |
 | T-044 | [Trim the pinned FOV kick and pull the arm in at speed (adopt T-024)](T-044-fov-arm-trim.md) | flight-control | 3 | 1 | done |
 | T-045 | [Give the bird a pale rump/wing-bar anchor that survives roads and roofs](T-045-pale-rump-anchor.md) | visual-design | 3 | 1 | superseded (T-085) |
 | T-046 | [Add a predicted-impact ring for drops — the bombsight behind T-025's bigger ball](T-046-poop-impact-ring.md) | visual-design | 4 | 2 | proposed |

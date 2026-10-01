@@ -40,6 +40,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | -------- | ------ | ------ |
 | takeoff_3_flaps | 3 paced flaps from the ground reach climbing flight | T-001 |
 | flap_speed_envelope | four paced flaps climb without pumping forward speed to the cap, and a flap at cruise buys climb, not throttle (fwd gain < 2 m/s at +1–2 frames, vy gain > 4) | T-015 |
+| sustained_flap_ceiling | TWELVE paced ground flaps (the takeoff cadence, fully rested) converge below the 26 m/s pump ceiling instead of riding toward `max_speed` — peak forward speed tracked through the whole cadence AND a 3 s no-input coast, velocity finite throughout; measured 20.26 m/s at the landed `flap_sustained_fade` 0.5, and 28.28 m/s (FAIL) without the fade | T-043 |
 | lift_softens_gravity | level glide at 12 m/s sinks gently (< 6 m in 1.5 s) | T-001 |
 | dive_gains_speed | a dive to −60° converts height into speed | T-001 |
 | pullup_gains_height | pulling out of a dive climbs above the pull-start altitude while speed bleeds | T-001 |

@@ -86,6 +86,7 @@ func _add_box(box_name: String, size: Vector3, pos: Vector3) -> StaticBody3D:
 func _run_scenarios() -> void:
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
+	await _scenario_sustained_flap_ceiling()
 	await _scenario_lift()
 	await _scenario_energy_exchange()
 	await _scenario_banking()
@@ -297,6 +298,33 @@ func _scenario_flap_speed_envelope() -> void:
 					and finite,
 			"pump %.1f m/s (ceil %.1f) at y %.1f, cruise tap fwd +%.2f vy +%.2f" % [
 					pump_speed, FLAP_PUMP_CEIL, pump_y, fwd_gain, vy_gain])
+
+
+## (T-043) The pacing ceiling: TWELVE paced flaps from the ground — the takeoff
+## cadence, 24-frame waits keeping every flap fully rested — must converge
+## below the pump ceiling instead of riding toward `max_speed`. The convergence
+## only shows after ~12 flaps (the envelope scenario's 4-flap pump leg cannot
+## see it), so the peak forward speed is tracked through the whole cadence AND
+## a 3 s no-input coast: neither a mid-cadence spike nor the arc-over's
+## speed conversion may duck under the bar.
+func _scenario_sustained_flap_ceiling() -> void:
+	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO)
+	var peak_fwd := 0.0
+	for _i in 12:
+		await _tap("flap")
+		await _wait_frames(24)
+		peak_fwd = maxf(peak_fwd, _player.forward_speed)
+		_dbg("sustained flap %d: fwd=%.2f y=%.2f" % [
+				_i + 1, _player.forward_speed, _player.position.y])
+	for _i in 180: ## 3 s no-input coast through the arc-over.
+		await get_tree().physics_frame
+		peak_fwd = maxf(peak_fwd, _player.forward_speed)
+	var finite := _player.velocity.is_finite()
+	_dbg("sustained: peak_fwd=%.2f end speed=%.2f end y=%.2f" % [
+			peak_fwd, _player.velocity.length(), _player.position.y])
+	_check("sustained_flap_ceiling", peak_fwd < FLAP_PUMP_CEIL and finite,
+			"12 paced flaps peaked %.2f m/s fwd (ceil %.1f), finite=%s" % [
+					peak_fwd, FLAP_PUMP_CEIL, finite])
 
 
 ## At cruise speed, lift must noticeably soften gravity: a 1.5 s glide sinks

@@ -1,6 +1,6 @@
 # T-043 — Cap the sustained-flap throttle so dives own the top end
 
-- **Milestone:** Sweep 2 · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 3 · **Risk (1-5):** 3
+- **Milestone:** Sweep 2 · **Status:** done · **Category:** flight-control · **Value (1-5):** 3 · **Risk (1-5):** 3
 - **Depends on:** T-015 (landed — the taper blend this fades, `scripts/player.gd:299-301`)
 - **Refs:** sweep-2 planning sessions `.captures/session_flcs2-a/b/` (peaks verified verbatim
   at ticket-writing time; worktree captures) · a since-reverted machine A/B probe, labeled
@@ -51,22 +51,30 @@ margin lands thin, that is a finding to bring back, not a bar to quietly lower.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b scenario `sustained_flap_ceiling` passes: 12 paced flaps from the ground (the
+- [x] Gate 1b scenario `sustained_flap_ceiling` passes: 12 paced flaps from the ground (the
       `takeoff` cadence, `tests/sim_test.gd:228-241`) converge below 26.0 m/s forward, with
       finite velocity, tracked through the cadence AND a 3 s no-input coast — fails today
-      (sustained peak ~28.2–28.5)
-- [ ] Ground takeoffs and stall recovery keep full flap power (structural via `blend == 0`
+      (sustained peak ~28.2–28.5) — *re-earned on the landed tree: 28.28 m/s and FAIL
+      without the fade, 20.26 m/s and PASS at `flap_sustained_fade` 0.5 (fixed-fps sim,
+      this worktree)*
+- [x] Ground takeoffs and stall recovery keep full flap power (structural via `blend == 0`
       at their speeds; Gate 1b: `takeoff_3_flaps`, `flap_takes_off_ground`, `stall_recovers`
-      stay green with unchanged margins)
-- [ ] The weakened cruise flap keeps the envelope's shape: `flap_speed_envelope` stays
-      green (pump leg, cruise-tap fwd gain and vy bar all still pass)
-- [ ] `city_street_flyover` still crosses within its frame budget with the weaker pacing
+      stay green with unchanged margins) — *flap 1 of the cadence is byte-identical across
+      the change (fwd 10.92 both trees; the ground branch never computes `blend`)*
+- [x] The weakened cruise flap keeps the envelope's shape: `flap_speed_envelope` stays
+      green (pump leg, cruise-tap fwd gain and vy bar all still pass) — *pump 17.92
+      (< 26), cruise tap fwd +0.25 (< 2.0), vy +6.34 (> 4.0; the predicted ~halving of
+      ~12.5 landed, margin 2.34 over the bar — noted, bar not touched)*
+- [x] `city_street_flyover` still crosses within its frame budget with the weaker pacing
       taps
-- [ ] `docs/DESIGN.md`'s speed-envelope wording and the `player.gd` header/flap docs match
+- [x] `docs/DESIGN.md`'s speed-envelope wording and the `player.gd` header/flap docs match
       the landed model (update in the same commit — today they say "flaps pace toward
       roughly 25 m/s")
-- [ ] [screenshot] Gate 3 feel: cruise climbing still reads as climbing at the reduced
-      per-flap impulse, and dives still read as the only path past ~25
+- [x] [screenshot] Gate 3 feel: cruise climbing still reads as climbing at the reduced
+      per-flap impulse, and dives still read as the only path past ~25 — *accepted by
+      reviewer sign-off (2026-10-01) on the implementer's pilot evidence (cruise-glide and
+      pitch-up-flap climb screenshots reading as climbing above the skyline; dive speed
+      machine-held by `dive_gains_speed`/`pullup_gains_height`/`hard_landing_skids`)*
 
 ## Verification
 
@@ -81,6 +89,21 @@ change-set. Explicitly re-run: `flap_speed_envelope`, `takeoff_3_flaps`,
 `glide_speed + 3` (`tests/autoplay.gd:292-312`) — re-check its DONE speed line still holds
 under the fade. Gate 3: the feel line above.
 
-**Pending human playtest (Gate 3):** record the final tuned `flap_sustained_fade` and the
-measured 12-flap ceiling on the landed tree; does pacing still feel rewarding; does the
-top-end still belong to dives.
+**Human playtest (Gate 3) — ACCEPTED:** ~~pending~~ closed by reviewer sign-off
+(2026-10-01). Final tuned value: `flap_sustained_fade` **0.5** (default); measured 12-flap
+ceiling on the landed tree: **20.26 m/s** (28.28 unfaded).
+
+**Landed numbers (implementer, 2026-10-01, this worktree):** `flap_sustained_fade` stays
+at its default 0.5. Machine ceiling on the landed tree: 12 paced flaps peaked **20.26
+m/s** forward (vs 28.28 unfaded — the scenario fails sharp without the change), still
+creeping gently at convergence (flap 11 → 20.02, flap 12 → 20.26), finite through the
+cadence and the 3 s coast. Agent-side pilot pass (session `t043impl`, live game, muted):
+paced flap cadences kept the bird at fwd 13–15 m/s samples mid-decay, takeoff flaps from
+grounded fired at full power each time, and screenshots show cruise glide and a
+pitch-up-flap climb reading as climbing above the skyline
+(`.captures/session_t043impl/` — removed by `pilot.py clean` after review; the frames
+re-verified `flap_takes_off_ground`-style behavior live). The dive half of the feel line
+is machine-held by `dive_gains_speed`/`pullup_gains_height`/`hard_landing_skids` (green
+post-change). Gate 2 autoplay re-run under the fade: `ok=true
+restart=true`, DONE speed sample 15.96 m/s vs 12.30 on the pristine tree (point samples;
+the governor adapted by flapping more — 23 flap whooshes vs 18, 11 effort beats vs 7).
