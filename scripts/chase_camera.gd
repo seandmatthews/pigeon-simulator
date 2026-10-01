@@ -19,12 +19,13 @@ extends Node3D
 @export var pivot_height_air: float = 1.4 ## Rig height above the pigeon in flight.
 @export var pivot_height_ground: float = 0.6 ## Rig height above the pigeon while grounded.
 @export var arm_length_air: float = 6.5
+@export var arm_length_air_fast: float = 5.8 ## Airborne arm length at the kick's saturation speed (fov_speed): the rig pulls in with speed so the bird reads bigger exactly when landing judgement happens at pace (T-044).
 @export var arm_length_ground: float = 3.5
 @export var framing_rate: float = 4.0 ## 1/s damping of arm length and pivot height.
 
 @export_group("Speed feel")
 @export var fov_air: float = 72.0
-@export var fov_max: float = 86.0
+@export var fov_max: float = 79.0 ## Capped below the old 86: at cruise the pinned kick shrank the bird exactly when roof/landing judgement matters (T-044).
 @export var fov_ground: float = 65.0
 @export var fov_speed: float = 20.0 ## Forward speed at which the FOV kick is fully on.
 @export var fov_rate: float = 4.0 ## 1/s FOV damping.
@@ -109,8 +110,14 @@ func _physics_process(delta: float) -> void:
 	_pivot_height = lerpf(_pivot_height,
 			pivot_height_ground if grounded else pivot_height_air,
 			1.0 - exp(-framing_rate * delta))
+	## T-044: the airborne arm target pulls in with speed on the same ramp the
+	## FOV kick rides — from arm_length_air at rest to arm_length_air_fast at
+	## fov_speed — so the bird keeps a readable silhouette at cruise. The
+	## grounded branch and the SpringArm3D's ownership of clipping are untouched.
+	var arm_air := lerpf(arm_length_air, arm_length_air_fast,
+			clampf(_player.forward_speed / fov_speed, 0.0, 1.0))
 	_spring.spring_length = lerpf(_spring.spring_length,
-			arm_length_ground if grounded else arm_length_air,
+			arm_length_ground if grounded else arm_air,
 			1.0 - exp(-framing_rate * delta))
 
 	var fov_target := fov_ground if grounded else lerpf(
