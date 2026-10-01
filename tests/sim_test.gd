@@ -46,6 +46,7 @@ var _city: City
 var _ground: StaticBody3D ## The flat test-world floor — poop splat scenarios assert hits on it.
 var _failures: int = 0
 var _game_over_fires: int = 0 ## Signal counters survive inside lambdas only as members.
+var _hunger_changed_fires: int = 0 ## (T-075) Storm counter for hunger_game_over_once — member for the same reason.
 var _dropped: Array[Poop] = [] ## Poops the test player released (T-006).
 var _splat_events: Array[Dictionary] = [] ## {target, velocity} per splatted hit of the poop under test.
 var _tourist_relay: int = 0 ## tourist_splatted relays caught from the spawner under test (T-007).
@@ -989,6 +990,9 @@ func _scenario_hunger_drain() -> void:
 
 ## Hunger empties, clamps at zero and fires game_over EXACTLY once — eating
 ## afterwards refills the bar but the latch holds (T-010 builds on this).
+## (T-075) With the bar parked at zero and the player still attached, 120
+## further drained frames must produce ZERO changed emissions — the guarded
+## setter stays silent where the unguarded one re-broadcast every tick.
 func _scenario_hunger_game_over() -> void:
 	var hunger := Hunger.new()
 	hunger.player = _player
@@ -1002,10 +1006,15 @@ func _scenario_hunger_game_over() -> void:
 	hunger.eat(30.0)
 	var restored: bool = hunger.value == 30.0
 	await _wait_frames(30) ## Drains right back to zero — a second fire would prove the latch broken.
+	_hunger_changed_fires = 0
+	hunger.changed.connect(func(_v: float, _m: float) -> void: _hunger_changed_fires += 1)
+	await _wait_frames(120) ## Two seconds of live drain-at-zero, player still attached.
 	_check("hunger_game_over_once",
-			crossed_once and restored and _game_over_fires == 1 and hunger.value <= 0.5,
-			"fires=%d crossed=%s restored=%s value=%.1f" % [
-					_game_over_fires, crossed_once, restored, hunger.value])
+			crossed_once and restored and _game_over_fires == 1 and hunger.value <= 0.5
+					and _hunger_changed_fires == 0,
+			"fires=%d crossed=%s restored=%s value=%.1f changed_fires=%d" % [
+					_game_over_fires, crossed_once, restored, hunger.value,
+					_hunger_changed_fires])
 	hunger.free()
 
 
@@ -3838,6 +3847,17 @@ func _scenario_hud_hunger_tiers() -> void:
 	var pulse2 := tier2_hi - tier2_lo > 0.1
 	var pulse3 := tier3_hi - tier3_lo > 0.1
 	var faster := tier3_crossings > tier2_crossings
+	## (T-075) The tier-OR-percent bar-write guard's load-bearing half: a tier
+	## boundary crossed while the rounded percent STANDS STILL must still
+	## rewrite the bar and repaint — 50.4% (percent 50, tier 0) sliding to
+	## 49.98% (percent 50 still, tier 1 now). A percent-only guard would leave
+	## hunger_bar.value parked at 50.4 here.
+	Game.hunger.value = 50.4
+	var boundary_bar_before: float = bar.value
+	Game.hunger.value = 49.98
+	var boundary_ok: bool = main_game.hud_warning_tier == 1 \
+			and not is_equal_approx(bar.value, boundary_bar_before) \
+			and bar.modulate.is_equal_approx(MainGame.TIER_REST_COLORS[1])
 	## Falling back to a lower tier restores that tier's rest color — the crumb
 	## path (a refill through changed)…
 	Game.hunger.value = 80.0
@@ -3852,12 +3872,12 @@ func _scenario_hud_hunger_tiers() -> void:
 	Game.reset_run()
 	_check("hud_hunger_warning_tiers",
 			outline_ok and styleboxes_ok and tiers_ok and quiet_static and pulse2 and pulse3 \
-					and faster and refill_rest and restart_rest,
-			"outline=%s styleboxes=%s tiers=%s quiet_static=%s pulse2=%s (g %.2f..%.2f, %d x) pulse3=%s (g %.2f..%.2f, %d x) faster=%s refill_rest=%s restart_rest=%s" % [
+					and faster and boundary_ok and refill_rest and restart_rest,
+				"outline=%s styleboxes=%s tiers=%s quiet_static=%s pulse2=%s (g %.2f..%.2f, %d x) pulse3=%s (g %.2f..%.2f, %d x) faster=%s boundary=%s refill_rest=%s restart_rest=%s" % [
 					outline_ok, styleboxes_ok, tiers_ok, quiet_static,
 					pulse2, tier2_lo, tier2_hi, tier2_crossings,
 					pulse3, tier3_lo, tier3_hi, tier3_crossings,
-					faster, refill_rest, restart_rest])
+					faster, boundary_ok, refill_rest, restart_rest])
 
 
 ## --- scenario (T-040 HUD combo strip & hit marker) ---------------------------

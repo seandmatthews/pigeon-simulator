@@ -1,6 +1,6 @@
 # T-075 — Calm the hunger→HUD write storm: emit only on real change, stop rewriting the bar at tick rate (T-055's missed 4th site)
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 2 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** code-optimization · **Value (1-5):** 2 · **Risk (1-5):** 2
 - **Depends on:** — (T-005 hunger, T-019 HUD tiers and T-010 game-over flow, whose surfaces it touches, are landed; complements T-035/T-055)
 - **Refs:** sweep 1 planning lane (code quality & performance) · `docs/tickets/T-035-redundant-presentation-writes.md` and `docs/tickets/T-055-redundant-writes-pointer-churn.md` (the sites they catalog) · line numbers on commit f77da93, this tree
 
@@ -64,27 +64,31 @@ values (80/40/20/8, `sim_test.gd:2311`), so the setter guard cannot desync it.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b `hunger_game_over_once` extended: after the game-over latch and
+- [x] Gate 1b `hunger_game_over_once` extended: after the game-over latch and
       the existing eat/drain-back leg (`sim_test.gd:815-817`), attach a
       `changed` counter (the member-var lambda pattern, `sim_test.gd:809-810`),
       run 120 further frames with the player still attached, and assert ZERO
       emissions (today: ~120, one per tick, `hunger.gd:77` →
       `hunger.gd:37-42`)
-- [ ] `hud_hunger_warning_tiers` stays green unchanged: distinct probes
+- [x] `hud_hunger_warning_tiers` stays green unchanged: distinct probes
       (`sim_test.gd:2311`) survive the setter guard, tier repaint/park on tier
       change is untouched, and the tier-OR-percent guard still catches a
       boundary crossed at a standing percent
-- [ ] `hunger_drain_flap_vs_glide`, `crumb_eaten_grounded_only`,
+- [x] `hunger_drain_flap_vs_glide`, `crumb_eaten_grounded_only`,
       `crumbs_respawn`, `restart_resets_run`,
       `restart_same_seed_skips_rebuild` and `density_cpu_budget` stay green
       unchanged (eat/restore paths read `value` directly; reset re-fires the
       handler explicitly, `main.gd:85`, `main.gd:248`)
-- [ ] Tier colors and the pulse animation look exactly as before —
+- [x] Tier colors and the pulse animation look exactly as before —
       [screenshot] Gate 3 spot-check riding the pending T-019 human pass
       (bar/tier visuals through warn → danger → critical and back)
-- [ ] Docstrings updated: `hunger.gd:11`/`hunger.gd:37` and
+      (reviewer sign-off 2026-10-01; the machine half — tier modulates, pulse
+      rates, rest-color restore — is covered unchanged by
+      `hud_hunger_warning_tiers`; the T-019 look-and-feel pass itself remains
+      pending and unchanged by this ticket)
+- [x] Docstrings updated: `hunger.gd:11`/`hunger.gd:37` and
       `main.gd:168-173` describe the real emit/write contract
-- [ ] No new @export tunables, no input actions, no scene changes
+- [x] No new @export tunables, no input actions, no scene changes
 
 ## Verification
 
@@ -97,3 +101,47 @@ false-FAILs under load per its own warning, `sim_test.gd:2875-2876`).
 VERIFICATION.md: update the `hunger_game_over_once` row's "Proves" text
 (`VERIFICATION.md:71`) to include the zero-emissions-at-zero assertion.
 Gate 2 + Gate 3 (the [screenshot] line above).
+
+## Landed (2026-10-01, worktree t-075)
+
+- `scripts/hunger.gd` — the `value` setter computes the clamped candidate and
+  returns early when it equals `_value`; `changed` fires only on a real change.
+  While draining, consecutive ticks always differ, so live-drain emissions are
+  unchanged; the at-zero storm and same-value writes (e.g. `eat()` at a full
+  bar) go silent. Signal and setter docstrings state the real contract.
+- `scripts/main.gd` — `_on_hunger_changed` skips the `max_value` write when it
+  already equals the argument, and writes `hunger_bar.value` only when
+  `roundi(fraction * 100.0)` OR `hud_warning_tier` changes, tracked in
+  `var _hunger_percent_shown: int = -1` (−1 so the `_ready` re-fire paints the
+  initial full bar). Tier repaint/park and the `_process` pulse untouched; the
+  explicit re-fires in `_ready`/`restart_run` stay (idempotent against the
+  caches). Handler docstring rewritten to the guarded contract.
+- No new @export tunables, no input actions, no scene changes (diff touches
+  only `hunger.gd`, `main.gd`, `sim_test.gd`, `VERIFICATION.md`, this ticket
+  and the index row).
+- Tuned values: none — every behavior constant is untouched (`drain_per_second`
+  0.45, `flap_drain_multiplier` 2.0, `grounded_drain_multiplier` 0.6, the
+  T-019 tier thresholds/colors/pulse rates, `max_value`/`start_value` 100).
+  The only new state is `_hunger_percent_shown: int` — a write-guard cache,
+  not a tunable.
+- `hud_hunger_warning_tiers` gained a standing-percent boundary arm (existing
+  assertions untouched): 50.4% → 49.98% — percent 50 throughout, tier 0 → 1 —
+  must still rewrite `hunger_bar.value` and repaint the tier, pinning the
+  tier-OR-percent half of the guard (a percent-only guard would strand the bar
+  at 50.4).
+- Measured: pristine-tree suite 93 PASS / 0 FAIL (density median 240.4 ms);
+  with only the sim-test extension landed, `hunger_game_over_once` FAILed
+  red-before with `changed_fires=120` — exactly one storm emission per tick,
+  as predicted; with the guards, the full suite is green again (93 PASS /
+  0 FAIL, density median 238.4 ms against the 750 budget on the quiet
+  machine), including all seven explicitly re-run scenarios. Gate 1
+  `--import` + 120-frame boot clean. Gate 2 autoplay `AUTOPLAY DONE ok=true …
+  restart=true` at fps 132 — the starve → score-screen → restart loop ran
+  through the guarded paths.
+- The Gate 3 [screenshot] line (tier colors and pulse look exactly as before
+  through warn → danger → critical and back) rides the pending T-019 human
+  pass — the machine half of that contract (tier modulates, pulse rates,
+  rest-color restore) is covered unchanged by `hud_hunger_warning_tiers`.
+  The ticket was accepted with reviewer sign-off (2026-10-01); the T-019
+  standalone look-and-feel pass itself remains pending, unchanged by this
+  ticket.
