@@ -9,7 +9,10 @@ extends StaticBody3D
 ## `trust_needed` the elder shares: `crumbs_per_share` ordinary T-005 crumbs
 ## tossed to the pavement in front of them through
 ## `BreadSpawner.drop_crumb()`, then a long `share_cooldown` — a friend, not
-## an infinite buffet. One cosmetic beat: the near arm raises while sharing.
+## an infinite buffet. The near arm is the trust meter (T-078): it eases up
+## with the banked trust while the pigeon hangs out, stays down through the
+## share cooldown even though trust has already refilled, and sweeps up for
+## the share beat.
 ## Elders don't walk and don't react to splats or buzzes (that is still the
 ## tourists' job).
 
@@ -58,6 +61,7 @@ var share_count: int = 0
 var _trust: float = 0.0
 var _cooldown_left: float = 0.0
 var _arm_left: float = 0.0
+var _arm_target: float = 0.0 ## Where the arm eases toward this frame — the share beat, the cooldown or the banked trust (T-078).
 var _arm_raise: float = 0.0 ## 0 = arm down, 1 = arm up.
 
 @onready var _zone: Area3D = $PresenceZone
@@ -85,12 +89,23 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
-	if _pigeon_present():
+	var present := _pigeon_present()
+	if present:
 		_trust = minf(_trust + trust_fill_rate * delta, trust_needed)
 		if _trust >= trust_needed and _cooldown_left <= 0.0:
 			_share()
 	else:
 		_trust = maxf(_trust - trust_decay * delta, 0.0)
+	## The arm IS the trust meter (T-078): the post-share beat keeps the
+	## target at 1.0; after it the cooldown pins the arm down ("not now")
+	## even though trust refills to `trust_needed` during it, company raises
+	## it with the banked trust, and absence lowers it again.
+	if _arm_left > 0.0:
+		_arm_target = 1.0
+	elif _cooldown_left > 0.0 or not present:
+		_arm_target = 0.0
+	else:
+		_arm_target = _trust / trust_needed
 	_animate(delta)
 
 
@@ -130,10 +145,10 @@ func _share() -> void:
 	shared.emit(self, crumbs_per_share)
 
 
-## Cosmetic layer: the near arm sweeps up for the share beat, then settles.
+## Cosmetic layer: the near arm eases toward `_arm_target` at
+## `arm_raise_rate` — the share beat first, then the trust meter (T-078).
 func _animate(delta: float) -> void:
 	if _arm_left > 0.0:
 		_arm_left -= delta
-	_arm_raise = move_toward(_arm_raise, 1.0 if _arm_left > 0.0 else 0.0,
-			arm_raise_rate * delta)
+	_arm_raise = move_toward(_arm_raise, _arm_target, arm_raise_rate * delta)
 	_arm_near.rotation.x = -_arm_raise * 2.2

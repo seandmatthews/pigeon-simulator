@@ -1634,6 +1634,9 @@ func city_spot(city: City, elder_index: int) -> Variant:
 ## walk-about decays it without wiping; back for the full hangout the elder
 ## tosses two ordinary T-005 crumbs (restore 30, hand-placed, respawn-
 ## accounted) onto the pavement in front of the bench and relays exactly once.
+## Since T-078 the near arm tracks all of it: part-raised (and still rising)
+## while company banks trust, never up while the pigeon is absent, and pinned
+## down through the post-share cooldown even after trust has re-pinned.
 func _scenario_elder_shares_bread_after_hangout() -> void:
 	var rig := _add_elder_rig()
 	var spawner: ElderSpawner = rig[0]
@@ -1655,16 +1658,34 @@ func _scenario_elder_shares_bread_after_hangout() -> void:
 	var parked := _player.is_grounded and _player.position.distance_to(park) < 0.5
 	await _wait_frames(130) ## ~2.2 s of company banks ~2 trust.
 	var banked: float = elder._trust
+	## T-078: the arm IS the trust meter — part-raised mid-hangout and still
+	## creeping up as trust grows toward `trust_needed`.
+	var raise_banked: float = elder._arm_raise
+	await _wait_frames(10)
+	var raise_later: float = elder._arm_raise
+	var arm_meters_trust := banked > 1.5 and raise_banked > 0.2 and raise_banked < 0.9 \
+			and raise_later > raise_banked
 	var away := park + Vector3(6.0, 0.0, 0.0) ## Outside the 3.0 m zone, still on the plaza.
 	await _set_up(true, away, Vector3.ZERO)
 	await _await_grounded(90)
-	await _wait_frames(30) ## ~0.7 s alone decays it but must not wipe it.
+	var raise_absent_max := -1.0
+	for _i in 30: ## ~0.7 s alone decays it but must not wipe it — and from frame 10 on
+		## (the part-raised pose needs ~5 frames to ease down) the arm never rises.
+		await get_tree().physics_frame
+		if _i >= 10:
+			raise_absent_max = maxf(raise_absent_max, elder._arm_raise)
+	var arm_down_while_away := raise_absent_max <= 0.0
 	var decayed: float = elder._trust
 	await _set_up(true, park, Vector3.ZERO)
 	await _await_grounded(90)
 	await _wait_frames(280) ## trust_needed (4 s) of company plus margin — the share fires mid-wait.
+	await _wait_frames(300) ## T-078, still parked: the 0.5 s beat passes and the cooldown
+	## pins the arm down while trust refills and re-pins at `trust_needed`.
+	var still_parked := _player.is_grounded and _player.position.distance_to(park) < 0.5
 	var shared_once: bool = _bread_shared.size() == 1 and _bread_shared[0].elder == elder \
 			and int(_bread_shared[0].crumbs) == elder.crumbs_per_share
+	var arm_cooldown_pins := still_parked and elder._arm_raise < 0.1 \
+			and elder._trust >= elder.trust_needed
 	var live := 0
 	var ordinary := true
 	for crumb in crumbs.living_crumbs():
@@ -1675,9 +1696,12 @@ func _scenario_elder_shares_bread_after_hangout() -> void:
 			ordinary = ordinary and crumb.restore == 30.0 and crumb.spot_index == -1
 	_check("elder_shares_bread_after_hangout",
 			parked and banked > 1.5 and decayed > 0.1 and decayed < banked - 0.5
-					and shared_once and live >= 2 and ordinary,
-			"parked=%s trust %.2f→%.2f decay, relays %d, live crumbs in reach %d, ordinary=%s" % [
-					parked, banked, decayed, _bread_shared.size(), live, ordinary])
+					and shared_once and live >= 2 and ordinary
+					and arm_meters_trust and arm_down_while_away and arm_cooldown_pins,
+			"parked=%s trust %.2f→%.2f decay, relays %d, live crumbs in reach %d, ordinary=%s, arm %.2f→%.2f rising, absent max %.2f, post-share arm %.2f at trust %.2f" % [
+					parked, banked, decayed, _bread_shared.size(), live, ordinary,
+					raise_banked, raise_later, raise_absent_max,
+					elder._arm_raise, elder._trust])
 	spawner.free()
 	(rig[1] as Node).free()
 

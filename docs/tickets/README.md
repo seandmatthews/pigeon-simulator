@@ -84,7 +84,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-074 | [Fix the broken failure diagnostics in two Gate 1b scenarios (string-precedence bug)](T-074-gate1b-fail-diagnostics.md) | code-optimization | 3 | 1 | done |
 | T-075 | [Calm the hunger→HUD write storm: emit only on real change, stop rewriting the bar at tick rate (T-055's missed 4th site)](T-075-hunger-hud-write-storm.md) | code-optimization | 2 | 2 | done |
 | T-077 | [Give F a readiness cue: three silent failure modes, one glyph](T-077-poop-ready-cue.md) | ui-ux | 4 | 1 | done |
-| T-078 | [Make the elder's arm the trust meter — make the hangout learnable](T-078-elder-arm-trust-meter.md) | ui-ux | 3 | 1 | proposed |
+| T-078 | [Make the elder's arm the trust meter — make the hangout learnable](T-078-elder-arm-trust-meter.md) | ui-ux | 3 | 1 | done |
 | T-079 | [Acknowledge the combo a landing kills — the loss moment is invisible](T-079-combo-landing-note.md) | ui-ux | 3 | 2 | proposed |
 | T-080 | [Give the hunger bar a dark track/border — the white bar vanishes on bright ground](T-080-hunger-bar-track.md) | ui-ux | 3 | 1 | done |
 | T-081 | [Make sub-glide flight fall: key the align cut on lift, not stall depth](T-081-lift-keyed-align-cut.md) | flight-control | 4 | 4 | proposed |
