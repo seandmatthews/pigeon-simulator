@@ -121,7 +121,8 @@ current-state section right before building it.
 Direction proposed 2026-10-01 — detail and the four open forks in
 [`DESIGN.md`](../DESIGN.md) → Milestone 2. Short version: the town gets memory
 and sides — befriend the locals (park elders first), drive off the rowdy
-visiting fans, game-day arc, Ames setting, no quest machinery. The old M2
+visiting fans, game-day arc, real-US-city setting (Ames or Des Moines — US
+street conventions firm, city choice open), no quest machinery. The old M2
 sketch folds in where it serves that spine (hawk hazard, seagull rivals at the
 tailgates, districts as campus/main-street/tailgate palettes, landmark bonus
 targets, gamepad, settings, export builds); objectives & missions stay out.

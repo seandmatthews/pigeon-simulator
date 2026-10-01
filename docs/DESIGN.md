@@ -32,6 +32,7 @@ Added since the lock:
 | ----- | -------- |
 | Audio | Boots muted; sound opts in per session (T-101) |
 | Run structure | "Endless score attack" above is re-opened for M2 — game-day arc proposal, see Milestone 2 |
+| Setting | A real US city with US street conventions — crosswalks, road signs, right-hand traffic (confirmed 2026-10-01); which city stays open, see Milestone 2 |
 
 ## Core loop
 
@@ -141,12 +142,17 @@ trust unlocks better bread spots and gossip — a pointed wing at where the
 rowdiest fans are gathering. Depth is an open fork (anonymous class, one named
 bench regular, or several named characters).
 
-### Setting — Ames, Iowa, lightly fictionalized
+### Setting — a real US city (Ames or Des Moines), lightly fictionalized
 
-Real town, real rivalry spirit, invented teams. No real school names, logos, or
-mascots anywhere — colors and behavior carry the joke (anyone from Iowa reads
-"black and gold flooding a college town" instantly). Tone stays locked on
-comedic, family-friendly: the visitors are a goofy nuisance, not a hated enemy.
+US street conventions are firm regardless of M2's timing: crosswalks, road
+signs, right-hand traffic — the world reads American (confirmed 2026-10-01).
+The city itself is Ames (lean — the college-town rivalry invasion writes
+itself) or Des Moines (a bigger downtown canvas); decided when M2 tickets are
+forged or a ticket needs the name. Real place, invented teams: no real school
+names, logos, or mascots anywhere — colors and behavior carry the joke (anyone
+from Iowa reads "black and gold flooding a college town" instantly). Tone stays
+locked on comedic, family-friendly: the visitors are a goofy nuisance, not a
+hated enemy.
 
 **Scope guardrail (user, 2026-10-01):** if a proposal starts needing dialogue
 trees, NPC schedules, or quest machinery — stop, it's gone too crazy. It's a
@@ -171,8 +177,10 @@ Objectives & missions stay out — the calendar is the campaign.
    runs with town mood in the background vs mood persisting across runs.
 2. **Elder depth:** one class trust meter plus one named bench regular (lean)
    vs anonymous class only vs several named characters with arcs.
-3. **Naming:** real Ames with fictional teams (lean) vs fully fictional
-   college town vs real teams too.
+3. **Naming:** settled in principle 2026-10-01 — a real US city, US street
+   conventions, invented teams, no real branding. Which city stays open: Ames
+   (lean) vs Des Moines; decide when M2 tickets are forged or a ticket needs
+   the name.
 4. **Friendly fire:** mood hit, repairable by gifting bread to the splatted
    local (lean) vs soft score penalty only vs sharp per-run trust reset.
 
