@@ -30,8 +30,8 @@ recipe with zero RNG:
      thickness on the wall axis, rendering a 0.1 m fin protruding ~0.55 m
      from the band (confirmed by a headless `City.generate` probe during the
      2026-09-30 audit: `door` scale `(0.1, 2.05, 0.95)` on a ±z face). That
-     door inversion is a separate T-017-lineage defect to file against the
-     owner — out of scope here, but do not inherit it; the harness
+     door inversion is filed as [T-103](T-103-shop-door-orientation.md) — out
+     of scope here, but do not inherit it; the harness
      re-derivations in criteria 4–5 must encode the CORRECTED convention or
      they will happily pass a perpendicular plank.
    - position

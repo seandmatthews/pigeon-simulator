@@ -99,6 +99,7 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 | T-100 | [Whisper 'home again' when the off-world guard snaps the pigeon back](T-100-off-world-home-note.md) | ui-ux | 3 | 1 | superseded (T-087) |
 | T-101 | [Boot muted: start silent unless a sound-design session opts in](T-101-boot-muted.md) | ui-ux | 3 | 1 | done |
 | T-102 | [Zebra stripes run with the traffic: flip T-069's crossing stripes 90°](T-102-crosswalk-stripe-orientation.md) | visual-design | 3 | 1 | proposed |
+| T-103 | [Stand the shop doors up: fix the inverted axis swap that renders them as fins](T-103-shop-door-orientation.md) | worldbuilding | 2 | 1 | proposed |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since
