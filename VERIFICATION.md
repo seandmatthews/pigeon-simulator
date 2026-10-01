@@ -61,6 +61,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | hard_landing_skids | a steep fast dive skids to a stop — no instant ground, no tunneling, no NaNs (T-021 retuned the skid detector to AIR floor frames above `skid_settle_speed`) | T-003 |
 | trim_glide_lands_clean | a natural trim-speed glide touchdown settles into the waddle on the contact frame — zero airborne floor-contact frames past the touch (no ghost-slide) | T-021 |
 | flare_sheds_speed_low | holding pitch-up in a shallow descent sheds speed into a nose-high brake instead of ballooning — from a settled ~15 m/s glide at ~6 m, 0.75 s of held pitch-up gains < 2.5 m of height and ends below 11 m/s (before the flare: +2.60 m / 11.66 m/s); climbs and level flight above the band and dives below the −8 m/s edge never flare, and the grounded skid keeps its own friction | T-022 |
+| pitch_attitude_bounded | a held 50-frame pitch-up from settled cruise keeps \|body pitch\| ≤ 85° on every frame of the hold and for 30 frames after release, and bounds the balloon outcome: peak climb vy < 8.7 m/s during the hold and post-release \|vy\| < 1 m/s mush < 244 of 300 frames — bars taken from the pre-fix tree's measured run (pre-fix measured 79.9° nose parked frozen, 8.85 m/s, 247/300 — FAIL; with the falloff 70.7°, 8.48, 240/300 — PASS. The authority decay from bleeding forward speed already slows the pre-fix rotation, so the red-before comes from the balloon bars, not the 85° line) | T-083 |
 | off_world_fall_respawns | a pigeon placed below the `off_world_y` guard (−5) and past every floor is grounded on the respawn corridor within ~2 s — the guard fired exactly once (`off_world_resets` == 1, no second fire across a further ~2 s, velocity finite throughout) and the hunger clock kept draining through the reset (loss > 0.2) | T-042 |
 | city_same_seed_deterministic | regenerating with the same seed reproduces the identical layout fingerprint | T-004 |
 | city_new_seed_guarantees | a different seed still yields a clear spawn plaza, flyable street widths, capped roof heights and enough bread-capable surfaces | T-004 |
@@ -245,6 +246,7 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-021) A deliberately hot, steep dive still reads as a comedic skid to near rest — not a soft mid-slide settle
 - [ ] (T-022) Holding pitch-up near the ground reads as braking into a nose-high sink, not ballooning into a rocket climb [screenshot]
 - [ ] (T-022) A speed approach to a bench or roof stays controllable through touchdown with the flare — pitch-up bleeds the approach speed without stranding the pigeon in a climb
+- [x] (T-083) Holding W can no longer park the nose at or past vertical; three modest flare taps visibly cap out instead of stacking into a balloon; steep dive entry (S) still feels full-authority; and pitching down out of a nose-high flop still recovers without feeling dead
 - [ ] (T-004) The city reads as a street grid from the air — roads with lane marks, sidewalks, varied facades, flat roofs, benches/lamps/bins
 - [ ] (T-004) Flying end-to-end along streets and between roofs never clips through a building
 - [ ] (T-004) Roofs, sidewalks and the spawn plaza are landable and walkable in a normal run
@@ -524,6 +526,18 @@ Playtest checklist (grows as tickets land):
   model). The line stays unchecked pending a human pass; both residuals are
   recorded as follow-up candidates in the ticket's "Known issues / follow-up"
   section.
+- Pitch attitude bound (T-083, adopting T-062) is machine-verified (Gate 1b
+  `pitch_attitude_bounded` — a 50-frame held pitch-up from settled cruise
+  keeps |body pitch| ≤ 85° on every frame of the hold and for 30 frames
+  after, and stays under the pre-fix-measured balloon bars peak vy < 8.7 m/s
+  and |vy| < 1 m/s mush < 244/300 frames; measured 79.9° / 8.85 / 247 on the
+  pre-fix tree vs 70.7° / 8.48 / 240 with the falloff, red-before via the
+  balloon bars — the criterion's ≈105° figure was constant-authority
+  arithmetic, corrected in the ticket; the five named flight/landing
+  re-runs stayed green with before/after margins recorded). The tested
+  symmetric 50°/85° falloff shipped, and the Gate 3 feel lines (no
+  parked-vertical nose, capped flare taps, full-authority dive entry, live
+  pitch-down recovery) were accepted by reviewer sign-off (2026-10-01).
 - Title-screen Esc (T-097) is machine-verified (Gate 1b
   `title_escape_does_not_quit` — a synthetic `pause` action fed to the real
   menu scene neither quits the process nor pauses the tree; a regression

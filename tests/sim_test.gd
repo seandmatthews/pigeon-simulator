@@ -25,6 +25,19 @@ const SIM_SAVE_PATH := "user://sim_highscore.cfg"
 ## passes the new model with margin and fails the old one.
 const FLAP_PUMP_CEIL := 26.0
 
+## (T-083) The pitch attitude bound: `pitch_auth_zero_deg` — |body pitch| may
+## never cross this under held pitch-up input. The balloon-outcome bars below
+## are taken from the PRE-FIX tree's own measured run (red-before /
+## green-after, both runs recorded in the ticket): peak climb vy 8.85 m/s and
+## post-release mush 247/300 frames before the falloff — 8.48 and 240 after
+## it. Note the pitch assert itself reads 79.9° on the pre-fix tree (green at
+## the 85° bar — the authority decay from bleeding forward speed slows the
+## rotation well below the naive 2.2 rad/s × 50 frames ≈ 105°); the
+## scenario's red-before comes from the balloon bars.
+const PITCH_BOUND_DEG := 85.0
+const BALLOON_VY_BAR := 8.7 ## Pre-fix measured 8.85 (fails), post-fix 8.48 (passes).
+const BALLOON_MUSH_BAR := 244 ## Pre-fix measured 247 (fails), post-fix 240 (passes).
+
 ## Set SIM_DEBUG=1 to print per-scenario trajectory samples.
 var _debug: bool = OS.get_environment("SIM_DEBUG") == "1"
 
@@ -99,6 +112,7 @@ func _run_scenarios() -> void:
 	await _scenario_hard_landing()
 	await _scenario_trim_glide_lands_clean()
 	await _scenario_flare_sheds_speed_low() ## T-022 — pitch-up low brakes into a nose-high sink instead of ballooning.
+	await _scenario_pitch_attitude_bounded() ## T-083 — held pitch-up caps out near vertical instead of stacking past it.
 	await _scenario_off_world_fall_respawns() ## T-042 — flight-model guard: the void past the apron walks home.
 	await _scenario_city_layout()
 	await _scenario_city_plaza()
@@ -401,6 +415,7 @@ func _scenario_stall() -> void:
 	await _tap("flap")
 	await _wait_frames(30)
 	var speed := _player.velocity.length()
+	_dbg("stall recovers: speed %.2f m/s (bar > 5.0)" % speed)
 	_check("stall_recovers", speed > 5.0 and _player.velocity.is_finite(),
 			"speed %.1f m/s after recovery flap" % speed)
 
@@ -548,6 +563,8 @@ func _scenario_hard_landing() -> void:
 			break
 	var ok := skid_was_air and min_y > 0.1 and all_finite \
 			and _player.is_grounded and _player.velocity.length() < 0.8
+	_dbg("hard landing: min y %.2f (bar > 0.1), rest %.2f m/s (bar < 0.8)" % [
+			min_y, _player.velocity.length()])
 	_check("hard_landing_skids", ok,
 			"fast touch stayed AIR=%s, min y %.2f, finite=%s, rest %.2f m/s grounded=%s" % [
 					skid_was_air, min_y, all_finite, _player.velocity.length(), _player.is_grounded])
@@ -603,6 +620,49 @@ func _scenario_flare_sheds_speed_low() -> void:
 			s0 > 13.0 and y1 - y0 < 2.5 and s1 < 11.0 and finite,
 			"settled speed %.2f m/s, height %+.2f m over the hold, ended %.2f m/s (finite=%s)" % [
 					s0, y1 - y0, s1, finite])
+
+
+## (T-083) A held pitch-up can no longer stack degrees without limit: from a
+## settled cruise glide, 50 frames (0.83 s) of held pitch-up must keep |body
+## pitch| at or under `pitch_auth_zero_deg` (85°) on EVERY frame of the hold
+## and for 30 frames after release — the falloff asymptotes the nose just
+## under the zero-authority line instead of walking it toward vertical
+## (measured: the pre-fix tree walked this exact hold to 79.9° and froze the
+## nose there; with the falloff it tops out at 70.7°, real margin under the
+## line). The same scenario bounds the balloon outcome: peak climb rate (vy)
+## during the hold and post-release mush time (frames with |vy| < 1 m/s over
+## a 5 s window) stay under bars taken from the pre-fix tree's measured run —
+## red-before / green-after, both measured runs recorded in the ticket.
+func _scenario_pitch_attitude_bounded() -> void:
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	await _wait_frames(30) ## Settle into the trim glide.
+	var max_pitch_deg := 0.0
+	var peak_vy := -INF
+	Input.action_press("pitch_up")
+	for _i in 50:
+		await get_tree().physics_frame
+		max_pitch_deg = maxf(max_pitch_deg,
+				absf(rad_to_deg(asin(clampf((-_player.transform.basis.z).y, -1.0, 1.0)))))
+		peak_vy = maxf(peak_vy, _player.velocity.y)
+	Input.action_release("pitch_up")
+	for _i in 30:
+		await get_tree().physics_frame
+		max_pitch_deg = maxf(max_pitch_deg,
+				absf(rad_to_deg(asin(clampf((-_player.transform.basis.z).y, -1.0, 1.0)))))
+	var mush_frames := 0
+	for _i in 300:
+		await get_tree().physics_frame
+		if absf(_player.velocity.y) < 1.0:
+			mush_frames += 1
+	var finite := _player.velocity.is_finite()
+	_dbg("pitch bound: max |pitch| %.1f deg, peak vy %.2f m/s, mush %d/300 frames" % [
+			max_pitch_deg, peak_vy, mush_frames])
+	_check("pitch_attitude_bounded",
+			max_pitch_deg <= PITCH_BOUND_DEG and peak_vy < BALLOON_VY_BAR
+					and mush_frames < BALLOON_MUSH_BAR and finite,
+			"max |pitch| %.1f deg (bar %.0f), peak vy %.2f m/s (bar %.1f), mush %d/300 frames (bar %d), finite=%s" % [
+					max_pitch_deg, PITCH_BOUND_DEG, peak_vy, BALLOON_VY_BAR,
+					mush_frames, BALLOON_MUSH_BAR, finite])
 
 
 ## --- scenario (T-042 off-world guard) ---------------------------------------
