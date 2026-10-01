@@ -37,6 +37,12 @@ const COLOR_TANK := Color(0.45, 0.53, 0.58) ## Dull plastic rooftop water tanks 
 const COLOR_LAMP_GLOW := Color(1.0, 0.9, 0.6)
 const COLOR_DOOR := Color(0.18, 0.14, 0.12)
 const COLOR_CROSSWALK := Color(0.78, 0.78, 0.75) ## Worn-white zebra paint (T-069) — clearly not the yellow lane mark.
+## City-edge rim greens (T-088 commit 1, executing T-047): the hedge band and
+## tree crowns must read against the grass apron they sit on — both hold ≥ 0.15
+## Euclidean RGB from COLOR_GRASS (0.188 / 0.195 at these values), a floor the
+## `city_apron_rim_present` scenario asserts and prints informationally.
+const COLOR_RIM_HEDGE := Color(0.24, 0.38, 0.22)
+const COLOR_RIM_CROWN := Color(0.22, 0.42, 0.19) ## The hedge green family, a touch deeper.
 ## Ground-floor shopfront palette (T-017): cafés, bakeries, bookshops and delis,
 ## so the street level reads as shop rows instead of blank office walls. Kept
 ## well apart from all four district families (the harness asserts the means
@@ -93,6 +99,36 @@ const ROOF_PROP_SIZES: Dictionary = {
 	"water_tank": Vector3(1.4, 2.0, 1.4), ## Dull plastic tank.
 	"roof_vent": Vector3(0.5, 0.9, 0.5), ## Metal vent housing.
 }
+
+## City-edge rim layout (T-088 commit 1): one hedge band per side on the grass
+## apron just outside the outer road edge, plus two trees flanking every street
+## exit (`blocks_per_side + 1` road centers per side). RIM_TREE_CLEARANCE is
+## measured from the road edge, so tree centers sit `road_width * 0.5 + 1.5` m
+## along the side axis from their road center. Pure layout numbers; the
+## placement draws no RNG of any stream and appends no `_fp` entry.
+const RIM_HEDGE_SETBACK := 0.5 ## Hedge center line out from the outer road edge (m).
+const RIM_HEDGE_HEIGHT := 1.2 ## Hedge band height (m).
+const RIM_HEDGE_DEPTH := 0.8 ## Hedge band thickness (m).
+const RIM_TREE_CLEARANCE := 1.5 ## Tree center clear of the road edge (m).
+const RIM_TRUNK_SIZE := Vector3(0.35, 2.2, 0.35) ## Rising from the apron (y 0).
+const RIM_CROWN_SIZE := Vector3(2.6, 2.2, 2.6) ## Centered 3.3 m up — sits on the 2.2 m trunk.
+const RIM_CROWN_CENTER_Y := 3.3 ## Crown box center height (m).
+
+## Distant skyline layout (T-088 commit 2): a ring of flat-shaded background
+## towers on the grass apron — the horizon reads as a larger city under haze
+## instead of a void edge. Placement is a deterministic hash chain (one
+## `_skyline_roll` per attribute, each with its own salt): ZERO draws from
+## `_rng`/`_shop_rng` (both sequences stay byte-identical), ZERO `_fp` entries
+## and ZERO `_add_collider` calls (visual-only, the T-017 decision — colliders
+## live only under `Static`).
+const SKYLINE_COUNT := 64 ## Total background towers (the harness gates [40, 80]).
+const SKYLINE_TALL_TARGET := 6 ## Landmark towers the class roll aims at (the harness gates [2, 8]).
+const SKYLINE_SALT_RADIUS := 101
+const SKYLINE_SALT_ANGLE := 211
+const SKYLINE_SALT_CLASS := 307
+const SKYLINE_SALT_HEIGHT := 401
+const SKYLINE_SALT_WIDTH := 503
+const SKYLINE_SALT_SHADE := 601
 
 @export_group("Layout")
 ## Fixed M1 seed — same city every run so runs and scores stay comparable.
@@ -199,6 +235,21 @@ var cafe_spots: Array[Transform3D] = []
 ## `cafe_spots`.
 var roof_props: Array[Dictionary] = []
 
+## City-edge rim (T-088 commit 1): one transform per hedge band — origin at the
+## band's box center on the boundary line, basis scale = its oriented
+## (city_span, 1.2, 0.8) size — and, in `rim_tree_spots`, one per rim tree.
+## Appended by `_build_rim()` as pure functions of the grid constants, the
+## `elder_spots`/`cafe_spots`/`roof_props` precedent: zero RNG of any stream,
+## zero `_fp` entries and zero colliders, so the layout fingerprint stays
+## byte-identical to pre-T-088 builds; pinned by the `city_apron_rim_present`
+## scenario.
+var rim_hedge_spots: Array[Transform3D] = []
+
+## The rim trees of the same pass (see `rim_hedge_spots`): origin at the trunk
+## base on the apron (y 0) — the trunk mesh rises 2.2 m from it and the crown
+## is centered 3.3 m up.
+var rim_tree_spots: Array[Transform3D] = []
+
 ## Center (city-local) of every generated block — the tourist service (T-007)
 ## picks its sidewalk walking loops from these.
 var block_centers: Array[Vector3] = []
@@ -264,6 +315,8 @@ func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
 	elder_spots = []
 	cafe_spots = []
 	roof_props = []
+	rim_hedge_spots = []
+	rim_tree_spots = []
 	block_centers = []
 	_static_root = Node3D.new()
 	_static_root.name = "Static"
@@ -275,7 +328,9 @@ func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
 	_plaza_center = _block_center(plaza_i, plaza_i)
 	_make_meshes()
 	_build_ground()
+	_build_skyline() ## T-088 commit 2 — the distant background towers, visual-only.
 	_build_roads()
+	_build_rim() ## T-088 commit 1 — the city-edge rim, visual-only.
 	_build_crossings() ## T-069 — intersection paint, visual-only.
 	for bx in blocks_per_side:
 		for bz in blocks_per_side:
@@ -414,6 +469,11 @@ func _make_meshes() -> void:
 		"ac_box": _unit_box(_flat_material(COLOR_METAL)),
 		"water_tank": _unit_box(_flat_material(COLOR_TANK)),
 		"roof_vent": _unit_box(_flat_material(COLOR_METAL)),
+		"rim_hedge": _unit_box(_flat_material(COLOR_RIM_HEDGE)),
+		"rim_trunk": _unit_box(_flat_material(COLOR_BENCH_WOOD)),
+		"rim_crown": _unit_box(_flat_material(COLOR_RIM_CROWN)),
+		"skyline": _unit_box(_vertex_color_material()),
+		"skyline_tall": _unit_box(_vertex_color_material()),
 	}
 
 
@@ -428,6 +488,48 @@ func _build_ground() -> void:
 	mesh_instance.position = Vector3(0.0, -0.5, 0.0)
 	body.add_child(mesh_instance)
 	_fp.append(["ground", size])
+
+
+## One normalized [0, 1] roll of the skyline's deterministic hash chain (T-088
+## commit 2): folds `hash(Vector3i(i, seed_value, salt))` — a pure function of
+## the tower index, the seed and the attribute's salt. No RNG stream is
+## touched, so `_rng`/`_shop_rng` sequences and the layout fingerprint stay
+## byte-identical to pre-T-088 builds.
+func _skyline_roll(i: int, salt: int) -> float:
+	return float(hash(Vector3i(i, seed_value, salt)) & 0x7fffffff) / 2147483647.0
+
+
+## Distant skyline (T-088 commit 2, executing T-050): a ring of slim background
+## towers on the apron, every origin at ground radius
+## [city_span * 0.5 + ground_extra * 0.3, city_span * 0.5 + ground_extra - 20.0]
+## (192-347 m at defaults — beyond the blocks, ON the apron box; the planning
+## sketch's 1.3-2.2x span overran the apron edge, so the top of the range is
+## clamped). Heights 15-60 m with the `skyline_tall` landmarks at 40-60, XZ
+## footprints 6-18 m, muted DISTRICT_PALETTES members darkened() 0.30-0.45 —
+## the tower's angle quadrant picks its district family, so the ring reads as
+## the city's wider surroundings. Box origins sit at height/2: the apron top
+## is y 0, the towers rise from the grass. Zero RNG draws from any stream,
+## zero `_fp` entries, zero colliders (visual-only, the T-017 decision);
+## pinned by the `city_horizon_skyline` scenario.
+func _build_skyline() -> void:
+	var half := city_span * 0.5
+	var inner := half + ground_extra * 0.3
+	var outer := half + ground_extra - 20.0
+	for i in SKYLINE_COUNT:
+		var radius := inner + _skyline_roll(i, SKYLINE_SALT_RADIUS) * (outer - inner)
+		var angle := _skyline_roll(i, SKYLINE_SALT_ANGLE) * TAU
+		var tall := _skyline_roll(i, SKYLINE_SALT_CLASS) \
+				< float(SKYLINE_TALL_TARGET) / float(SKYLINE_COUNT)
+		var height: float = 40.0 + _skyline_roll(i, SKYLINE_SALT_HEIGHT) * 20.0
+		if not tall:
+			height = 15.0 + _skyline_roll(i, SKYLINE_SALT_HEIGHT) * 30.0
+		var width := 6.0 + _skyline_roll(i, SKYLINE_SALT_WIDTH) * 12.0
+		var pos := Vector3(cos(angle) * radius, height * 0.5, sin(angle) * radius)
+		var palette: Array = DISTRICT_PALETTES[int(angle / (PI * 0.5)) % 4]
+		var shade: Color = (palette[i % palette.size()] as Color).darkened(
+				0.3 + _skyline_roll(i, SKYLINE_SALT_SHADE) * 0.15)
+		_add_mm("skyline_tall" if tall else "skyline",
+				_box_xf(pos, Vector3(width, height, width)), shade)
 
 
 ## Streets: two slab families (5 mm apart at crossings to avoid z-fighting),
@@ -516,6 +618,39 @@ func _add_crosswalk_band(node: Vector3, along_x: bool, side: float) -> void:
 		var y := road_slab_height if along_x else road_slab_height + 0.005
 		var pos := node + (Vector3(out, y, 0.0) if along_x else Vector3(0.0, y, out))
 		_add_mm("crosswalk", _box_xf(pos, size))
+
+
+## City-edge rim (T-088 commit 1, executing T-047): a low hedge band on the
+## grass apron just outside the outer road edge — the boundary's at-a-glance
+## "in town / at the rim / gone" read at cruise — plus two trees flanking every
+## street exit, marking where a street still leads home. Pure layout math on
+## the grid constants, the `elder_spots`/`cafe_spots`/crosswalk precedent:
+## ZERO RNG draws (every stream stays byte-identical), ZERO `_fp` entries (the
+## fingerprint stays byte-identical to pre-T-088 builds) and ZERO
+## `_add_collider` calls (visual-only, the T-017 decision). Small corner gaps
+## where the four hedge sides meet are accepted.
+func _build_rim() -> void:
+	var edge := city_span * 0.5
+	var hedge_line := edge + RIM_HEDGE_SETBACK
+	var tree_offset := road_width * 0.5 + RIM_TREE_CLEARANCE
+	for side: int in 4: ## 0=+x 1=-x 2=+z 3=-z — the FACE_NORMALS order.
+		var normal: Vector3 = FACE_NORMALS[side]
+		var along := Vector3(-normal.z, 0.0, normal.x) ## The side axis.
+		var hedge_xf := _box_xf(
+				normal * hedge_line + Vector3.UP * (RIM_HEDGE_HEIGHT * 0.5),
+				along.abs() * city_span + Vector3.UP * RIM_HEDGE_HEIGHT
+						+ normal.abs() * RIM_HEDGE_DEPTH)
+		_add_mm("rim_hedge", hedge_xf)
+		rim_hedge_spots.append(hedge_xf)
+		for i in blocks_per_side + 1:
+			var road_center := -edge + road_width * 0.5 + i * block_pitch
+			for s: float in [1.0, -1.0]:
+				var pos := normal * hedge_line + along * (road_center + s * tree_offset)
+				rim_tree_spots.append(Transform3D(Basis.IDENTITY, pos))
+				_add_mm("rim_trunk", _box_xf(
+						pos + Vector3.UP * (RIM_TRUNK_SIZE.y * 0.5), RIM_TRUNK_SIZE))
+				_add_mm("rim_crown", _box_xf(
+						pos + Vector3.UP * RIM_CROWN_CENTER_Y, RIM_CROWN_SIZE))
 
 
 func _build_block(bx: int, bz: int, is_plaza: bool) -> void:

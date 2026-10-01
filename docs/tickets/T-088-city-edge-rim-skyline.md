@@ -1,6 +1,6 @@
 # T-088 — Make the city edge legible: T-047's near rim plus T-050's far skyline as one pass
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** — (T-004 city blockout, landed). Executes [T-047](T-047-city-edge-rim.md) and [T-050](T-050-horizon-skyline.md) — both still `proposed`; flip each done/superseded by its own commit below.
 - **Refs:** visual-design lane sweep 2, sessions `vds3a`/`vds3c` (frame readings recorded below in text — the session dirs are not present in this repo, checked both checkouts 2026-09-30); fingerprint pins re-verified **today** on the untouched tree with a headless `City.generate` probe (see What, commit 1).
 
@@ -111,20 +111,26 @@ draw changes.
 
 ## Acceptance criteria
 
-Commit 1 (rim):
+Commit 1 (rim) — landed as `9a69026`, gates run 2026-10-01:
 
-- [ ] Gate 1b `city_apron_rim_present`, count legs: `rim_hedge_spots.size() == 4`
+- [x] Gate 1b `city_apron_rim_present`, count legs: `rim_hedge_spots.size() == 4`
       and `rim_tree_spots.size() == 2 * 4 * (blocks_per_side + 1)` (64 at
       defaults)
-- [ ] Same scenario, placement legs: every hedge center sits at the boundary
+      (PASS: hedges=4 trees=64)
+- [x] Same scenario, placement legs: every hedge center sits at the boundary
       (|x| or |z| ≈ `city_span * 0.5 + 0.5`); every trunk flanks one of the
       `blocks_per_side + 1` street exits per side at ≈ 6.5 m offset from its
       road center (1.5 m clear of the road edge) on the apron, with its crown
       ~3.3 m up
-- [ ] Same scenario: the hedge/crown green is ≥ 0.15 Euclidean RGB from
+      (trees multiset-matched against an independent recomputation; trunks 1.1 m
+      up, crowns 3.3 m up and over every tree spot, off the actual MultiMesh
+      queues)
+- [x] Same scenario: the hedge/crown green is ≥ 0.15 Euclidean RGB from
       `City.COLOR_GRASS` (0.188 at the suggested value), printed informationally
       like the silhouette sweep
-- [ ] Same scenario: a forced same-seed rebuild (`generate(seed_value, true)`)
+      (asserted on the mesh materials the MultiMeshes render: measured
+      0.188 / 0.195, printed)
+- [x] Same scenario: a forced same-seed rebuild (`generate(seed_value, true)`)
       reproduces both spot lists byte-identically (the `_spots_equal` pattern,
       `tests/sim_test.gd:1257-1263`), and the fingerprint still equals the
       cross-version pins — seed 20260928 → **2492360539**, seed 424242 →
@@ -132,37 +138,77 @@ Commit 1 (rim):
       untouched tree with a headless `City.generate` probe in the lane
       worktree: `PROBE_FP seed_20260928=2492360539 / seed_424242=2662825400 /
       default_again=2492360539`; re-derive the same way before committing)
-- [ ] `city_street_flyover`, `city_roof_landable`/`city_roof_takeoff`,
+      (re-derived 2026-10-01 on this worktree the same way — untouched, after
+      commit 1, and after commit 2, identical output all three times; both
+      scenarios assert the pins)
+- [x] `city_street_flyover`, `city_roof_landable`/`city_roof_takeoff`,
       `city_sidewalk_walkable`, `city_plaza_spawn`, the determinism trio and
       the full suite stay green — zero colliders, zero RNG draws
-- [ ] [screenshot] At cruise the rim reads as the edge of town — a hedge line
+      (commit 1 run: full suite 88/88 PASS, exit 0, named scenarios confirmed;
+      Gate 2 autoplay `ok=true restart=true` at fps 135)
+- [x] [screenshot] At cruise the rim reads as the edge of town — a hedge line
       with tree clumps at each street exit — and the apron no longer reads as
       infinite grass (Gate 3 — human judgement)
+      (accepted by reviewer sign-off, 2026-10-01)
 
-Commit 2 (skyline):
+Commit 2 (skyline) — landed as the `feat(visual-design)` skyline commit below,
+gates run 2026-10-01:
 
-- [ ] Gate 1b `city_horizon_skyline`: `Skyline` and `SkylineTall`
+- [x] Gate 1b `city_horizon_skyline`: `Skyline` and `SkylineTall`
       MultiMeshInstance3D nodes exist under `_city.get_node("Visuals")`; total
       instances across both in [40, 80], `skyline_tall` in [2, 8]
-- [ ] Same scenario: every instance origin's XZ radius from the city center
+      (PASS: total=64 tall=6 at the M1 seed; 61+3 at seed 424242)
+- [x] Same scenario: every instance origin's XZ radius from the city center
       lies in [192, 347] m — beyond the blocks, strictly inside the apron box
       including the tower's own ≤ 9 m half-width; every `scale.y ∈ [15, 60]`
       and XZ extents ≤ 18 m
-- [ ] Same scenario: zero `CollisionObject3D` nodes anywhere under the Visuals
+      (band recomputed from the exports; plus the apron-box leg |x|,|z| + 9 ≤
+      367, origin y = scale.y/2, extents ≥ 6 m)
+- [x] Same scenario: zero `CollisionObject3D` nodes anywhere under the Visuals
       root, and a forced same-seed rebuild reproduces both instance sets
       byte-identically with the fingerprint still equal to the pins above
-- [ ] `city_street_flyover`, `city_plaza_spawn`, the determinism trio and the
+      (every Visuals descendant walked with a typed `is CollisionObject3D`)
+- [x] `city_street_flyover`, `city_plaza_spawn`, the determinism trio and the
       full suite stay green; a foreign seed still changes the fingerprint and
       passes `city_new_seed_guarantees` unchanged
-- [ ] [screenshot] From the apron (300+ m out) the horizon reads as a distant
+      (commit 2 run: full suite 89/89 PASS, exit 0, named scenarios confirmed;
+      foreign seed flips the tall split 6 → 3; Gate 2 autoplay `ok=true
+      restart=true` at fps 135)
+- [x] [screenshot] From the apron (300+ m out) the horizon reads as a distant
       city under haze, not a void edge — the towers must read as background
       (muted, low-contrast), not as landable-looking foreground buildings
       (Gate 3 — human judgement)
+      (accepted by reviewer sign-off, 2026-10-01)
 
 Ticket close:
 
-- [ ] Both commits landed in order; T-047 and T-050 flipped done/superseded
+- [x] Both commits landed in order; T-047 and T-050 flipped done/superseded
       with their own commit references; the backlog index table updated
+      (commit 1 = `9a69026` the rim, commit 2 = this commit the skyline;
+      T-047/T-050 each stamped and ticked by their own commit; both [screenshot]
+      lines above accepted by reviewer sign-off, 2026-10-01; the T-088 index
+      row reads `done`)
+
+## Tuned values (landed 2026-10-01)
+
+- **Rim greens:** hedge `COLOR_RIM_HEDGE` (0.24, 0.38, 0.22) — the ticket's
+  suggested value, 0.188 Euclidean RGB from `COLOR_GRASS`; crown
+  `COLOR_RIM_CROWN` (0.22, 0.42, 0.19) — same family a touch deeper, 0.195;
+  trunk reuses `COLOR_BENCH_WOOD`. Rim greens are const'd in `scripts/city.gd`
+  and asserted by `city_apron_rim_present` on the materials the MultiMeshes
+  actually render.
+- **Rim layout:** hedge line `city_span * 0.5 + 0.5` (117.5 m), band
+  (city_span, 1.2, 0.8) per side — 4 bands; trees at ±6.5 m along the side
+  axis per street exit, trunk 0.35 × 2.2 × 0.35 from the apron, crown
+  2.6 × 2.2 × 2.6 centered 3.3 m up — 64 trees (128 boxes) at defaults.
+- **Skyline:** `SKYLINE_COUNT` 64 total ([40, 80] gated), `SKYLINE_TALL_TARGET`
+  6 landmarks via the class roll ([2, 8] gated — 6 at seed 20260928, 3 at
+  424242); band 192–347 m (`city_span * 0.5 + ground_extra * 0.3` …
+  `+ ground_extra - 20.0`); heights 15–45 m normal / 40–60 m landmarks;
+  XZ footprints 6–18 m; district family picked by the angle quadrant, shade
+  `darkened(0.30–0.45)`; hash salts radius/angle/class/height/width/shade =
+  101 / 211 / 307 / 401 / 503 / 601. Zero RNG draws, zero `_fp` entries, zero
+  colliders — pins byte-identical before and after both commits.
 
 ## Verification
 

@@ -1,6 +1,6 @@
 # T-047 — Build a readable rim at the city edge — trees/hedge ring instead of the infinite flat apron
 
-- **Milestone:** Sweep backlog · **Status:** superseded (executed by T-088, commit 1 — work that one) · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** superseded (executed by T-088 commit 1 — landed 2026-10-01; the commit carrying this flip IS that landing) · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-004 (city blockout, landed)
 - **Refs:** sweep 2 sessions `vds2a`/`vds2b`/`vds2d` (readings recorded below); T-037's "city N m" HUD line
   (landed — the rim complements it); T-023/T-036 (proposed behavioral guards — out of scope here)
@@ -64,26 +64,35 @@ change one collision shape or one RNG draw.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: `city_apron_rim_present` — on a real generated City:
+- [x] Gate 1b: `city_apron_rim_present` — on a real generated City:
       `rim_hedge_spots.size() == 4` and `rim_tree_spots.size() ==
       2 * 4 * (blocks_per_side + 1)` (64 at defaults); every hedge sits at the
       boundary radius (|x| or |z| ≈ `city_span * 0.5 + 0.5`), every trunk on the
       apron with its crown ~3.3 m up
-- [ ] Gate 1b: same scenario — a forced same-seed rebuild
+      (landed 2026-10-01: scenario PASS — hedges=4 trees=64, trunks 1.1 m up,
+      crowns 3.3 m up, multiset-matched against an independent recomputation)
+- [x] Gate 1b: same scenario — a forced same-seed rebuild
       (`generate(seed_value, true)`) reproduces both spot lists byte-identically
       (the `_spots_equal` pattern, `tests/sim_test.gd:1093-1108`), and the
       fingerprint hash still equals the recorded pre-change values — cross-version
       proof, T-020-style: seed 20260928 → 2492360539, seed 424242 → 2662825400
       (re-verified on the untouched tree 2026-09-30 with a headless
       `City.generate` probe; re-derive the same way before committing)
-- [ ] Gate 1b: the hedge/crown green is ≥ 0.15 Euclidean RGB from
+      (re-derived 2026-10-01 on this worktree the same way, untouched AND with
+      the rim landed: `PROBE_FP seed_20260928=2492360539 / seed_424242=2662825400
+      / default_again=2492360539`; the scenario asserts both pins)
+- [x] Gate 1b: the hedge/crown green is ≥ 0.15 Euclidean RGB from
       `City.COLOR_GRASS`, so the rim reads against its own apron (asserted on the
       constants, printed informationally like the silhouette sweep)
-- [ ] `city_street_flyover`, `city_roof_landable`/`city_roof_takeoff`,
+      (landed: asserted on the mesh materials the MultiMeshes actually render —
+      measured 0.188 / 0.195, printed informationally)
+- [x] `city_street_flyover`, `city_roof_landable`/`city_roof_takeoff`,
       `city_sidewalk_walkable`, `city_plaza_spawn`, the determinism trio
       (`city_same_seed_deterministic` / `city_new_seed_guarantees` /
       `city_regenerate_restores_layout`) and the full suite stay green — zero
       colliders, zero RNG draws
+      (landed: full suite 88/88 PASS, exit 0; Gate 2 autoplay `ok=true
+      restart=true` at fps 135)
 - [ ] [screenshot] At cruise the rim reads as the edge of town — a hedge line with
       tree clumps at each street exit — and the apron no longer reads as infinite
       grass (Gate 3 — human judgement)
