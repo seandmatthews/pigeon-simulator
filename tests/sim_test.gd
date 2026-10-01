@@ -154,6 +154,7 @@ func _run_scenarios() -> void:
 	await _scenario_hud_bread_pointer_tracks_nearest_crumb() ## T-037 — T-019 window: unpaused tree, no live Main.
 	await _scenario_hud_hunger_tiers() ## T-019 — must follow the restart scenarios: unpaused tree, no live Main.
 	await _scenario_combo_strip_reports_last_hit() ## T-040 — same T-019 window: unpaused tree, no live Main.
+	await _scenario_pause_menu_shows_controls() ## T-099 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_elder_placement_no_rng()
 	await _scenario_elder_shares_bread_after_hangout()
 	await _scenario_elder_no_bread_airborne()
@@ -4009,6 +4010,77 @@ func _scenario_hud_hunger_tiers() -> void:
 					pulse2, tier2_lo, tier2_hi, tier2_crossings,
 					pulse3, tier3_lo, tier3_hi, tier3_crossings,
 					faster, boundary_ok, refill_rest, restart_rest])
+
+
+## --- scenario (T-099 pause-menu controls recap) ------------------------------
+
+
+## The pause panel recap (T-099), through the REAL main scene: a fresh run has
+## the panel — and the two recap lines riding its CanvasLayer — hidden;
+## pause_menu.toggle() pauses the tree and shows both lines under the buttons;
+## toggle() again hides them and unpauses. The key families (W/S, A/D, Space,
+## F) are matched BI-DIRECTIONALLY against MainGame.HINT_AIR / HINT_GROUND, so
+## a future constant edit that drops or gains a family — or a scene edit that
+## drops one from the recap — fails the gate (scene files cannot reference
+## script constants, T-039's precedent, so the duplicated copy needs this
+## guard). Both lines also carry the T-019 treatment, exactly like the hint
+## line. Registered in the T-019 window: unpaused tree, no live Main; leaves
+## it exactly that — the pause is toggled back off before the instance frees.
+func _scenario_pause_menu_shows_controls() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(-2500.0, 0.0, -2500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var box: VBoxContainer = main_game.get_node("PauseMenu/Center/PausePanel/Box")
+	var air_controls: Label = main_game.get_node("%AirControls") as Label
+	var ground_controls: Label = main_game.get_node("%GroundControls") as Label
+	var buttons := box.get_child_count()
+	var placed_ok: bool = air_controls != null and ground_controls != null \
+			and air_controls.get_parent() == box and ground_controls.get_parent() == box \
+			and box.get_child(buttons - 2) == air_controls \
+			and box.get_child(buttons - 1) == ground_controls ## Appended below the buttons.
+	var hidden_at_rest: bool = not main_game.pause_menu.visible ## Fresh run: recap rides the hidden panel.
+	main_game.pause_menu.toggle()
+	var shown_ok: bool = get_tree().paused and main_game.pause_menu.is_open \
+			and main_game.pause_menu.visible \
+			and air_controls.visible and ground_controls.visible
+	## Divergence guard: each line must carry exactly the key families its
+	## constant teaches — a family in one and not the other fails either way.
+	var families: Array[String] = ["W/S", "A/D", "Space", "F"]
+	var air_families_ok := true
+	var ground_families_ok := true
+	for family: String in families:
+		air_families_ok = air_families_ok \
+				and MainGame.HINT_AIR.contains(family) == air_controls.text.contains(family)
+		ground_families_ok = ground_families_ok \
+				and MainGame.HINT_GROUND.contains(family) == ground_controls.text.contains(family)
+	## T-019 treatment on both lines: 14 px, outline 4, black-0.85 outline,
+	## white-0.75 fill — resolved through the theme stack like the other HUD
+	## scenarios (equality against the tuned values is the reliable read).
+	var recap_style_ok := true
+	for recap: Label in [air_controls, ground_controls]:
+		recap_style_ok = recap_style_ok \
+				and recap.get_theme_color("font_outline_color").is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
+				and recap.get_theme_constant("outline_size") == 4 \
+				and recap.get_theme_font_size("font_size") == 14 \
+				and recap.get_theme_color("font_color").is_equal_approx(Color(1.0, 1.0, 1.0, 0.75))
+	var air_text: String = air_controls.text
+	var ground_text: String = ground_controls.text
+	main_game.pause_menu.toggle()
+	var resumed_ok: bool = not get_tree().paused and not main_game.pause_menu.is_open \
+			and not main_game.pause_menu.visible ## Hidden with the panel again.
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	get_tree().paused = false ## Never leak a pause into later scenarios.
+	_check("pause_menu_shows_controls",
+			placed_ok and hidden_at_rest and shown_ok and air_families_ok
+					and ground_families_ok and recap_style_ok and resumed_ok,
+			"placed=%s hidden_at_rest=%s shown=%s air_families=%s ground_families=%s style=%s resumed=%s (air '%s' / ground '%s')" % [
+					placed_ok, hidden_at_rest, shown_ok, air_families_ok,
+					ground_families_ok, recap_style_ok, resumed_ok, air_text, ground_text])
 
 
 ## --- scenario (T-040 HUD combo strip & hit marker) ---------------------------
