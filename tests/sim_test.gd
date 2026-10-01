@@ -2355,6 +2355,18 @@ func _scenario_tourist_splat() -> void:
 		return
 	var tourist: Tourist = tourists[0]
 	spawner.tourist_splatted.connect(func(_t: Tourist) -> void: _tourist_relay += 1)
+	## T-055: the shirt flush is a binary write — calm is exactly the tourist's
+	## palette shirt_color, mid-panic exactly PANIC_TINT — read through the
+	## established `material_override as StandardMaterial3D` pattern (cafe
+	## sitter, splat fade). Calm is sampled before the drop; the panic arm is
+	## confirmed inside the poll below (the write lands on the first _animate
+	## tick that sees mood == PANIC, so it may lag the mood flip by a frame).
+	var shirt_mat: StandardMaterial3D = tourist._body_mesh.material_override \
+			as StandardMaterial3D
+	var calm_ok: bool = shirt_mat != null \
+			and shirt_mat.albedo_color.is_equal_approx(tourist.shirt_color)
+	var flush_ok := false
+	var flush_color := Color()
 	## T-009: Main's exact wiring — the spawner relay feeds the Game autoload —
 	## so the real lob below scores end to end: the first (real) hit pays 100
 	## at ×1 and the synthetic second hit is the chain's ×2 → 300 total.
@@ -2373,6 +2385,9 @@ func _scenario_tourist_splat() -> void:
 	for _i in 120: ## The drop falls ~0.7 s; the panic sprint follows it.
 		await get_tree().physics_frame
 		panicked = panicked or tourist.mood == Tourist.Mood.PANIC
+		if tourist.mood == Tourist.Mood.PANIC and not flush_ok and shirt_mat != null:
+			flush_color = shirt_mat.albedo_color
+			flush_ok = flush_color.is_equal_approx(Tourist.PANIC_TINT)
 		max_hspeed = maxf(max_hspeed, Vector2(tourist.velocity.x, tourist.velocity.z).length())
 		if _debug and _i % 20 == 0:
 			_dbg("splat poll %d: poop=%s tourist_pos=%s mood=%s hspeed=%.2f" % [_i,
@@ -2388,10 +2403,10 @@ func _scenario_tourist_splat() -> void:
 	var flees_impact := tourist._panic_dir.dot(Vector3(-1.0, 0.0, 0.0)) > 0.95
 	_check("tourist_splat_panics_scores",
 			dropped and fired and _tourist_relay == 2 and sprinted and flees_impact
-					and Game.score == 300,
-			"dropped=%s fired=%s relay=%d panicked=%s sprint %.1f m/s flees=%s score=%d" % [
+					and Game.score == 300 and calm_ok and flush_ok,
+			"dropped=%s fired=%s relay=%d panicked=%s sprint %.1f m/s flees=%s score=%d calm=%s flush=%s (%s)" % [
 					dropped, fired, _tourist_relay, panicked, max_hspeed, flees_impact,
-					Game.score])
+					Game.score, calm_ok, flush_ok, flush_color])
 	spawner.free()
 
 

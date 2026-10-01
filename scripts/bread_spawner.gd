@@ -53,13 +53,17 @@ func living_crumbs() -> Array[BreadCrumb]:
 
 
 ## The living crumb nearest `pos` by squared distance, `null` when none is
-## alive — the HUD bread pointer's target (T-037). Trivially cheap per frame:
-## at most `target_count` crumbs, the same nearest-N scan the capture
-## recorder already runs every frame.
+## alive — the HUD bread pointer's target (T-037), called every rendered frame
+## (Main._update_bread_pointer). (T-055) Iterates `_crumbs` in place with an
+## `is_instance_valid` skip instead of routing through `living_crumbs()`'s
+## filter+duplicate — allocation-free, while pruning of `_crumbs` stays
+## `living_crumbs()`'s job.
 func nearest_crumb(pos: Vector3) -> BreadCrumb:
 	var nearest: BreadCrumb = null
 	var best := INF
-	for crumb in living_crumbs():
+	for crumb in _crumbs:
+		if not is_instance_valid(crumb):
+			continue
 		var d := pos.distance_squared_to(crumb.global_position)
 		if d < best:
 			best = d

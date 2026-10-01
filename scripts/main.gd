@@ -60,6 +60,7 @@ const POINTER_CLIMB_CUE_M := 3.0 ## (T-098) Vertical delta beyond which the brea
 @onready var elder_spawner: ElderSpawner = $ElderSpawner
 
 var _combo_shown: int = 0 ## The multiplier the HUD last displayed — escalations past it pulse.
+var _stats_cache: String = "" ## (T-055) The stats line last pushed to the label — the string is recomposed every frame but assigned only when score, combo or the rounded hunger percent actually moved.
 var _score_pulse: Tween
 var hud_warning_tier: int = 0 ## The hunger warning band the bar currently shows (0 healthy … 3 critical).
 var _pulse_phase: float = 0.0 ## Game-time phase of the tier flash — advanced only while a tier pulses.
@@ -105,8 +106,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var combo := Game.combo_multiplier()
 	var combo_text := ("    ×%d combo" % combo) if combo >= 2 else ""
-	stats_label.text = "Score: %d%s    Hunger: %d%%" % [
+	## (T-055) The content moves at human pace (score, combo, rounded hunger %),
+	## so the label write happens only on change — the composition stays local.
+	var stats := "Score: %d%s    Hunger: %d%%" % [
 			Game.score, combo_text, roundi(Game.hunger.value)]
+	if stats != _stats_cache:
+		_stats_cache = stats
+		stats_label.text = stats
 	if combo >= 2 and combo > _combo_shown:
 		_pulse_score(combo) ## Escalation — the score line pulses (T-013).
 	_combo_shown = combo
