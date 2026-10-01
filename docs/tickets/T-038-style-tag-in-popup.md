@@ -15,13 +15,13 @@ style:
   today's `"+%d ×%d"` / `"+%d"` (`scripts/score_popup.gd:22-25`).
 - `ScorePopup.setup(points, multiplier, pos, style := false)` — same defaulted
   parameter, stored alongside the existing payload (`score_popup.gd:29-33`).
-  Both existing callers keep compiling unchanged: `scripts/main.gd:165` and
-  `tests/sim_test.gd:1724`, so the existing `"+100 ×2"` assertion
-  (`tests/sim_test.gd:1726`) stays true.
-- `Main._on_hit_scored` (`scripts/main.gd:163-166`) stops discarding the flag:
+  Both existing callers keep compiling unchanged: `scripts/main.gd:259` and
+  `tests/sim_test.gd:2622`, so the existing `"+100 ×2"` assertion
+  (`tests/sim_test.gd:2624`) stays true.
+- `Main._on_hit_scored` (`scripts/main.gd:257-260`) stops discarding the flag:
   `popup.setup(points, multiplier, pos, style)`.
 - Styled popups tint their label the HUD pulse gold `Color(1.0, 0.85, 0.3)`
-  (the color `_pulse_score` flashes, `scripts/main.gd:106`) so the tag reads as
+  (the color `_pulse_score` flashes, `scripts/main.gd:124`) so the tag reads as
   the same "special payout" language; the fade still owns the exit
   (`score_popup.gd:43` already tweens `modulate:a` — tint the RGB, leave the
   alpha tween alone).
@@ -30,23 +30,23 @@ Deliberately NOT in this ticket: a second Label3D tag in
 `scenes/score_popup.tscn` (the idea listed it as optional; the single-label
 tag keeps the blast radius at one script + one call site — revisit only if the
 [screenshot] pass says the inline tag doesn't read); any scoring-math change
-(`_register_hit`, `scripts/game.gd:141-149`, is untouched); any change to when
-style applies (`_is_style_hit`, `scripts/game.gd:155-158`); popup lifetime,
+(`_register_hit`, `scripts/game.gd:151-163`, is untouched); any change to when
+style applies (`_is_style_hit`, `scripts/game.gd:168-171`); popup lifetime,
 rise or float.
 
 ## Why
 
 A fast/low dive hit pays `roundi(base × multiplier × 1.5)`
-(`scripts/game.gd:143`) but the popup renders only `"+%d ×%d"`
+(`scripts/game.gd:156`) but the popup renders only `"+%d ×%d"`
 (`scripts/score_popup.gd:22-25`): a styled tourist hit at ×1 reads as a bare
 "+150" with no label — the player cannot learn the skill expression DESIGN's
 scoring table promises (`docs/DESIGN.md:68`, "+50% style bonus"). VERIFICATION's
 own Gate 3 line expects the bonus "visible as a bigger popup number"
-(`VERIFICATION.md:246`) — a bare 150 is not learnable feedback. The UI/UX lane
+(`VERIFICATION.md:272`) — a bare 150 is not learnable feedback. The UI/UX lane
 session never captured a live popup (~5 min of observed play, 0 scored hits;
 autoplay DONE: splats=10, panics=0, score=0), so the code path is the
 evidence: the `hit_scored` signal carries the style flag
-(`scripts/game.gd:14`) and `main.gd:163` drops it on the floor
+(`scripts/game.gd:14`) and `main.gd:257` drops it on the floor
 (underscore parameter).
 
 ## Acceptance criteria
@@ -70,13 +70,19 @@ evidence: the `hit_scored` signal carries the style flag
 Gate 1 (import + 120-frame boot) + Gate 1b — extend `_scenario_score_popup`
 with the static format variants (cheap, no instancing), and add the two
 real-Main style assertions inside `_scenario_juice_hit_shake_pulse`
-(`tests/sim_test.gd:2190-2219`), which already drives `on_poop_released` +
-`add_tourist_hit` through a real Main where popups are group-findable
-(`score_popups` group, `score_popup.gd:36`). That scenario today asserts the
-stats label, not popup text — the style checks are additive assertions after
-the existing flow (a third hit off a fresh fast/low release at ×3 pays 450 and
-labels "STYLE"; a fourth off a slow release pays plain) and the existing
+(`tests/sim_test.gd:3474-3505`), a real-Main scenario where popups are
+group-findable (`score_popups` group, `score_popup.gd:36`). **That scenario
+today calls only `Game.add_tourist_hit` (`:3488`, `:3491`) — it never records
+a poop release** (every `Game.on_poop_released` call in the harness lives in
+the T-009 scoring scenario, `tests/sim_test.gd:2556-2585`, which has no
+Main), so with no release `_release_age` sits at its stale 999 and the style
+gate can never fire. The style checks therefore ADD the release themselves:
+after the existing two hits, fire a fresh
+`Game.on_poop_released(Vector3(0.0, 3.0, 0.0), Vector3(0.0, 0.0, -18.0))`
+(fast AND low — the scoring scenario's exact pattern), then a third
+`add_tourist_hit` at ×3 pays 450 and labels "STYLE"; restore a slow release
+(`on_poop_released` at −5 m/s) for a fourth hit that pays plain. The existing
 assertions stay untouched. Full suite green. Gate 2: the autoplay asserts
 nothing about popup text — unaffected. Gate 3: the T-009 line
-(`VERIFICATION.md:246`) re-read as "styled hits are labelled, not just
+(`VERIFICATION.md:272`) re-read as "styled hits are labelled, not just
 bigger".
