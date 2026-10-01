@@ -117,6 +117,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | city_crosswalks_present | the `Visuals/Crosswalk` MultiMesh carries exactly 2,240 bars with default exports (224 bands × 10 — every unblocked intersection approach, the 32 outward approaches of the outer ring skipped because their band would leave the asphalt), every bar is an axis-aligned 2.4 along-road × 0.5 across × 0.01 box at its dash-family height (horizontal roads at `road_slab_height`, vertical at `road_slab_height + 0.005`), every bar center lies ≥ 5.0 m from every intersection node in XZ (the 3.5 m corner-cut swing area stays clear) and stays on its approach road's asphalt (the across-extent inside the road edges, the along-coordinate inside the city), the bar multiset matches an independent recomputation (per unblocked approach one 2.4 m-deep band centered 6.2 m out on the centerline, tiled by 10 bars running WITH the road, repeating ACROSS it at a 1.0 m pitch — the T-102 re-orientation of T-069's transverse piano keys, red-before/green-after: the un-flipped builder fails this scenario's count/geometry/asphalt/placement asserts), a forced same-seed rebuild reproduces all transforms byte-identically with the fingerprint unchanged at the pre-T-102 pin 2492360539 (zero RNG, zero `_fp` entries), and no StaticBody3D exists under `Visuals` — the paint is visual-only (T-017) | T-069, T-102 |
 | city_apron_rim_present | the city-edge rim is pure layout: exactly 4 hedge bands centered on the boundary line (|x| or |z| = city_span·0.5 + 0.5, oriented (city_span, 1.2, 0.8) size) and 2·4·(blocks_per_side+1) = 64 trees — two flanking each street exit at ±6.5 m along the side axis (multiset-matched against an independent recomputation), trunks 1.1 m up on the apron and crowns 3.3 m up over every tree spot; the hedge/crown green holds ≥ 0.15 Euclidean RGB from COLOR_GRASS (measured 0.188 / 0.195, printed informationally); zero CollisionObject3D under the Visuals root; a forced same-seed rebuild reproduces both spot lists byte-identically with the fingerprint still equal to the cross-version pins (seed 20260928 → 2492360539, seed 424242 → 2662825400 — re-derived on the untouched tree with a headless `City.generate` probe; zero RNG draws, zero `_fp` entries) | T-088 (commit 1) |
 | city_horizon_skyline | the distant skyline is a deterministic hash chain: `Skyline`/`SkylineTall` MultiMesh nodes exist under `Visuals` with 64 total instances ([40, 80] gated) of which 6 are landmark towers ([2, 8] gated); every origin's XZ radius sits in the band recomputed from the default exports, 192–347 m (beyond the blocks, strictly inside the ±367 m apron box including the tower's own ≤ 9 m half-width), box origins at height/2 over the y 0 apron; every scale.y ∈ [15, 60] and XZ extents ∈ [6, 18] m; zero CollisionObject3D under the Visuals root; a forced same-seed rebuild reproduces both instance sets byte-identically; the fingerprint still equals the cross-version pins and a foreign seed changes both the fingerprint and the tall-count split (6 → 3 at seed 424242) — zero draws from any RNG stream, zero `_fp` entries | T-088 (commit 2) |
+| city_park_trees_present | every park block carries exactly four trees at the fixed (±5, ±5) offsets — 8 = 4 × the reported park count (2) at the M1 seed off the `TreeTrunk`/`TreeCrown` MultiMesh queues, the park blocks recomputed independently from the slab queue (exactly the slabs wearing COLOR_PARK), every trunk (1.1 m up on the slab) and crown (3.3 m up, bottom at trunk top) over exactly one expected offset and fully inside its block (6.3 m < the 11 m half footprint), the crown green (the rim's COLOR_RIM_CROWN) ≥ 0.15 Euclidean RGB from COLOR_PARK (measured 0.282, printed informationally), every tree ≥ 2.0 m XZ from every `bread_spots` entry (measured worst 4.98 m — bench seats included), the constants-level ≥ 1.5 m lamp/bin arithmetic pinned (4.24 m worst center-to-center − 1.84 m crown half-diagonal − 0.9 m worst prop half-extent = 1.50 m margin), zero CollisionObject3D under the Visuals root, a forced same-seed rebuild reproducing both queues byte-identically, a foreign seed keeping the 4 × parks law (2 parks → 3 at seed 424242), and the fingerprint still equal to the cross-version pins (seed 20260928 → 2492360539, seed 424242 → 2662825400 — re-derived on the untouched tree with a headless `City.generate` probe before the diff landed; zero RNG draws, zero `_fp` entries) | T-030 |
 | juice_feather_poofs_on_hard_flap | a fully-rested flap poofs feathers; a re-flap inside the throttle window doesn't spam another | T-013 |
 | juice_dust_puff_on_landing | a gentle glide touchdown kicks a dust puff at the feet, which cleans itself up | T-013 |
 | juice_landing_shake_decays | a touchdown kicks a small camera shake (never full trauma) that moves the lens and decays to dead still | T-013 |
@@ -319,6 +320,7 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-033) Restarting from the score screen shows no generation hitch — the fresh run appears instantly on the standing same-seed city
 - [ ] (T-036) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home"), not a teleport glitch [screenshot]
 - [ ] (T-036) Across an off-world return the hunger bar never pauses — it keeps ticking down through the snap home
+- [x] (T-030) Parks read as parks from the air — a grove of four crowns against the lawn, not a vacant lot — and the crowns never visually collide with benches or lamps (agent grabs: same-camera before/after pairs `.captures/t030_park_grove_z64_{before,after}.png` and `.captures/t030_park_grove_corner_{before,after}.png`; author A/B: `wb3b` vs `wb4-trees` frames; reviewer sign-off 2026-10-01) [screenshot]
 - [ ] (T-031) Awninged fronts read as cafes at eye level — table and seated people under the awning, not a bare door slab [screenshot]
 - [ ] (T-031) Low street-level flight past cafe tables doesn't snag, and tables don't crowd the tourist path
 - [ ] (T-042) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home") — not a teleport glitch [screenshot]
@@ -350,7 +352,11 @@ Playtest checklist (grows as tickets land):
   `mcp_runtime_probe.gd ... File not found` / `Failed to create an autoload`
   errors while the project code is fine — restore the directory with a
   read-only copy from the canonical checkout first (it is gitignored, so the
-  tracked tree stays clean; hit and fixed during T-102).
+  tracked tree stays clean; hit and fixed during T-102). Make the copy
+  writable, though: the first import on a fresh worktree rewrites
+  `godot_mcp/icon.png.import`, and a read-only copy turns that into a
+  `Safe save failed` ERROR line in Gate 1's import (hit and fixed during
+  T-030).
 - Pitch flare (T-022) is machine-verified (Gate 1b `flare_sheds_speed_low` —
   from a settled ~15 m/s glide at ~6 m, 45 frames of held pitch-up gain
   +1.85 m and end at 10.15 m/s against the 2.5 m / 11 m/s bars, failing both
@@ -509,6 +515,22 @@ Playtest checklist (grows as tickets land):
   cruise screenshots show the props; a human pass over the T-032 lines
   (roofs read as inhabited from cruise height, rooftop crumbs spottable,
   props read as cover rather than obstacles) is still pending.
+- Park trees (T-030) are machine-verified (Gate 1b
+  `city_park_trees_present` — 4 trees per park block at the fixed (±5, ±5)
+  offsets with the park blocks re-derived independently from the slab queue,
+  trunk 1.1 m up on the slab and crown 3.3 m up over every offset, crowns
+  fully inside the block, crown green 0.282 Euclidean RGB from COLOR_PARK,
+  bread-spot clearance worst 4.98 m, the ≥ 1.5 m lamp/bin arithmetic pinned,
+  visual-only, a byte-identical same-seed rebuild, and the layout fingerprint
+  unchanged at the cross-version pins — zero RNG draws, zero `_fp` entries,
+  re-derived on the untouched tree before the diff landed). The park trees
+  reuse the T-088 rim-tree recipe (bench-wood trunks, the hedge-family crown
+  green COLOR_RIM_CROWN), visual-only per the T-017 decision. The Gate 3
+  line (parks read as groves from the air; crowns read against the lawn
+  without visually colliding with benches or lamps) was accepted by
+  reviewer sign-off (2026-10-01; agent-side same-camera before/after grabs:
+  `.captures/t030_park_grove_z64_{before,after}.png` and the corner park
+  pair `.captures/t030_park_grove_corner_{before,after}.png`).
 - Bread pointer climb cue (T-098) is machine-verified (Gate 1b
   `hud_bread_pointer_tracks_nearest_crumb`'s cue arms — " ▲" with a hand-placed
   crumb ~10 m over a grounded pigeon, " ▼" from ~10 m above a street crumb, no

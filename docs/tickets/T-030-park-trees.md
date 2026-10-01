@@ -1,6 +1,6 @@
 # T-030 — Tree the parks (prototyped live: 4 MultiMesh trees per park block)
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-004 (park blocks)
 - **Refs:** `docs/DESIGN.md` → The city (parks among the bread-capable
   surfaces) · worldbuilding lens (the two parks read as vacant lots)
@@ -54,26 +54,61 @@ table) — the landed ticket re-runs the suite on the real tree.
 
 ## Acceptance criteria
 
-- [ ] Every park block carries exactly 4 trees at the fixed (±5, ±5)
+- [x] Every park block carries exactly 4 trees at the fixed (±5, ±5)
       offsets, fully inside its block footprint, trunks rising from the slab.
-- [ ] Crowns wear a color measurably distinct from `COLOR_PARK` (the lawn),
+- [x] Crowns wear a color measurably distinct from `COLOR_PARK` (the lawn),
       so trees read against their own grass.
-- [ ] Trees clear everything that shares a park block: every tree ≥ 2.0 m
+- [x] Trees clear everything that shares a park block: every tree ≥ 2.0 m
       from every `City.bread_spots` entry (which includes the bench seats,
       `scripts/city.gd:555`) at the M1 seed; the fixed-offset arithmetic
       guarantees ≥ 1.5 m from lamps/bins at every seed.
-- [ ] Zero RNG draws: the fingerprint hash is byte-identical to pre-T-030
+- [x] Zero RNG draws: the fingerprint hash is byte-identical to pre-T-030
       (record the value in this ticket, T-020-style cross-version proof),
       and `city_same_seed_deterministic` / `city_regenerate_restores_layout`
       pass unchanged.
-- [ ] *(Gate 1b)* `city_park_trees_present`: on a real generated City —
+- [x] *(Gate 1b)* `city_park_trees_present`: on a real generated City —
       trunk/crown MultiMesh instance counts = 4 × the reported park count;
       every crown center sits at one of the four offsets of a park block
       center; regenerating the same seed reproduces the transforms
       byte-identically.
-- [ ] [screenshot] From the air each park reads as a grove — four crowns
+- [x] [screenshot] From the air each park reads as a grove — four crowns
       against the lawn — not a vacant lot (before/after: `wb3b` vs
-      `wb4-trees` frames).
+      `wb4-trees` frames; landed-tree same-camera pairs
+      `.captures/t030_park_grove_z64_{before,after}.png` and
+      `.captures/t030_park_grove_corner_{before,after}.png`; reviewer
+      sign-off 2026-10-01).
+
+## Landed (implementation record)
+
+- Trees reuse the T-088 rim-tree recipe, so the city wears one species:
+  `"tree_trunk"` = `COLOR_BENCH_WOOD`, `"tree_crown"` = `COLOR_RIM_CROWN`
+  (0.22, 0.42, 0.19) — measured 0.282 Euclidean RGB from `COLOR_PARK`
+  (the scenario's floor is 0.15). Trunk 0.35 × 2.2 × 0.35 rising from the
+  slab, crown 2.6 × 2.2 × 2.6 centered 3.3 m up (bottom at trunk top),
+  visual-only, the four `PARK_TREE_OFFSET` (±5, ±5) offsets per park block.
+- **Cross-version proof (T-020-style):** layout fingerprint unchanged by the
+  diff — seed 20260928 → **2492360539**, seed 424242 → **2662825400**,
+  re-derived on the untouched pre-T-030 tree with a headless `City.generate`
+  probe, then re-run on the landed tree (identical; parks 2 / 3 unchanged),
+  and re-asserted inside `city_park_trees_present` on every run. Zero RNG
+  draws, zero `_fp` entries.
+- Clearance, measured by the scenario: worst XZ tree-to-`bread_spots`
+  distance 4.98 m (the ticket's arithmetic figure) at the M1 seed; the
+  lamp/bin worst case is pinned as constants (4.24 m center-to-center −
+  1.84 m crown half-diagonal − 0.9 m worst prop half-extent = 1.50 m margin).
+- Gates run on the landed tree: Gate 1 import + 120-frame boot (exit 0, only
+  the documented benign addon line), Gate 1b full suite exit 0 — 93/93 SIM
+  PASS, `SIM SUMMARY: 0 failure(s)`, including `city_park_trees_present`,
+  the fingerprint pair (`city_same_seed_deterministic`,
+  `city_regenerate_restores_layout`) and `city_plaza_spawn` — and Gate 2
+  autoplay (`AUTOPLAY DONE ok=true … restart=true`, fps 136).
+- Agent-side same-camera before/after grabs for the pending line:
+  `.captures/t030_park_grove_z64_{before,after}.png` (the (0, −64) park) and
+  `.captures/t030_park_grove_corner_{before,after}.png` (the (−96, −96)
+  corner park).
+- Gate 3 accepted by reviewer sign-off (2026-10-01): parks read as parks
+  from the air; crowns read against the lawn and never visually collide
+  with benches or lamps.
 
 ## Verification
 
