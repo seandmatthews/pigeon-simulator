@@ -89,12 +89,13 @@ const CROSSWALK_BAR_WIDTH := 0.5 ## Bar width across the road (m).
 ## Rooftop clutter layout (T-032): per building, 1-3 props sit at ±0.25·footprint
 ## per axis in the three non-(+,+) corner quadrants and one roof crumb at
 ## ±0.28·footprint in the remaining (+,+) quadrant — both mirrored through the
-## lot_offset signs, so the geometry is corner-relative per lot. At the 7.1 m
-## minimum footprint that puts prop centers √2·0.25·7.1 ≈ 2.51 m (≥ 2.5) and
-## the spot ≈ 2.81 m from the footprint center — the `city_roof_landable` drop
-## point at the exact center stays clear — and the worst prop (the 1.4 m water
-## tank) keeps 3.55 − 1.775 − 0.7 = 1.075 m inside every roof edge. Pure layout
-## numbers: the placement draws no RNG of any stream.
+## lot_offset signs, so the geometry is corner-relative per lot. Since T-051 the
+## footprint itself varies per lot and per axis in [0.78, 1.0]·(lot − lot_gap),
+## so at the 5.54 m minimum (7.1 × 0.78) prop centers sit √2·0.25·5.54 ≈ 1.96 m
+## from the footprint center — the `city_roof_landable` drop point at the exact
+## center stays ≥ 0.96 m clear of the worst prop (the 1.4 m water tank's 0.99 m
+## half-diagonal) — and the tank keeps 2.77 − 1.385 − 0.7 ≈ 0.685 m inside every
+## roof edge. Pure layout numbers: the placement draws no RNG of any stream.
 const ROOF_PROP_INSET := 0.25 ## Prop center offset from the footprint center, × footprint.
 const ROOF_BREAD_INSET := 0.28 ## Roof crumb offset from the footprint center, × footprint.
 const ROOF_PROP_KINDS: Array[String] = ["ac_box", "water_tank", "roof_vent"]
@@ -391,6 +392,24 @@ func _block_center(ix: int, iz: int) -> Vector3:
 func district_of(bx: int, bz: int) -> int:
 	var half := (blocks_per_side - 1) * 0.5
 	return (0 if bx <= half else 1) + (0 if bz <= half else 2)
+
+
+## Stable per-lot, per-axis footprint scale (T-051): a pure hash fold of
+## (block x/z, quadrant, axis, seed) mapped to [0.78, 1.0], so building
+## footprints vary — some squat-wide, some slim, occasional near-full-lot slabs
+## — without the roofscape reading as a waffle grid of equal squares. ZERO
+## draws from `_rng`/`_shop_rng` (the hash chain `_skyline_roll` precedent):
+## every seeded roll keeps its exact place in its stream, so the floor tally,
+## the palette draws and the pinned 104-of-146 awning count stay byte-identical.
+## The scale never exceeds 1.0, so a footprint never grows past
+## `lot - lot_gap` — alleys only widen and every layout guarantee (clear
+## plaza, flyable streets, capped roofs, bread surfaces) holds by
+## construction. Deterministic and machine-recomputable: the sim harness
+## owns its copy of this fold (`city_footprints_vary`).
+func _lot_footprint_scale(bx: int, bz: int, qx: int, qz: int, axis: int) -> float:
+	var h := hash(Vector4i(bx, bz, qx * 2 + qz, axis + 1))
+	h = hash(h ^ seed_value)
+	return 0.78 + 0.22 * float(h % 1001) / 1000.0
 
 
 ## --- construction --------------------------------------------------------
@@ -699,7 +718,7 @@ func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 		_counts.parks += 1
 		_build_park_trees(center)
 	else:
-		_build_block_buildings(center, district_of(bx, bz))
+		_build_block_buildings(center, district_of(bx, bz), bx, bz)
 	_build_block_props(center, is_plaza)
 
 
@@ -723,11 +742,16 @@ func _build_park_trees(center: Vector3) -> void:
 
 ## Subdivides a block interior into 2x2 lots and fills 2–4 of them with
 ## buildings whose heights snap to whole floors. The block's district picks
-## the palette the buildings wear.
-func _build_block_buildings(center: Vector3, district: int) -> void:
+## the palette the buildings wear. Each building's footprint varies per lot
+## AND per axis through the stable `_lot_footprint_scale` hash (T-051) — a
+## pure function of the block coordinates, the lot's quadrant and the seed,
+## so the roofscape reads as individual volumes instead of a waffle grid of
+## equal 7.1 m squares. No RNG draw: the floors/palette roll sequences are
+## untouched.
+func _build_block_buildings(center: Vector3, district: int, bx: int, bz: int) -> void:
 	var interior := block_size - sidewalk_width * 2.0
 	var lot := interior * 0.5
-	var footprint := lot - lot_gap
+	var footprint_max := lot - lot_gap
 	var lots: Array[Vector2] = [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]
 	var roll := _rng.randf()
 	if roll < 0.45:
@@ -743,11 +767,14 @@ func _build_block_buildings(center: Vector3, district: int) -> void:
 		lots = kept ## Duo — one alley through the block.
 	for q in lots:
 		var lot_offset := Vector2(q.x * lot * 0.5, q.y * lot * 0.5)
+		var footprint := Vector2(
+				footprint_max * _lot_footprint_scale(bx, bz, int(q.x), int(q.y), 0),
+				footprint_max * _lot_footprint_scale(bx, bz, int(q.x), int(q.y), 1))
 		_add_building(center + Vector3(lot_offset.x, 0.0, lot_offset.y), footprint, district,
 				lot_offset)
 
 
-func _add_building(base_center: Vector3, footprint: float, district: int,
+func _add_building(base_center: Vector3, footprint: Vector2, district: int,
 		lot_offset: Vector2) -> void:
 	var floors := _rng.randi_range(building_floors_min, building_floors_max)
 	var wall_h := floors * floor_height
@@ -756,13 +783,13 @@ func _add_building(base_center: Vector3, footprint: float, district: int,
 	var color: Color = palette[_rng.randi_range(0, palette.size() - 1)]
 	_add_mm("facade%d" % floors, _box_xf(
 			base_center + Vector3(0.0, block_slab_height + wall_h * 0.5, 0.0),
-			Vector3(footprint, wall_h, footprint)), color)
+			Vector3(footprint.x, wall_h, footprint.y)), color)
 	_add_mm("roof", _box_xf(
 			base_center + Vector3(0.0, block_slab_height + wall_h + roof_slab_height * 0.5, 0.0),
-			Vector3(footprint, roof_slab_height, footprint)))
+			Vector3(footprint.x, roof_slab_height, footprint.y)))
 	var shop := _add_shopfront(base_center, footprint, lot_offset)
 	_add_collider("Buildings",
-			Vector3(footprint, total_h, footprint),
+			Vector3(footprint.x, total_h, footprint.y),
 			base_center + Vector3(0.0, block_slab_height + total_h * 0.5, 0.0))
 	## Rooftop clutter (T-032): 1-3 deterministic props in the three non-(+,+)
 	## corner quadrants plus one roof-corner crumb spot in the remaining (+,+)
@@ -782,9 +809,9 @@ func _add_building(base_center: Vector3, footprint: float, district: int,
 		var quadrant := prop_quadrants[i]
 		var prop_size: Vector3 = ROOF_PROP_SIZES[kind]
 		var prop_pos := base_center + Vector3(
-				quadrant.x * signf(lot_offset.x) * footprint * ROOF_PROP_INSET,
+				quadrant.x * signf(lot_offset.x) * footprint.x * ROOF_PROP_INSET,
 				roof_top + prop_size.y * 0.5,
-				quadrant.y * signf(lot_offset.y) * footprint * ROOF_PROP_INSET)
+				quadrant.y * signf(lot_offset.y) * footprint.y * ROOF_PROP_INSET)
 		_add_mm(kind, _box_xf(prop_pos, prop_size))
 		_add_collider("Props", prop_size, prop_pos)
 		roof_props.append({
@@ -794,12 +821,12 @@ func _add_building(base_center: Vector3, footprint: float, district: int,
 			"kind": kind,
 		})
 	bread_spots.append(base_center + Vector3(
-			signf(lot_offset.x) * footprint * ROOF_BREAD_INSET,
+			signf(lot_offset.x) * footprint.x * ROOF_BREAD_INSET,
 			roof_top + 0.06,
-			signf(lot_offset.y) * footprint * ROOF_BREAD_INSET))
+			signf(lot_offset.y) * footprint.y * ROOF_BREAD_INSET))
 	buildings.append({
 		"center": to_global(Vector3(base_center.x, 0.0, base_center.z)),
-		"size": Vector2(footprint, footprint),
+		"size": footprint,
 		"top": to_global(Vector3(0.0, block_slab_height + total_h, 0.0)).y,
 		"district": district, ## Which district palette the facade wore (T-013).
 		"color": color, ## The facade color itself — tests assert palette membership (T-013).
@@ -810,14 +837,16 @@ func _add_building(base_center: Vector3, footprint: float, district: int,
 	})
 	_max_roof = maxf(_max_roof, total_h)
 	_counts.buildings += 1
-	_fp.append(["b", base_center.x, base_center.z, footprint, wall_h, color.r, color.g, color.b])
+	_fp.append(["b", base_center.x, base_center.z, footprint.x, footprint.y, wall_h,
+			color.r, color.g, color.b])
 	_fp.append(["shop", base_center.x, base_center.z, shop.color.r, shop.color.g, shop.color.b,
 			shop.door_face, 1 if shop.has_awning else 0])
 	## Spawn-plaza guarantee: no footprint may intrude into the clear radius.
-	var half := footprint * 0.5
 	var closest := Vector2(
-			clampf(_plaza_center.x, base_center.x - half, base_center.x + half),
-			clampf(_plaza_center.z, base_center.z - half, base_center.z + half))
+			clampf(_plaza_center.x, base_center.x - footprint.x * 0.5,
+					base_center.x + footprint.x * 0.5),
+			clampf(_plaza_center.z, base_center.z - footprint.y * 0.5,
+					base_center.z + footprint.y * 0.5))
 	if Vector2(_plaza_center.x, _plaza_center.z).distance_to(closest) < spawn_clear_radius:
 		_plaza_clear = false
 
@@ -830,14 +859,14 @@ func _add_building(base_center: Vector3, footprint: float, district: int,
 ## into the `lot_gap` alley, where facing awnings at the same height would
 ## interpenetrate. The awning is deliberately visual-only (no collider — see
 ## the ticket's Decisions).
-func _add_shopfront(base_center: Vector3, footprint: float, lot_offset: Vector2) -> Dictionary:
+func _add_shopfront(base_center: Vector3, footprint: Vector2, lot_offset: Vector2) -> Dictionary:
 	var shop_color: Color = SHOPFRONT_PALETTE[
 			_shop_rng.randi_range(0, SHOPFRONT_PALETTE.size() - 1)]
 	var band_h := 2.4
 	var band_outset := 0.12
 	_add_mm("shopfront", _box_xf(
 			base_center + Vector3(0.0, block_slab_height + band_h * 0.5, 0.0),
-			Vector3(footprint + band_outset, band_h, footprint + band_outset)), shop_color)
+			Vector3(footprint.x + band_outset, band_h, footprint.y + band_outset)), shop_color)
 	var street_faces: Array[int] = []
 	if lot_offset.x > 0.0:
 		street_faces.append(0) ## +x
@@ -849,19 +878,23 @@ func _add_shopfront(base_center: Vector3, footprint: float, lot_offset: Vector2)
 		street_faces.append(3) ## -z
 	var door_face: int = street_faces[_shop_rng.randi_range(0, street_faces.size() - 1)]
 	var face_normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][door_face]
+	## T-051: the footprint extent ALONG the face normal decides the face plane;
+	## the awning's along-face span uses the OTHER axis.
+	var face_out := footprint.x if absf(face_normal.x) > 0.5 else footprint.y
 	var door_size := Vector3(0.95, 2.05, 0.1) if absf(face_normal.x) > 0.5 \
 			else Vector3(0.1, 2.05, 0.95)
 	_add_mm("door", _box_xf(
-			base_center + face_normal * (footprint * 0.5 + band_outset + 0.01)
+			base_center + face_normal * (face_out * 0.5 + band_outset + 0.01)
 					+ Vector3(0.0, block_slab_height + 1.025, 0.0),
 			door_size))
 	var has_awning := _shop_rng.randf() < awning_chance
 	if has_awning:
 		var awn_depth := 1.3
-		var awn_size := Vector3(awn_depth, 0.09, footprint * 0.55) if absf(face_normal.x) > 0.5 \
-				else Vector3(footprint * 0.55, 0.09, awn_depth)
+		var awn_along := footprint.y if absf(face_normal.x) > 0.5 else footprint.x
+		var awn_size := Vector3(awn_depth, 0.09, awn_along * 0.55) if absf(face_normal.x) > 0.5 \
+				else Vector3(awn_along * 0.55, 0.09, awn_depth)
 		_add_mm("awning", _box_xf(
-				base_center + face_normal * (footprint * 0.5 + awn_depth * 0.5)
+				base_center + face_normal * (face_out * 0.5 + awn_depth * 0.5)
 						+ Vector3(0.0, block_slab_height + 2.9, 0.0),
 				awn_size), shop_color.darkened(0.15))
 	return {"color": shop_color, "door_face": door_face, "has_awning": has_awning}
@@ -892,12 +925,13 @@ func _build_cafe_spots() -> void:
 func cafe_spot_for(info: Dictionary) -> Transform3D:
 	var normal: Vector3 = FACE_NORMALS[int(info.door_face)]
 	var lot: Vector2 = info.lot_offset
-	var footprint: float = (info.size as Vector2).x
+	var size: Vector2 = info.size
 	var face_axis_x := absf(normal.x) > 0.5
 	var along := Vector3(0.0, 0.0, signf(lot.y)) if face_axis_x \
 			else Vector3(signf(lot.x), 0.0, 0.0)
 	var pos: Vector3 = to_local(info.center) \
-			+ normal * (footprint * 0.5 + CAFE_FACE_OUTSET + CAFE_STANDOFF) \
+			+ normal * ((size.x if face_axis_x else size.y) * 0.5
+					+ CAFE_FACE_OUTSET + CAFE_STANDOFF) \
 			+ along * CAFE_SIDE_OFFSET
 	pos.y = block_slab_height
 	return Transform3D(Basis(Vector3.UP, atan2(-normal.x, -normal.z)), pos)

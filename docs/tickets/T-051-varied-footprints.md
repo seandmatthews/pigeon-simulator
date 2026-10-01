@@ -1,6 +1,6 @@
 # T-051 — Vary building footprints to break the uniform block grid
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** — (builds on landed T-004 grid, T-017 shopfronts, T-031 cafe
   tables — all three own math this ticket must make axis-aware)
 - **Refs:** worldbuilding-s2 planning session (uniform-roof evidence: `wbs2-c`
@@ -74,34 +74,76 @@ bread surfaces) all hold at scale ≤ 1.0.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: new scenario `city_footprints_vary` in `tests/sim_test.gd`
-      passes:
-  - [ ] ≥ 3 distinct footprint sizes city-wide (distinct `Vector2`s across
-        `buildings[]` records);
-  - [ ] every footprint fully inside its lot with the gap kept: per axis,
+- [x] Gate 1b: new scenario `city_footprints_vary` in `tests/sim_test.gd`
+      passes (`SIM PASS city_footprints_vary`):
+  - [x] ≥ 3 distinct footprint sizes city-wide (distinct `Vector2`s across
+        `buildings[]` records) — measured 146 distinct of 146 buildings;
+  - [x] every footprint fully inside its lot with the gap kept: per axis,
         `size ≤ (block_size - sidewalk_width * 2) * 0.5 - lot_gap` (7.1 m at
-        defaults) and `size > 0`;
-  - [ ] every record's size recomputable from the hash: the scenario owns its
+        defaults) and `size > 0` (the scenario's `bounds_ok` leg);
+  - [x] every record's size recomputable from the hash: the scenario owns its
         copy of `_lot_footprint_scale` (the `_expected_cafe_spot`
-        harness-owns-its-copy pattern, tests/sim_test.gd:1302) re-derived from
+        harness-owns-its-copy pattern — `tests/sim_test.gd`
+        `_expected_footprint_scale`) re-derived from
         `bx/bz/quadrant/axis + city.seed_value`, matching each record within
         0.01.
-- [ ] Gate 1b: `city_cafe_tables_present` stays green with BOTH face
+- [x] Gate 1b: `city_cafe_tables_present` stays green with BOTH face
       orientations on the face plane — i.e. after the axis-aware fixes, every
       table's recompute distance < 0.01 m including ±z-door buildings (the
       pre-fix failure mode).
-- [ ] Gate 1b: the determinism trio stays green unchanged (self-to-self
+- [x] Gate 1b: the determinism trio stays green unchanged (self-to-self
       fingerprints — the reworked `"b"` entry regenerates identically), and
       `city_shopfronts_present` / `city_shopfronts_deterministic` stay green
       (band/door/awning math reworked, coverage + determinism must hold).
-- [ ] Explicit re-runs green: `city_plaza_spawn`, `city_street_flyover`,
+- [x] Explicit re-runs green: `city_plaza_spawn`, `city_street_flyover`,
       `city_roof_landable`, `city_roof_takeoff`, `city_sidewalk_walkable`,
       `city_cafe_tables_present`, `city_new_seed_guarantees`,
-      `city_shopfronts_present`, `restart_resets_run` and the full suite.
-- [ ] [screenshot] Gate 3: the roofline reads as varied building volumes, not a
+      `city_shopfronts_present`, `restart_resets_run` and the full suite
+      (95 PASS / 0 FAIL, exit 0).
+- [x] [screenshot] Gate 3: the roofline reads as varied building volumes, not a
       waffle grid — compare against the `wbs2-c` f00001752 baseline; the
       street-level read keeps shop rows continuous (no building so slim its
-      shop band looks broken).
+      shop band looks broken). (Agent grabs — `.captures/t051_cruise_roofscape_after.png`,
+      `.captures/t051_blockrow_after.png`, `.captures/t051_streetlevel_after.png`;
+      reviewer sign-off 2026-10-01.)
+
+## Landed (agent, 2026-10-01)
+
+- Tuned values: scale range [0.78, 1.0] via the reference fold exactly as
+  specified (`hash(Vector4i(bx, bz, qx*2+qz, axis+1))`, one fold with
+  `seed_value`, `0.78 + 0.22·(h % 1001)/1000`); observed city-wide spread
+  0.781–0.998 over 146 buildings × 2 axes, all 146 footprints distinct.
+- Zero RNG-stream drift proven: the `_rng`-derived facade floor tally is
+  byte-identical pre/post (`[2:34 6:33 5:23 3:32 4:24]`), roofs/spot counts
+  identical (146/259/146/679), and both `_shop_rng` pins hold (awnings 104 of
+  146; cafe tables 104).
+- The fingerprint VALUE moved once, as mandated: seed 20260928
+  2492360539 → **4188136223**, seed 424242 2662825400 → **547420287**
+  (probe: headless `City.generate`, same-session default→foreign→default
+  reproduced). The ticket's "nothing pinned breaks" note predates the
+  cross-version pins that T-049/T-088/T-030 later added to
+  `city_facades_fit_floors`, `city_apron_rim_present`,
+  `city_horizon_skyline` and `city_park_trees_present` — those four pins were
+  re-derived per the accepted T-017/T-029 precedent, with the old values
+  recorded in the comments.
+- `city_roofs_inhabited`'s derived numeric bars were re-based for the smaller
+  footprints (they were computed from the old constant 7.1 m): center
+  clearance 2.5 → 1.9 m (√2·0.25·5.54 ≈ 1.96 m at the 0.78-scaled minimum,
+  still ≥ 0.96 m clear of the worst prop's half-diagonal) and edge margin
+  1.0 → 0.6 m (0.25·5.54 − 0.7 ≈ 0.685 m) — and the scenario now pins the
+  corner-relative inset EXACTLY per axis (±0.25·size), stronger than the old
+  ≥ bar. The harness's `_props_of` and the roof-spot/crumb legs read the
+  footprint per axis. `city_roof_landable` itself needed no change (drops at
+  the record center).
+- Harness mirrors made axis-aware as specified: `_expected_cafe_spot` and the
+  door-line check pick the footprint component along the face normal;
+  `cafe_spot_for` likewise.
+- Gate 3 evidence: pilot sessions (`t051g3c`/`t051g3e`) grabbed the three
+  `.captures/t051_*.png` frames; the waffle-grid comparison baseline
+  (`wbs2-c` f00001752) frames are no longer on disk — the comparison uses the
+  planning session's documented read (every roof the same gray square). The
+  roofline read (varied volumes, continuous shop rows) was accepted by
+  reviewer sign-off (2026-10-01) — ticket done.
 
 ## Verification
 
