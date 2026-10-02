@@ -13,7 +13,7 @@ const POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const SPLAT_TARGET_SCRIPT := preload("res://tests/splat_target.gd")
 const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 const POOP_SCENE: PackedScene = preload("res://scenes/poop.tscn")
-const POOP_MARKER_SCENE: PackedScene = preload("res://scenes/poop_marker.tscn")
+const POOP_RETICLE_SCENE: PackedScene = preload("res://scenes/poop_reticle.tscn")
 const MENU_SCENE: PackedScene = preload("res://scenes/menu.tscn")
 
 ## The Game autoload's high score file is redirected here for the scoring
@@ -181,8 +181,8 @@ func _run_scenarios() -> void:
 	await _scenario_poop_splat_wall()
 	await _scenario_poop_event_target()
 	await _scenario_poop_ball_visible() ## T-086 — the drop reads from the chase cam: bigger emissive ball; collider re-pinned to 0.30 by T-060.
-	await _scenario_poop_impact_marker_matches_fall() ## T-046 — bare rig, direct instantiation, no Main alive.
-	await _scenario_poop_impact_marker_spawns_from_main() ## T-046 — real-Main rig, the T-077 parked pattern.
+	await _scenario_reticle_frozen_pin_matches_damped_fall() ## T-105 — bare rig, direct instantiation, no Main alive.
+	await _scenario_reticle_main_lifecycle() ## T-105 — real-Main rig, the T-077 parked pattern.
 	await _scenario_poop_ready_indicator_tracks_cooldown() ## T-077 — unpaused tree, no live Main, like the poop block.
 	await _scenario_coach_hint_shows_until_first_hit() ## T-060 — after the T-077 rig: owns one instanced Main in its own space, leaves the stretch as it found it.
 	await _scenario_tourists_walk()
@@ -1798,75 +1798,154 @@ func _scenario_poop_ball_visible() -> void:
 	poop.free()
 
 
-## The predicted-impact ring (T-046) — the bare-rig analytic leg. The marker
-## is instantiated DIRECTLY (no Main alive, so no spawn wiring runs) and
-## tracks the one drop a real poop tap produced from the cooldown scenario's
-## exact set-up. The impact point is recomputed INDEPENDENTLY in closed form
-## from the drop's own position and inherited velocity — read fresh at track
-## time, never through the marker's march (the `_scan_nearest_crumb`
-## no-self-test rule) — under the drop's pure fall_gravity onto the flat
-## y = 0 test ground; both sides are undamped by design (the live body's
-## default linear_damp lands the real splat a touch short and late — the Gate
-## 3 eye's note, not this assertion). Lifecycle: after the splat the marker
-## must free itself within 0.5 s.
-func _scenario_poop_impact_marker_matches_fall() -> void:
+## One axis of the T-105 damped closed form, p(t) = p0 + (v0 − G/d)·(1 −
+## e^(−d·t))/d + (G/d)·t, with `g_axis` the signed gravity along that axis
+## (−g on y, 0 horizontal) — re-implemented HERE, never read from the reticle
+## (the no-self-test rule); d ≈ 0 falls back to the pure parabola (T-046's
+## undamped form).
+func _damped_axis(p0: float, v0: float, g_axis: float, damp: float, t: float) -> float:
+	if damp < 0.0001:
+		return p0 + v0 * t + 0.5 * g_axis * t * t
+	var k := (1.0 - exp(-damp * t)) / damp
+	return p0 + (v0 - g_axis / damp) * k + (g_axis / damp) * t
+
+
+## The damped impact of a release from (p0, v0) under `gravity` and the project's
+## effective linear damp, onto whatever surface a straight-down WORLD ray from
+## p0 finds — the scenario's own independent prediction: its own ray, its own
+## closed form, its own bisection on y(t) = ground_y (the damped form has no
+## closed-form inverse for t). `horizon` bounds the search (the drop's
+## max_lifetime). The damp comes straight from the project setting, never from
+## the reticle.
+func _damped_impact(p0: Vector3, v0: Vector3, gravity: float, horizon: float) -> Vector3:
+	var damp: float = ProjectSettings.get_setting("physics/3d/default_linear_damp", 0.1)
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(p0, p0 + Vector3(0.0, -60.0, 0.0), 1)
+	var hit := space.intersect_ray(query)
+	var ground_y: float = hit["position"].y if not hit.is_empty() else p0.y - 60.0
+	var lo := 0.0
+	var hi := maxf(horizon, 0.1)
+	for _i in 60: ## Bisection to ~1e-14 s — the fall is monotonic down at these speeds.
+		var mid := 0.5 * (lo + hi)
+		if _damped_axis(p0.y, v0.y, -gravity, damp, mid) > ground_y:
+			lo = mid
+		else:
+			hi = mid
+	var t := 0.5 * (lo + hi)
+	return Vector3(
+			_damped_axis(p0.x, v0.x, 0.0, damp, t),
+			ground_y,
+			_damped_axis(p0.z, v0.z, 0.0, damp, t))
+
+
+## The reticle's current albedo alpha — read through the one duplicated
+## material the dim write drives, via the Ring mesh's override.
+func _reticle_alpha(reticle: PoopReticle) -> float:
+	var ring := reticle.get_node_or_null("Ring") as MeshInstance3D
+	if ring == null:
+		return -1.0
+	var mat := ring.material_override as StandardMaterial3D
+	if mat == null:
+		return -1.0
+	return mat.albedo_color.a
+
+
+## The poop target reticle (T-105) — the aiming-contract leg, bare rig. The
+## reticle is instantiated DIRECTLY (no Main alive, so no lock wiring runs) and
+## freezes onto the one drop a real poop tap produced from the cooldown
+## scenario's exact set-up. The frozen pin is compared against an impact
+## recomputed INDEPENDENTLY in the scenario by the DAMPED closed form from the
+## drop's own p0/v0 — read fresh from the drop, never through the reticle's
+## march (the `_scan_nearest_crumb` no-self-test rule). This is the damping-fix
+## leg: the old undamped T-046 point sits ~1.3–1.5 m from the damped impact at
+## this release, well outside the 0.5 m bar, so the leg FAILS an unfixed march
+## by construction. Plus two legs in the same scenario: the pin is stable
+## through the fall (frozen means frozen), and after the splat the reticle is
+## back in live mode within 0.5 s — still alive itself, it never frees mid-run.
+func _scenario_reticle_frozen_pin_matches_damped_fall() -> void:
 	_dropped.clear()
 	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
 	await _tap("poop")
 	await _wait_frames(2) ## The poop_lob read shape — the drop exists by here.
 	var spawned := _dropped.size() == 1
 	var drop: Poop = _dropped[0] if spawned else null
-	var p0 := Vector3.ZERO
-	var v0 := Vector3.ZERO
-	var marker: PoopMarker = null
+	var reticle: PoopReticle = null
+	var splat: MeshInstance3D = null
 	if drop != null:
-		p0 = drop.global_position ## The actual spawn point (one step of fall in — read fresh, used by BOTH sides).
-		v0 = drop.linear_velocity
-		marker = POOP_MARKER_SCENE.instantiate()
-		add_child(marker)
-		marker.track(drop)
-	await _wait_frames(4) ## The marker marches on its first physics frame.
+		splat = drop.splat_mesh ## Valid after the splat (reparented, fading) — the informational reality-check read.
+		reticle = POOP_RETICLE_SCENE.instantiate() as PoopReticle
+		add_child(reticle)
+		reticle.lock_to(drop)
+	await _wait_frames(4) ## The reticle marches on its first physics frame after the lock.
+	var frozen_ok := false
 	var matched := false
-	var ring_at := Vector3.ZERO
+	var pin := Vector3.ZERO
 	var impact := Vector3.ZERO
-	if marker != null and drop != null:
+	var undamped := Vector3.ZERO
+	var stability_ok := false
+	if reticle != null and drop != null:
+		frozen_ok = reticle.is_frozen and reticle.visible
+		pin = reticle.global_position
+		## The independent recompute: the drop's own p0/v0 and gravity, the
+		## project's damp — none of it read from the reticle.
 		var g: float = drop.fall_gravity
-		var t := (v0.y + sqrt(v0.y * v0.y + 2.0 * g * p0.y)) / g ## Closed form on the flat y = 0 ground.
-		impact = Vector3(p0.x + v0.x * t, 0.0, p0.z + v0.z * t)
-		ring_at = marker.global_position
-		matched = ring_at.distance_to(impact) <= 0.5
-		print("SIM INFO impact marker ring=%s impact=%s (%.1f, 0, %.1f) dist=%.3f m t=%.2f s" % [
-				ring_at, impact, impact.x, impact.z, ring_at.distance_to(impact), t])
+		var horizon: float = drop.max_lifetime
+		impact = _damped_impact(drop.global_position, drop.linear_velocity, g, horizon)
+		## The old undamped T-046 point, for the red-before evidence print only.
+		var v0: Vector3 = drop.linear_velocity
+		var p0: Vector3 = drop.global_position
+		var t_undamped := (v0.y + sqrt(v0.y * v0.y + 2.0 * g * p0.y)) / g
+		undamped = Vector3(p0.x + v0.x * t_undamped, 0.0, p0.z + v0.z * t_undamped)
+		matched = pin.distance_to(impact) <= 0.5
+		print("SIM INFO reticle pin=%s damped_impact=%s (%.2f m, bar 0.5) undamped=%s (damped-vs-undamped %.2f m)" % [
+				pin, impact, pin.distance_to(impact), undamped, impact.distance_to(undamped)])
+		await _wait_frames(30) ## Frozen means frozen: ≥30 frames through the fall.
+		stability_ok = reticle.is_frozen and reticle.global_position.distance_to(pin) <= 0.05
 	var drop_gone := false
-	for _i in 180: ## 3 s budget — the fall is ~1.9 s under the body's damping.
+	for _i in 180: ## 3 s budget — the damped fall is ~1.9 s.
 		await get_tree().physics_frame
 		if not is_instance_valid(drop):
 			drop_gone = true
 			break
-	var freed_in_time := false
+	if drop_gone and splat != null and is_instance_valid(splat) and reticle != null:
+		## Informational reality check (Gate 3 territory, never asserted): the
+		## pin against where the ball actually landed.
+		var splat_at := splat.global_position
+		print("SIM INFO reality check: pin=%s actual_splat=%s (%.2f m)" % [
+				pin, splat_at, pin.distance_to(splat_at)])
+	var live_again := false
 	if drop_gone:
-		for _i in 31: ## 0.5 s budget after the splat (fade is 0.3 s + the free flush).
+		for _i in 31: ## 0.5 s budget after the splat.
 			await get_tree().physics_frame
-			if not is_instance_valid(marker):
-				freed_in_time = true
+			if reticle != null and not reticle.is_frozen:
+				live_again = true
 				break
-	_check("poop_impact_marker_matches_fall",
-			spawned and matched and drop_gone and freed_in_time,
-			"spawned=%s ring=%s vs impact=%s (%.2f m, bar 0.5) drop_gone=%s freed_in_time=%s" % [
-					spawned, ring_at, impact,
-					ring_at.distance_to(impact) if marker != null and drop != null else -1.0,
-					drop_gone, freed_in_time])
+	var still_alive := reticle != null and is_instance_valid(reticle)
+	if reticle != null:
+		reticle.free() ## The reticle never frees itself — the rig cleans up its own instance.
+	_check("reticle_frozen_pin_matches_damped_fall",
+			spawned and frozen_ok and matched and stability_ok and drop_gone
+					and live_again and still_alive,
+			"spawned=%s frozen=%s matched=%s (%.2f m, bar 0.5) stable=%s drop_gone=%s live_again=%s alive=%s" % [
+					spawned, frozen_ok, matched,
+					pin.distance_to(impact) if reticle != null and drop != null else -1.0,
+					stability_ok, drop_gone, live_again, still_alive])
 
 
-## The predicted-impact ring (T-046) — the spawn-wiring leg through the REAL
-## main scene (the T-077 instanced-Main pattern, parked in its own corner).
-## The bare test pigeon is parked GROUNDED first, so one poop tap can only
-## fire through Main's own player (poop is air-only): Main must answer by
-## seating exactly one node in the `poop_markers` group, and after the drop
-## splats the group must be empty again — the fade-and-free covered end to end
-## through the real wiring. Leaves the tree unpaused with no live Main, like
-## the rest of this block.
-func _scenario_poop_impact_marker_spawns_from_main() -> void:
+## The poop target reticle (T-105) — the lifecycle leg through the REAL main
+## scene (the T-077 instanced-Main pattern, parked in its own corner, the bare
+## test pigeon parked grounded first so a tap can only fire through Main's own
+## player). Exactly ONE reticle node serves the WHOLE scenario: live mode at a
+## constant-velocity hover pins within 1.0 m of the hover state's hypothetical
+## damped impact (looser bar — the 10 Hz refresh may lag one tick); one REAL
+## tap freezes it and dims it to ≈ 0.25 immediately (the T-077 dim shape);
+## hovering high enough that the cooldown expires before the drop lands
+## relights it while still frozen; the splat returns it to live with the node
+## count unchanged (persistence — the anti-assertion to T-046's "group empties
+## again"); grounding hides it entirely; and restart_run() mid-freeze recovers
+## it on its own — visible, live, full alpha (no restart-specific code). Leaves
+## the tree unpaused with no live Main, like the rest of this block.
+func _scenario_reticle_main_lifecycle() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
 	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO) ## Park the bare pigeon grounded…
@@ -1876,30 +1955,99 @@ func _scenario_poop_impact_marker_spawns_from_main() -> void:
 	add_child(main_game)
 	await _wait_frames(4)
 	var pigeon: Player = main_game.player
+	var reticle: PoopReticle = main_game.poop_reticle
 	var spawn_local: Vector3 = main_game.city.to_local(main_game.city.spawn_point)
-	var hover: Vector3 = spawn_local + Vector3(0.0, 6.0, 0.0) ## Above the clear spawn corridor.
-	## Hold the pigeon airborne the T-077 way — a reset_flight per frame (which
-	## also zeroes the cooldown, keeping the tap fresh).
-	for _i in 8:
+	var hover: Vector3 = spawn_local + Vector3(0.0, 10.0, 0.0) ## High enough that the cooldown expires before the drop lands.
+	## Live leg: hold the pigeon airborne the T-077 way — a reset_flight per
+	## frame (which also zeroes the cooldown, keeping the tap fresh).
+	for _i in 12:
 		pigeon.reset_flight(hover)
 		await get_tree().physics_frame
-	var before: int = get_tree().get_nodes_in_group("poop_markers").size()
-	await _tap("poop") ## One REAL drop through Main's own wiring.
-	await _wait_frames(2) ## The marker spawns mid-step, marches next frame.
-	var markers := get_tree().get_nodes_in_group("poop_markers")
-	var one_spawned: bool = before == 0 and markers.size() == 1
-	var emptied := false
-	for _i in 240: ## 4 s budget — ~1 s fall onto the plaza + 0.3 s fade, with margin.
+	var count_live := get_tree().get_nodes_in_group("poop_reticles").size()
+	var live_ok: bool = count_live == 1 and reticle.visible and not reticle.is_frozen \
+			and absf(_reticle_alpha(reticle) - 1.0) <= 0.01
+	var pin := reticle.global_position
+	## The hover state's independent hypothetical: reset_flight pins the pose and
+	## zeroes the velocity, so the release point is the level pigeon's spawn
+	## offset and v0 is zero — a straight-down damped fall onto the plaza.
+	var probe: Poop = POOP_SCENE.instantiate() ## The template's exports, read free-standing like the reticle does.
+	var g: float = probe.fall_gravity
+	var horizon: float = probe.max_lifetime
+	probe.free()
+	var release := pigeon.global_position - pigeon.global_transform.basis.y * pigeon.poop_drop_offset
+	var impact := _damped_impact(release, Vector3.ZERO, g, horizon)
+	var hover_pin_ok: bool = pin.distance_to(impact) <= 1.0
+	print("SIM INFO hover pin=%s damped_impact=%s (%.2f m, bar 1.0)" % [
+			pin, impact, pin.distance_to(impact)])
+	## One REAL drop through Main's own wiring: frozen + dimmed immediately.
+	await _tap("poop")
+	await _wait_frames(2) ## lock_to fires mid-step; the frozen march runs the next physics frame.
+	var frozen_dim_ok: bool = get_tree().get_nodes_in_group("poop_reticles").size() == 1 \
+			and reticle.is_frozen and reticle.visible \
+			and absf(_reticle_alpha(reticle) - 0.25) <= 0.01 \
+			and not get_tree().get_nodes_in_group("poops").is_empty()
+	## Hold the hover WITHOUT reset_flight (it would wipe the very cooldown being
+	## tracked) and wait for the relight while the drop is still airborne.
+	var relit := false
+	for _i in 75: ## 1.25 s budget — the cooldown is 1.0 s; the fall from 10 m takes ~1.5 s.
+		pigeon.velocity = Vector3(0.0, -1.0, 0.0)
+		pigeon.position = hover
 		await get_tree().physics_frame
-		if get_tree().get_nodes_in_group("poop_markers").is_empty():
-			emptied = true
+		if reticle.is_frozen and absf(_reticle_alpha(reticle) - 1.0) <= 0.01:
+			relit = true
 			break
-	_check("poop_impact_marker_spawns_from_main", one_spawned and emptied,
-			"before=%d after_tap=%d emptied=%s" % [
-					before, markers.size(), emptied])
+	## The splat returns the reticle to live — and the node count never changed.
+	var drop_gone := false
+	for _i in 240: ## 4 s budget — the drop is a few metres up when the cooldown expires, with margin.
+		await get_tree().physics_frame
+		if get_tree().get_nodes_in_group("poops").is_empty():
+			drop_gone = true
+			break
+	await _wait_frames(2) ## The reticle's next physics tick flips it home.
+	var count_splat := get_tree().get_nodes_in_group("poop_reticles").size()
+	var splat_live_ok: bool = drop_gone and count_splat == 1 and not reticle.is_frozen \
+			and reticle.visible and absf(_reticle_alpha(reticle) - 1.0) <= 0.01
+	## Grounded → hidden entirely (pooping is air-only).
+	pigeon.reset_flight(spawn_local + Vector3(0.0, 0.4, 0.0))
+	var landed := false
+	for _i in 300:
+		await get_tree().physics_frame
+		if pigeon.is_grounded:
+			landed = true
+			break
+	await _wait_frames(3) ## The driver's next tick hides it.
+	var hidden_ok: bool = landed and pigeon.is_grounded and not reticle.visible
+	## Take off, drop for real, and restart_run() MID-FREEZE: the poops loop
+	## frees the locked drop, the validity poll flips the reticle to live, and
+	## reset_flight returns the pigeon to AIR with a zeroed cooldown — the next
+	## tick drives visible + live + full alpha with no restart-specific code.
+	await _tap("flap")
+	var airborne_again := false
+	for _i in 60:
+		await get_tree().physics_frame
+		if not pigeon.is_grounded:
+			airborne_again = true
+			break
+	await _tap("poop")
+	await _wait_frames(2)
+	var freezing: bool = reticle.is_frozen
+	main_game.restart_run()
+	await _wait_frames(3)
+	var count_restart := get_tree().get_nodes_in_group("poop_reticles").size()
+	var restart_ok: bool = freezing and not get_tree().paused and count_restart == 1 \
+			and reticle.visible and not reticle.is_frozen \
+			and absf(_reticle_alpha(reticle) - 1.0) <= 0.01 \
+			and not main_game.player.is_grounded
 	main_game.free()
 	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
 	Game.reset_run()
+	_check("reticle_main_lifecycle",
+			live_ok and hover_pin_ok and frozen_dim_ok and relit and splat_live_ok
+					and hidden_ok and airborne_again and restart_ok,
+			"live=%s hover_pin=%s (%.2f m, bar 1.0) frozen_dim=%s relit=%s splat_live=%s hidden=%s air=%s restart=%s" % [
+					live_ok, hover_pin_ok,
+					pin.distance_to(impact) if reticle != null else -1.0,
+					frozen_dim_ok, relit, splat_live_ok, hidden_ok, airborne_again, restart_ok])
 
 
 ## The F readiness glyph (T-077), through the REAL main scene: airborne with a

@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/bread_spawner.gd" id="3_spawner"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/game_over_screen.gd" id="9_gameover"]
 [ext_resource type="Script" path="res://scripts/elder_spawner.gd" id="10_elders"]
 [ext_resource type="Script" path="res://scripts/cafe_spawner.gd" id="11_cafes"]
+[ext_resource type="PackedScene" path="res://scenes/poop_reticle.tscn" id="12_reticle"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_main"]
 sky_horizon_color = Color(0.85, 0.8, 0.7, 1)
@@ -66,6 +67,10 @@ environment = SubResource("Env_main")
 
 [node name="Player" parent="." instance=ExtResource("4_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 8)
+
+[node name="PoopReticle" parent="." instance=ExtResource("12_reticle")]
+unique_name_in_owner = true
+player_path = NodePath("../Player")
 
 [node name="BreadSpawner" type="Node3D" parent="."]
 script = ExtResource("3_spawner")
