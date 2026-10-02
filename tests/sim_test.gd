@@ -2108,7 +2108,8 @@ func _vec_spots_equal(a: Array[Vector3], b: Array[Vector3]) -> bool:
 ## at the exact corner-relative ±0.25·footprint inset per axis (≥ 1.9 m from
 ## the footprint center at the smallest — the `city_roof_landable` drop point
 ## at the exact center stays ≥ 0.96 m clear of the worst prop) with one
-## layer-1 `world` collider each — and exactly one crumb spot
+## layer-1 `world` shape each under the single Props group body (T-093) —
+## and exactly one crumb spot
 ## in the never-propped (+,+) quadrant at roof-top + 0.06, so city-wide
 ## `bread_spots` grows by exactly the building count (8 ring spots × 49 blocks
 ## + one per bench seat + one per building). A crumb instantiated at a low
@@ -2170,15 +2171,41 @@ func _scenario_city_roofs_inhabited() -> void:
 					and absf(absf(flat_s.x) - size.x * 0.28) < 0.001 \
 					and absf(absf(flat_s.y) - size.y * 0.28) < 0.001
 		one_per_building = one_per_building and found == 1
-	## --- colliders: one layer-1 body per prop, high above the street props ---
-	var high_bodies := 0
+	## --- colliders (T-093): five group bodies under Static/, props as shapes ---
+	## Static/ holds exactly one StaticBody3D per group — Ground/Roads/Blocks/
+	## Buildings/Props, each layer 1 `world` mask 0 — and every collider is now
+	## a shape child of its group body (no body nests under a body; the Ground
+	## body's one extra child is the grass mesh). The Props body's shapes above
+	## y 5.0 are the roof props: exactly roof_props.size().
+	var static_root: Node = _city.get_node("Static")
+	var bodies := 0
+	var body_names := {}
 	var layers_ok := true
-	for body in (_city.get_node("Static/Props") as Node3D).get_children():
-		var static_body := body as StaticBody3D
-		if static_body != null and static_body.position.y > 5.0:
-			high_bodies += 1
-			layers_ok = layers_ok and static_body.collision_layer == 1
-	var colliders_ok := high_bodies == _city.roof_props.size() and layers_ok
+	var shapes_only_ok := true
+	for child in static_root.get_children():
+		var group_body := child as StaticBody3D
+		if group_body != null:
+			bodies += 1
+		body_names[child.name] = true
+		layers_ok = layers_ok and group_body != null \
+				and group_body.collision_layer == 1 and group_body.collision_mask == 0
+		for nested in child.get_children():
+			shapes_only_ok = shapes_only_ok and not (nested is StaticBody3D)
+	var five_ok := bodies == 5 \
+			and body_names.has("Ground") and body_names.has("Roads") \
+			and body_names.has("Blocks") and body_names.has("Buildings") \
+			and body_names.has("Props")
+	var props_body := static_root.get_node_or_null("Props") as StaticBody3D
+	var props_body_ok := props_body != null \
+			and props_body.collision_layer == 1 and props_body.collision_mask == 0
+	var high_shapes := 0
+	if props_body_ok:
+		for child in props_body.get_children():
+			var prop_shape := child as CollisionShape3D
+			if prop_shape != null and prop_shape.position.y > 5.0:
+				high_shapes += 1
+	var colliders_ok := five_ok and layers_ok and shapes_only_ok and props_body_ok \
+			and high_shapes == _city.roof_props.size()
 	## --- determinism: a real rebuild reproduces props and roof spots ---------
 	_city.generate(default_seed, true)
 	var deterministic: bool = _city.fingerprint == fp_first \
@@ -2245,7 +2272,7 @@ func _scenario_city_roofs_inhabited() -> void:
 			("props_ok=%s spots=%d/%d total_ok=%s one_per_building=%s colliders=%s (%d high) "
 			+ "det=%s physical=%s eat=%s prop=%s") % [
 					props_ok, spots_snapshot.size(), _city.buildings.size(),
-					total_ok, one_per_building, colliders_ok, high_bodies,
+					total_ok, one_per_building, colliders_ok, high_shapes,
 					deterministic, physical_ok, eat_ok, prop_ok])
 	## Informational: the M1-seed surface counts (146 buildings → 259 props,
 	## 533 → 679 bread spots) — the ticket's tuned numbers, re-printed on every

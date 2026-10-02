@@ -526,14 +526,22 @@ func _make_meshes() -> void:
 
 func _build_ground() -> void:
 	var size := city_span + ground_extra * 2.0
-	var body := _add_collider("Ground", Vector3(size, 1.0, size), Vector3(0.0, -0.5, 0.0))
+	_add_collider("Ground", Vector3(size, 1.0, size), Vector3(0.0, -0.5, 0.0))
+	## T-093 ground-mesh trap: the grass visual used to ride the old
+	## single-shape ground body — body at (0, -0.5, 0), mesh local (0, -0.5, 0),
+	## world (0, -1.0, 0), half a metre below the collision surface at y 0.
+	## The merged Ground body sits at the group origin, so parenting the mesh
+	## explicitly under it (decision: stays with its collider) at city-local
+	## (0.0, -1.0, 0.0) keeps it exactly where it has always been; the old
+	## LOCAL offset here would raise the grass slab 0.5 m into the roads,
+	## sidewalks and the plaza — invisible to every headless scenario.
 	var mesh_instance := MeshInstance3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(size, 1.0, size)
 	mesh.material = _flat_material(COLOR_GRASS)
 	mesh_instance.mesh = mesh
-	mesh_instance.position = Vector3(0.0, -0.5, 0.0)
-	body.add_child(mesh_instance)
+	mesh_instance.position = Vector3(0.0, -1.0, 0.0)
+	_group("Ground").add_child(mesh_instance)
 	_fp.append(["ground", size])
 
 
@@ -1107,42 +1115,44 @@ func _box_xf(offset: Vector3, size: Vector3) -> Transform3D:
 ## --- collision ------------------------------------------------------------
 
 
-func _group(group: String) -> Node3D:
+## One StaticBody3D per group name (T-093): every collider the city builds is
+## a positioned CollisionShape3D child of its group's single body instead of a
+## single-shape body of its own — same layer (1 `world`), same mask (0), same
+## spot under `Static/`. Five bodies replace ~840; shapes carry the transforms.
+func _group(group: String) -> StaticBody3D:
 	if not _static_root.has_node(group):
-		var node := Node3D.new()
-		node.name = group
-		_static_root.add_child(node)
-	return _static_root.get_node(group) as Node3D
+		var body := StaticBody3D.new()
+		body.name = group
+		body.collision_layer = 1 ## world
+		body.collision_mask = 0
+		_static_root.add_child(body)
+	return _static_root.get_node(group) as StaticBody3D
 
 
-func _add_collider(group: String, size: Vector3, pos: Vector3, yaw: float = 0.0) -> StaticBody3D:
-	var body := StaticBody3D.new()
-	body.collision_layer = 1 ## world
-	body.collision_mask = 0
+## One box collider in `group`'s body: a CollisionShape3D carrying the box at
+## `pos`, yaw-rotated (`yaw` — bench colliders pass one). Returns the shape.
+func _add_collider(group: String, size: Vector3, pos: Vector3, yaw: float = 0.0) -> CollisionShape3D:
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = size
 	shape.shape = box
-	body.add_child(shape)
-	body.position = pos
-	body.rotation.y = yaw
-	_group(group).add_child(body)
-	return body
+	shape.position = pos
+	shape.rotation.y = yaw
+	_group(group).add_child(shape)
+	return shape
 
 
-func _add_cylinder(group: String, radius: float, height: float, pos: Vector3) -> StaticBody3D:
-	var body := StaticBody3D.new()
-	body.collision_layer = 1 ## world
-	body.collision_mask = 0
+## One cylinder collider in `group`'s body — the `_add_collider` pattern with a
+## CylinderShape3D. Returns the shape.
+func _add_cylinder(group: String, radius: float, height: float, pos: Vector3) -> CollisionShape3D:
 	var shape := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
 	cyl.radius = radius
 	cyl.height = height
 	shape.shape = cyl
-	body.add_child(shape)
-	body.position = pos
-	_group(group).add_child(body)
-	return body
+	shape.position = pos
+	_group(group).add_child(shape)
+	return shape
 
 
 ## --- reporting -------------------------------------------------------------
