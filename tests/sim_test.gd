@@ -208,6 +208,7 @@ func _run_scenarios() -> void:
 	await _scenario_combo_strip_reports_last_hit() ## T-040 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_combo_note_on_landing() ## T-079 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_pause_menu_shows_controls() ## T-099 — same T-019 window: unpaused tree, no live Main.
+	await _scenario_title_screen_teaches_controls() ## T-039 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_elder_placement_no_rng()
 	await _scenario_elder_shares_bread_after_hangout()
 	await _scenario_elder_no_bread_airborne()
@@ -5609,6 +5610,77 @@ func _scenario_pause_menu_shows_controls() -> void:
 			"placed=%s hidden_at_rest=%s shown=%s air_families=%s ground_families=%s style=%s resumed=%s (air '%s' / ground '%s')" % [
 					placed_ok, hidden_at_rest, shown_ok, air_families_ok,
 					ground_families_ok, recap_style_ok, resumed_ok, air_text, ground_text])
+
+
+## --- scenario (T-039 title-screen controls line) -----------------------------
+
+
+## The title screen teaches the controls (T-039): the REAL menu scene carries a
+## ControlsLabel under the Footer whose text names every action family a first
+## run needs (pitch / turn / flap / poop / pause with their printed keycaps),
+## and every keycap it teaches resolves to a real InputMap action — the seven
+## `flap`/`poop`/`pitch_up`/`pitch_down`/`turn_left`/`turn_right`/`pause` — the
+## divergence guard for the by-design duplicated copy (scene files cannot
+## reference main.gd's HINT_AIR constant). The line carries its own treatment:
+## 15 px, white @ 0.7, NO outline (the T-019 finding — the flat dark-navy title
+## background needs none), which is asserted as the absence of a local override
+## plus a zero effective outline. The same run reads the game-over Hint through
+## a REAL main scene: reworded to player language with no dev jargon ("seed" /
+## "regenerate" must both be gone). Registered in the T-019 window: unpaused
+## tree, no live Main; the menu instance touches no Main state and frees
+## itself, the Main instance gets the T-099 cleanup tail.
+func _scenario_title_screen_teaches_controls() -> void:
+	var menu: Control = MENU_SCENE.instantiate()
+	add_child(menu)
+	await _wait_frames(2)
+	var controls: Label = menu.get_node("%ControlsLabel") as Label
+	var footer: Label = menu.get_node("Footer") as Label
+	var placed_ok: bool = controls != null and footer != null \
+			and controls.get_parent() == menu and footer.get_parent() == menu \
+			and controls.offset_top >= footer.offset_bottom ## Under the footer line.
+	var visible_ok: bool = controls != null and controls.visible \
+			and controls.is_visible_in_tree()
+	## The copy must name every family AND print its keycap — a reword that
+	## drops either half of a pair fails the gate.
+	var text_ok := controls != null
+	if text_ok:
+		for taught: String in ["pitch", "turn", "flap", "poop", "pause"]:
+			text_ok = text_ok and controls.text.contains(taught)
+		for keycap: String in ["W/S", "A/D", "Space", "F", "Esc"]:
+			text_ok = text_ok and controls.text.contains(keycap)
+	var actions_ok := true
+	for action: String in ["flap", "poop", "pitch_up", "pitch_down", "turn_left", "turn_right", "pause"]:
+		actions_ok = actions_ok and InputMap.has_action(action)
+	## 15 px white @ 0.7, no outline — resolved through the theme stack like the
+	## T-099 recap assert; "no outline" is the absence of a local override AND a
+	## zero effective size.
+	var style_ok := controls != null \
+			and controls.get_theme_font_size("font_size") == 15 \
+			and controls.get_theme_color("font_color").is_equal_approx(Color(1.0, 1.0, 1.0, 0.7)) \
+			and not controls.has_theme_constant_override("outline_size") \
+			and controls.get_theme_constant("outline_size") == 0
+	var menu_text: String = controls.text if controls != null else "-"
+	menu.free()
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(-2500.0, 0.0, 2500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var hint: Label = main_game.get_node("GameOverScreen/Center/ScorePanel/Box/Hint") as Label
+	var hint_text: String = hint.text if hint != null else "-"
+	var hint_ok: bool = hint != null \
+			and hint.text == "same city every run — race your best" \
+			and not hint.text.contains("seed") \
+			and not hint.text.contains("regenerate")
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("title_screen_teaches_controls",
+			placed_ok and visible_ok and text_ok and actions_ok and style_ok and hint_ok,
+			"placed=%s visible=%s text=%s actions=%s style=%s hint=%s (controls '%s' / hint '%s')" % [
+					placed_ok, visible_ok, text_ok, actions_ok, style_ok, hint_ok,
+					menu_text, hint_text])
 
 
 ## --- scenario (T-040 HUD combo strip & hit marker) ---------------------------

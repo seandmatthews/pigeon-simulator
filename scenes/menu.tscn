@@ -77,4 +77,18 @@ theme_override_colors/font_color = Color(1, 1, 1, 0.55)
 text = "eat bread to survive · splat tourists (100) and cars (30) · don't starve · Q quit"
 horizontal_alignment = 1
 
+[node name="ControlsLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -26.0
+offset_bottom = -4.0
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(1, 1, 1, 0.7)
+text = "W/S pitch · A/D turn · Space flap · F poop · Esc pause"
+horizontal_alignment = 1
+
 [connection signal="pressed" from="FlyButton" to="." method="_start_run"]

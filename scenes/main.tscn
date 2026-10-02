@@ -342,7 +342,7 @@ text = "Menu (M)"
 [node name="Hint" type="Label" parent="GameOverScreen/Center/ScorePanel/Box"]
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(1, 1, 1, 0.6)
-text = "the city regenerates with the same seed — scores stay comparable"
+text = "same city every run — race your best"
 horizontal_alignment = 1
 
 [connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/ResumeButton" to="PauseMenu" method="toggle"]
