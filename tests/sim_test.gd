@@ -194,6 +194,7 @@ func _run_scenarios() -> void:
 	await _scenario_cars_recycle() ## T-054 — the end-to-end timer-driven car recycle closes its contract.
 	await _scenario_scoring_values()
 	await _scenario_high_score_persists()
+	await _scenario_highscore_save_throttled() ## T-073 — directly after the persists scenario: same unpaused tree, no live Main.
 	await _scenario_score_popup()
 	await _scenario_pause_freezes()
 	await _scenario_title_escape_does_not_quit() ## T-097 — Esc at the title must not hard-quit.
@@ -4056,6 +4057,53 @@ func _scenario_high_score_persists() -> void:
 	var reloaded := Game.high_score == 100
 	_check("score_high_score_persists", wrote and reloaded,
 			"wrote=%s reloaded=%s (high %d)" % [wrote, reloaded, Game.high_score])
+
+
+## (T-073) The save throttle: only the run's FIRST record-beating hit pays the
+## synchronous disk write — every further beat in the same run just marks the
+## dirty flag — and the game-over flush (Game connects its own
+## hunger.game_over to _flush_high_score in _ready) writes the file once more
+## with the final score. The series runs on 20 bare add_tourist_hit calls,
+## which escalate the combo (points 100×1 … 100×20, cumulative score 21,000 at
+## hit 20); no landing or release is staged, so _release_age stays stale and
+## the style gate cannot contaminate the series. Hit 1 scores 100 — not > the
+## planted record, so no beat and no save; hit 2 is the FIRST beat (file = 300).
+## The file is read back through an independent ConfigFile — never through
+## Game.load_high_score(), which would overwrite Game.high_score itself. No
+## live Main exists at this call slot (the T-077 scenario freed its instance
+## and detached the hunger player), so Game's own flush is the only
+## hunger.game_over listener the emit reaches.
+func _scenario_highscore_save_throttled() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SIM_SAVE_PATH))
+	Game.reset_run()
+	Game.high_score = 100 ## The old record the chain must beat.
+	var saves_before: int = Game._save_count
+	for _i in 20:
+		Game.add_tourist_hit(Vector3.ZERO)
+	var file_at_beat: int = _read_sim_high()
+	var beat_ok := Game._save_count == saves_before + 1 \
+			and Game.score == 21000 and Game.high_score == 21000 \
+			and file_at_beat == 300 ## The file holds the FIRST-beat score, not the final one.
+	Game.hunger.game_over.emit() ## The game-over flush — exactly one more disk write.
+	var file_at_flush: int = _read_sim_high()
+	var flush_ok := Game._save_count == saves_before + 2 \
+			and Game.high_score == 21000 \
+			and file_at_flush == 21000 ## The flush wrote the final score.
+	_check("highscore_save_throttled", beat_ok and flush_ok,
+			"beat=%s flush=%s saves %d→%d score %d high %d file_beat %d file_flush %d" % [
+					beat_ok, flush_ok, saves_before, Game._save_count,
+					Game.score, Game.high_score, file_at_beat, file_at_flush])
+
+
+## Reads the sim high-score file back independently of the Game autoload —
+## never through Game.load_high_score(), which would overwrite
+## Game.high_score. Returns -1 when the file is missing or unreadable.
+func _read_sim_high() -> int:
+	var cfg := ConfigFile.new()
+	if cfg.load(SIM_SAVE_PATH) != OK:
+		return -1
+	return int(cfg.get_value("score", "high", -1))
 
 
 ## The popup (T-009): the ticket's "+100 ×2" format at the hit position, then
