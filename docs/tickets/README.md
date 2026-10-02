@@ -87,7 +87,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-078 | [Make the elder's arm the trust meter — make the hangout learnable](T-078-elder-arm-trust-meter.md) | ui-ux | 3 | 1 | done |
 | T-079 | [Acknowledge the combo a landing kills — the loss moment is invisible](T-079-combo-landing-note.md) | ui-ux | 3 | 2 | done |
 | T-080 | [Give the hunger bar a dark track/border — the white bar vanishes on bright ground](T-080-hunger-bar-track.md) | ui-ux | 3 | 1 | done |
-| T-081 | [Make sub-glide flight fall: key the align cut on lift, not stall depth](T-081-lift-keyed-align-cut.md) | flight-control | 4 | 4 | proposed |
+| T-081 | [Make sub-glide flight fall: key the align cut on lift, not stall depth](T-081-lift-keyed-align-cut.md) | flight-control | 4 | 4 | done |
 | T-082 | [Give released pitch inputs a hands-off trim toward the velocity vector](T-082-released-pitch-trim.md) | flight-control | 4 | 3 | done |
 | T-083 | [Adopt T-062: bound pitch attitude with authority falloff near vertical](T-083-pitch-attitude-bound.md) | flight-control | 4 | 3 | done |
 | T-084 | [Adopt T-041: pitch-up near the ground becomes a brake-sink, not a balloon](T-084-flare-brake-sink.md) | flight-control | 4 | 3 | superseded (T-022 landed the flare; audit 2026-09-30: stale) |
