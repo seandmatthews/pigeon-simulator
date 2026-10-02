@@ -1,6 +1,6 @@
 # T-038 — Show the style bonus in the score popup
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-009 (scoring & style) — done
 - **Refs:** UI/UX lane playtest, sweep 1 (2026-09-29); `docs/DESIGN.md` → Scoring (T-009)
 
@@ -58,22 +58,39 @@ popup retune still disclaims the tag.
 
 ## Acceptance criteria
 
-- [ ] `ScorePopup.format_text(150, 2, true) == "+150 ×2 STYLE"` and
+- [x] `ScorePopup.format_text(150, 2, true) == "+150 ×2 STYLE"` and
       `format_text(150, 1, true) == "+150 STYLE"`; every unstyled form is
       byte-identical to today's output (Gate 1b)
-- [ ] Through the real Main: a fresh fast/low release (`Game.on_poop_released`
+- [x] Through the real Main: a fresh fast/low release (`Game.on_poop_released`
       at ≥ 14 m/s from ≤ 6 m height — `scripts/game.gd:26-27`) followed by
       `Game.add_tourist_hit` spawns a popup whose label contains the STYLE tag
       (in the harness recipe the styled hit is the chain's first after a
       reset: 150 paid at ×1 → `"+150 STYLE"` — the Why's bare-150 case,
       labelled) — Gate 1b only (needs the real signal path)
-- [ ] A slow release (below `style_min_speed`) spawns a popup without the tag
+- [x] A slow release (below `style_min_speed`) spawns a popup without the tag
       (the recipe's next hit — the chain now stands at 1, so ×2 plain: 200
       paid → `"+200 ×2"`) — Gate 1b only
-- [ ] `score_popup_floats_and_fades` passes without editing its existing
+- [x] `score_popup_floats_and_fades` passes without editing its existing
       assertions (the defaulted parameter preserves `setup(100, 2, pos)`
       behavior exactly — `tests/sim_test.gd:3447`, `:3449`)
-- [ ] Styled popups read as gold/special at a glance in a real hit — [screenshot]
+- [x] Styled popups read as gold/special at a glance in a real hit — [screenshot]
+      (reviewer sign-off 2026-10-02)
+
+## Landed values (2026-10-02)
+
+- Tag format: `"+%d STYLE"` at ×1, `"+%d ×%d STYLE"` chained —
+  `format_text(points, multiplier, style = false)`, `scripts/score_popup.gd:32-36`;
+  every unstyled form stays byte-identical to the T-009 output.
+- Styled tint: `STYLE_COLOR := Color(1.0, 0.85, 0.3)` (`score_popup.gd:14`) —
+  the HUD pulse gold `_pulse_score` flashes — applied to the label's RGB only
+  (`score_popup.gd:51-53`); the fade tween keeps owning `modulate:a`.
+- Nothing else retuned: popup lifetime 1.2 s / rise 1.8 m as T-009 landed, and
+  the style gate is untouched (`style_bonus_fraction` 0.5, `style_min_speed`
+  14.0, `style_max_height` 6.0, `style_release_window` 3.0 — `game.gd:25-28`).
+- Machine evidence: Gate 1b `score_popup_style_tag_format` +
+  `score_popup_style_tag_live` green inside the full suite (100 SIM PASS /
+  0 failures, exit 0); Gate 1 and Gate 2 green. The reviewer sign-off
+  (2026-10-02) covers the [screenshot] pass.
 
 ## Verification
 

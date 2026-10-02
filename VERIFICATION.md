@@ -94,6 +94,8 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | score_combo_style_values | the Game autoload pays DESIGN values (tourist 100 · car 30), the chain escalates ×1 → ×2 → ×3 across target kinds and resets on landing and on the 20 s window, and the +50% style bonus demands a release that is fast, low and fresh | T-009 |
 | score_high_score_persists | beating the record writes user:// at once and a fresh Game loads it back | T-009 |
 | score_popup_floats_and_fades | the world-space popup shows "+100 ×2" at the hit position, floats up, fades and cleans itself up | T-009 |
+| score_popup_style_tag_format | the static popup format variants: a styled hit appends the STYLE tag in both multiplier shapes (`"+150 ×2 STYLE"` / `"+150 STYLE"`) while every unstyled form stays byte-identical (`"+150 ×2"` / `"+150"`) | T-038 |
+| score_popup_style_tag_live | through the REAL main scene's `hit_scored` path: staging the chain explicitly (grounding reset, then a fresh fast/low release — ≥ 14 m/s from ≤ 6 m) before a tourist hit spawns a popup reading `"+150 STYLE"` — the chain's first hit, ×1, 100 × 1.5, the Why's bare-150 case labelled — tinted the HUD pulse gold `Color(1.0, 0.85, 0.3)`; the slow-release follow-up (chain at 1, ×2 plain, 200 paid) spawns `"+200 ×2"` with no tag and no gold; the two earlier unstyled popups have freed by the read (1.2 s lifetime vs ~1.6 s elapsed), so exactly two popups are alive in the group | T-038 |
 | pause_freezes_world | Esc-pausing through the real PauseMenu stops the flying pigeon dead mid-air and the hunger clock with it; resuming hands both back | T-010 |
 | title_escape_does_not_quit | a synthetic Esc (`pause`) action fed straight to the real title scene's `_unhandled_input` neither quits the process nor pauses the tree — the menu instance survives; a regression re-adding the quit branch kills the whole Gate 1b run at that line (`flap`/`quit` are never fed — they would change the scene / quit the harness) | T-097 |
 | game_over_shows_score_screen | starving through the real main scene opens the score screen — score, high score, tourist/car breakdown — freezes the run dead and keeps Esc locked | T-010 |
@@ -284,7 +286,8 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-089) Standing still for a minute never parks the whole fleet; cars keep flowing past a stationary pigeon
 - [ ] (T-009) Splats pay the DESIGN points — 100 per tourist, 30 per car — and a popup at the hit reads clearly at flight speed
 - [ ] (T-009) Chained hits without landing escalate ×2, ×3… and reset when you land or after ~20 s
-- [ ] (T-009) A fast low dive hit pays the +50% style bonus — visible as a bigger popup number
+- [ ] (T-009) A fast low dive hit pays the +50% style bonus — visible as a bigger popup number, and since T-038 labelled: styled hits are labelled, not just bigger ("+N STYLE" in gold)
+- [x] (T-038) A styled hit's popup reads as gold/special at a glance in a real hit — the "+N STYLE" tag and the HUD pulse gold tint set it apart from a plain payout (reviewer sign-off 2026-10-02) [screenshot]
 - [ ] (T-009) Beating the high score, then quitting and relaunching, shows the record survived
 - [ ] (T-010) Boot lands on the title screen; Space (or the Fly button) starts a run on the spawn corridor
 - [ ] (T-010) Esc mid-flight freezes everything dead — pigeon, hunger, traffic; Esc again resumes exactly where it was

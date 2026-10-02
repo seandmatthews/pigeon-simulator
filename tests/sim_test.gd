@@ -3501,8 +3501,17 @@ func _scenario_high_score_persists() -> void:
 
 
 ## The popup (T-009): the ticket's "+100 ×2" format at the hit position, then
-## float up, fade out and clean itself up after its lifetime.
+## float up, fade out and clean itself up after its lifetime. (T-038) The
+## static STYLE-tag format variants get their own cheap (no instancing) check
+## so the floats-and-fades assertions below stay byte-identical.
 func _scenario_score_popup() -> void:
+	var plain_one := ScorePopup.format_text(150, 1) == "+150"
+	var plain_two := ScorePopup.format_text(150, 2) == "+150 ×2"
+	var styled_one := ScorePopup.format_text(150, 1, true) == "+150 STYLE"
+	var styled_two := ScorePopup.format_text(150, 2, true) == "+150 ×2 STYLE"
+	_check("score_popup_style_tag_format", plain_one and plain_two and styled_one and styled_two,
+			"plain_one=%s plain_two=%s styled_one=%s styled_two=%s" % [
+					plain_one, plain_two, styled_one, styled_two])
 	var popup: ScorePopup = POPUP_SCENE.instantiate()
 	popup.lifetime = 0.5 ## Time-compressed.
 	popup.setup(100, 2, Vector3(3.0, 2.0, 4.0))
@@ -4819,12 +4828,53 @@ func _scenario_juice_hit_shake_pulse() -> void:
 	var scale_after: float = label.scale.x
 	var trauma_after: float = cam.trauma
 	var sun_energy: float = sun.light_energy ## Read before the scene frees the Sun.
+	## (T-038) The STYLE tag, through the REAL Main signal path — the two hits
+	## above never recorded a poop release, so `_release_age` sits at its stale
+	## 999 and the style gate could never fire on its own. Stage the chain state
+	## explicitly instead of trusting the landing's frame: the Player dropped in
+	## 6 m up and grounded just after the combo_shown read, so the chain is
+	## already dead — `on_grounding_changed(true)` is the idempotent insurance
+	## reset the scoring scenario uses. Then a fresh fast AND low release makes
+	## the next hit the chain's first, styled: ×1 pays roundi(100 × 1 × 1.5)
+	## = 150 — the Why's bare-150 case, now labelled "+150 STYLE". A slow
+	## release before the second hit leaves it ×2 plain: 200 → "+200 ×2".
+	Game.on_grounding_changed(true)
+	Game.on_poop_released(Vector3(0.0, 3.0, 0.0), Vector3(0.0, 0.0, -18.0)) ## Fast AND low.
+	var styled_points: int = Game.add_tourist_hit(Vector3(3500.0, 0.5, -3502.0))
+	Game.on_poop_released(Vector3(0.0, 3.0, 0.0), Vector3(0.0, 0.0, -5.0)) ## Low but slow.
+	var plain_points: int = Game.add_tourist_hit(Vector3(3500.0, 0.5, -3503.0))
+	await _wait_frames(2) ## The popups' _ready applies text and tint.
+	## Read the popups through the score_popups group BEFORE the scene frees
+	## them. The two earlier popups have freed by now (1.2 s lifetime vs ~1.6 s
+	## elapsed), so exactly these two are alive: one styled, one plain — and
+	## the earlier ×2 popup also read "+200 ×2", hence the exact-count leg.
+	var styled_text := ""
+	var plain_text := ""
+	var styled_gold := false
+	var plain_untinted := false
+	var group := get_tree().get_nodes_in_group("score_popups")
+	for node in group:
+		var popup := node as ScorePopup
+		if popup.label.text == "+150 STYLE":
+			styled_text = popup.label.text
+			styled_gold = popup.label.modulate == ScorePopup.STYLE_COLOR
+		elif popup.label.text == "+200 ×2":
+			plain_text = popup.label.text
+			plain_untinted = popup.label.modulate != ScorePopup.STYLE_COLOR
+	var style_ok := styled_points == 150 and plain_points == 200 \
+			and group.size() == 2 \
+			and styled_text == "+150 STYLE" and plain_text == "+200 ×2" \
+			and styled_gold and plain_untinted
 	main_game.free()
 	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
 	Game.reset_run()
 	_check("hit_shake_and_score_pulse", pulsed and shook and combo_shown and settled and warm_sun and sun_capped,
 			"pulsed=%s shook=%s combo_shown=%s settled=%s (scale %.3f trauma %.3f) warm_sun=%s sun_energy=%.2f" % [
 					pulsed, shook, combo_shown, settled, scale_after, trauma_after, warm_sun, sun_energy])
+	_check("score_popup_style_tag_live", style_ok,
+			"styled_points=%d plain_points=%d popups=%d styled_text='%s' plain_text='%s' styled_gold=%s plain_untinted=%s" % [
+					styled_points, plain_points, group.size(), styled_text, plain_text,
+					styled_gold, plain_untinted])
 
 
 ## --- scenarios (T-012 audio) -------------------------------------------------

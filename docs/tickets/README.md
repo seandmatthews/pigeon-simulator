@@ -56,7 +56,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-035 | [Stop the per-frame redundant presentation writes](T-035-redundant-presentation-writes.md) | code-optimization | 2 | 1 | superseded (T-055) |
 | T-036 | [Guard the off-world fall with a return to the spawn corridor](T-036-off-world-fall-respawn.md) | code-optimization | 4 | 2 | done (adopted by T-042) |
 | T-037 | [HUD bread pointer & off-city "city that way"](T-037-hud-bread-pointer.md) | ui-ux | 4 | 2 | done |
-| T-038 | [Show the style bonus in the score popup](T-038-style-tag-in-popup.md) | ui-ux | 3 | 1 | proposed |
+| T-038 | [Show the style bonus in the score popup](T-038-style-tag-in-popup.md) | ui-ux | 3 | 1 | done |
 | T-039 | [Teach the controls on the title screen](T-039-title-controls.md) | ui-ux | 3 | 1 | proposed |
 | T-040 | [HUD combo strip & hit marker: make every scored hit readable](T-040-combo-strip-hit-marker.md) | ui-ux | 4 | 2 | done |
 | T-041 | [Land the pitch-up flare: brake-sink instead of balloon (adopt T-022)](T-041-flare-brake-sink.md) | flight-control | 4 | 3 | superseded (T-084) |

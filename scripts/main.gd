@@ -378,11 +378,11 @@ func _spawn_hit_marker(target: Node3D) -> void:
 ## camera shake on the pigeon's own handiwork (T-013) and the HUD pulse when
 ## the combo escalates (fired from _process). (T-040) It also composes the HUD
 ## combo strip — kind + points, " ×N" once chained — the "what/worth" line that
-## outlives the world popup's short life on screen. The STYLE suffix is
-## T-038's, once that lands.
-func _on_hit_scored(points: int, multiplier: int, pos: Vector3, _style: bool) -> void:
+## outlives the world popup's short life on screen. (T-038) The style flag
+## rides along too: the popup tags and tints styled payouts.
+func _on_hit_scored(points: int, multiplier: int, pos: Vector3, style: bool) -> void:
 	var popup: ScorePopup = SCORE_POPUP_SCENE.instantiate()
-	popup.setup(points, multiplier, pos)
+	popup.setup(points, multiplier, pos, style)
 	add_child(popup)
 	player.chase_camera.add_shake(hit_shake)
 	combo_strip.text = "%s +%d" % [_last_hit_kind, points]
