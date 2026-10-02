@@ -1,6 +1,6 @@
 # T-094 — Cafe furniture is ~58% of boot nodes — batch it like the city props
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 3 · **Risk (1-5):** 3
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** code-optimization · **Value (1-5):** 3 · **Risk (1-5):** 3
 - **Depends on:** T-093 (landed, e183c90 — the one-body-per-group collider pattern and its
   bodies-removed-only counting convention) · builds on the landed T-031 furniture
 
@@ -118,7 +118,7 @@ assigned-but-unused), so "re-run unchanged" is literal.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b `city_cafe_tables_present` stays green with its rig section
+- [x] Gate 1b `city_cafe_tables_present` stays green with its rig section
       rewritten against the batch (`tests/sim_test.gd:1919-2040`): sitter
       count per spot via a new spawner exposure (transforms or counts per
       spot — replaces `table.sitters`, `:2001`), the two merged bodies'
@@ -127,34 +127,60 @@ assigned-but-unused), so "re-run unchanged" is literal.
       palette per sitter read off the torso/arm MultiMesh instance colors
       (replaces the `material_override` albedo, `:2007-2009`). The
       spot-layout, clearance and determinism legs pass untouched.
-- [ ] The perch-and-snag physics legs re-run unchanged: a grounded pigeon
+      *Landed 2026-10-02: SIM PASS with the rewritten rig — one engine
+      caveat honored (see Landed measurements): this build's headless
+      RenderingServer answers `MultiMesh.get_instance_color` with black, so
+      the shirt read goes through the spawner's `set_instance_color` queues
+      (the `city_crosswalks_present` channel), anchored to the live
+      MultiMeshes by instance counts, which DO read back.*
+- [x] The perch-and-snag physics legs re-run unchanged: a grounded pigeon
       perches beside table 0 and the solid tabletop stops the waddle dead
       (`tests/sim_test.gd:2010-2030` — the two merged bodies collide the
       CharacterBody3D exactly as the 260 individual ones did; the legs never
-      read the table nodes)
-- [ ] Gate 1b `density_cpu_budget` stays green (the scenario instantiates the
+      read the table nodes). *Landed: `perch=true` in the same SIM PASS
+      (legs kept verbatim minus the dropped unused `table0` local and the
+      `seat`→`seat0` rename the batch's own `seat` loop var forced).*
+- [x] Gate 1b `density_cpu_budget` stays green (the scenario instantiates the
       real main scene, `tests/sim_test.gd:5008`, so its counter sees the
       furniture; baseline today nodes 4904, median 246.0 / 240.2 ms per 100
       frames vs budget 750 — the furniture contributes ~273 nodes — 260 of
       them `CollisionShape3D` — and 2 bodies, instead of today's 2289 nodes /
-      260 bodies)
-- [ ] Gate 1b `city_same_seed_deterministic` (`tests/sim_test.gd:753`) and
+      260 bodies). *Landed: SIM PASS, median 263.0 ms, nodes 2896 (vs the
+      same-machine pristine run today: 278.3 ms, 4912).*
+- [x] Gate 1b `city_same_seed_deterministic` (`tests/sim_test.gd:753`) and
       `restart_same_seed_skips_rebuild` (`:3611`, check `:3655`) stay green —
       the batch rebuilds identically on every `regenerated` (zero RNG anywhere
-      in the lift)
-- [ ] [screenshot] Street level: tables and seated sitters under an awning
+      in the lift). *Landed: both SIM PASS in the landed-tree full-suite run.*
+- [x] [screenshot] Street level: tables and seated sitters under an awning
       read as before — shirt palette visibly varied per sitter, no color
       bleed between shirt/skin/hair parts, no z-fighting (the human read is a
-      Gate 3 note)
-- [ ] Before/after node counts recorded in this ticket from the landed tree,
+      Gate 3 note). *Landed 2026-10-02, pilot session `t094impl` (untracked
+      `.captures/session_t094impl/`): `f00091984.png` — spot 44's table with
+      BOTH sitters, pink `palette[4]` and cream `palette[5]` torsos under the
+      shopfront awning band, skin/hair/wood parts crisp; `f00084565.png` —
+      spot 45's odd-spot table, single cream sitter, same read; OS grab
+      `cafe_read_os.png`. Pending human re-confirmation per the Gate 3
+      convention.*
+- [x] Before/after node counts recorded in this ticket from the landed tree,
       T-093's table format: the density print's `nodes`
       (`tests/sim_test.gd:5043-5049`) plus a boot probe (the same throwaway
       120-frame `main.tscn` subtree walker). Before, recorded 2026-10-02:
       boot 3969 nodes / 269 `StaticBody3D` / 1257 `CollisionShape3D`; cafe
       subtree 2289 nodes / 260 bodies / 260 shapes / 1612 meshes / 104
-      tables / 156 sitters; density counter 4904
-- [ ] No dangling references to the retired scenes/scripts — Gate 1 import and
-      120-frame boot (`VERIFICATION.md:16-19`) exit 0 with zero ERROR lines
+      tables / 156 sitters; density counter 4904. *Done — table below; both
+      sides re-measured in this worktree with the SAME probe (before =
+      stashed pristine after a fresh import), so the deltas are
+      same-convention; the cafe-subtree numbers match the planner's probe
+      exactly.*
+- [x] No dangling references to the retired scenes/scripts — Gate 1 import and
+      120-frame boot (`VERIFICATION.md:16-19`) exit 0 with zero ERROR lines.
+      *Landed: repo grep (`cafe_table|cafe_sitter|CafeTable|CafeSitter|
+      living_tables`) hits only this ticket's history, the audit records, the
+      scenario name, and the spawner docstring's "retired" mentions. Import
+      exit 0 with only the one line VERIFICATION.md:392-395 documents as
+      benign on addon-carrying checkouts (`ERROR: 33 resources still in use
+      at exit`); boot exit 0 with zero ERROR lines (one pre-existing
+      ObjectDB-leak WARNING that the pristine tree prints too).*
 
 ## Verification
 
@@ -169,3 +195,62 @@ line, informational — compare against the pre-change fps on the same machine)
 `city_cafe_tables_present` row (`VERIFICATION.md:119`) in the same change-set
 — the 156 sitters are now batch MultiMesh instances with instance colors, and
 the row's "layer-3 `npc`" wording goes (they are layer value 4).
+
+## Landed measurements (2026-10-02, this branch)
+
+Before = stashed pristine `feature/t-094` (merge 59313ee) re-imported and
+measured in this worktree; after = the landed tree. Both boot rows come from
+the SAME throwaway 120-frame `main.tscn` SceneTree probe (walks the whole
+tree; kept in `%TEMP%`, never committed). Density rows are the scenario's own
+`SIM DATA density_cpu_budget … nodes %d` print from two full-suite runs on
+this machine today (budget 750).
+
+| Metric | Before | After |
+| ------ | ------ | ----- |
+| Density scenario `nodes` | 4912 | 2896 (−2016, exactly 2289 → 273) |
+| Density median ms / 100 physics frames | 278.3 | 263.0 (budget 750) |
+| Boot total nodes | 3999 | 1983 (−2016) |
+| Boot StaticBody3D | 269 | 11 (−258: 260 cafe bodies → 2 merged) |
+| Boot CollisionShape3D | 1258 | 1258 (nothing lost, the T-093 convention) |
+| Boot MeshInstance3D | 1993 | 381 (−1612) |
+| Boot MultiMeshInstance3D | 31 | 40 (+9 cafe draw keys) |
+| Cafe subtree nodes | 2289 | 273 (1 spawner + 1 CafeVisuals + 9 MMI + 2 bodies + 260 shapes) |
+| Cafe StaticBody3D | 260 | **2** (`Tables` layer 1, `Sitters` layer value 4, mask 0 both) |
+| Cafe CollisionShape3D | 260 | 260 |
+| Cafe MeshInstance3D | 1612 | 0 (→ 9 MultiMeshInstance3D draw keys) |
+
+The cafe-subtree before-numbers match the ticket's planner probe exactly
+(2289 / 260 / 260 / 1612); the boot totals differ from the planner's same-day
+probe (3999 vs 3969 nodes, 1258 vs 1257 shapes) by a couple of non-cafe
+nodes of boot-state variance, which is why both sides here share one probe.
+The −2016 projection lands exactly.
+
+Gate log (all run 2026-10-02 on this machine, this worktree):
+
+- Gate 1: `--import` exit 0 (only the VERIFICATION.md-documented benign
+  addon line); `--quit-after 120` boot exit 0, zero ERROR lines (one
+  ObjectDB-leak WARNING the pristine tree prints too).
+- Gate 1b full suite, landed tree: **112 SIM PASS / 0 FAIL**, exit 0 —
+  including the rewritten `city_cafe_tables_present`, `density_cpu_budget`,
+  `city_same_seed_deterministic` and `restart_same_seed_skips_rebuild`.
+  Pristine same-day baseline for comparison: 112 PASS / 0 FAIL across two
+  runs. (The suite has grown past the 98-scenario baseline this ticket
+  quoted.)
+- Gate 2: `AUTOPLAY DONE ok=true t=33.0 fps=136 … restart=true`, zero SCRIPT
+  ERROR lines — vs the planner-supplied pre-change fps 132: informational
+  only, no claim made (the ticket's honest claim is the −2016 nodes and the
+  1612 → 9 draw-key reduction above).
+- Gate 3: the two frames and OS grab named in the acceptance-criteria note —
+  spot 45 (odd → 1 sitter, cream `palette[5]`, exactly `(45+0) % 8`) and
+  spot 44 (even → 2 sitters, pink `palette[4]` + cream `palette[5]`) — table,
+  stools, sitters and awning band all crisp; human re-confirmation pending
+  per the Gate 3 convention.
+
+Implementation note, kept honest: this engine build's headless RenderingServer
+reads MultiMesh instance data back as identity/black (`get_instance_color`
+probed black headless — same caveat the crosswalk/facade scenarios already
+document for transforms). The rig therefore asserts the shirt palette off the
+spawner's `set_instance_color` queues — the exact per-instance values fed to
+the MultiMeshes — and anchors the queue↔instance correspondence by instance
+counts, which do read back. The render side itself is proven by the Gate 3
+frames: the instance colors are what the GPU draws.
