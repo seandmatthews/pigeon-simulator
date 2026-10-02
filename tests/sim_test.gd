@@ -3668,7 +3668,13 @@ func _scenario_high_score_persists() -> void:
 ## The popup (T-009): the ticket's "+100 ×2" format at the hit position, then
 ## float up, fade out and clean itself up after its lifetime. (T-038) The
 ## static STYLE-tag format variants get their own cheap (no instancing) check
-## so the floats-and-fades assertions below stay byte-identical.
+## so the floats-and-fades assertions below stay byte-identical. (T-059) A
+## second arm drives a REAL Main's own hit_scored spawn path with two hits 8 m
+## apart in depth inside one second (well inside the 20 s combo window): the
+## chained popups must carry distinct rise_totals exactly rise_step apart —
+## the labels are the BARE combo payouts "+100" then "+200 ×2", because no
+## poop release is ever staged (reset_run() re-stales _release_age to 999 and
+## it only grows), so the style gate cannot fire and ×2 pays a plain 200.
 func _scenario_score_popup() -> void:
 	var plain_one := ScorePopup.format_text(150, 1) == "+150"
 	var plain_two := ScorePopup.format_text(150, 2) == "+150 ×2"
@@ -3691,6 +3697,46 @@ func _scenario_score_popup() -> void:
 	_check("score_popup_floats_and_fades", text_ok and at_pos and risen and fading and cleaned,
 			"text=%s at_pos=%s risen=%s fading=%s cleaned=%s" % [
 					text_ok, at_pos, risen, fading, cleaned])
+	## (T-059) The chained arm, through a REAL Main so the popups come through
+	## Main's own hit_scored spawn path — instanced into its own space, clear of
+	## the test world, and seeded by Game.reset_run() first. The lone popup
+	## above freed (cleaned), so the group starts empty and the first hit takes
+	## index 0 (rise_height), the second index 1 (rise_height + rise_step).
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(-3500.0, 0.0, 3500.0) ## Own space, clear of the test world.
+	add_child(main_game)
+	await _wait_frames(4)
+	var hit_base := main_game.global_position
+	Game.add_tourist_hit(hit_base + Vector3(0.0, 0.5, 0.0))
+	Game.add_tourist_hit(hit_base + Vector3(0.0, 0.5, 8.0)) ## 8 m deeper, same second.
+	await _wait_frames(2) ## The popups' _ready has joined the group and indexed.
+	## Read through the score_popups group BEFORE the scene frees the popups.
+	var chain := get_tree().get_nodes_in_group("score_popups")
+	var first: ScorePopup = null
+	var second: ScorePopup = null
+	for node in chain:
+		var chained := node as ScorePopup
+		if chained.label.text == "+100":
+			first = chained
+		elif chained.label.text == "+200 ×2":
+			second = chained
+	var chained_ok := chain.size() == 2 and first != null and second != null \
+			and is_equal_approx(first.rise_total, first.rise_height) \
+			and is_equal_approx(second.rise_total, first.rise_height + first.rise_step)
+	var rise_first := first.rise_total if first != null else -1.0
+	var rise_second := second.rise_total if second != null else -1.0
+	var text_first := first.label.text if first != null else "?"
+	var text_second := second.label.text if second != null else "?"
+	var step_seen := first.rise_step if first != null else -1.0
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("score_popup_chain_stagger", chained_ok,
+			"popups=%d first='%s' second='%s' rise_first=%.2f rise_second=%.2f rise_step=%.2f" % [
+					chain.size(), text_first, text_second,
+					rise_first, rise_second, step_seen])
 
 
 ## --- scenarios (T-010 game flow) --------------------------------------------

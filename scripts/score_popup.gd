@@ -15,9 +15,19 @@ const STYLE_COLOR := Color(1.0, 0.85, 0.3)
 
 @export var lifetime: float = 1.2 ## Seconds from spawn to gone.
 @export var rise_height: float = 1.8 ## How far up it drifts over its lifetime (m).
+## (T-059) Extra rise per concurrently-live earlier popup: chained hits inside
+## one combo window used to rise in lockstep and merge into one unreadable line
+## mid-rise — now each later popup stacks one step higher (capped at 4 steps,
+## see _ready).
+@export var rise_step: float = 0.9
 
 ## The text node — public so the sim harness can assert what it shows.
 @onready var label: Label3D = %Text
+
+## (T-059) The total rise this popup's tween targets: rise_height plus one
+## rise_step per concurrently-live earlier popup, derived in _ready. Public so
+## the sim harness can assert the stagger.
+var rise_total: float = 0.0
 
 var _points: int = 0
 var _multiplier: int = 1
@@ -51,9 +61,19 @@ func _ready() -> void:
 	if _style:
 		## (T-038) Tint the RGB only — the fade below owns the alpha channel.
 		label.modulate = STYLE_COLOR
+	## (T-059) Stagger chained popups: every valid earlier popup still alive in
+	## the group (never this one) adds one rise_step to the rise target, capped
+	## at 4. Deterministic — plain group counting, no RNG. Self-cleaning: freed
+	## popups stop counting, and restart_run()'s group sweep drains the group
+	## between runs, so a fresh chain starts back at rise_height.
+	var index := 0
+	for node in get_tree().get_nodes_in_group("score_popups"):
+		if node != self and is_instance_valid(node):
+			index += 1
+	rise_total = rise_height + mini(index, 4) * rise_step
 	var tween := create_tween()
 	tween.set_parallel(true)
-	tween.tween_property(self, "global_position", _pos + Vector3.UP * rise_height, lifetime)
+	tween.tween_property(self, "global_position", _pos + Vector3.UP * rise_total, lifetime)
 	# The fade owns the back stretch — the number stays solid while it reads.
 	tween.tween_property(label, "modulate:a", 0.0, lifetime * 0.6).set_delay(lifetime * 0.4)
 	tween.chain().tween_callback(queue_free)

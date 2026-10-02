@@ -1,6 +1,6 @@
 # T-059 — Retune the world score popup: legible at hit distances, de-cluster chained hits
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** —
 - **Refs:** sweep 2 session `uiuxs2pz` (readings below; `f00001440.png`/`f00001452.png` live in the
   lane worktree's gitignored `.captures/session_uiuxs2pz/` and are not in this checkout — the
@@ -66,18 +66,21 @@ T-040's strip deliberately does not replace the world popup.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b, chained arm: two popups alive inside one combo window carry
+- [x] Gate 1b, chained arm: two popups alive inside one combo window carry
       distinct `rise_total`s exactly `rise_step` apart, with label texts
       "+100" then "+200 ×2" — the bare combo payouts (see Verification)
-- [ ] Gate 1b, lone popup: rises exactly `rise_height` (index 0) — the existing
+      *(proven: `SIM PASS score_popup_chain_stagger`)*
+- [x] Gate 1b, lone popup: rises exactly `rise_height` (index 0) — the existing
       `score_popup_floats_and_fades` scenario (`VERIFICATION.md:95`) passes
-      untouched
-- [ ] Both existing `setup()` callers compile unchanged (exactly two exist:
-      `scripts/main.gd:385` and `tests/sim_test.gd:3447` — re-counted
-      2026-10-01)
-- [ ] [screenshot] Gate 3: at the recorded pixel_size a "+300 ×2" at 40–46 m
+      untouched *(proven: same Gate 1b run, scenario untouched and green)*
+- [x] Both existing `setup()` callers compile unchanged (exactly two exist,
+      re-counted on this branch 2026-10-02: `scripts/main.gd:385` — 4-arg since
+      T-038 landed its `style` arg — and `tests/sim_test.gd:3688`; neither
+      edited, both compiled by the green Gate 1b run)
+- [x] [screenshot] Gate 3: at the recorded pixel_size a "+300 ×2" at 40–46 m
       renders at least ~1.5× taller on screen than today (≈ 13 px → ≥ 20 px),
       and a chained pair at 30–45 m reads as two numbers at a glance
+      *(reviewer sign-off 2026-10-02)*
 
 ## Verification
 
@@ -109,3 +112,22 @@ sees popups at all (its DONE line counts the `juice_effects` group,
 `scripts/score_popup.gd:36`), so no autoplay change is expected or possible
 from this ticket. Gate 3 [screenshot]: chained pair legible as two numbers at
 30–45 m at cruise.
+
+## Landed values (recorded 2026-10-02)
+
+- **World size, no trade:** `pixel_size` **0.015** with `font_size` **96**
+  unchanged (`scenes/score_popup.tscn`) — text height ~0.96 → ~1.44 m; the
+  `outline_size` 28 rides along. One knob moved, one at baseline.
+- **Stagger:** `rise_step` **0.9** (new export), `rise_height` **1.8**
+  unchanged — index 0 rises exactly 1.8 m, index 1 2.7 m, capped at index 4
+  (5.4 m); `lifetime` 1.2 s untouched.
+- Gates run on this branch: Gate 1 (import/boot/`--check-only` on
+  score_popup.gd — exit 0; the `--check-only` failures for autoload-referencing
+  scripts are the mode's missing-autoload artifact, reproduced on untouched
+  files), Gate 1b (exit 0, 0 failures — `score_popup_floats_and_fades`,
+  `score_popup_style_tag_format`, `score_popup_style_tag_live` all untouched
+  and green; new `score_popup_chain_stagger` pass), Gate 2 (`AUTOPLAY DONE
+  ok=true`, exit 0 — `effects=4`, no popup visibility, as predicted above).
+- Gate 3 [screenshot] leg closed by reviewer sign-off 2026-10-02 (the 1.5× leg
+  is ratio-derived from the recorded pixel_size; the "reads as two numbers"
+  leg passed human review).
