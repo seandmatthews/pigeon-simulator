@@ -141,6 +141,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | density_cpu_budget | the real main scene at full density (18 tourists + 36 cars asserted) keeps the calibrated headless CPU budget — median wall-time of three 100-frame windows under --fixed-fps 60 | T-018 |
 | off_world_fall_returns_home | a fall below the off-world guard line (past any floor) fires the reset exactly once — counted twice since T-095, through the `off_world_resets` counter AND a local counter wired to the new `off_world_reset` signal, each exactly once across the whole window — snaps the pigeon home to the respawn corridor and lands it there within ~2 s, stays parked home with no second fire over the following ~2 s, and the hunger clock keeps draining straight through the reset | T-036, T-095 |
 | off_world_return_beat | the PRESENTED return through the real main scene (instanced-Main pattern, own space): the guard fires exactly once — counter AND signal, the signal's `from` equal to the void departure position — and Main answers with the full beat: a `juice_effects` feather poof at `from` on the reset frame, the warm HUD fade up right after the reset and fully gone (≤ 0.01) within ~1 s of game time, the chase camera within ~1.5 m of pigeon + UP × 1.4 on the first frame after the reset (the snap, not a lerp), the "home again — mind the edge" note shown then self-expired, grounded on the respawn corridor within ~2 s, no second fire across a further ~2 s, Game.hunger drained > 0.2 across the window; a second fire re-runs the beat and restart_run() mid-note clears note and fade unpaused | T-087 |
+| edge_nudge_turns_home | reset 300 m past the city edge (417 m from the home center, 50 m past the 367 m apron — mid-ramp), nose dead away from home (the bearing sine's zero), hands off for 3 s: the heading rotates ≥ 30° back toward home and y never drops below 0, with the T-042 guard silent through the window (from y 30 the softened gravity sinks ~10 m, far above −5 — the heading assert is what bites; measured landed: turned 54.2°, end bearing 127.7°, min y 26.5 m, resets 0; nudge-disabled probe on the same scenario — the old tree's by-construction behavior: turned 0.0°, bearing 180.0°, FAIL exactly on the heading arm). Only this scenario wires `home_center`/`home_radius` — every other runs with the nudge disabled (radius 0.0) | T-023 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -163,7 +164,11 @@ cars loop the ring roads and 16 sit parked at curbs, all visible in the
 screenshots.
 Below the cruise floor the pilot climbs
 hard while circling the spawn plaza — the one spot the generator guarantees is
-clear of buildings — and beyond 60 m from the plaza it steers home. From 11 s in
+clear of buildings — and beyond `HOME_RADIUS` (40 m, tests/autoplay.gd — the
+pilot's own homing constant, refreshed from a stale "60 m" prose by T-023) from
+the plaza it steers home; that arc stays hundreds of metres inside T-023's 367 m
+apron radius, so the flight-model edge nudge never engages in a pilot run.
+From 11 s in
 the pilot also makes a ground visit (T-003 + T-004): arc to the plaza, bleed
 speed in a wide orbit, spiral down inside the building-free ring, touchdown,
 waddle across the pavement, take-off. While landed it waddles toward the
@@ -349,6 +354,9 @@ Playtest checklist (grows as tickets land):
 - [x] (T-042) The hunger bar keeps ticking down across an off-world return — the clock never paused (retired by T-087's reviewer sign-off 2026-10-01; the machine half is `off_world_return_beat`'s drain leg) [screenshot]
 - [x] (T-087) Flying hard past the apron now reads as "came home" — a warm fade covers the cut, feathers mark the departure point, and the lens is already home when the fade lifts (reviewer sign-off 2026-10-01; retires T-042's pending teleport-glitch line, jointly with T-036's) [screenshot]
 - [x] (T-087) Across a presented return the hunger bar visibly keeps ticking down (reviewer sign-off 2026-10-01; retires the human half of T-042's drain line — the machine half is `off_world_return_beat`'s drain leg) [screenshot]
+- [x] (T-023) Flying out past the apron, the pigeon visibly wants to go home — a gentle banked turn back toward the city, present but never a control grab — and a held outward turn can still win against it (the guard never hard-grabs) (reviewer sign-off 2026-10-02)
+- [x] (T-023) The HUD shows the "Nothing out there — turn back" hint past the apron and the normal air/ground hint again once back inside — no hint fight across a landing/takeoff cycle at the boundary (reviewer sign-off 2026-10-02) [screenshot]
+- [x] (T-023) The outbound "turn back" hint and T-087's "came home" return beat read as one coherent off-world language, not two disconnected messages (reviewer sign-off 2026-10-02)
 - [ ] (T-032) From cruise height the roofs read as inhabited — AC boxes, water tanks and vents break the gray roof planes, and a rooftop crumb is spottable from a cruise glide [screenshot]
 - [ ] (T-032) Landing on a roof near a crumb and waddling to it works like the pavement version; the props read as useful cover, not obstacles
 - [ ] (T-085) In flight at cruise and in a dive, the bird reads at a glance against road AND roof at ~20 m — one bright anchor (rump/underwing) visible from the chase angle [screenshot]

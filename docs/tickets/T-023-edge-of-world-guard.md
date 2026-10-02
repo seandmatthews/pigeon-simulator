@@ -1,6 +1,6 @@
 # T-023 — Edge-of-world guard: nudge the pigeon home past the apron
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** flight-control · **Value (1-5):** 3 · **Risk (1-5):** 3
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** flight-control · **Value (1-5):** 3 · **Risk (1-5):** 3
 - **Depends on:** T-004 (city span / ground_extra geometry) · T-001 (the steer term it extends) · builds on the landed T-036/T-042/T-053 off-world teleport guard and its landed presentation (T-087's return beat, T-095's pilot visibility) — this ticket is the prevention layer *ahead* of the guard, as T-042 itself positions it
 - **Refs:** re-based onto the guarded tree during the 2026-09-30 backlog audit (original written
   2026-09-29, pre-guard; commit 77e08e5), then re-checked 2026-10-01 against the tree with
@@ -128,7 +128,7 @@ touching the file. T-042 defers here by name
 
 ## Acceptance criteria
 
-- [ ] Reset 300 m past the city edge — `home + Vector3(half_span + 300, 30, 0)`
+- [x] Reset 300 m past the city edge — `home + Vector3(half_span + 300, 30, 0)`
       = 417 m from home center, i.e. 50 m past the 367 m apron edge, mid-ramp —
       flying straight out (nose +X), hands off for 3 s (180 frames): the
       heading rotates ≥ 30° back toward home and y never drops below 0.
@@ -137,22 +137,24 @@ touching the file. T-042 defers here by name
       model's softened gravity — `min_gravity_fraction` 0.2,
       `scripts/player.gd:51` — sinks roughly 10 m over 3 s, far above −5), so
       the heading assertion is what bites (Gate 1b: `edge_nudge_turns_home`)
-- [ ] In-city handling is untouched: `banked_left_turn` (the flat world at the
+- [x] In-city handling is untouched: `banked_left_turn` (the flat world at the
       origin, `tests/sim_test.gd:405`) and `city_street_flyover` (inside the
       span, `tests/sim_test.gd:782-803`) stay green — the nudge is disabled by
       default and its radius sits ~250 m beyond the whole city
-- [ ] The landed guard layering holds: `off_world_fall_respawns`
+- [x] The landed guard layering holds: `off_world_fall_respawns`
       (`tests/sim_test.gd:693-721`, registered `:120`),
       `off_world_fall_returns_home` (`:5074-5115`, registered `:188`) and
       `off_world_return_beat` (`:5142`, registered `:189` — it runs a real
       main scene, so it *will* inherit the `_ready()` nudge wiring) stay green
       unchanged — the guard must not depend on the nudge, and the nudge must
       not disable the guard or disturb the return beat
-- [ ] The guard never hard-grabs: with the nudge active, a held player turn
-      can still hold course against it (Gate 3 playtest line)
-- [ ] [screenshot] The HUD shows the turn-back hint past the apron and the
+- [x] The guard never hard-grabs: with the nudge active, a held player turn
+      can still hold course against it (Gate 3 playtest line; reviewer
+      sign-off 2026-10-02)
+- [x] [screenshot] The HUD shows the turn-back hint past the apron and the
       normal air/ground hint again once back inside — no hint-writer fight
-      across a landing/takeoff cycle at the boundary
+      across a landing/takeoff cycle at the boundary (reviewer sign-off
+      2026-10-02)
 
 ## Verification
 
@@ -179,3 +181,44 @@ correctly at the boundary; the nudge feels like a pigeon wanting to go home —
 present, never a control grab — and an outward turn can still win against it;
 the outbound hint and T-087's return beat read as one coherent off-world
 language rather than two disconnected messages.
+
+## Landed (2026-10-02, implementation record)
+
+**Tuned values:** `home_nudge_rate` 0.35 (the nudge's share of the bank
+envelope → a ≤ 14° home bank at full ramp blend, against the player's own 40° —
+a full opposite hold still commands 26°) · `home_nudge_ramp` 100 m (the
+ticket's suggestion) · the nudge is a target-bank addition inside `_steer`
+riding the existing bank→yaw path (`_home_nudge_bank()`), with the flat
+bearing-to-home clamped at ±90° so a dead-away heading — the sine's zero, and
+exactly the scenario's start — commands the full share instead of stalling.
+Main wiring exactly as specified: `home_center = city.global_position`,
+`home_radius = city.city_span * 0.5 + city.ground_extra` (367 m at defaults).
+Hint: `HINT_EDGE := "Nothing out there — turn back"`, owned via the
+`_edge_hinting` flag; `_on_grounding_changed` yields only its hint write (the
+combo-note logic below it stays live); `restart_run()` clears the flag.
+
+**Gate evidence (all run on this change-set):**
+- Gate 1: `--import` exit 0 and the 120-frame `--quit-after` boot exit 0 (only
+  the documented pre-existing benign exit lines: the addon-shutdown "33
+  resources still in use" on import and a 1-instance ObjectDB leak warning
+  verified identical on the stashed untouched tree). The
+  `--check-only --script` leg stays dropped per the known issue.
+- Gate 1b: full suite `SIM SUMMARY: 0 failure(s)`, exit 0 — 106 distinct
+  `SIM PASS` lines on today's tree (the "110 scenarios" figure above was
+  stale against the tree this landed on: HEAD carried 117 `_check(` sites /
+  90 registered scenario functions; this change-set carries 118 / 91, the +1
+  being `edge_nudge_turns_home`). `edge_nudge_turns_home` measured: turned
+  **54.2°** (bar ≥ 30), end bearing 127.7°, min y 26.53 m, resets 0 — and the
+  red-before probe (same scenario, nudge wiring disabled = the old tree's
+  behavior) failed exactly the heading arm: turned 0.0°, bearing 180.0°.
+  `banked_left_turn`, `city_street_flyover`, `off_world_fall_respawns`,
+  `off_world_fall_returns_home` and `off_world_return_beat` all re-ran green
+  inside the same suite run.
+- Gate 2: `AUTOPLAY DONE ok=true … restart=true` at 137 fps, no SCRIPT ERROR —
+  the pilot's own `HOME_RADIUS` 40 homing stays far inside the 367 m apron
+  radius, so a pilot run never engages the nudge.
+- Gate 3: accepted by **reviewer sign-off (2026-10-02)** — the nudge reads as
+  a pigeon wanting to go home (present, never a control grab, a held outward
+  turn still wins), the hint reads and clears correctly across the boundary
+  with no hint-writer fight, and the outbound "turn back" hint and T-087's
+  "came home" beat read as one coherent off-world language.

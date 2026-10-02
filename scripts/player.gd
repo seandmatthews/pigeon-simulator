@@ -22,6 +22,10 @@ extends CharacterBody3D
 ## `glide_speed` its rate fades toward `mush_align_fraction`, so a slow,
 ## nose-high mush heaves over into a real sink instead of the aligner bending
 ## the fall back along the nose into a hover (the stall machinery is untouched).
+## Since T-023 an airborne pigeon past `home_radius` from `home_center` —
+## Main-wired, 0.0 radius disabled — gains a ramped home-bank share in `_steer`
+## that makes straight-line escape impossible ahead of the T-042 guard, without
+## ever over-powering a held player turn.
 
 ## Emitted when the pigeon lands or takes off — the HUD swaps its control hint.
 signal grounding_changed(grounded: bool)
@@ -81,6 +85,12 @@ enum State { AIR, GROUND }
 
 @export_group("Bounds") ## T-042: the off-world guard — under the world there is no floor and no fail state but starvation.
 @export var off_world_y: float = -5.0 ## The guard line (m). Unreachable over real terrain — the lowest walkable surface is the ground slab top at y = 0 — so only the void past the apron ever dips below it.
+
+@export_group("Edge nudge") ## T-023: the prevention layer ahead of the T-042 guard — past the apron nothing bent the course home, so straight-line escape was free until the fall. The nudge makes it impossible; the guard stays for anyone who fights it.
+@export var home_center: Vector3 = Vector3.ZERO ## Flat-world home the nudge steers toward — Main wires the city origin in (`_ready()`), the same Main-only wiring as `respawn_point` (Player has no City reference).
+@export var home_radius: float = 0.0 ## Apron radius (m): flat horizontal distance from `home_center` past which the nudge engages. **0.0 disables the nudge entirely** — every scene and scenario that never wires it is unaffected by construction.
+@export var home_nudge_rate: float = 0.35 ## Nudge strength: the share of the bank envelope (max_bank_deg) the nudge commands at full ramp blend — 0.35 → a 14° home bank, well under the player's own 40°, so a held turn input always overpowers it.
+@export var home_nudge_ramp: float = 100.0 ## Ramp width (m) past `home_radius` over which the nudge strength grows from 0 to full — the engagement is gentle at the apron edge, firm deep past it.
 
 ## Where the guard sends the pigeon (T-042): LOCAL coordinates, matching
 ## reset_flight's position convention. Main wires the spawn corridor in _ready()
@@ -401,7 +411,12 @@ func _steer(delta: float) -> void:
 	var authority := clampf(forward_speed / glide_speed, min_control_authority, 1.0)
 	var turn_input := Input.get_axis("turn_right", "turn_left")
 	var max_bank := deg_to_rad(max_bank_deg)
-	var target_roll := turn_input * max_bank
+	# (T-023) The edge nudge adds its own home-bank share into the same target
+	# the input term commands, so the whole nudge rides the existing bank->yaw
+	# path (the yaw below follows whatever the body is banked at). It can never
+	# command more than `home_nudge_rate` of the envelope — well under a full
+	# player input — and the clamp keeps the SUM inside the modeled ±max_bank.
+	var target_roll := clampf(turn_input * max_bank + _home_nudge_bank(), -max_bank, max_bank)
 	var new_roll := move_toward(_roll, target_roll, bank_rate * authority * delta)
 	rotate_object_local(Vector3.BACK, new_roll - _roll)
 	_roll = new_roll
@@ -439,6 +454,35 @@ func _steer(delta: float) -> void:
 		var flow := velocity.normalized()
 		var target := nose.slerp(flow, clampf(trim_rate * authority * delta, 0.0, 1.0)).normalized()
 		transform.basis = Basis(Quaternion(nose, target)) * transform.basis
+
+
+## (T-023) The edge nudge's target-bank contribution (radians, signed
+## left-positive like the input term): while airborne past `home_radius` from
+## `home_center` — flat horizontal distance, global space — steer a share of
+## the bank envelope back toward home, growing from 0 at the radius to
+## `home_nudge_rate` of max_bank at `home_nudge_ramp` metres past it. The
+## bearing-to-home is the flat signed angle clamped at ±90°, so a dead-away
+## heading (the sine's zero) commands the full share instead of stalling —
+## atan2's +π picks the left side deterministically — and the turn decays to
+## nothing on its own as the nose comes onto home. `home_radius` 0.0 (never
+## wired) returns 0.0: the nudge is disabled entirely by construction. A full
+## opposite player input always overpowers the share, and `reset_flight`
+## touches none of these exports, so the nudge survives a T-042 guard reset
+## (whose respawn corridor sits well back inside the radius) unchanged.
+func _home_nudge_bank() -> float:
+	if home_radius <= 0.0:
+		return 0.0
+	var flat_fwd := -transform.basis.z
+	flat_fwd.y = 0.0
+	var to_home := home_center - global_position
+	to_home.y = 0.0
+	var flat_dist := to_home.length()
+	if flat_dist <= home_radius or flat_fwd.length_squared() < 0.0001:
+		return 0.0
+	var blend := clampf((flat_dist - home_radius) / home_nudge_ramp, 0.0, 1.0)
+	var bearing := flat_fwd.normalized().signed_angle_to(to_home / flat_dist, Vector3.UP)
+	var steer := clampf(bearing / (PI * 0.5), -1.0, 1.0)
+	return steer * blend * home_nudge_rate * deg_to_rad(max_bank_deg)
 
 
 func _apply_flight_forces(delta: float, grounded: bool) -> void:
