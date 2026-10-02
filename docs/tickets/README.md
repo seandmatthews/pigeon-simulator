@@ -71,7 +71,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-050 | [Put a skyline on the horizon so the world doesn't end at a cliff](T-050-horizon-skyline.md) | worldbuilding | 3 | 1 | superseded (T-088) |
 | T-051 | [Vary building footprints to break the uniform block grid](T-051-varied-footprints.md) | worldbuilding | 4 | 3 | done |
 | T-053 | [Land the off-world fall guard: falling past the apron returns you home](T-053-off-world-fall-guard.md) | code-optimization | 4 | 2 | done |
-| T-054 | [Extract BandSpawner and close the unverified car-recycle contract](T-054-band-spawner-extraction.md) | code-optimization | 3 | 3 | proposed |
+| T-054 | [Extract BandSpawner and close the unverified car-recycle contract](T-054-band-spawner-extraction.md) | code-optimization | 3 | 3 | done |
 | T-055 | [Stop the per-frame redundant presentation writes and the HUD pointer's per-frame array churn](T-055-redundant-writes-pointer-churn.md) | code-optimization | 2 | 1 | done |
 | T-057 | [Derive the bread-pointer chevron from screen space; pin Gate 1b to independent ground truth](T-057-screen-space-bread-chevron.md) | ui-ux | 4 | 3 | done |
 | T-058 | [Make the off-city void readable: teach the chevron convention and cue the edge](T-058-off-city-turn-around.md) | ui-ux | 3 | 1 | proposed |

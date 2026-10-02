@@ -190,6 +190,7 @@ func _run_scenarios() -> void:
 	await _scenario_cars_traffic()
 	await _scenario_car_splat_honk()
 	await _scenario_traffic_recycle_keeps_flow() ## T-089 — the recycle insertion path must not clot a ring.
+	await _scenario_cars_recycle() ## T-054 — the end-to-end timer-driven car recycle closes its contract.
 	await _scenario_scoring_values()
 	await _scenario_high_score_persists()
 	await _scenario_score_popup()
@@ -3850,6 +3851,81 @@ func _scenario_traffic_recycle_keeps_flow() -> void:
 			"seeded travels %s (all >= 8.0: %s) · ring preference %s · min seeded gap %.2f (want >= 4.0) · fleet gap %.2f (want > 2.0) · finite=%s · max frame move %.2f (want <= 5.0)" % [
 					str(seeded_travels), seeded_travel_ok, preference_ok, min_gap_seeded,
 					min_gap_fleet, finite, max_frame_move])
+	spawner.free()
+
+
+## The end-to-end timer-driven car recycle (T-054 — until now only the tourist
+## twin was machine-proven and T-089's `traffic_recycle_keeps_flow` pinned the
+## rejoin-insertion half): teleporting the player beyond the car
+## `recycle_radius` (100 m) lets the scan `_physics_process` fire
+## `_recycle_far` for real and recycle the SAME car nodes into the spawn band
+## around the new anchor — no respawn churn, the fleet still 20 traffic + 16
+## parked, every car inside the radius of the new anchor or on a 30–70 m band
+## block, and the curb exclusivity (`_spot_taken`'s 4.5 m rule) surviving the
+## whole recycle — no double-booked parking spot.
+func _scenario_cars_recycle() -> void:
+	## The pigeon grounds on the plaza first (the anchor pin `cars_traffic`
+	## uses — since T-029 at PLAZA_DROP_OFFSET, clear of the landmark plinth):
+	## a standing bird pins the spawner's recycle anchor in place while the
+	## fleet seeds, so nothing recycles before the scenario moves it.
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	add_child(spawner)
+	await _wait_frames(4)
+	var cars := spawner.living_cars()
+	var full := cars.size() == spawner.target_moving + spawner.target_parked
+	var ids: Array[int] = []
+	for car in cars:
+		ids.append(car.get_instance_id())
+	## ~120 m west — beyond `recycle_radius` 100 so cars genuinely recycle,
+	## but close enough that block centers still sit inside the 30–70 m spawn
+	## band (centers span ±96 city-local; from the new anchor the nearest sit
+	## 40–68 m flat away — a 200 m hop would empty the band and legitimately
+	## recycle nobody).
+	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
+	await _wait_frames(90) ## 3 recycle scans at the fixed 60 Hz step (0.5 s interval = 30 frames); a parked car whose drawn spot was taken legitimately skips one.
+	var after := spawner.living_cars()
+	var reused := true
+	var placed := true
+	var traffic := 0
+	var parked := 0
+	var anchor := Vector2(_city.position.x - 120.0, _city.position.z)
+	for car in after:
+		reused = reused and ids.has(car.get_instance_id())
+		if car.mode == Car.Mode.TRAFFIC:
+			traffic += 1
+		else:
+			parked += 1
+		var flat := Vector2(car.global_position.x - anchor.x,
+				car.global_position.z - anchor.y)
+		var center := Vector2(car.block_center.x - anchor.x, car.block_center.z - anchor.y)
+		# The recycle contract, as for tourists: every car is EITHER already
+		# within the recycle radius of the moved player (legitimately kept) OR
+		# recycled onto a block in the spawn band.
+		placed = placed and (flat.length() <= spawner.recycle_radius
+				or (center.length() >= spawner.spawn_min_dist
+						and center.length() <= spawner.spawn_max_dist))
+	var counts_ok := traffic == spawner.target_moving and parked == spawner.target_parked
+	## Curb exclusivity survives the recycle: no two parked cars within the
+	## 4.5 m `_spot_taken` threshold of each other.
+	var min_parked_gap := 100.0
+	for i in after.size():
+		if after[i].mode != Car.Mode.PARKED:
+			continue
+		for j in range(i + 1, after.size()):
+			if after[j].mode != Car.Mode.PARKED:
+				continue
+			min_parked_gap = minf(min_parked_gap,
+					after[i].global_position.distance_to(after[j].global_position))
+	_check("cars_recycle_around_player",
+			full and after.size() == spawner.target_moving + spawner.target_parked
+					and reused and counts_ok and placed and min_parked_gap >= 4.5,
+			"full=%s count %d (traffic %d, parked %d, want %d/%d) reused=%s placed=%s min parked gap %.2f (want >= 4.5)" % [
+					full, after.size(), traffic, parked, spawner.target_moving,
+					spawner.target_parked, reused, placed, min_parked_gap])
 	spawner.free()
 
 

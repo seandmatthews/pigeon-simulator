@@ -1,18 +1,17 @@
 class_name CarSpawner
-extends Node3D
+extends BandSpawner
 ## The car service (T-008): keeps `target_moving` traffic cars looping the
 ## city's ring roads (`City.traffic_loop` over `City.block_centers`) and
 ## `target_parked` cars sitting in the curb spaces (`City.parking_spots`)
-## around the player. A recycle scan every `recycle_interval` teleports cars
-## that drifted beyond `recycle_radius` onto fresh blocks/spots in the spawn
-## band — the same nodes, no allocation, and never inside `spawn_min_dist`,
-## so nothing pops into view. Since T-089 recycled traffic prefers rings
-## holding fewer than `ring_traffic_soft_cap` cars and rejoins at a probed
-## follow-gap-clear point, so a standing player stops watching the band clot
-## into one parked wall. Seeded from the city's seed and re-seeded on
-## city regeneration, like the tourist (T-007) and bread (T-005) services.
-## Every car splat relays as `car_splatted` — Main wires it into the Game
-## autoload's score table (T-009).
+## around the player. The band/recycle machinery — the shared recycle exports,
+## the recycle-scan timer and the band helpers — lives in the BandSpawner base
+## (T-054); this script keeps only the car specifics. Since T-089 recycled
+## traffic prefers rings holding fewer than `ring_traffic_soft_cap` cars and
+## rejoins at a probed follow-gap-clear point, so a standing player stops
+## watching the band clot into one parked wall. Seeded from the city's seed
+## and re-seeded on city regeneration, like the tourist (T-007) and bread
+## (T-005) services. Every car splat relays as `car_splatted` — Main wires it
+## into the Game autoload's score table (T-009).
 
 ## Relayed from each car's `splatted` — Main wires it into the Game autoload's
 ## score table (T-009).
@@ -24,52 +23,23 @@ signal car_splatted(car: Car)
 @export var target_parked: int = 16 ## Cars kept parked at curbs.
 
 @export_group("Recycle")
-## Beyond this flat distance (m) a car recycles to the player's area. Must
-## clear the WORST legitimate loop distance — a car seeded at spawn_max_dist
-## rounds ring corners ~20 m past its block center — or traffic gets yanked
-## mid-lap and dropped on top of other cars.
-@export var recycle_radius: float = 100.0
-@export var recycle_interval: float = 0.5 ## Seconds between recycle scans.
-@export var spawn_min_dist: float = 30.0 ## Recycled cars stay at least this far away (flat, m) — pop-in guard.
-@export var spawn_max_dist: float = 70.0 ## ...and at most this far, so density stays where the player is.
 @export var recycle_probe_count: int = 5 ## Evenly spaced loop fractions probed for a follow-gap-clear traffic rejoin point before the random draw (T-089).
 @export var ring_traffic_soft_cap: int = 3 ## Recycled traffic skips rings already holding this many traffic cars while any band ring is lighter (T-089).
-
-@export var city_path: NodePath
-@export var player_path: NodePath
-
-## The city to dress and the pigeon to orbit — Main wires the paths; the sim
-## harness assigns both directly.
-var city: City
-var player: Player
 
 ## Car honks this run — the autoplay DONE line reports it.
 var honk_count: int = 0
 
 var _cars: Array[Car] = []
-var _rng := RandomNumberGenerator.new()
-var _scan_timer: float = 0.0
 
 
-func _ready() -> void:
-	if city == null and not city_path.is_empty():
-		city = get_node(city_path) as City
-	if player == null and not player_path.is_empty():
-		player = get_node(player_path) as Player
-	if city == null or player == null:
-		push_warning("CarSpawner needs a City and a Player — no cars will spawn.")
-		return
-	city.regenerated.connect(_populate)
-	_populate()
-
-
-func _physics_process(delta: float) -> void:
-	if city == null or player == null:
-		return
-	_scan_timer += delta
-	if _scan_timer >= recycle_interval:
-		_scan_timer = 0.0
-		_recycle_far()
+func _init() -> void:
+	# Beyond this flat distance (m) a car recycles to the player's area. Must
+	# clear the WORST legitimate loop distance — a car seeded at spawn_max_dist
+	# rounds ring corners ~20 m past its block center — or traffic gets yanked
+	# mid-lap and dropped on top of other cars. (A GDScript subclass cannot
+	# redeclare the inherited export, so the tourist-default 80.0 becomes an
+	# `_init` override — T-054.)
+	recycle_radius = 100.0
 
 
 ## Living cars — tests and the autoplay pilot read these.
@@ -87,21 +57,19 @@ func _populate() -> void:
 	if city == null or player == null:
 		return
 	_rng.seed = city.seed_value
-	var blocks := _blocks_in_band(_anchor_flat())
-	if blocks.is_empty():
-		blocks = _nearest_blocks(_anchor_flat(), maxi(target_moving, target_parked))
-	if blocks.is_empty():
+	var anchor := _anchor_flat()
+	if city.block_centers.is_empty():
 		return
 	var made_moving := 0
 	while made_moving < target_moving:
-		var block: Vector3 = blocks[_rng.randi_range(0, blocks.size() - 1)]
+		var block := _pick_block(anchor)
 		_spawn_traffic(block, made_moving)
 		made_moving += 1
 	var made_parked := 0
 	var attempts := 0
 	while made_parked < target_parked and attempts < target_parked * 8:
 		attempts += 1
-		var block: Vector3 = blocks[_rng.randi_range(0, blocks.size() - 1)]
+		var block := _pick_block(anchor)
 		var spots := city.parking_spots(block)
 		var spot: Dictionary = spots[_rng.randi_range(0, spots.size() - 1)]
 		var global_spot: Vector3 = city.to_global(spot.pos)
@@ -142,6 +110,13 @@ func _recycle_far() -> void:
 			car.recycle_to(_clear_rejoin_point(loop, block_global, car), loop, block_global)
 
 
+## `_pick_block`'s fallback pool for a far-from-every-block anchor: the whole
+## fleet's worth of nearest centers, band ignored (tourists seed 6 groups'
+## worth; the fleet needs the larger draw).
+func _fallback_blocks(anchor: Vector2) -> Array[Vector3]:
+	return _nearest_blocks(anchor, maxi(target_moving, target_parked))
+
+
 func _spawn_traffic(block_local: Vector3, index: int) -> void:
 	var car: Car = car_scene.instantiate()
 	car.body_color = Car.BODY_PALETTE[index % Car.BODY_PALETTE.size()]
@@ -173,43 +148,9 @@ func _on_car_splatted(car: Car) -> void:
 ## --- placement helpers -----------------------------------------------------
 
 
-func _anchor_flat() -> Vector2:
-	return Vector2(player.global_position.x, player.global_position.z)
-
-
-func _flat_dist(pos: Vector3, anchor: Vector2) -> float:
-	return Vector2(pos.x - anchor.x, pos.z - anchor.y).length()
-
-
 ## Flat (XZ) distance between two world positions.
 func _flat_dist_pos(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x - b.x, a.z - b.z).length()
-
-
-## City-local block centers whose global position lies inside the spawn band
-## (flat, m) around the anchor.
-func _blocks_in_band(anchor: Vector2) -> Array[Vector3]:
-	var found: Array[Vector3] = []
-	for center in city.block_centers:
-		var d := _center_dist(center, anchor)
-		if d >= spawn_min_dist and d <= spawn_max_dist:
-			found.append(center)
-	return found
-
-
-## Fallback for anchors far from every block: the `count` nearest block
-## centers, band ignored.
-func _nearest_blocks(anchor: Vector2, count: int) -> Array[Vector3]:
-	var sorted_centers := city.block_centers.duplicate()
-	sorted_centers.sort_custom(func(a: Vector3, b: Vector3) -> bool:
-		return _center_dist(a, anchor) < _center_dist(b, anchor))
-	sorted_centers.resize(mini(count, sorted_centers.size()))
-	return sorted_centers
-
-
-func _center_dist(center: Vector3, anchor: Vector2) -> float:
-	var g := city.to_global(center)
-	return Vector2(g.x - anchor.x, g.z - anchor.y).length()
 
 
 ## The block's ring-road loop in global coords.

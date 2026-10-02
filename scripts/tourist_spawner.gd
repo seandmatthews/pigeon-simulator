@@ -1,13 +1,14 @@
 class_name TouristSpawner
-extends Node3D
+extends BandSpawner
 ## The tourist service (T-007): keeps `target_count` tourists (ticket band
 ## 15–20) alive around the player, seeded in loose groups onto the city's
-## sidewalk loops (`City.sidewalk_loop` over `City.block_centers`). A recycle
-## scan every `recycle_interval` teleports tourists that drifted beyond
+## sidewalk loops (`City.sidewalk_loop` over `City.block_centers`). The
+## band/recycle machinery — the spawn-band exports, the recycle-scan timer and
+## the band helpers — lives in the BandSpawner base (T-054); this script keeps
+## only the tourist specifics. The scan teleports tourists that drifted beyond
 ## `recycle_radius` onto fresh loops in the spawn band around the player —
-## the same nodes, no allocation, and never inside `spawn_min_dist`, so
-## nothing pops into view. The initial spread is seeded from the city's seed
-## and re-seeds on city regeneration, like the bread service (T-005).
+## the same nodes, no allocation. The initial spread is seeded from the city's
+## seed and re-seeds on city regeneration, like the bread service (T-005).
 
 ## Relayed from each tourist's `splatted` — Main wires it into the Game
 ## autoload's score table (T-009).
@@ -18,47 +19,10 @@ signal tourist_splatted(tourist: Tourist)
 @export var target_count: int = 18 ## Tourists kept alive (ticket band: 15–20).
 @export var group_size_max: int = 3 ## Loose groups: 2..group_size_max tourists share one block loop.
 
-@export_group("Recycle")
-@export var recycle_radius: float = 80.0 ## Flat distance (m) beyond which a tourist recycles to the player's area.
-@export var recycle_interval: float = 0.5 ## Seconds between recycle scans.
-@export var spawn_min_dist: float = 30.0 ## Recycled loops stay at least this far away (flat, m) — pop-in guard.
-@export var spawn_max_dist: float = 70.0 ## ...and at most this far, so density stays where the player is.
-
-@export var city_path: NodePath
-@export var player_path: NodePath
-
-## The city to walk and the pigeon to orbit — Main wires the paths; the sim
-## harness assigns both directly.
-var city: City
-var player: Player
-
 ## Tourist splats this run — the autoplay DONE line reports it.
 var splat_count: int = 0
 
 var _tourists: Array[Tourist] = []
-var _rng := RandomNumberGenerator.new()
-var _scan_timer: float = 0.0
-
-
-func _ready() -> void:
-	if city == null and not city_path.is_empty():
-		city = get_node(city_path) as City
-	if player == null and not player_path.is_empty():
-		player = get_node(player_path) as Player
-	if city == null or player == null:
-		push_warning("TouristSpawner needs a City and a Player — no tourists will spawn.")
-		return
-	city.regenerated.connect(_populate)
-	_populate()
-
-
-func _physics_process(delta: float) -> void:
-	if city == null or player == null:
-		return
-	_scan_timer += delta
-	if _scan_timer >= recycle_interval:
-		_scan_timer = 0.0
-		_recycle_far()
 
 
 ## Living tourists — tests and the autoplay pilot read these.
@@ -77,12 +41,11 @@ func _populate() -> void:
 		return
 	_rng.seed = city.seed_value
 	var anchor := _anchor_flat()
-	var blocks := _blocks_in_band(anchor)
-	if blocks.is_empty():
-		blocks = _nearest_blocks(anchor, 6)
+	if city.block_centers.is_empty():
+		return
 	var index := 0
-	while _tourists.size() < target_count and not blocks.is_empty():
-		var block: Vector3 = blocks[_rng.randi_range(0, blocks.size() - 1)]
+	while _tourists.size() < target_count:
+		var block := _pick_block(anchor)
 		var group := mini(target_count - _tourists.size(), _rng.randi_range(2, group_size_max))
 		for _g in group:
 			_spawn_on_block(block, index)
@@ -101,11 +64,10 @@ func _recycle_far() -> void:
 			far.append(tourist)
 	if far.is_empty():
 		return
-	var blocks := _blocks_in_band(anchor)
-	if blocks.is_empty():
+	if _blocks_in_band(anchor).is_empty():
 		return
 	for tourist in far:
-		var block: Vector3 = blocks[_rng.randi_range(0, blocks.size() - 1)]
+		var block := _pick_block(anchor)
 		var loop := _loop_for(block)
 		tourist.recycle_to(_point_on_loop(loop), loop, city.to_global(block))
 
@@ -132,40 +94,6 @@ func _on_tourist_splatted(tourist: Tourist) -> void:
 
 
 ## --- placement helpers -----------------------------------------------------
-
-
-func _anchor_flat() -> Vector2:
-	return Vector2(player.global_position.x, player.global_position.z)
-
-
-func _flat_dist(pos: Vector3, anchor: Vector2) -> float:
-	return Vector2(pos.x - anchor.x, pos.z - anchor.y).length()
-
-
-## City-local block centers whose global position lies inside the spawn band
-## (flat, m) around the anchor.
-func _blocks_in_band(anchor: Vector2) -> Array[Vector3]:
-	var found: Array[Vector3] = []
-	for center in city.block_centers:
-		var d := _center_dist(center, anchor)
-		if d >= spawn_min_dist and d <= spawn_max_dist:
-			found.append(center)
-	return found
-
-
-## Fallback for anchors far from every block: the `count` nearest block
-## centers, band ignored.
-func _nearest_blocks(anchor: Vector2, count: int) -> Array[Vector3]:
-	var sorted_centers := city.block_centers.duplicate()
-	sorted_centers.sort_custom(func(a: Vector3, b: Vector3) -> bool:
-		return _center_dist(a, anchor) < _center_dist(b, anchor))
-	sorted_centers.resize(mini(count, sorted_centers.size()))
-	return sorted_centers
-
-
-func _center_dist(center: Vector3, anchor: Vector2) -> float:
-	var g := city.to_global(center)
-	return Vector2(g.x - anchor.x, g.z - anchor.y).length()
 
 
 ## The block's sidewalk loop in global coords.

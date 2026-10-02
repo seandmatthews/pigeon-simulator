@@ -1,6 +1,6 @@
 # T-054 — Extract BandSpawner and close the unverified car-recycle contract
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 3 · **Risk (1-5):** 3
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** code-optimization · **Value (1-5):** 3 · **Risk (1-5):** 3
 - **Depends on:** — (T-007 and T-008, whose spawners it refactors, are landed) · implements **T-034**
 - **Refs:** sweep 2 planning lane · re-based during the 2026-09-30 backlog audit after T-089 changed the car recycle path (see What); every line number re-verified against the tree on 2026-10-01 — when a file has drifted since, re-locate by symbol
 
@@ -105,23 +105,59 @@ recycle contract, shipping unverified while its tourist twin is machine-proven.
 
 ## Acceptance criteria
 
-- [ ] The five band helpers and the scan timer exist exactly once (in
+- [x] The five band helpers and the scan timer exist exactly once (in
       `band_spawner.gd`); neither spawner script redefines them
-- [ ] Existing density/recycle scenarios stay green unchanged:
+- [x] Existing density/recycle scenarios stay green unchanged:
       `tourists_walk_loose_groups`, `tourists_recycle_around_player`,
       `cars_traffic_loops_blocks`, and T-089's `traffic_recycle_keeps_flow`
       (the extraction must not disturb the rejoin/gap contract it pins)
-- [ ] Gate 1b scenario `cars_recycle_around_player` passes (spec in Verification):
+- [x] Gate 1b scenario `cars_recycle_around_player` passes (spec in Verification):
       teleporting the player beyond the car `recycle_radius` recycles the SAME car
       nodes (instance ids preserved; fleet still 20 traffic + 16 parked), every car
       ends within `recycle_radius` of the new anchor or recycled into the spawn band,
       and no two parked cars come within the 4.5 m `_spot_taken` threshold of each
       other
-- [ ] Spawner exports still resolve from the scene at boot: the real `main.tscn`
+- [x] Spawner exports still resolve from the scene at boot: the real `main.tscn`
       still boots to 18 tourists / 36 cars (the `density_ok` assert inside
       `density_cpu_budget` keeps proving it — `sim_test.gd:5040-5042`, checked at
       `:5049-5053`)
-- [ ] `git diff` shows no change to `scenes/main.tscn`
+- [x] `git diff` shows no change to `scenes/main.tscn`
+
+## Implementation notes (agent run, 2026-10-02)
+
+- `_pick_block(anchor)` carries the band-empty fallback inside it (over a
+  small `_fallback_blocks(anchor)` virtual: tourists keep the base default
+  `_nearest_blocks(anchor, 6)`, cars override with
+  `maxi(target_moving, target_parked)`) so all four former raw-draw sites —
+  both `_populate`s and the tourist `_recycle_far` — go through the one
+  helper while keeping each populate's fallback pool. The recycle paths keep
+  their own `_blocks_in_band` early-return (an empty band must recycle
+  nobody, never fall back). RNG call order and pool sizes are unchanged, so
+  the seeded draws stay byte-identical — the untouched recycle/density
+  scenarios above all pass without retuning.
+- The 80/100 `recycle_radius` split is CarSpawner `_init()` override as
+  specified, load-bearing comment moved down with it. `scenes/main.tscn`
+  untouched (git diff empty on the file in the commit).
+- Verification record: the first gate run failed Gate 1 import/boot on
+  `ERROR: ... addons/godot_mcp/mcp_runtime_probe.gd ... File not found` —
+  project.godot declares that autoload/enabled plugin, but the per-machine
+  addon directory (gitignored by design, see `.gitignore:31`: every checkout
+  needs it on disk, untracked) had never been provisioned in this worktree.
+  Fix: copied `addons/godot_mcp/` from the main checkout (read-only; stays
+  untracked-ignored, tracked tree unchanged). Re-ran with the addon present:
+  Gate 1 import exit 0 and boot `--quit-after 120` exit 0, both with zero
+  ERROR / SCRIPT ERROR / Parse Error lines in the full output; Gate 1b full
+  suite `SIM SUMMARY: 0 failure(s)` (106 passes, including the new
+  `cars_recycle_around_player`, `density_cpu_budget` median 267.4 ms with
+  tourists 18 / cars 36); Gate 2 autoplay `AUTOPLAY DONE ok=true
+  restart=true` reporting `tourists=18 honks run_cars`. Reviewer signed off
+  2026-10-02; status flipped to done.
+- Tuned values: none — pure extraction. Every export keeps its landed value:
+  `recycle_radius` 80.0 (tourist default) / 100.0 (CarSpawner `_init`
+  override), `recycle_interval` 0.5, `spawn_min_dist` 30.0, `spawn_max_dist`
+  70.0, and the car-only `recycle_probe_count` 5 / `ring_traffic_soft_cap` 3.
+  The seeded RNG draw order and pool sizes are byte-identical to the
+  pre-extraction scripts.
 
 ## Verification
 
