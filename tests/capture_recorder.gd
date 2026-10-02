@@ -375,9 +375,13 @@ func _ensure_connections(player: Node) -> void:
 		_connect_once(player, "pooped", func(p): _log_event("poop", {"p": _v((p as Node3D).global_position)}))
 		_connect_once(player, "grounding_changed", func(g): _log_event("grounded" if g else "airborne", {}))
 		## (T-095) The guard's snap home, with the void position it fired from —
-		## the emit runs before `reset_flight`, so this reads the fall, not home.
+		## since T-087 the emission carries that departure position as `from`
+		## (the emit runs before `reset_flight`), and the listener MUST accept
+		## it: Godot 4.7 never delivers a 1-arg signal to a 0-arg callable, so
+		## the old zero-arg lambda both printed an engine ERROR per fire and
+		## logged nothing.
 		_connect_once(player, "off_world_reset",
-				func(): _log_event("off_world_reset", {"p": _v((player as Node3D).global_position)}))
+				func(from: Vector3): _log_event("off_world_reset", {"p": _v(from)}))
 	var hunger := get_tree().root.get_node_or_null("Game/Hunger")
 	if hunger != null:
 		_connect_once(hunger, "game_over", func(): _log_event("game_over", {}))

@@ -1,6 +1,6 @@
 # T-087 — Give the off-world return a visible "came home" beat — today it is a blank frame and a hard cut
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** visual-design · **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-042 (the off-world guard this presents, landed).
 - **Refs:** visual-design lane sweep 2, session `vds3a` (state/frame readings recorded below in text — the session dirs are not present in this repo, checked both checkouts 2026-09-30); [T-042](T-042-off-world-void-respawn.md) — its still-pending Gate 3 line is exactly the read this ticket fixes (`docs/tickets/T-042-off-world-void-respawn.md:83-87`, `VERIFICATION.md:297`).
 
@@ -99,25 +99,61 @@ Gate 3 against T-042's pending line.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: new `off_world_return_beat` passes with every leg listed in What
+- [x] Gate 1b: new `off_world_return_beat` passes with every leg listed in What
       (signal once with the right `from`; feather burst at `from`; fade in and
       fully out within ~1 s game time; camera within ~1.5 m of the corridor rig
       position on the first frame after the reset; grounded home within ~2 s;
       exactly one guard fire; hunger drains > 0.2 through the window)
-- [ ] Gate 1b: `off_world_fall_respawns` and `off_world_fall_returns_home` stay
+      — `off_world_return_beat` SIM PASS in the full-suite run (97 pass /
+      0 fail, exit 0)
+- [x] Gate 1b: `off_world_fall_respawns` and `off_world_fall_returns_home` stay
       green unchanged — the bare-harness windows prove the signal is a no-op
-      without Main
-- [ ] No physics or flight-model change: the guard branch differs from T-042's
+      without Main. (One mechanical adaptation inside
+      `off_world_fall_returns_home`, not an assertion change: its counting
+      lambda gained the ignored `_from: Vector3` parameter because Godot 4.7
+      does not deliver a 1-arg signal to a 0-arg callable — with the old
+      signature the counter read `signal=0` on a live emission.)
+- [x] No physics or flight-model change: the guard branch differs from T-042's
       landed shape only by the emit line; every flight/landing scenario stays
       green (`camera_follows_yaw`, `camera_fov_kick`, `camera_tucks_in_grounded`
       re-run explicitly — snap_home is only ever called from the signal path)
-- [ ] No input actions change (no README/VERIFICATION controls-table updates)
-- [ ] [screenshot] Flying hard past the apron now reads as "came home" — a warm
+- [x] No input actions change (no README/VERIFICATION controls-table updates)
+- [x] [screenshot] Flying hard past the apron now reads as "came home" — a warm
       fade covers the cut, feathers mark the departure point, and the lens is
-      already home when the fade lifts (Gate 3 — human judgement; retires
-      T-042's pending teleport-glitch line)
-- [ ] [screenshot] Across a presented return the hunger bar visibly keeps
-      ticking down (Gate 3 — the machine half is the scenario's drain leg)
+      already home when the fade lifts (Gate 3 — reviewer sign-off 2026-10-01,
+      played with the beat live; retires T-042's pending teleport-glitch line)
+- [x] [screenshot] Across a presented return the hunger bar visibly keeps
+      ticking down (Gate 3 — reviewer sign-off 2026-10-01; the machine half is
+      the scenario's drain leg)
+
+## Implementation notes (2026-10-01)
+
+- Final tuned values (landed; all Gate-3 taste values, approved by the
+  sign-off): `return_fade_peak` 0.65, `return_fade_seconds` 0.6,
+  `return_fade_color` `Color(1.0, 0.85, 0.6)` (warm amber), `HOME_NOTE_SECONDS`
+  2.5.
+- One deviation forced by the signal ordering the ticket itself mandates: the
+  emit fires BEFORE `reset_flight`, so a synchronous `snap_home()` inside the
+  handler reads the void position and would re-create the cross-world camera
+  chase this ticket exists to kill (the first sim run proved it: camera 6.7 m
+  low on the reset frame). `snap_home()` keeps the ticket-specified body; Main's
+  handler calls it via `call_deferred`, so it runs after the same frame's
+  reset and lands the rig exactly on the corridor follow target.
+- Gate 2 ran green (`AUTOPLAY DONE ok=true ... restart=true`, exit 0, no
+  SCRIPT ERROR); that particular pilot run stayed over the city, so the
+  off-world self-heal was not exercised in it — the beat's live visibility is
+  the Gate 3 line below.
+- Review round 1 caught a second `off_world_reset` listener this change-set
+  broke: the pilot recorder's 0-arg lambda (`tests/capture_recorder.gd:380`).
+  Godot 4.7 never delivers a 1-arg signal to a 0-arg callable — the recorder
+  printed an engine ERROR per guard fire and logged no event (proven live in
+  the reviewer's session rv1t087). Fixed the same way as the sim lambda, and
+  the T-095 evidence path was re-flown: session `t087rv1b` (dive from ~1194 m
+  out) logged
+  `{"ev":"off_world_reset","p":[16.0,-5.48,-1194.33],"t_ms":146436}` between
+  the last outbound state and the corridor `grounded`, `off_world_resets`
+  stepped 0 → 1 exactly once, and the session's godot.log has zero ERROR
+  lines.
 
 ## Verification
 

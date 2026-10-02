@@ -56,6 +56,8 @@ var _main_game: MainGame ## The real main.tscn instance the T-010 flow scenarios
 var _bread_shared: Array[Dictionary] = [] ## bread_shared relays caught from the elder spawner under test (T-020).
 var _regen_relay: int = 0 ## regenerated relays caught from the city under restart (T-033) — signal counters survive inside lambdas only as members.
 var _off_world_signal_fires: int = 0 ## `off_world_reset` emissions caught in the T-036 scenario (T-095) — same member rule as `_regen_relay`.
+var _return_signal_fires: int = 0 ## (T-087) `off_world_reset(from)` emissions caught in the return-beat scenario — same member rule.
+var _return_signal_from: Vector3 ## (T-087) The departure position carried by the last caught emission.
 
 
 func _ready() -> void:
@@ -183,6 +185,7 @@ func _run_scenarios() -> void:
 	await _scenario_ambience_bed()
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
+	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
 	print("SIM SUMMARY: %d failure(s)" % _failures)
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -5014,7 +5017,7 @@ func _scenario_off_world_fall_returns_home() -> void:
 	## scenario can disconnect it (the harness player is shared across
 	## scenarios, like the `hunger.free()` housekeeping below).
 	_off_world_signal_fires = 0
-	var on_off_world_reset := func() -> void: _off_world_signal_fires += 1
+	var on_off_world_reset := func(_from: Vector3) -> void: _off_world_signal_fires += 1
 	_player.off_world_reset.connect(on_off_world_reset)
 	var home: Vector3 = _player.respawn_point
 	var hunger0: float = hunger.value
@@ -5046,3 +5049,119 @@ func _scenario_off_world_fall_returns_home() -> void:
 			"counter=%d signal=%d grounded_home=%s stable=%s hunger lost %.2f, rest %.2f m/s at %s (finite=%s)" % [
 					_player.off_world_resets, _off_world_signal_fires, grounded_home, stable, hunger_loss,
 					_player.velocity.length(), _player.position, finite])
+
+
+## --- scenario (T-087 off-world return beat) ---------------------------------
+
+
+## The PRESENTED return through the real main scene (T-087): the guard fires,
+## and Main answers with the whole "came home" beat — a feather poof at the
+## departure point, a warm HUD fade that is up right after the reset and fully
+## gone within ~1 s of game time, the chase camera already home on the first
+## frame after the reset (the snap, not a ~755 m lerp), and the "home again"
+## note showing its exact text — while the T-042/T-036 machine contract keeps
+## holding through the presented return: exactly one guard fire (counter AND
+## signal, `from` equal to the void departure position), grounded on the
+## respawn corridor within ~2 s, no second fire across a further ~2 s, and
+## Game.hunger (attached by Main._ready()) draining > 0.2 across the window.
+## The bare-harness sibling above stays untouched: there the signal has zero
+## listeners, proving the emit alone is a no-op. A second deliberate fire then
+## re-runs the beat and restart_run() mid-note clears it unpaused (the T-100
+## fold). Registered after that sibling: it owns one instanced Main in its own
+## space and leaves the tree unpaused with no live Main (cleanup tail per the
+## poop_ready_indicator precedent).
+func _scenario_off_world_return_beat() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(4500.0, 0.0, -4500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var pigeon: Player = main_game.player
+	var fade: ColorRect = main_game.return_fade
+	var note: Label = main_game.home_note
+	## Signal evidence: count the emissions and keep the last `from` — member
+	## vars, because locals do not survive inside lambdas. The connect precedes
+	## the drive because the guard fires inside the first post-reset frame.
+	_return_signal_fires = 0
+	var on_return := func(from: Vector3) -> void:
+		_return_signal_fires += 1
+		_return_signal_from = from
+	pigeon.off_world_reset.connect(on_return)
+	var rest_ok: bool = not note.visible and fade.color.a <= 0.01
+	var hunger0: float = Game.hunger.value
+	## Drive the pigeon below the guard line directly (local convention —
+	## global y −10 against the −5 line, under the instanced city, no floor):
+	## the exact T-042 entry, played through the full game shell this time.
+	pigeon.reset_flight(Vector3(0.0, -10.0, 0.0))
+	var departure: Vector3 = pigeon.global_position ## The void position the guard will emit — no physics frame has run since the reset.
+	await _wait_frames(2) ## The guard fires inside the first of these frames.
+	var fired_once: bool = pigeon.off_world_resets == 1 and _return_signal_fires == 1
+	var from_ok: bool = _return_signal_from.distance_to(departure) < 0.1
+	## First-frame camera: already snapped onto the corridor rig position
+	## (pigeon + UP * pivot_height_air 1.4 — the pigeon has never grounded), not
+	## mid-lerp across the world.
+	var cam_ok: bool = pigeon.chase_camera.global_position \
+			.distance_to(pigeon.global_position + Vector3.UP * 1.4) < 1.5
+	## The feather poof exists AT the departure point on the reset frame —
+	## found through the juice_effects group like the other juice scenarios.
+	var poof: OneShotBurst = null
+	for node in get_tree().get_nodes_in_group("juice_effects"):
+		if node is OneShotBurst and node.scene_file_path.ends_with("feather_poof.tscn") \
+				and node.global_position.distance_to(departure) < 0.5:
+			poof = node
+	var poof_ok: bool = poof != null
+	var note_shown_ok: bool = note.visible and note.text == "home again — mind the edge"
+	var fade_up_early: bool = fade.color.a > 0.0
+	## Ground on the respawn corridor within ~2 s, watching the fade: it must
+	## climb past a readable alpha and then be fully gone (≤ 0.01) within ~1 s
+	## of game time (~66 frames) of the fire.
+	var home: Vector3 = pigeon.global_position ## The corridor, one settle frame after the snap.
+	var grounded := false
+	var fade_seen := false
+	var fade_cleared_frame := -1
+	var frames_since_fire := 0
+	for _i in 120:
+		await get_tree().physics_frame
+		frames_since_fire += 1
+		if not grounded and pigeon.is_grounded \
+				and pigeon.global_position.distance_to(home) < 2.0:
+			grounded = true
+		if fade.color.a > 0.3:
+			fade_seen = true
+		if fade_seen and fade_cleared_frame < 0 and fade.color.a <= 0.01:
+			fade_cleared_frame = frames_since_fire
+		if grounded and fade_cleared_frame >= 0:
+			break
+	var fade_cleared_ok: bool = fade_seen and fade_cleared_frame >= 0 \
+			and fade_cleared_frame <= 66
+	## ~2 s more parked home: no second fire (counter or signal), still
+	## grounded — and the note has expired on its own (~150 game-time frames
+	## have passed by the end of this window, whichever way the loops broke).
+	await _wait_frames(120)
+	var stable: bool = fired_once and grounded and pigeon.is_grounded \
+			and pigeon.global_position.distance_to(home) < 1.0 \
+			and pigeon.off_world_resets == 1 and _return_signal_fires == 1 \
+			and not note.visible
+	var hunger_loss: float = hunger0 - Game.hunger.value
+	## (T-100 fold) A second deliberate fire re-runs the beat; restart_run()
+	## mid-note clears note and fade and leaves the tree unpaused.
+	pigeon.reset_flight(Vector3(0.0, -10.0, 0.0))
+	await _wait_frames(2)
+	var rebeat_ok: bool = note.visible and _return_signal_fires == 2 \
+			and fade.color.a > 0.0
+	main_game.restart_run()
+	await _wait_frames(3)
+	var restart_ok: bool = not get_tree().paused and not note.visible \
+			and fade.color.a <= 0.01
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("off_world_return_beat",
+			rest_ok and fired_once and from_ok and cam_ok and poof_ok and note_shown_ok
+					and fade_up_early and fade_cleared_ok and grounded and stable
+					and hunger_loss > 0.2 and rebeat_ok and restart_ok,
+			"rest=%s fires=%d from_ok=%s cam=%s poof=%s note=%s fade_up=%s fade_clear@%s grounded=%s stable=%s hunger_loss=%.2f rebeat=%s restart=%s" % [
+					rest_ok, _return_signal_fires, from_ok, cam_ok, poof_ok, note_shown_ok,
+					fade_up_early, fade_cleared_frame, grounded, stable, hunger_loss,
+					rebeat_ok, restart_ok])
