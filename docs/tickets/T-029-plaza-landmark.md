@@ -1,6 +1,6 @@
 # T-029 — Plaza landmark: statue on a plinth at the square's center
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-004 (plaza + generator guarantees)
 - **Refs:** `docs/DESIGN.md:90-91` → "Landmarks sprinkled by seed (statue
   square, café tables)" · `docs/tickets/README.md:127-128` → M2 backlog
@@ -114,22 +114,22 @@ the opening climb — the spawn drop is on the road corridor next to the plaza
 
 ## Acceptance criteria
 
-- [ ] Exactly one landmark stands at the plaza center every run: footprint
+- [x] Exactly one landmark stands at the plaza center every run: footprint
       within 2.5 m of the plaza center, total top ≤ 5.5 m — inside the 12 m
       spawn-clear guarantee and far under both `max_roof_height` (20.0,
       `scripts/city.gd:168`) and the 23 m cruise floor.
-- [ ] Zero city-RNG draws added: same-seed regeneration reproduces the
+- [x] Zero city-RNG draws added: same-seed regeneration reproduces the
       fingerprint exactly, and every RNG-derived value (buildings, parks,
       benches, lamps, bins, shopfront rolls incl. the pinned 104 awnings,
       bread spots) is unchanged from before the ticket.
-- [ ] Both cross-build fingerprint pins re-derived in this change-set
+- [x] Both cross-build fingerprint pins re-derived in this change-set
       (headless `City.generate` probe, the T-051 precedent) and updated at
       all four pin sites (`tests/sim_test.gd:919-921` + `:1003-1005`,
       `:2546-2548`, `:2634-2637`, `:2794-2796`) and the `VERIFICATION.md`
       rows quoting the values (`:115`, `:121`, `:122`, `:124`).
-- [ ] The plinth is landable: a drop onto it settles grounded at plinth-top
+- [x] The plinth is landable: a drop onto it settles grounded at plinth-top
       height and a flap takes off again (bench-landing template).
-- [ ] *(Gate 1b)* `city_plaza_landmark`: on a real generated City — exactly
+- [x] *(Gate 1b)* `city_plaza_landmark`: on a real generated City — exactly
       one landmark; footprint inside `spawn_clear_radius`; top <
       `max_roof_height` and < 23 m; `_city.generate(default_seed)`
       reproduces the landmark transform byte-identically; plus a
@@ -137,15 +137,21 @@ the opening climb — the spawn drop is on the road corridor next to the plaza
       altitude crosses the city without touching anything
       (`city_street_flyover` template — scenario `tests/sim_test.gd:782`,
       check `:801`; min y > 20).
-- [ ] *(Gate 1b)* The four plaza-anchor scenarios — `cars_traffic`,
+- [x] *(Gate 1b)* The four plaza-anchor scenarios — `cars_traffic`,
       `car_splat_honk`, `traffic_recycle_keeps_flow`, `audio_hit_sounds` —
       pass with their five drops moved off-center; `city_plaza_spawn`
       (road-corridor drop — scenario `tests/sim_test.gd:770`, check `:776`)
       passes unchanged; `city_same_seed_deterministic` and
       `city_regenerate_restores_layout` pass at the NEW pin values.
-- [ ] [screenshot] From flight height (~20 m) and from the plaza pavement
+- [x] [screenshot] From flight height (~20 m) and from the plaza pavement
       the statue reads as the square's heart — visible against the pale
       slab, not clipping the benches or the T-020 elders on the 8 m ring.
+      *(passed at the 2026-10-02 review — reviewer sign-off, ticket
+      accepted; agent grabs staged as evidence:
+      `.captures/t029_plaza_air20.png` from ~20 m, statue centered on the
+      slab with the bench ring clear around it; `.captures/t029_plaza_air.png`
+      from the pavement beside the plinth, an elder on the ring bench visible
+      and unbothered.)*
 
 ## Verification
 
@@ -180,7 +186,32 @@ flight (`:317`). With a 2.12 m plinth there, re-run Gate 2 and require
 fallback landing target off-center in `tests/autoplay.gd` in the same
 change-set.
 
-**Pending human playtest (Gate 3):** new line — "the plaza landmark reads
+**Human playtest (Gate 3):** new line — "the plaza landmark reads
 from the air and orients you home from anywhere in the grid"; the existing
 T-004/T-020 plaza lines re-checked (elders, benches and the spawn drop
-unbothered).
+unbothered). Passed: reviewer sign-off 2026-10-02, ticket accepted.
+
+## Landed (2026-10-02; reviewer sign-off 2026-10-02 — status flipped to done)
+
+Tuned values: `COLOR_STONE` Color(0.44, 0.42, 0.38) — 0.255 Euclidean RGB
+from the pale `COLOR_PLAZA` slab; `COLOR_BRONZE` Color(0.34, 0.26, 0.17);
+plinth base 2.4 × 0.9 × 2.4 + cap 1.8 × 1.1 × 1.8 (cap top at 2.12 m, the
+one `Props` collider's landing face); figure = legs/body/tail/neck/head/beak
+boxes, highest point 5.07 m global; plaza-anchor drop offset
+`PLAZA_DROP_OFFSET = (4.0, 0.0, 3.0)` (5.0 m out from the center); new
+cross-build pins — seed 20260928 → **1006789400**, seed 424242 →
+**3359332191** — derived with a headless `City.generate` probe
+(`tests/tools/fp_probe.gd`, throwaway, not committed) and confirmed
+reproducible in-process before the pins were rewritten.
+
+Gates run on this change-set: Gate 1 import + 120-frame boot clean (only the
+documented benign godot_mcp "33 resources still in use" import line and a
+pre-existing leaked-Timer exit warning — both reproduced on the pristine
+tree). Gate 1b full suite: exit 0, 99 `SIM PASS`, 0 failures — 111 `_check`
+sites / 99 unique labels / 87 dispatches, exactly the predicted +1. The
+`city_plaza_landmark` SIM DATA line: `top=5.07 cap=2.12 clear_radius=12.0
+fingerprint=1006789400`. Gate 2 autoplay: `AUTOPLAY DONE ok=true …
+restart=true`, fps 132, no plinth wedge — `tests/autoplay.gd` untouched
+(its plaza-center fallback landing target cleared the landmark: the pilot's
+descent treats the plinth as the perch it is). Gate 3: passed at review —
+reviewer sign-off 2026-10-02 over the staged agent grabs (above).

@@ -34,6 +34,8 @@ const COLOR_BENCH_WOOD := Color(0.55, 0.38, 0.24)
 const COLOR_METAL := Color(0.25, 0.26, 0.28)
 const COLOR_BIN := Color(0.16, 0.30, 0.20)
 const COLOR_TANK := Color(0.45, 0.53, 0.58) ## Dull plastic rooftop water tanks (T-032).
+const COLOR_STONE := Color(0.44, 0.42, 0.38) ## Gray limestone plaza landmark plinth (T-029) — clearly darker than the pale plaza slab.
+const COLOR_BRONZE := Color(0.34, 0.26, 0.17) ## Dark oxidized bronze plaza landmark figure (T-029).
 const COLOR_LAMP_GLOW := Color(1.0, 0.9, 0.6)
 const COLOR_DOOR := Color(0.18, 0.14, 0.12)
 const COLOR_CROSSWALK := Color(0.78, 0.78, 0.75) ## Worn-white zebra paint (T-069) — clearly not the yellow lane mark.
@@ -152,6 +154,24 @@ const SKYLINE_SALT_CLASS := 307
 const SKYLINE_SALT_HEIGHT := 401
 const SKYLINE_SALT_WIDTH := 503
 const SKYLINE_SALT_SHADE := 601
+
+## Plaza landmark layout (T-029): a bronze pigeon on a limestone plinth at the
+## exact center of the spawn plaza — the square's heart, the one fixed volume
+## to steer home by. Built from fixed offsets at the plaza center like every
+## city visual: ZERO draws from `_rng`/`_shop_rng` and exactly one `_fp` entry
+## (`["landmark", center.x, center.z]`), so the RNG streams stay byte-identical
+## and the fingerprint tracks the anchor's position. The plinth is landable
+## through ONE layer-1 `Props` collider (the bench pattern) whose top face is
+## the cap top at `block_slab_height + LANDMARK_PLINTH_TOP`; the figure above
+## stays visual-only (the T-017 awning decision) — flight passes through it
+## rather than snagging at perch-climb altitude. Total top
+## `block_slab_height + LANDMARK_FIGURE_TOP` ≈ 5.07 m: under the ticket's 5.5 m
+## bar, deep inside the 12 m spawn-clear guarantee and far below both
+## `max_roof_height` and the 23 m cruise floor.
+const LANDMARK_PLINTH_BASE := Vector3(2.4, 0.9, 2.4) ## Plinth base box, rising from the slab.
+const LANDMARK_PLINTH_CAP := Vector3(1.8, 1.1, 1.8) ## Plinth cap box on the base — its top is the landing surface.
+const LANDMARK_PLINTH_TOP := 2.0 ## Cap top above the slab top (m) — base 0.9 + cap 1.1.
+const LANDMARK_FIGURE_TOP := 4.95 ## Figure's highest point above the slab top (m) — a ~3 m pigeon on the cap.
 
 @export_group("Layout")
 ## Fixed M1 seed — same city every run so runs and scores stay comparable.
@@ -516,6 +536,8 @@ func _make_meshes() -> void:
 		"tree_crown": _unit_box(_flat_material(COLOR_RIM_CROWN)),
 		"skyline": _unit_box(_vertex_color_material()),
 		"skyline_tall": _unit_box(_vertex_color_material()),
+		"plinth": _unit_box(_flat_material(COLOR_STONE)),
+		"figure": _unit_box(_flat_material(COLOR_BRONZE)),
 	}
 	## Facades (T-049): one key per floor count a building can have — each its
 	## own material drawing exactly that many window rows, so a BoxMesh face
@@ -945,8 +967,10 @@ func cafe_spot_for(info: Dictionary) -> Transform3D:
 	return Transform3D(Basis(Vector3.UP, atan2(-normal.x, -normal.z)), pos)
 
 
-## The spawn plaza: an open paved block — benches around a clear middle,
-## lamps on the corners, bins on the diagonals. The center stays empty.
+## The spawn plaza: an open paved block — benches around a landmarked middle,
+## lamps on the corners, bins on the diagonals. The center carries the T-029
+## landmark (the bronze pigeon on its plinth); everything else stays on the
+## 8 m ring and outside.
 func _build_plaza(center: Vector3) -> void:
 	for i in 8:
 		var ang := TAU * i / 8.0
@@ -962,6 +986,43 @@ func _build_plaza(center: Vector3) -> void:
 	for corner: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
 		_add_lamp(center + Vector3(corner.x * 9.8, 0.0, corner.y * 9.8))
 		_add_bin(center + Vector3(corner.x * 5.5, 0.0, corner.y * 5.5))
+	_add_landmark(center) ## T-029 — after the ring, at the center.
+
+
+## The plaza landmark (T-029): a stylized bronze pigeon on a limestone plinth,
+## standing at the exact plaza center. Plinth = base box plus cap box, the cap
+## top at `block_slab_height + LANDMARK_PLINTH_TOP` (2.12 m global) — the one
+## landing surface, carried by a single layer-1 `Props` box collider (the bench
+## pattern). Figure = legs, body, tail fan, neck, head and beak as boxes (the
+## T-011 hand-built-primitives recipe), facing +x, highest point at
+## `block_slab_height + LANDMARK_FIGURE_TOP` (≈ 5.07 m global) — visual-only,
+## the T-017 awning decision. Pure layout: fixed offsets, zero RNG of any
+## stream, one `_fp` entry so the fingerprint pins the anchor's position.
+func _add_landmark(center: Vector3) -> void:
+	var slab := block_slab_height
+	_add_mm("plinth", _box_xf(center + Vector3(0.0,
+			slab + LANDMARK_PLINTH_BASE.y * 0.5, 0.0), LANDMARK_PLINTH_BASE))
+	_add_mm("plinth", _box_xf(center + Vector3(0.0,
+			slab + LANDMARK_PLINTH_BASE.y + LANDMARK_PLINTH_CAP.y * 0.5, 0.0),
+			LANDMARK_PLINTH_CAP))
+	_add_collider("Props",
+			Vector3(LANDMARK_PLINTH_BASE.x, LANDMARK_PLINTH_TOP, LANDMARK_PLINTH_BASE.z),
+			center + Vector3(0.0, slab + LANDMARK_PLINTH_TOP * 0.5, 0.0))
+	_add_mm("figure", _box_xf(center + Vector3(-0.55, slab + 2.35, 0.0),
+			Vector3(0.28, 0.7, 0.28))) ## Legs (paired).
+	_add_mm("figure", _box_xf(center + Vector3(0.55, slab + 2.35, 0.0),
+			Vector3(0.28, 0.7, 0.28)))
+	_add_mm("figure", _box_xf(center + Vector3(0.0, slab + 3.3, 0.0),
+			Vector3(1.8, 1.2, 1.0))) ## Body — chest to tail along +x.
+	_add_mm("figure", _box_xf(center + Vector3(-0.98, slab + 3.4, 0.0),
+			Vector3(0.16, 1.1, 0.8))) ## Tail fan, rising behind the body.
+	_add_mm("figure", _box_xf(center + Vector3(0.6, slab + 4.1, 0.0),
+			Vector3(0.4, 0.6, 0.4))) ## Neck.
+	_add_mm("figure", _box_xf(center + Vector3(0.7, slab + 4.6, 0.0),
+			Vector3(0.7, 0.7, 0.7))) ## Head.
+	_add_mm("figure", _box_xf(center + Vector3(1.24, slab + 4.6, 0.0),
+			Vector3(0.38, 0.16, 0.16))) ## Beak.
+	_fp.append(["landmark", center.x, center.z])
 
 
 ## Benches along the edges, lamps on the corners, the occasional bin.
