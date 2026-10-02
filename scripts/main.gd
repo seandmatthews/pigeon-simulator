@@ -11,6 +11,10 @@ extends Node3D
 
 const HINT_AIR := "W/S pitch · A/D turn · Space flap · F poop · land by bread to eat"
 const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off · walk into crumbs to eat"
+## (T-023) The edge-of-world hint: shown on the same line while airborne past
+## the apron — the one place with no floor ahead — naming WHY the course keeps
+## bending home, ahead of the T-042 guard's fall.
+const HINT_EDGE := "Nothing out there — turn back"
 ## (T-079) How long the "landing ended the ×N combo" note stays up after a
 ## landing kills a live combo — game time, like the HUD pulses and the T-040
 ## strip, so it freezes with a paused or ended run.
@@ -96,6 +100,7 @@ var _combo_strip_left: float = 0.0 ## (T-040) Game-time seconds left before the 
 var _return_fade_phase: float = -1.0 ## (T-087) <0 idle; 0..return_fade_seconds while the return fade runs — game time, like the tier pulse.
 var _home_note_phase: float = 0.0 ## (T-087, folded from T-100) Game-time seconds the note has shown; advanced only while visible.
 var _combo_note_left: float = 0.0 ## (T-079) Game-time seconds left before the landing note clears; 0 = at rest, empty.
+var _edge_hinting: bool = false ## (T-023) True while the edge hint owns the hint line — re-evaluated every _process frame, so grounding (including the guard's teleport-then-drop) self-clears it and hands the label back to `_on_grounding_changed` instead of the two writers fighting.
 
 
 func _ready() -> void:
@@ -130,6 +135,14 @@ func _ready() -> void:
 	## never goes stale in M1 — restart_run() always keeps the same seed, so
 	## spawn_point (and with it the guard's target) is identical across restarts.
 	player.respawn_point = city.to_local(city.spawn_point)
+	## (T-023) The edge nudge's home: the span is symmetric about the City
+	## origin and the apron (the ground collider is exactly `city_span +
+	## ground_extra * 2` wide) ends half that width out — 367 m at defaults,
+	## ~250 m beyond the 234 m city edge. The same never-stale argument applies:
+	## restart_run() regenerates the same-seed city in place, so one wiring here
+	## is enough for the run's lifetime.
+	player.home_center = city.global_position
+	player.home_radius = city.city_span * 0.5 + city.ground_extra
 	player.reset_flight(player.respawn_point)
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)
 
@@ -154,6 +167,7 @@ func _process(delta: float) -> void:
 		hunger_bar.modulate = TIER_REST_COLORS[hud_warning_tier].lerp(TIER_PULSE_TO, beat)
 	_update_bread_pointer() ## Wayfinding (T-037) — refreshed alongside the stats line.
 	_update_poop_ready() ## The F readiness glyph (T-077) — same game-time cadence.
+	_update_edge_hint() ## The T-023 turn-back cue past the apron — same game-time cadence.
 	if _combo_strip_left > 0.0: ## (T-040) The strip expires in game time like the tier pulse —
 		_combo_strip_left -= delta ## deterministic under --fixed-fps, frozen while paused/over.
 		if _combo_strip_left <= 0.0:
@@ -280,6 +294,27 @@ func _update_poop_ready() -> void:
 	var want_alpha := 1.0 if player.poop_ready else POOP_READY_DIM_ALPHA
 	if not is_equal_approx(poop_ready_label.modulate.a, want_alpha):
 		poop_ready_label.modulate.a = want_alpha
+
+
+## The edge-of-world hint (T-023): while the nudge is wired (`home_radius > 0`)
+## and the pigeon is airborne past the apron radius — the flat horizontal
+## distance the nudge itself reads — the hint line names WHY the course keeps
+## bending home instead of letting the pigeon discover the void by falling.
+## Back inside (or grounded — which includes the T-042 guard's teleport, whose
+## drop lands on the corridor well inside the radius) the normal air/ground
+## hint returns. The `_edge_hinting` flag coordinates the two writers: the
+## grounding handler leaves the line alone while the edge hint owns it, and
+## every write here is edge-triggered, so idle frames touch nothing. The
+## T-087 beat's `%ReturnFade`/`%HomeNote` are separate UI — untouched here.
+func _update_edge_hint() -> void:
+	var past_edge := player.home_radius > 0.0 and not player.is_grounded \
+			and Vector2(player.global_position.x - player.home_center.x,
+					player.global_position.z - player.home_center.z).length() > player.home_radius
+	if past_edge == _edge_hinting:
+		return ## Idle frame — no write.
+	_edge_hinting = past_edge
+	hint_label.text = HINT_EDGE if past_edge \
+			else (HINT_GROUND if player.is_grounded else HINT_AIR)
 
 
 ## The hunger bar mirrors Game.hunger.changed — the number stays on the stats
@@ -436,6 +471,7 @@ func restart_run() -> void:
 	combo_note.text = "" ## (T-079) …and no landing note mid-display — Game.reset_run()
 	combo_note.visible = false ## zeroes the streak but knows nothing of the HUD.
 	_combo_note_left = 0.0
+	_edge_hinting = false ## (T-023) A fresh run drops the pigeon on the corridor, well inside the radius — the next _process frame rewrites the normal hint, so no stale edge text across the reset.
 	city.generate(city.seed_value)
 	player.reset_flight(city.to_local(city.spawn_point))
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)
@@ -462,7 +498,13 @@ func _quit() -> void:
 ## _ready silently kills the note (the read would always be ×0) — the sim
 ## scenario drives the real signal precisely to keep this covered.
 func _on_grounding_changed(grounded: bool) -> void:
-	hint_label.text = HINT_GROUND if grounded else HINT_AIR
+	## (T-023) The edge hint owns the line while `_edge_hinting` is up — every
+	## past-edge frame is airborne, so grounding always makes the condition
+	## false and the next _process frame rewrites the normal hint here anyway.
+	## Only the hint write yields; the combo-note read below stays live in both
+	## writers (the load-bearing order note above still holds).
+	if not _edge_hinting:
+		hint_label.text = HINT_GROUND if grounded else HINT_AIR
 	if not grounded:
 		return
 	## Read while the streak is still live — see the order note above.

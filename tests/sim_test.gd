@@ -160,6 +160,7 @@ func _run_scenarios() -> void:
 	await _scenario_hands_off_mush_exits() ## T-081 — a slow nose-high hands-off mush falls into a sink instead of hovering at the aligner's equilibrium.
 	await _scenario_stall_falls_develops() ## T-081/T-061 — a stalled climb develops a real fall within ~0.75 s of the stall flag.
 	await _scenario_off_world_fall_respawns() ## T-042 — flight-model guard: the void past the apron walks home.
+	await _scenario_edge_nudge_turns_home() ## T-023 — the prevention layer ahead of the guard: past the apron the course bends home.
 	await _scenario_city_layout()
 	await _scenario_city_plaza()
 	await _scenario_city_street_flyover()
@@ -883,6 +884,55 @@ func _scenario_off_world_fall_respawns() -> void:
 					hunger0 - hunger.value, all_finite])
 	hunger.free()
 	_player.respawn_point = Vector3.ZERO ## Housekeeping — later scenarios wire none.
+
+
+## (T-023) The edge nudge, the prevention layer ahead of the T-042 guard:
+## reset 300 m past the city edge — 417 m from the home center, 50 m past the
+## 367 m apron radius, mid-ramp — flying straight out (nose +X, dead away from
+## home: the bearing sine's zero, so the scenario also proves the steer does
+## not stall there) and hands-off for 3 s (180 frames), the heading must rotate
+## ≥ 30° back toward home while y never drops below 0. The guard cannot fire
+## inside the window (from y 30 the flight model's softened gravity sinks
+## roughly 10 m, far above the −5 line — `min_gravity_fraction` 0.2), so the
+## heading assertion is what bites: today's tree has no homing term in _steer
+## and keeps the nose on +X. The scenario wires `home_center`/`home_radius`
+## itself — the only one that does, which is what keeps every other scenario's
+## in-city handling untouched by construction (radius 0.0 disables entirely).
+func _scenario_edge_nudge_turns_home() -> void:
+	## The shared harness player carries `off_world_resets` == 1 out of
+	## `off_world_fall_respawns` (it runs immediately before and never zeroes
+	## it — the same reason the later `off_world_fall_returns_home` sibling
+	## zeroes it for its own window): zero it so this scenario's quiet arm
+	## asserts ITS OWN window fired nothing.
+	_player.off_world_resets = 0
+	var home: Vector3 = _city.global_position
+	_player.home_center = home
+	_player.home_radius = _city.city_span * 0.5 + _city.ground_extra
+	var half: float = _city.city_span * 0.5
+	await _set_up(true, home + Vector3(half + 300.0, 30.0, 0.0), Vector3(17.0, 0.0, 0.0), -90.0)
+	var start_fwd := -_player.transform.basis.z
+	start_fwd.y = 0.0
+	var min_y := INF
+	for _i in 180: ## 3 s hands off.
+		await get_tree().physics_frame
+		min_y = minf(min_y, _player.global_position.y)
+	var end_fwd := -_player.transform.basis.z
+	end_fwd.y = 0.0
+	var turned_deg := rad_to_deg(start_fwd.normalized().angle_to(end_fwd.normalized()))
+	var to_home := home - _player.global_position
+	to_home.y = 0.0
+	var end_bearing_deg := rad_to_deg(end_fwd.normalized().angle_to(to_home.normalized()))
+	var finite := _player.velocity.is_finite() and _player.global_position.is_finite()
+	var quiet := _player.off_world_resets == 0 ## The guard never fired — the nudge alone did the turning.
+	print("SIM DATA edge_nudge_turns_home: turned %.1f deg, end bearing %.1f deg, min y %.2f m, resets %d" % [
+			turned_deg, end_bearing_deg, min_y, _player.off_world_resets])
+	_check("edge_nudge_turns_home",
+			turned_deg >= 30.0 and end_bearing_deg < 180.0 and min_y >= 0.0
+					and quiet and finite,
+			"turned %.1f deg (bar >= 30 toward home), end bearing %.1f deg, min y %.2f m (bar >= 0), resets %d, finite=%s" % [
+					turned_deg, end_bearing_deg, min_y, _player.off_world_resets, finite])
+	_player.home_center = Vector3.ZERO ## Housekeeping — later scenarios run with the nudge disabled.
+	_player.home_radius = 0.0
 
 
 ## --- scenarios (T-004 city blockout) ---------------------------------------
