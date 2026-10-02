@@ -1,6 +1,6 @@
 # T-090 — Signboards over the shop doors
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** —
 - **Refs:** T-017 shopfronts (landed) · pairs with T-049 (window rows, landed)
   for the full eye-level fix · [T-103](T-103-shop-door-orientation.md)
@@ -91,19 +91,19 @@ real judge, at eye level, close, on the CORRECTED geometry.
 
 ## Acceptance criteria
 
-- [ ] Every building shows exactly one signboard plaque centered above its
+- [x] Every building shows exactly one signboard plaque centered above its
       door on the shop band, mounted on the door-face normal, spanning
       slab+2.30 → slab+2.80, its center plane 0.05 m proud of the band outset
       on the `face_out * 0.5` face-distance term — the transform recomputable
       from the building record (`door_face`, `size`, `center`; `size` carries
       the per-axis T-051 footprint).
-- [ ] A plaque never interpenetrates its awning when present (plaque top
+- [x] A plaque never interpenetrates its awning when present (plaque top
       slab+2.80 vs awning underside slab+2.855) and never reaches the roofline
       (smallest building: 2 floors → roof top at slab+6.25).
-- [ ] Zero RNG draws and zero `_fp` entries added: same-seed regeneration
+- [x] Zero RNG draws and zero `_fp` entries added: same-seed regeneration
       reproduces the fingerprint exactly, and the pinned counts are unchanged
       (146 buildings, 104 awnings, 679 bread spots).
-- [ ] (Gate 1b) `city_shopfronts_present` (`_scenario_city_shopfronts`,
+- [x] (Gate 1b) `city_shopfronts_present` (`_scenario_city_shopfronts`,
       `tests/sim_test.gd:1119-1182`) extended: `_city._visuals["sign"].xfs`
       (`scripts/city.gd:295`) holds exactly one transform per building (146 at
       the M1 seed) and each equals a harness-side
@@ -120,13 +120,13 @@ real judge, at eye level, close, on the CORRECTED geometry.
       (`tests/sim_test.gd:2319`, `:2401`) because
       `MultiMesh.get_instance_transform` reads back identity headless
       (`tests/sim_test.gd:953`, `:2307-2311`).
-- [ ] (Gate 1b) `city_shopfronts_deterministic` (its twin leg,
+- [x] (Gate 1b) `city_shopfronts_deterministic` (its twin leg,
       `tests/sim_test.gd:1167-1182`) extended: snapshot the sign xfs before
       `generate(default_seed, true)` and require the real rebuild to reproduce
       them exactly (the `_props_reproduced` exact-equality pattern,
       `tests/sim_test.gd:2087-2096`; exact transform compare via
       `_spots_equal`, `tests/sim_test.gd:1655`).
-- [ ] [screenshot] From the spawn street at eye level, shop doors read as
+- [x] [screenshot] From the spawn street at eye level, shop doors read as
       signed places — one plaque over every door — without cluttering or
       z-fighting against the bands, doors or awnings.
 
@@ -145,3 +145,50 @@ T-051), `city_cafe_tables_present` (`:119`), `city_roofs_inhabited` (`:120`),
 Gate 3 new line — "(T-090) Every shop door reads as a named place at eye
 level — signboard plaque over the door, no clutter [screenshot]" — plus the
 existing T-017 street-canyon lines re-checked (`VERIFICATION.md:318-327`).
+
+## Run record (2026-10-02, implementer)
+
+- **Gate 1** — `godot --headless --path . --import` exit 0 (only the known
+  benign addon line); `--quit-after 120` exit 0 clean; `--check-only --script
+  res://scripts/city.gd` exit 0 clean.
+- **Gate 1b** — full suite `godot --headless --fixed-fps 60 --path .
+  res://tests/sim_test.tscn`: exit 0, **102 PASS / 0 FAIL**, including the two
+  extended scenarios (`city_shopfronts_present` now asserts the `sign` queue
+  holds exactly one transform per building, each equal to the harness-side
+  `_expected_sign_plaque` re-derivation; `city_shopfronts_deterministic` now
+  also requires the sign xfs byte-identical across a forced rebuild) and the
+  whole fingerprint-sensitive set: `city_same_seed_deterministic`,
+  `city_regenerate_restores_layout`, `city_footprints_vary`,
+  `city_cafe_tables_present`, `city_roofs_inhabited`,
+  `elder_placement_no_rng` — all PASS. Pins re-printed: fingerprint
+  **1006789400** (the current cross-version pin, byte-identical), **146**
+  buildings, **104** awnings (asserted inside `city_shopfronts_present`),
+  **679** bread spots.
+- **Plank-guard note** — origin+euler compares alone cannot catch the
+  perpendicular plank (both conventions are unrotated diagonal bases: same
+  origin, zero euler), so the scenario's re-derivation also compares
+  `basis.get_scale()` per axis; a headless probe printed the guard margin:
+  inverted-convention scale differs from expected by **2.998** (≫ 0.01).
+  Probe transforms: `door_face=3` building (size (5.730, 6.032)) → sign scale
+  `(2.2, 0.5, 0.08)`; `door_face=1` → `(0.08, 0.5, 2.2)`; origin y 2.67 =
+  slab 0.12 + 2.55 — the CORRECTED convention, as specified.
+- **Gate 2** — `godot --path . res://tests/autoplay.tscn`: exit 0,
+  `AUTOPLAY DONE ok=true … restart=true`, no SCRIPT ERROR.
+- **Gate 3** — evidence grabbed; **reviewer sign-off 2026-10-02**: agent grabs
+  `.captures/t090_eyelevel_signs.png` (grounded on the spawn street: pale
+  cream plaque centered over the dark door slab under the awning, clear of
+  band/door/awning, further plaque-over-door reads along the row) and
+  `.captures/t090_streetflight_signs.png` (low streetflight pass). The
+  existing T-017 street-canyon lines re-checked in the same grabs: the rows
+  still read as shop rows, and the plaque is collider-free like the awning,
+  so the visual-only no-snag decision is untouched. Criterion 6 ticked on
+  that sign-off.
+
+## Tuned values
+
+No retuning — every geometry value landed exactly as the ticket specified
+and the Gate 3 read confirmed them: `COLOR_SIGNBOARD := Color(0.92, 0.87,
+0.74)`; plaque size `(0.08, 0.5, 2.2)` on ±x door faces / `(2.2, 0.5, 0.08)`
+on ±z (thin axis on the face normal); mount `face_out * 0.5 + band_outset
+(0.12) + 0.05` along the normal; center y `block_slab_height + 2.55`
+(spanning slab+2.30 → slab+2.80).

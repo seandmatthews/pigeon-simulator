@@ -38,6 +38,7 @@ const COLOR_STONE := Color(0.44, 0.42, 0.38) ## Gray limestone plaza landmark pl
 const COLOR_BRONZE := Color(0.34, 0.26, 0.17) ## Dark oxidized bronze plaza landmark figure (T-029).
 const COLOR_LAMP_GLOW := Color(1.0, 0.9, 0.6)
 const COLOR_DOOR := Color(0.18, 0.14, 0.12)
+const COLOR_SIGNBOARD := Color(0.92, 0.87, 0.74) ## Blank cream signboard plaque over every door (T-090) — clearly lighter than every shopfront band and the dark door slab.
 const COLOR_CROSSWALK := Color(0.78, 0.78, 0.75) ## Worn-white zebra paint (T-069) — clearly not the yellow lane mark.
 ## City-edge rim greens (T-088 commit 1, executing T-047): the hedge band and
 ## tree crowns must read against the grass apron they sit on — both hold ≥ 0.15
@@ -526,6 +527,7 @@ func _make_meshes() -> void:
 		"shopfront": _unit_box(_vertex_color_material()),
 		"awning": _unit_box(_vertex_color_material()),
 		"door": _unit_box(_flat_material(COLOR_DOOR)),
+		"sign": _unit_box(_flat_material(COLOR_SIGNBOARD)),
 		"ac_box": _unit_box(_flat_material(COLOR_METAL)),
 		"water_tank": _unit_box(_flat_material(COLOR_TANK)),
 		"roof_vent": _unit_box(_flat_material(COLOR_METAL)),
@@ -917,6 +919,21 @@ func _add_shopfront(base_center: Vector3, footprint: Vector2, lot_offset: Vector
 			base_center + face_normal * (face_out * 0.5 + band_outset + 0.01)
 					+ Vector3(0.0, block_slab_height + 1.025, 0.0),
 			door_size))
+	## Signboard plaque (T-090): one blank cream plaque per building, centered
+	## above the door on the shop band — spanning slab+2.30 to slab+2.80, so it
+	## clears the door top (slab+2.05) below and the awning underside
+	## (slab+2.855) above when one is present. Orientation follows the AWNING's
+	## convention — the thin 0.08 m depth on the face-normal axis, the 2.2 m
+	## width along the wall — so the plaque hangs flush; NOT the door's
+	## inverted swap (T-103). Visual-only like the awning, and pure layout:
+	## zero RNG draws of any stream, zero `_fp` entries, so every pinned count
+	## and the layout fingerprint stay byte-identical.
+	var sign_size := Vector3(0.08, 0.5, 2.2) if absf(face_normal.x) > 0.5 \
+			else Vector3(2.2, 0.5, 0.08)
+	_add_mm("sign", _box_xf(
+			base_center + face_normal * (face_out * 0.5 + band_outset + 0.05)
+					+ Vector3(0.0, block_slab_height + 2.55, 0.0),
+			sign_size))
 	var has_awning := _shop_rng.randf() < awning_chance
 	if has_awning:
 		var awn_depth := 1.3

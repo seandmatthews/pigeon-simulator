@@ -1180,6 +1180,30 @@ func _scenario_city_footprints_vary() -> void:
 ## --- scenarios (T-017 shopfront ground floors) ------------------------------
 
 
+## The signboard plaque transform the ticket's pure math claims for one
+## building — an independent re-derivation (the harness owns its copy of the
+## layout numbers, the `_expected_cafe_spot` pattern) so the scenario proves
+## the plaques, not just the city function that filled them. The face distance
+## uses the footprint component ALONG the door-face normal (T-051: `size.x` on
+## ±x faces, `size.y` on ±z), and the size MUST encode the CORRECTED flush
+## convention — the thin 0.08 m depth on the face-normal axis, the 2.2 m width
+## along the wall, the AWNING's convention — NOT the door's inverted swap
+## (T-103): a perpendicular plank has the same origin and euler (both builds
+## are unrotated diagonal bases), so only the per-axis scale compare keeps it
+## failing.
+func _expected_sign_plaque(city: City, info: Dictionary) -> Transform3D:
+	var normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][
+			int(info.door_face)]
+	var face_axis_x := absf(normal.x) > 0.5
+	var face_out: float = (info.size as Vector2).x if face_axis_x \
+			else (info.size as Vector2).y
+	var size := Vector3(0.08, 0.5, 2.2) if face_axis_x else Vector3(2.2, 0.5, 0.08)
+	var pos: Vector3 = city.to_local(info.center) \
+			+ normal * (face_out * 0.5 + 0.12 + 0.05) \
+			+ Vector3(0.0, city.block_slab_height + 2.55, 0.0)
+	return Transform3D(Basis.from_scale(size), pos)
+
+
 ## Every building wears a ground-floor shop band, a door on one of its two
 ## street-facing faces, and the seeded share of awnings; the shopfront palette
 ## stays measurably distinct from all four district palettes. Under the fixed
@@ -1230,15 +1254,37 @@ func _scenario_city_shopfronts() -> void:
 	## The seed's exact deterministic draw — an extra (or missing) _shop_rng roll
 	## anywhere upstream would shift this count and fail here.
 	var awn_ok := awnings == 104
-	_check("city_shopfronts_present", coverage_ok and awn_ok,
-			"buildings=%d members=%s doors_on_street=%s palette_distinct=%s awnings=%d (%.1f%%)"
+	## Signboard plaques (T-090): the `sign` visual queue holds exactly one
+	## plaque per building — the queue that feeds the MultiMesh, read like the
+	## crosswalk paint's (MultiMesh.get_instance_transform reads back identity
+	## headless) — and every transform is recomputable from its building record
+	## (order pairs 1:1: both lists append once per `_add_building`). The
+	## re-derivation's per-axis scale compare is the perpendicular-plank guard.
+	var sign_queue: Array = _city._visuals.get("sign", {}).get("xfs", [])
+	var signs_ok: bool = sign_queue.size() == count
+	if signs_ok:
+		var sign_i := 0
+		for info in _city.buildings:
+			var xf: Transform3D = sign_queue[sign_i]
+			var expected: Transform3D = _expected_sign_plaque(_city, info)
+			signs_ok = signs_ok \
+					and xf.origin.distance_to(expected.origin) < 0.01 \
+					and (xf.basis.get_scale() - expected.basis.get_scale()).length() < 0.01 \
+					and xf.basis.get_euler().distance_to(expected.basis.get_euler()) < 0.01
+			sign_i += 1
+	_check("city_shopfronts_present", coverage_ok and awn_ok and signs_ok,
+			"buildings=%d members=%s doors_on_street=%s palette_distinct=%s awnings=%d (%.1f%%) signs=%d/%d %s"
 					% [count, members_ok, doors_on_street, palette_distinct,
-					awnings, awn_share * 100.0])
-	## Same seed → every shopfront roll reproduces identically.
+					awnings, awn_share * 100.0, sign_queue.size(), count, signs_ok])
+	## Same seed → every shopfront roll reproduces identically — and the sign
+	## plaque queue byte-identically (the `_spots_equal` exact-compare pattern).
 	var default_seed: int = _city.seed_value
 	var snapshot: Array = []
 	for info in _city.buildings:
 		snapshot.append([info.shop_color, info.door_face, info.has_awning])
+	var sign_snapshot: Array[Transform3D] = []
+	for xf: Transform3D in sign_queue:
+		sign_snapshot.append(xf)
 	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces the rolls.
 	var reproduced := snapshot.size() == _city.buildings.size()
 	if reproduced:
@@ -1248,8 +1294,16 @@ func _scenario_city_shopfronts() -> void:
 			var same_face: bool = snapshot[i][1] == int(info.door_face)
 			var same_awning: bool = snapshot[i][2] == bool(info.has_awning)
 			reproduced = reproduced and same_color and same_face and same_awning
+	var signs_reproduced: bool = _city._visuals.has("sign")
+	if signs_reproduced:
+		var sign_rebuild: Array[Transform3D] = []
+		for xf: Transform3D in _city._visuals["sign"].xfs:
+			sign_rebuild.append(xf)
+		signs_reproduced = _spots_equal(sign_snapshot, sign_rebuild)
+	reproduced = reproduced and signs_reproduced
 	_check("city_shopfronts_deterministic", reproduced,
-			"snapshot %d vs regenerated %d" % [snapshot.size(), _city.buildings.size()])
+			"snapshot %d vs regenerated %d signs_reproduced=%s" % [
+					snapshot.size(), _city.buildings.size(), signs_reproduced])
 
 
 ## --- scenarios (T-005 bread & hunger) --------------------------------------
