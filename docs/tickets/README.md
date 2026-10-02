@@ -47,7 +47,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-025 | [Make the falling dropping trackable: bigger ball, soft emission](T-025-poop-ball-visibility.md) | visual-design | 3 | 1 | superseded (adopted by T-086) |
 | T-026 | [Re-value the ground planes: stop the sidewalk/plaza blowout, lift the road](T-026-ground-palette-retune.md) | visual-design | 4 | 2 | done |
 | T-027 | [Fix the grounded read: thin the folded wing chord at the rig level](T-027-folded-wing-chord.md) | visual-design | 3 | 2 | done (T-048) |
-| T-029 | [Plaza landmark: statue on a plinth at the square's center](T-029-plaza-landmark.md) | worldbuilding | 3 | 2 | proposed |
+| T-029 | [Plaza landmark: statue on a plinth at the square's center](T-029-plaza-landmark.md) | worldbuilding | 3 | 2 | done |
 | T-030 | [Tree the parks (prototyped live: 4 MultiMesh trees per park block)](T-030-park-trees.md) | worldbuilding | 3 | 1 | done |
 | T-031 | [Cafe life under the awnings: tables with seated tourists on shop fronts](T-031-cafe-tables.md) | worldbuilding | 4 | 2 | done |
 | T-032 | [Give roofs a reason to exist: rooftop clutter and roof bread spots](T-032-roof-clutter.md) | worldbuilding | 4 | 2 | done |

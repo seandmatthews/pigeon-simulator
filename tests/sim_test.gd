@@ -60,6 +60,14 @@ const BALLOON_MUSH_BAR := 244 ## Pre-fix measured 247 (fails), post-fix 240 (pas
 const HSO_END_ANGLE_BAR := 7.0 ## |End nose-to-flow signed angle| bound: measured 5.72 at trim_rate 0.7, bounded under the pre-fix tree's 6.95 divergence point.
 const HSO_NOSE_TRAVEL_BAR := 2.5 ## Min nose-pitch travel (deg) toward the flow over the window: measured 4.5 at trim_rate 0.7; pre-fix measured 0.0 (the attitude freeze — the red-before signature).
 
+## (T-029) The plaza-anchor drop offset: the plaza-anchor scenarios ground the
+## pigeon ON the plaza but no longer AT its center — the T-029 landmark plinth
+## stands there now. The offset puts the drop 5.0 m out from the center: clear
+## of the 2.4 m plinth footprint (1.70 m half-diagonal) and the ±5.5 m diagonal
+## bins, still inside the 8 m bench ring. The anchor's meaning is "grounded on
+## the plaza (block under the center)", not "at the exact center".
+const PLAZA_DROP_OFFSET := Vector3(4.0, 0.0, 3.0)
+
 ## Set SIM_DEBUG=1 to print per-scenario trajectory samples.
 var _debug: bool = OS.get_environment("SIM_DEBUG") == "1"
 
@@ -192,6 +200,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_apron_rim() ## T-088 commit 1 — after the crosswalks block, same audit pattern.
 	await _scenario_city_horizon_skyline() ## T-088 commit 2 — after the rim, same audit pattern.
 	await _scenario_city_park_trees() ## T-030 — after the skyline, same audit pattern.
+	await _scenario_city_plaza_landmark() ## T-029 — after the park trees, same audit chain.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -977,8 +986,8 @@ func _facade_node(f: int) -> MultiMeshInstance3D:
 ## `_fp` entries. Layout asserts on the standing city, no flight (the
 ## district-palettes scenario shape).
 func _scenario_city_facades_fit_floors() -> void:
-	var pin_default := 4188136223 ## Fingerprint baseline — moved once for T-051's two-axis footprint `_fp` entry, re-derived with a headless City.generate probe (pre-T-051: 2492360539).
-	var pin_foreign := 547420287 ## Foreign-seed fingerprint, ditto (pre-T-051: 2662825400).
+	var pin_default := 1006789400 ## Fingerprint baseline — moved for T-051's two-axis footprint `_fp` entry and again for T-029's plaza-landmark `_fp` entry, both re-derived with a headless City.generate probe (pre-T-051: 2492360539; pre-T-029: 4188136223).
+	var pin_foreign := 3359332191 ## Foreign-seed fingerprint, ditto (pre-T-051: 2662825400; pre-T-029: 547420287).
 	var baseline_ok: bool = _city.fingerprint == pin_default
 	var default_seed: int = _city.seed_value
 	var fp_first: int = _city.fingerprint
@@ -2493,9 +2502,11 @@ func _scenario_city_crosswalks() -> void:
 ## CollisionObject3D under the Visuals root, a forced same-seed rebuild
 ## reproducing both spot lists byte-identically, and the layout fingerprint
 ## still equal to the cross-version pins recorded by T-047 (seed 20260928 →
-## 4188136223, seed 424242 → 547420287 — the values moved ONCE for T-051's
+## 1006789400, seed 424242 → 3359332191 — the values moved for T-051's
 ## mandated two-axis footprint `_fp` entry, re-derived 2026-10-01 with a
-## headless `City.generate` probe; pre-T-051 they were 2492360539 / 2662825400).
+## headless `City.generate` probe (pre-T-051: 2492360539 / 2662825400), and
+## again for T-029's plaza-landmark `_fp` entry, same probe; pre-T-029:
+## 4188136223 / 547420287).
 ##
 ## Transform source: the public `rim_hedge_spots`/`rim_tree_spots` arrays for
 ## the placement legs; the trunk/crown legs walk the queues that feed the
@@ -2604,9 +2615,9 @@ func _scenario_city_apron_rim() -> void:
 			and (_city._visuals["rim_crown"].xfs as Array).size() == expected_trees
 	## --- cross-version pins (moved once for T-051's two-axis `_fp` entry) -----
 	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 547420287
+	var pin_foreign: bool = _city.fingerprint == 3359332191
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 4188136223
+	var pin_default: bool = _city.fingerprint == 1006789400
 	var rim_detail := "hedges=%d trees=%d/%d hedge_place=%s tree_place=%s trees_3d=%s green=%s (%.3f/%.3f) colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
 			hedges.size(), trees.size(), expected_trees, hedge_place_ok,
 			tree_place_ok, trees_3d_ok, green_ok, hedge_dist, crown_dist,
@@ -2692,10 +2703,10 @@ func _scenario_city_horizon_skyline() -> void:
 			and _spots_equal(skyline_xfs, skyline_b) and _spots_equal(tall_xfs, tall_b)
 	## --- cross-version pins and the foreign-seed contract ---------------------
 	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 547420287 \
+	var pin_foreign: bool = _city.fingerprint == 3359332191 \
 			and _city._visuals["skyline_tall"].xfs.size() != tall_xfs.size()
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 4188136223
+	var pin_default: bool = _city.fingerprint == 1006789400
 	var skyline_detail := "nodes=%s total=%d tall=%d place=%s size=%s colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
 			nodes_ok, total, tall_xfs.size(), place_ok, size_ok, collider_count,
 			deterministic, pin_foreign, pin_default]
@@ -2852,9 +2863,9 @@ func _scenario_city_park_trees() -> void:
 	var foreign_parks: int = _city.last_report.parks
 	var foreign_ok: bool = (_city._visuals["tree_trunk"].xfs as Array).size() == 4 * foreign_parks \
 			and (_city._visuals["tree_crown"].xfs as Array).size() == 4 * foreign_parks
-	var pin_foreign: bool = _city.fingerprint == 547420287
+	var pin_foreign: bool = _city.fingerprint == 3359332191
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 4188136223
+	var pin_default: bool = _city.fingerprint == 1006789400
 	var trees_detail := "parks=%d trees=%d/%d centers=%d place=%s inside=%s trees_3d=%s green=%s (%.3f) clear=%s (worst %.2f m) arith=%s (%.2f m margin) colliders=%d det=%s foreign=%s pins=%s/%s" % [
 			parks, trunk_xfs.size(), expected_count, park_centers.size(), place_ok,
 			inside_ok, trees_3d_ok, green_ok, crown_dist, clear_ok, worst_bread,
@@ -2869,6 +2880,156 @@ func _scenario_city_park_trees() -> void:
 	## distances, re-printed on every re-verification.
 	print("SIM DATA city_park_trees: parks=%d trees=%d crown_green_dist=%.3f worst_bread_dist=%.2f fingerprint=%d" % [
 			parks, trunk_xfs.size(), crown_dist, worst_bread, fp_first])
+
+
+## --- scenario (T-029 plaza landmark) -----------------------------------------
+
+
+## The plaza landmark: exactly one bronze-pigeon-on-a-plinth statue stands at
+## the plaza center every run, built like every city visual — MultiMesh boxes
+## at fixed offsets, zero RNG anywhere (one `_fp` entry, so the same-seed
+## fingerprint tracks it). The legs: layout — the plinth and figure boxes sit
+## on the plaza center, the whole footprint inside `spawn_clear_radius`, the
+## top under both `max_roof_height` and the 23 m cruise floor, the stone read
+## against the pale slab, the `_fp` entry singular; collision — ONE layer-1
+## `Props` box over the plinth whose top face is the cap top, and nothing
+## solid higher in the center column (the figure is visual-only, the T-017
+## decision); determinism — a forced same-seed rebuild reproduces every
+## landmark transform byte-identically; landing — a drop onto the cap settles
+## grounded at cap height and a flap takes off again (the bench template);
+## flyover — a flap-assisted straight pass along x THROUGH the plaza center
+## at cruise altitude crosses the city without touching anything (the
+## `city_street_flyover` template, flown over the landmark's column).
+func _scenario_city_plaza_landmark() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	var plaza: Vector3 = _city._plaza_center ## City-local origin of the plaza block.
+	var slab: float = _city.block_slab_height
+	## --- the landmark queues: plinth + figure boxes, one XZ position ----------
+	var plinth_xfs: Array[Transform3D] = []
+	var figure_xfs: Array[Transform3D] = []
+	if _city._visuals.has("plinth"):
+		for xf: Transform3D in _city._visuals["plinth"].xfs:
+			plinth_xfs.append(xf)
+	if _city._visuals.has("figure"):
+		for xf: Transform3D in _city._visuals["figure"].xfs:
+			figure_xfs.append(xf)
+	var count_ok: bool = plinth_xfs.size() == 2 and figure_xfs.size() >= 5
+	var landmark_fp := 0
+	for entry in _city._fp:
+		if (entry as Array)[0] == "landmark":
+			landmark_fp += 1
+	var fp_ok: bool = landmark_fp == 1
+	## --- placement: centered, inside the spawn-clear radius, under the roofs -
+	var place_ok: bool = count_ok
+	var inside_ok: bool = count_ok
+	var top := 0.0
+	for source: Array in [plinth_xfs, figure_xfs]:
+		for xf: Transform3D in source:
+			var o: Vector3 = xf.origin
+			var sc: Vector3 = xf.basis.get_scale()
+			var center_dist := Vector2(o.x - plaza.x, o.z - plaza.z).length()
+			place_ok = place_ok and center_dist <= 2.5
+			var half_diag := 0.5 * sqrt(sc.x * sc.x + sc.z * sc.z)
+			inside_ok = inside_ok and center_dist + half_diag <= _city.spawn_clear_radius
+			top = maxf(top, o.y + sc.y * 0.5)
+	var height_ok: bool = top < _city.max_roof_height and top < 23.0 and top <= slab + 5.5
+	## --- the stone reads against the pale slab -------------------------------
+	var stone := _mm_mesh_albedo(_city, "Visuals/Plinth")
+	var bronze := _mm_mesh_albedo(_city, "Visuals/Figure")
+	var color_ok: bool = stone.is_equal_approx(_city.COLOR_STONE) \
+			and bronze.is_equal_approx(_city.COLOR_BRONZE) \
+			and _rgb(stone).distance_to(_rgb(_city.COLOR_PLAZA)) >= 0.15
+	## --- collision: ONE plinth box, nothing solid higher in the column --------
+	var props := _city.get_node("Static/Props") as StaticBody3D
+	var plinth_colliders := 0
+	for shape in props.find_children("*", "CollisionShape3D", true, false):
+		var shape3d := (shape as CollisionShape3D)
+		var box := shape3d.shape as BoxShape3D
+		if box == null:
+			continue
+		var pos := shape3d.position
+		if Vector2(pos.x - plaza.x, pos.z - plaza.z).length() < 0.01 \
+				and box.size.distance_to(Vector3(
+						_city.LANDMARK_PLINTH_BASE.x, _city.LANDMARK_PLINTH_TOP,
+						_city.LANDMARK_PLINTH_BASE.z)) < 0.01 \
+				and absf(pos.y - (plaza.y + slab + _city.LANDMARK_PLINTH_TOP * 0.5)) < 0.01:
+			plinth_colliders += 1
+	var cap_top: float = plaza.y + slab + _city.LANDMARK_PLINTH_TOP
+	var column_clear: bool = plinth_colliders == 1
+	for body in _city.get_node("Static").get_children():
+		for shape in (body as Node).find_children("*", "CollisionShape3D", true, false):
+			var shape3d := (shape as CollisionShape3D)
+			var pos := shape3d.position
+			if Vector2(pos.x - plaza.x, pos.z - plaza.z).length() >= 2.0:
+				continue
+			var solid_top := -INF
+			if shape3d.shape is BoxShape3D:
+				solid_top = pos.y + (shape3d.shape as BoxShape3D).size.y * 0.5
+			elif shape3d.shape is CylinderShape3D:
+				solid_top = pos.y + (shape3d.shape as CylinderShape3D).height * 0.5
+			elif shape3d.shape is SphereShape3D:
+				solid_top = pos.y + (shape3d.shape as SphereShape3D).radius
+			if solid_top > cap_top + 0.01:
+				column_clear = false
+	## --- determinism: a real rebuild reproduces the landmark byte-identically -
+	var plinth_a := plinth_xfs.duplicate()
+	var figure_a := figure_xfs.duplicate()
+	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
+	var plinth_b: Array[Transform3D] = []
+	var figure_b: Array[Transform3D] = []
+	for xf: Transform3D in _city._visuals["plinth"].xfs:
+		plinth_b.append(xf)
+	for xf: Transform3D in _city._visuals["figure"].xfs:
+		figure_b.append(xf)
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and _spots_equal(plinth_a, plinth_b) and _spots_equal(figure_a, figure_b)
+	## --- flyover: straight pass along x THROUGH the plaza center --------------
+	var half: float = _city.city_span * 0.5
+	var x_start: float = _city.position.x - half + 4.0
+	var x_end: float = _city.position.x + half - 4.0
+	var z_center: float = _city.position.z + plaza.z
+	await _set_up(true, Vector3(x_start, 26.0, z_center), Vector3(14.0, 0.0, 0.0), -90.0)
+	var min_y := 1000.0
+	var max_drift := 0.0
+	var finite := true
+	var crossed := false
+	for i in 1500:
+		await get_tree().physics_frame
+		if i % 24 == 0 and _player.position.y < 28.0:
+			await _tap("flap") ## The flyover cadence — pace the climb, ride the glide across.
+		min_y = minf(min_y, _player.position.y)
+		max_drift = maxf(max_drift, absf(_player.position.z - z_center))
+		finite = finite and _player.velocity.is_finite() and _player.position.is_finite()
+		if _player.position.x >= x_end:
+			crossed = true
+			break
+	var flyover_ok: bool = crossed and min_y > 20.0 and max_drift < 6.0 and finite
+	## --- landing: the plinth cap is a perch (the bench-landing template) ------
+	await _set_up(true, _city.to_global(Vector3(plaza.x, cap_top + 0.5, plaza.z)), Vector3.ZERO)
+	await _await_grounded(150)
+	var on_cap: bool = _player.is_grounded \
+			and absf(_player.position.y - (cap_top + 0.3)) < 0.2 \
+			and _player.velocity.is_finite()
+	await _wait_frames(10) ## let the touchdown slide bleed before the takeoff leg
+	await _tap("flap")
+	var peak_y := _player.position.y
+	for _i in 60:
+		await get_tree().physics_frame
+		peak_y = maxf(peak_y, _player.position.y)
+	var took_off: bool = not _player.is_grounded and peak_y > cap_top + 0.9
+	_check("city_plaza_landmark",
+			count_ok and fp_ok and place_ok and inside_ok and height_ok and color_ok
+					and column_clear and deterministic and flyover_ok
+					and on_cap and took_off,
+			"boxes=%d/%d fp=%d center=%s inside=%s top=%.2f colors=%s colliders=%d column=%s det=%s flyover=%s (crossed min y %.1f drift %.1f) land=%s takeoff=%s" % [
+					plinth_xfs.size(), figure_xfs.size(), landmark_fp, place_ok,
+					inside_ok, top, color_ok, plinth_colliders, column_clear,
+					deterministic, flyover_ok, min_y, max_drift, on_cap, took_off])
+	## Informational: the landmark's tuned numbers — the ticket's bars, re-printed.
+	print("SIM DATA city_plaza_landmark: top=%.2f cap=%.2f clear_radius=%.1f fingerprint=%d" % [
+			top, cap_top, _city.spawn_clear_radius, fp_first])
 
 
 ## --- scenarios (T-007 tourists) ---------------------------------------------
@@ -3096,11 +3257,13 @@ func _scenario_tourists_recycle() -> void:
 ## car covers ground (nothing gridlocks), the fleet rounds corners (waypoints
 ## advance, the right-turn-only cuts work) and no two cars ever overlap —
 ## while the parked fleet sits exactly where it was seeded. The test pigeon
-## settles GROUNDED on the plaza first: a standing bird pins the spawner's
+## settles GROUNDED on the plaza first — since T-029 at the PLAZA_DROP_OFFSET
+## point, not the exact center, because the landmark plinth owns the middle:
+## a standing bird pins the spawner's
 ## recycle anchor in place, so nothing recycles mid-scenario and a parked car
 ## drifting would be a real bug, not the anchor wandering.
 func _scenario_cars_traffic() -> void:
-	await _set_up(true, _city.position + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
 	await _await_grounded(90)
 	var spawner := CarSpawner.new()
 	spawner.city = _city
@@ -3213,9 +3376,10 @@ func _scenario_car_splat_honk() -> void:
 	_dropped.clear()
 	_splat_events.clear()
 	_car_relay = 0
-	## The pigeon grounds on the plaza first so the spawner's recycle anchor
+	## The pigeon grounds on the plaza first (since T-029 at PLAZA_DROP_OFFSET,
+	## clear of the landmark plinth) so the spawner's recycle anchor
 	## stays put while the cars seed and drive.
-	await _set_up(true, _city.position + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
 	await _await_grounded(90)
 	var spawner := CarSpawner.new()
 	spawner.city = _city
@@ -3255,8 +3419,8 @@ func _scenario_car_splat_honk() -> void:
 	var fired: bool = _splat_events.size() == 1 and _splat_events[0].target == parked
 	var parked_honked := parked.honk_count == 1
 	var stayed := parked.global_position.distance_to(parked_start) < 0.05
-	await _set_up(true, _city.position + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90) ## Back to the plaza — off the ring, anchor pinned.
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90) ## Back to the plaza (off-center — clear of the landmark) — off the ring, anchor pinned.
 	traffic.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The same duck-typed entry the dropping calls.
 	var drove := 0.0
 	var last := traffic.global_position
@@ -3278,7 +3442,8 @@ func _scenario_car_splat_honk() -> void:
 ## The recycle insertion path keeps traffic flowing while the player stands
 ## still (T-089): five traffic cars re-seated onto ONE plaza-adjacent ring
 ## through the exact call `_recycle_far` makes — probed follow-gap-clear
-## rejoin points — all keep looping with the pigeon parked on the plaza. The
+## rejoin points — all keep looping with the pigeon parked on the plaza (the
+## T-029 off-center drop — on the plaza block, clear of the landmark). The
 ## bars discriminate: a flowing car covers 50+ m of a ~116 m ring in 10 s,
 ## the mined standing clots crept ≈ 0.5 m per 10 s, and a healthy follow-gap
 ## queue holds 5.6 m — so travel < 8 m means a standing clot and a seeded
@@ -3286,7 +3451,7 @@ func _scenario_car_splat_honk() -> void:
 ## radius, so the scanner must leave everyone alone all run: any single-frame
 ## jump > 5 m is a recycle teleport, not a legit recycle.
 func _scenario_traffic_recycle_keeps_flow() -> void:
-	await _set_up(true, _city.position + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
 	await _await_grounded(90)
 	var spawner := CarSpawner.new()
 	spawner.city = _city
@@ -5005,8 +5170,9 @@ func _scenario_audio_hit_sounds() -> void:
 	_dropped.clear()
 	_splat_events.clear()
 	Sfx.reset_counts()
-	## The pigeon grounds on the plaza first, so both spawner anchors stay put.
-	await _set_up(true, _city.position + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	## The pigeon grounds on the plaza first (since T-029 at PLAZA_DROP_OFFSET,
+	## clear of the landmark plinth), so both spawner anchors stay put.
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
 	await _await_grounded(90)
 	var tourists := TouristSpawner.new()
 	tourists.city = _city
