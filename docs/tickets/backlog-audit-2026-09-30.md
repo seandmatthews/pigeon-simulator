@@ -358,3 +358,29 @@ spot-checked against the tree at fix time. Tickets go stale fast in this
 repo — seven of these sixteen were accurate when written and were overtaken
 by landings within hours — so re-verify the current-state section of any
 ticket immediately before pulling it into a build lane.
+
+## Re-check 2026-10-01 (post-wave-chain)
+
+All 13 remaining needs-fixes tickets were re-verified against the tree after the
+solid-pool wave chain landed ~20 tickets (W1-W8 + T-079 integration). **No
+verdict flips — all 13 still need their rewrite before entering a build lane.**
+Suite is now 110 `_check` sites (audit era: 87). Per-ticket deltas:
+
+| Ticket | Audit blocker on today's tree | Delta since audit |
+| ------ | ------ | ------ |
+| T-023 | stands | **Deepened**: the guard now also emits `off_world_reset` (player.gd:35,178 — T-087/T-095); the rewrite must compose the nudge with a signal-emitting guard, not a silent teleport |
+| T-029 | stands verbatim | Unchanged: still exactly 5 plaza-center drops in 4 scenarios; scenario-count refs staler |
+| T-038 | stands verbatim | `_scenario_juice_hit_shake_pulse` still calls only `add_tourist_hit`; T-040's strip landing adds drift only |
+| T-046 | stands | T-086 collider pin still present (sim_test.gd:1517); unchanged |
+| T-054 | stands | The ticket's own byte-identity diff commands still return non-empty (drifted further) |
+| T-058 | stands, **expanded** | T-057 landed: the cue is now a `with_climb_cue` parameter on `_aim_bread_pointer` (main.gd:245-254) — the stern suffix must compose per-call-site through that machinery; bigger rewrite than the audit Fix line describes |
+| T-059 | stands | `popup.setup` still single test site (sim_test.gd:3447); "+300 ×2" arithmetic blocker unchanged |
+| T-060 | stands verbatim | T-086 pin unchanged; nothing since touched the collider |
+| T-073 | stands | Beat-save still on the hit path (game.gd:161); wrong 200/2000 expected values unchanged |
+| T-082 | stands | `--check-only` gate leg still broken repo-wide; T-083's landed falloff composes as the audit predicted; still the critical path to T-081 |
+| T-090 | stands verbatim | Door inversion still in city.gd (:892-893, the exact inverted swap); drift much worse (T-102/T-093/T-051/T-088/T-049/T-030 all touched city.gd) |
+| T-091 | stands | Phantom citation unchanged; **new composition note**: T-088's distant skyline landed (visual-only, 192-347 m out) — not a substitute for in-city steer-by anchors, but the rewrite's Why must acknowledge it; T-051's footprint variance may have shifted the pinned bread/building counts — re-derive during rewrite |
+| T-094 | stands, **expanded** | **The chain staled its headline**: T-093 landed and moved boot nodes 4815 → 3975, so the cafe share is ~58%, not 47%; the rewrite must re-measure and cite T-093 as landed counting precedent |
+
+**Recommended path (unchanged):** rewrite each through the ticket forge, seeded
+with its audit Fix line plus the deltas above; T-082 first (unblocks T-081).
