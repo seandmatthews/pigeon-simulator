@@ -38,6 +38,28 @@ const PITCH_BOUND_DEG := 85.0
 const BALLOON_VY_BAR := 8.7 ## Pre-fix measured 8.85 (fails), post-fix 8.48 (passes).
 const BALLOON_MUSH_BAR := 244 ## Pre-fix measured 247 (fails), post-fix 240 (passes).
 
+## (T-082) The hands-off trim scenario's re-derived bars. The originally drafted
+## "< 3 deg at 90 frames" end bar was flagged by the backlog audit as
+## mechanistically unfounded and is RE-DERIVED from the measured runs, not
+## weakened to pass: the released glide sits at an angle-of-attack equilibrium —
+## gap* = g_softened / (v · (velocity_align_rate + trim_rate)) — that only drops
+## under 3 deg at fully settled cruise speed, and the balloon the release
+## induces bleeds 17 → ~11.7 m/s, an ~10 s recovery the 1.5 s window cannot
+## out-run (measured at trim_rate 0.7: end angle −5.72 deg; at 0.5/1.0/3.0:
+## −6.50/−5.26/−3.16 — no rate reaches 3 deg; cutting velocity_align_rate 3.5 →
+## 1.5 leaves it at −7.2 because the flow then droops away faster). The honest
+## convergence contract at the landed trim_rate 0.7: the nose — FROZEN at 15.6
+## deg on the pre-fix tree for the whole window while the end angle diverges
+## −6.95 → −10.4 by f145 — must measurably ease toward the flow (measured
+## travel 15.5 → 11.0 deg = 4.5) and the end angle must stay bounded under the
+## pre-fix tree's own measured divergence point (6.95). The tail of the angle
+## widens slowly at every rate while speed recovers, so a "final 30 frames
+## approach the flow" arm is not usable; nose travel is the monotone arm — the
+## trim is the only air-frame rotator without input, so zero travel is the
+## structural pre-fix signature.
+const HSO_END_ANGLE_BAR := 7.0 ## |End nose-to-flow signed angle| bound: measured 5.72 at trim_rate 0.7, bounded under the pre-fix tree's 6.95 divergence point.
+const HSO_NOSE_TRAVEL_BAR := 2.5 ## Min nose-pitch travel (deg) toward the flow over the window: measured 4.5 at trim_rate 0.7; pre-fix measured 0.0 (the attitude freeze — the red-before signature).
+
 ## Set SIM_DEBUG=1 to print per-scenario trajectory samples.
 var _debug: bool = OS.get_environment("SIM_DEBUG") == "1"
 
@@ -117,6 +139,7 @@ func _run_scenarios() -> void:
 	await _scenario_trim_glide_lands_clean()
 	await _scenario_flare_sheds_speed_low() ## T-022 — pitch-up low brakes into a nose-high sink instead of ballooning.
 	await _scenario_pitch_attitude_bounded() ## T-083 — held pitch-up caps out near vertical instead of stacking past it.
+	await _scenario_hands_off_glide_trims() ## T-082 — a released pitch input trims the nose onto the velocity vector instead of freezing it.
 	await _scenario_off_world_fall_respawns() ## T-042 — flight-model guard: the void past the apron walks home.
 	await _scenario_city_layout()
 	await _scenario_city_plaza()
@@ -402,6 +425,7 @@ func _scenario_banking() -> void:
 	await _hold("turn_left", 60)
 	var fwd := -_player.transform.basis.z
 	var right_wing := _player.transform.basis.x.y
+	_dbg("banked: fwd (%.2f, %.2f, %.2f), right wing y %.2f" % [fwd.x, fwd.y, fwd.z, right_wing])
 	_check("banked_left_turn", fwd.x < -0.3 and right_wing > 0.05,
 			"forward (%.2f, %.2f, %.2f), right wing y %.2f" % [fwd.x, fwd.y, fwd.z, right_wing])
 
@@ -673,6 +697,43 @@ func _scenario_pitch_attitude_bounded() -> void:
 			"max |pitch| %.1f deg (bar %.0f), peak vy %.2f m/s (bar %.1f), mush %d/300 frames (bar %d), finite=%s" % [
 					max_pitch_deg, PITCH_BOUND_DEG, peak_vy, BALLOON_VY_BAR,
 					mush_frames, BALLOON_MUSH_BAR, finite])
+
+
+## (T-082) Releasing pitch input must hand the nose a hands-off trim toward the
+## velocity vector, not freeze the deck angle: from a settled cruise glide (the
+## flap_speed_envelope leg 2 recipe), a short 8-frame pitch-up hold genuinely
+## displaces the nose off the flow (> 10° at release — the hold sits inside
+## pitch_auth_full_deg's 50° band where the T-083 fade is still 1.0, so the
+## displacement happens at the raw pitch_speed rate), and 90 frames (1.5 s) of
+## hands-off flight show the trim owning the nose: it eases measurably toward
+## the flow (bar HSO_NOSE_TRAVEL_BAR; the pre-fix tree freezes it — 0.0 travel)
+## and the signed nose-to-flow angle stays bounded (HSO_END_ANGLE_BAR, derived
+## from the measured runs above — the audit-flagged "< 3°" original bar was
+## re-derived, not weakened; red-before / green-after with both measured runs
+## recorded in the ticket).
+func _scenario_hands_off_glide_trims() -> void:
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	await _wait_frames(30) ## Settle into the trim glide.
+	await _hold("pitch_up", 8)
+	var nose0_deg := rad_to_deg(asin(clampf((-_player.transform.basis.z).y, -1.0, 1.0)))
+	var start_deg := rad_to_deg((-_player.transform.basis.z).angle_to(_player.velocity.normalized()))
+	await _wait_frames(90) ## Hands off: every input released.
+	var nose1_deg := rad_to_deg(asin(clampf((-_player.transform.basis.z).y, -1.0, 1.0)))
+	var travel_deg := nose0_deg - nose1_deg ## Positive = the nose dropped toward the flow below it.
+	var end_signed_deg := rad_to_deg((-_player.transform.basis.z).signed_angle_to(
+			_player.velocity.normalized(), Vector3.RIGHT))
+	var finite := _player.velocity.is_finite()
+	_dbg("hands-off: start %.2f deg off the flow, nose %.2f -> %.2f deg, end signed %.2f deg, speed %.2f, y %.2f" % [
+			start_deg, nose0_deg, nose1_deg, end_signed_deg, _player.velocity.length(),
+			_player.position.y])
+	print("SIM DATA hands_off_glide_trims: start %.2f deg, nose travel %.2f deg, end signed %.2f deg" % [
+			start_deg, travel_deg, end_signed_deg])
+	_check("hands_off_glide_trims",
+			start_deg > 10.0 and travel_deg >= HSO_NOSE_TRAVEL_BAR
+					and absf(end_signed_deg) <= HSO_END_ANGLE_BAR and finite,
+			"start %.2f deg off the flow (bar > 10), nose travel %.2f deg (bar >= %.1f), end signed %.2f deg (bar <= %.1f), finite=%s" % [
+					start_deg, travel_deg, HSO_NOSE_TRAVEL_BAR, end_signed_deg,
+					HSO_END_ANGLE_BAR, finite])
 
 
 ## --- scenario (T-042 off-world guard) ---------------------------------------

@@ -14,7 +14,10 @@ extends CharacterBody3D
 ## T-083 the input pitch term fades to zero across `pitch_auth_full_deg` /
 ## `pitch_auth_zero_deg` of |body pitch|, so held pitch-up asymptotes the nose
 ## just under the zero line instead of stacking degrees past vertical —
-## symmetric, so steep dive entries past -50° fade progressively too.
+## symmetric, so steep dive entries past -50° fade progressively too. Since
+## T-082 a RELEASED pitch input eases the nose toward the velocity vector
+## (`trim_rate`) — hands-off flight settles into a real glide instead of
+## preserving whatever deck angle the last input left.
 
 ## Emitted when the pigeon lands or takes off — the HUD swaps its control hint.
 signal grounding_changed(grounded: bool)
@@ -64,6 +67,7 @@ enum State { AIR, GROUND }
 @export var pitch_auth_full_deg: float = 50.0 ## (T-083) |Body pitch| at or below which the input pitch term keeps full authority; symmetric — the falloff bites pitch-down past -50° too.
 @export var pitch_auth_zero_deg: float = 85.0 ## (T-083) |Body pitch| at or above which the input pitch term reaches zero — the attitude bound that stops held pitch-up from parking the nose at or past vertical.
 @export var velocity_align_rate: float = 3.5 ## How hard velocity chases the nose (1/s); this is the energy exchange.
+@export var trim_rate: float = 0.7 ## (T-082) Rad/s the nose eases toward the velocity vector on released pitch input, before `authority` scaling — a hands-off glide settles onto its flow instead of freezing the deck angle. 0 disables the trim.
 @export var ground_friction: float = 14.0 ## Horizontal decel while sliding on the ground; landings skid to a stop.
 
 @export_group("Flare") ## T-022: pitch-up in a shallow descent sheds airspeed into a nose-high sink instead of trading it all into a climb.
@@ -415,6 +419,21 @@ func _steer(delta: float) -> void:
 					/ deg_to_rad(pitch_auth_zero_deg - pitch_auth_full_deg),
 			0.0, 1.0)
 	rotate_object_local(Vector3.RIGHT, pitch_input * pitch_speed * authority * fade * delta)
+	# (T-082) Hands-off trim: with the pitch input released, ease the nose toward
+	# the velocity direction (shortest arc, no roll component — the trim never
+	# fights the bank), so a released glide settles onto its flow instead of
+	# preserving whatever deck angle the last input left. The guards keep every
+	# existing owner in charge: the stall path owns the nose (its own drop rate
+	# below), a held input keeps full manual authority — the trim never fights
+	# the pilot — and a degenerate flow vector (at or under stall speed) never
+	# steers. Scaled by the same `authority` as the input terms so slow flight
+	# trims gently. No auto-centering to the horizon: the trim targets the flow,
+	# so a hands-off dive stays a dive.
+	if not stalled and absf(pitch_input) < 0.01 and velocity.length() > stall_speed:
+		var nose := -transform.basis.z
+		var flow := velocity.normalized()
+		var target := nose.slerp(flow, clampf(trim_rate * authority * delta, 0.0, 1.0)).normalized()
+		transform.basis = Basis(Quaternion(nose, target)) * transform.basis
 
 
 func _apply_flight_forces(delta: float, grounded: bool) -> void:
