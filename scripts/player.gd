@@ -17,7 +17,11 @@ extends CharacterBody3D
 ## symmetric, so steep dive entries past -50° fade progressively too. Since
 ## T-082 a RELEASED pitch input eases the nose toward the velocity vector
 ## (`trim_rate`) — hands-off flight settles into a real glide instead of
-## preserving whatever deck angle the last input left.
+## preserving whatever deck angle the last input left. Since T-081 the
+## velocity-align chase itself is graded by lift deficiency: below
+## `glide_speed` its rate fades toward `mush_align_fraction`, so a slow,
+## nose-high mush heaves over into a real sink instead of the aligner bending
+## the fall back along the nose into a hover (the stall machinery is untouched).
 
 ## Emitted when the pigeon lands or takes off — the HUD swaps its control hint.
 signal grounding_changed(grounded: bool)
@@ -67,6 +71,7 @@ enum State { AIR, GROUND }
 @export var pitch_auth_full_deg: float = 50.0 ## (T-083) |Body pitch| at or below which the input pitch term keeps full authority; symmetric — the falloff bites pitch-down past -50° too.
 @export var pitch_auth_zero_deg: float = 85.0 ## (T-083) |Body pitch| at or above which the input pitch term reaches zero — the attitude bound that stops held pitch-up from parking the nose at or past vertical.
 @export var velocity_align_rate: float = 3.5 ## How hard velocity chases the nose (1/s); this is the energy exchange.
+@export var mush_align_fraction: float = 0.15 ## (T-081) Fraction of `velocity_align_rate` left at total lift deficiency (zero or backward forward speed; the clamp catches backward drift). The align rate fades linearly in `forward_speed / glide_speed` from full authority at glide speed down to this floor, so sub-glide flight's sink develops instead of being bent back along a nose-high attitude into a hover — T-061's lane-tested tail value.
 @export var trim_rate: float = 0.7 ## (T-082) Rad/s the nose eases toward the velocity vector on released pitch input, before `authority` scaling — a hands-off glide settles onto its flow instead of freezing the deck angle. 0 disables the trim.
 @export var ground_friction: float = 14.0 ## Horizontal decel while sliding on the ground; landings skid to a stop.
 
@@ -471,9 +476,20 @@ func _apply_flight_forces(delta: float, grounded: bool) -> void:
 	# Velocity direction chases the nose (magnitude preserved — a lerp here would
 	# bleed speed during maneuvers): pitching down converts height into speed,
 	# pulling up converts it back. This is the arcade energy exchange.
+	# (T-081) The chase is graded by lift deficiency: at or above glide_speed the
+	# wing carries the flow and keeps the full rate; below it the rate fades to
+	# `mush_align_fraction`, so the above-stall-speed mush (lift only ~0.39 at
+	# fwd ~6.6, `stalled` still false) can no longer bend its own sink back
+	# along the nose every frame — gravity accumulates into a real fall. Keyed
+	# on lift, not stall depth: the mush equilibrium sits ABOVE `stall_speed`,
+	# where a depth key is exactly 0 by construction. The stall machinery
+	# (stall gravity, nose drop, the flap's recovery bite) is untouched; this
+	# only stops the wing from steering a fall it is not carrying.
 	speed = velocity.length()
 	if speed > 0.05:
-		var dir := (velocity / speed).slerp(-transform.basis.z, clampf(velocity_align_rate * delta, 0.0, 1.0)).normalized()
+		var deficiency := 1.0 - clampf(forward_speed / glide_speed, 0.0, 1.0)
+		var align_rate := velocity_align_rate * lerpf(1.0, mush_align_fraction, deficiency)
+		var dir := (velocity / speed).slerp(-transform.basis.z, clampf(align_rate * delta, 0.0, 1.0)).normalized()
 		velocity = dir * speed
 	velocity = velocity.limit_length(max_speed)
 	if grounded:

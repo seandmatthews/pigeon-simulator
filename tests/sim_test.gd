@@ -60,6 +60,14 @@ const BALLOON_MUSH_BAR := 244 ## Pre-fix measured 247 (fails), post-fix 240 (pas
 const HSO_END_ANGLE_BAR := 7.0 ## |End nose-to-flow signed angle| bound: measured 5.72 at trim_rate 0.7, bounded under the pre-fix tree's 6.95 divergence point.
 const HSO_NOSE_TRAVEL_BAR := 2.5 ## Min nose-pitch travel (deg) toward the flow over the window: measured 4.5 at trim_rate 0.7; pre-fix measured 0.0 (the attitude freeze — the red-before signature).
 
+## (T-081) The mush-exit bars, verbatim from the ticket: over a 240-frame
+## hands-off window from the 0.29-rad nose-up attitude at fwd 6.6, the pigeon
+## must lose real height and reach a real sink. Measured runs recorded in the
+## ticket: the pre-fix tree hovers near the aligner's zero-sink equilibrium
+## (RED), the lift-keyed cut lets the fall develop (GREEN).
+const MUSH_DY_BAR := -3.0 ## Min height lost (m) over the 240-frame window.
+const MUSH_MIN_VY_BAR := -2.0 ## Most-negative vy (m/s) the window must reach.
+
 ## (T-029) The plaza-anchor drop offset: the plaza-anchor scenarios ground the
 ## pigeon ON the plaza but no longer AT its center — the T-029 landmark plinth
 ## stands there now. The offset puts the drop 5.0 m out from the center: clear
@@ -148,6 +156,8 @@ func _run_scenarios() -> void:
 	await _scenario_flare_sheds_speed_low() ## T-022 — pitch-up low brakes into a nose-high sink instead of ballooning.
 	await _scenario_pitch_attitude_bounded() ## T-083 — held pitch-up caps out near vertical instead of stacking past it.
 	await _scenario_hands_off_glide_trims() ## T-082 — a released pitch input trims the nose onto the velocity vector instead of freezing it.
+	await _scenario_hands_off_mush_exits() ## T-081 — a slow nose-high hands-off mush falls into a sink instead of hovering at the aligner's equilibrium.
+	await _scenario_stall_falls_develops() ## T-081/T-061 — a stalled climb develops a real fall within ~0.75 s of the stall flag.
 	await _scenario_off_world_fall_respawns() ## T-042 — flight-model guard: the void past the apron walks home.
 	await _scenario_city_layout()
 	await _scenario_city_plaza()
@@ -392,6 +402,7 @@ func _scenario_lift() -> void:
 	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
 	await _wait_frames(90)
 	var sink := 20.0 - _player.position.y
+	print("SIM DATA lift_softens_gravity: sank %.2f m in 90 frames at 12 m/s" % sink) ## (T-081) margin evidence
 	_check("lift_softens_gravity", sink < 6.0 and _player.velocity.is_finite(),
 			"sank %.1f m in 1.5 s at 12 m/s" % sink)
 
@@ -411,6 +422,7 @@ func _scenario_energy_exchange() -> void:
 	var y1 := _player.position.y
 	var s1 := _player.velocity.length()
 	_dbg("dive-end: e=%.1f y=%.1f v=%.1f" % [_energy(y1, s1), y1, s1])
+	print("SIM DATA dive_gains_speed: speed %.2f->%.2f m/s, height %.2f->%.2f m" % [s0, s1, y0, y1]) ## (T-081) margin evidence
 	_check("dive_gains_speed", s1 > s0 + 4.0 and y1 < y0 - 4.0,
 			"speed %.1f->%.1f, height %.1f->%.1f" % [s0, s1, y0, y1])
 	await _pitch_until("pitch_up", 0.42, 120)
@@ -423,6 +435,7 @@ func _scenario_energy_exchange() -> void:
 		if _player.position.y > peak_y:
 			peak_y = _player.position.y
 			peak_speed = _player.velocity.length()
+	print("SIM DATA pullup_gains_height: peak %+.2f m above pull-start, speed at peak %.2f (pull-start speed %.2f)" % [peak_y - y1, peak_speed, s1]) ## (T-081) margin evidence
 	_check("pullup_gains_height", peak_y > y1 + 2.0 and peak_speed < s1 - 3.0,
 			"peak %.1f m vs pull-start %.1f m, speed %.1f->%.1f at peak" % [peak_y, y1, s1, peak_speed])
 
@@ -453,12 +466,14 @@ func _scenario_stall() -> void:
 		await get_tree().physics_frame
 		min_nose = minf(min_nose, (-_player.transform.basis.z).y)
 	var stall_sink := 30.0 - _player.position.y
+	print("SIM DATA stall_drops: stall sank %.2f m vs glide %.2f m, min nose %.2f" % [stall_sink, glide_sink, min_nose]) ## (T-081) margin evidence
 	_check("stall_drops", stall_sink > 5.0 and stall_sink > 2.5 * glide_sink and min_nose < -0.2,
 			"stall sank %.1f m vs glide %.1f m, min nose pitch %.2f" % [stall_sink, glide_sink, min_nose])
 	await _tap("flap")
 	await _wait_frames(30)
 	var speed := _player.velocity.length()
 	_dbg("stall recovers: speed %.2f m/s (bar > 5.0)" % speed)
+	print("SIM DATA stall_recovers: speed %.2f m/s after recovery flap" % speed) ## (T-081) margin evidence
 	_check("stall_recovers", speed > 5.0 and _player.velocity.is_finite(),
 			"speed %.1f m/s after recovery flap" % speed)
 
@@ -608,6 +623,7 @@ func _scenario_hard_landing() -> void:
 			and _player.is_grounded and _player.velocity.length() < 0.8
 	_dbg("hard landing: min y %.2f (bar > 0.1), rest %.2f m/s (bar < 0.8)" % [
 			min_y, _player.velocity.length()])
+	print("SIM DATA hard_landing_skids: min y %.2f, rest %.2f m/s" % [min_y, _player.velocity.length()]) ## (T-081) margin evidence
 	_check("hard_landing_skids", ok,
 			"fast touch stayed AIR=%s, min y %.2f, finite=%s, rest %.2f m/s grounded=%s" % [
 					skid_was_air, min_y, all_finite, _player.velocity.length(), _player.is_grounded])
@@ -637,6 +653,7 @@ func _scenario_trim_glide_lands_clean() -> void:
 	var finite := _player.velocity.is_finite() and _player.position.is_finite()
 	_dbg("trim glide: touch %.2f m/s, %d air floor frames, grounded=%s, settled at %.2f m/s" % [
 			first_air_floor_speed, air_floor_frames, _player.is_grounded, settle_speed])
+	print("SIM DATA trim_glide_lands_clean: arrival %.2f m/s, %d air floor frames, settled %.2f m/s" % [first_air_floor_speed, air_floor_frames, settle_speed]) ## (T-081) margin evidence
 	_check("trim_glide_lands_clean", _player.is_grounded and air_floor_frames == 0 and finite,
 			"grounded=%s, %d airborne floor frames above %.1f m/s (first AIR-floor speed %.2f, settled at %.2f m/s, finite=%s)" % [
 					_player.is_grounded, air_floor_frames, _player.skid_settle_speed,
@@ -743,6 +760,73 @@ func _scenario_hands_off_glide_trims() -> void:
 			"start %.2f deg off the flow (bar > 10), nose travel %.2f deg (bar >= %.1f), end signed %.2f deg (bar <= %.1f), finite=%s" % [
 					start_deg, travel_deg, HSO_NOSE_TRAVEL_BAR, end_signed_deg,
 					HSO_END_ANGLE_BAR, finite])
+
+
+## (T-081) A slow, nose-high hands-off mush must FALL, not hover: at the mush
+## equilibrium (fwd ~6.6, lift only ~0.39, `stalled` still false) the full-rate
+## velocity-align slerp preserves |v| while bending the tiny sink back along
+## the nose every frame, so gravity never accumulates — the sweep-2 trace held
+## ~168 s of near-zero sink drifting off the map. Tipping the nose up 0.29 rad
+## from a 6.6 m/s level glide (the positive-pitch convention `_level_attitude`
+## counters) and going hands-off for a 240-frame budget must lose real height
+## (Δy <= MUSH_DY_BAR) and reach a real sink (min vy <= MUSH_MIN_VY_BAR):
+## the lift-deficiency cut on the aligner is what lets the sink develop.
+## Red-before / green-after with both measured runs recorded in the ticket.
+func _scenario_hands_off_mush_exits() -> void:
+	await _set_up(true, Vector3(0.0, 30.0, 0.0), Vector3(0.0, 0.0, -6.6))
+	_player.rotate_object_local(Vector3.RIGHT, 0.29) ## Nose up — the mush attitude.
+	var y0 := _player.position.y
+	var min_vy := 0.0
+	var min_nose := 0.0
+	for _i in 240:
+		await get_tree().physics_frame
+		min_vy = minf(min_vy, _player.velocity.y)
+		min_nose = minf(min_nose, (-_player.transform.basis.z).y)
+	var dy := _player.position.y - y0
+	var finite := _player.velocity.is_finite() and _player.position.is_finite()
+	_dbg("mush exit: dy %.2f m, min vy %.2f m/s, min nose %.2f, fwd end %.2f, stalled end %s" % [
+			dy, min_vy, min_nose, _player.forward_speed, _player.stalled])
+	print("SIM DATA hands_off_mush_exits: dy %.2f m, min vy %.2f m/s, min nose %.2f rad" % [
+			dy, min_vy, min_nose])
+	_check("hands_off_mush_exits", dy <= MUSH_DY_BAR and min_vy <= MUSH_MIN_VY_BAR and finite,
+			"lost %.2f m over 240 frames (bar <= %.1f), min vy %.2f m/s (bar <= %.1f), finite=%s" % [
+					dy, MUSH_DY_BAR, min_vy, MUSH_MIN_VY_BAR, finite])
+
+
+## (T-081, landing T-061's scenario) A stalled climb must develop a real fall:
+## ballooning a settled climb into the stall (45 frames of held pitch-up) and
+## waiting for `stalled == true` with a frame budget, the sink must reach
+## vy <= -6.0 within 45 further frames — the below-stall fall the lift-
+## deficiency key must not weaken (at fwd < stall_speed the deficiency is 1.0,
+## so the cut there runs at `mush_align_fraction` — deeper than the stall-depth
+## key T-061 proposed). Red-before / green-after with frames-to-fall recorded
+## in the ticket; the premise is that today's tree hovers.
+func _scenario_stall_falls_develops() -> void:
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -15.0))
+	await _hold("pitch_up", 45) ## Balloon the climb into the stall.
+	var stall_frame := -1
+	for _i in 300:
+		await get_tree().physics_frame
+		if _player.stalled:
+			stall_frame = _i
+			break
+	var fell := false
+	var fall_frame := -1
+	if stall_frame >= 0:
+		for _i in 45:
+			await get_tree().physics_frame
+			fall_frame = _i + 1
+			if _player.velocity.y <= -6.0:
+				fell = true
+				break
+	var finite := _player.velocity.is_finite()
+	_dbg("stall fall: stalled at frame %d, vy %.2f after %d further frames, fwd %.2f" % [
+			stall_frame, _player.velocity.y, fall_frame, _player.forward_speed])
+	print("SIM DATA stall_falls_develops: stalled at frame %d, fell in %d frames (end vy %.2f, fwd %.2f)" % [
+			stall_frame, fall_frame, _player.velocity.y, _player.forward_speed])
+	_check("stall_falls_develops", fell and finite,
+			"stalled at frame %d of 300, vy reached %.2f m/s in %d/45 frames (bar <= -6.0), finite=%s" % [
+					stall_frame, _player.velocity.y, fall_frame, finite])
 
 
 ## --- scenario (T-042 off-world guard) ---------------------------------------
@@ -1582,6 +1666,14 @@ func _scenario_poop_splat_wall() -> void:
 ## Any body on the projectile's layers can receive the hit duck-typed
 ## (on_splatted) without importing the pigeon — and poop.gd references no
 ## player type at all, so targets and scoring stay decoupled.
+## (T-081) The setup is a 7 m flyover, not the old zero-velocity hover: on the
+## fall tree a stalled pigeon (zero airspeed -> the untouched 1.7x stall
+## gravity) drops onto the pad BELOW its own dropping — measured pad hit
+## (0.0, -0.13, 0.0) against the < -1.0 bar, the impact resolved through the
+## pigeon standing on the target. The flyover keeps every assertion identical
+## and the lob real: the drop inherits 7 m/s of forward flight, arcs onto the
+## pad (measured impact vy -3.55) while the pigeon passes 3+ m overhead and
+## lands past it.
 func _scenario_poop_event_target() -> void:
 	_dropped.clear()
 	_splat_events.clear()
@@ -1596,12 +1688,12 @@ func _scenario_poop_event_target() -> void:
 	pad.add_child(shape)
 	pad.position = Vector3(40.0, 0.5, 0.0)
 	add_child(pad)
-	await _set_up(true, Vector3(40.0, 4.5, 0.0), Vector3.ZERO)
+	await _set_up(true, Vector3(40.0, 7.0, 6.0), Vector3(0.0, 0.0, -7.0)) ## Fly over the pad; the lob lands under the flight line.
 	await _tap("poop")
 	await _wait_frames(2)
 	if _dropped.size() == 1:
 		_dropped[0].splatted.connect(_on_test_splatted)
-	await _wait_frames(120) ## Fall (~0.75 s) plus margin.
+	await _wait_frames(120) ## Arc (~1 s) plus margin.
 	var fired: bool = _splat_events.size() == 1 and _splat_events[0].target == pad
 	var pad_hits: int = pad.hits.size()
 	var duck_typed: bool = pad_hits == 1 and pad.hits[0].y < -1.0
@@ -3319,6 +3411,20 @@ func _scenario_tourists_recycle() -> void:
 func _scenario_cars_traffic() -> void:
 	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
 	await _await_grounded(90)
+	## (T-081) Pin the spawner anchor: the seed band hangs on the player's XZ
+	## (`CarSpawner._anchor_flat`), and sub-metre shifts of that anchor flip
+	## the band's block membership — the fleet draw, and with it the cruise
+	## bars, was silently coupled to wherever the drop's drift parked the bird.
+	## Measured on this very drop: the pre-fix hover drifted the landing ~1.1 m
+	## and drew a healthy fleet; any landing within ~1 m of the drop point drew
+	## two short cars (probed across landing z 1997.8-2003.8). Standing the
+	## GROUNDED bird at a fixed plaza point keeps every scenario assert
+	## untouched and makes the draw a scenario constant — (4, 2) city-local:
+	## 5.4 m from the plaza center, clear of the plinth footprint, inside the
+	## bench ring, on a probed-healthy draw.
+	_player.global_position = _city.position + Vector3(4.0, 0.0, 2.0) \
+			+ Vector3(0.0, _player.position.y - _city.position.y, 0.0)
+	await _wait_frames(2)
 	var spawner := CarSpawner.new()
 	spawner.city = _city
 	spawner.player = _player
@@ -5081,6 +5187,20 @@ func _scenario_juice_hit_shake_pulse() -> void:
 	var sun := main_game.get_node("Sun") as DirectionalLight3D
 	var warm_sun := sun.light_color.r >= sun.light_color.g and sun.light_color.g > sun.light_color.b
 	var sun_capped := sun.light_energy <= 1.15
+	## (T-081) Pin the ×2 window AFTER the scene pigeon's opening drop lands:
+	## it spawns ~0.6 m up and its grounding — which fires the chain reset
+	## through the real Main wiring — used to graze in just after the read on
+	## the hover tree and lands at the read frame itself on the fall tree
+	## (measured: grounded f11 of a hit1 f5 / hit2 f8 / read f11 window —
+	## pulsed=true, combo_shown=false). Waiting out the grounded state (the
+	## `_await_grounded` pattern, on the scene's own Player) detaches the
+	## escalation from the flight model; the explicit reset below stays as the
+	## idempotent insurance the T-038 leg uses too.
+	for _i in 90:
+		await get_tree().physics_frame
+		if pigeon.is_grounded:
+			break
+	Game.on_grounding_changed(true)
 	Game.add_tourist_hit(Vector3(3500.0, 0.5, -3500.0))
 	await _wait_frames(3) ## Let _process show the ×1 before the escalation.
 	Game.add_tourist_hit(Vector3(3500.0, 0.5, -3501.0))
@@ -5096,10 +5216,11 @@ func _scenario_juice_hit_shake_pulse() -> void:
 	## (T-038) The STYLE tag, through the REAL Main signal path — the two hits
 	## above never recorded a poop release, so `_release_age` sits at its stale
 	## 999 and the style gate could never fire on its own. Stage the chain state
-	## explicitly instead of trusting the landing's frame: the Player dropped in
-	## 6 m up and grounded just after the combo_shown read, so the chain is
-	## already dead — `on_grounding_changed(true)` is the idempotent insurance
-	## reset the scoring scenario uses. Then a fresh fast AND low release makes
+	## explicitly instead of trusting the landing's frame: the Player's opening
+	## drop is pinned grounded before the ×2 leg (the T-081 wait above), so the
+	## chain is already dead — `on_grounding_changed(true)` is the idempotent
+	## insurance reset the scoring scenario uses. Then a fresh fast AND low
+	## release makes
 	## the next hit the chain's first, styled: ×1 pays roundi(100 × 1 × 1.5)
 	## = 150 — the Why's bare-150 case, now labelled "+150 STYLE". A slow
 	## release before the second hit leaves it ×2 plain: 200 → "+200 ×2".
