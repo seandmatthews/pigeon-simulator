@@ -219,6 +219,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_horizon_skyline() ## T-088 commit 2 — after the rim, same audit pattern.
 	await _scenario_city_park_trees() ## T-030 — after the skyline, same audit pattern.
 	await _scenario_city_plaza_landmark() ## T-029 — after the park trees, same audit chain.
+	await _scenario_city_district_anchors() ## T-091 — after the plaza landmark, same audit chain.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -1127,8 +1128,8 @@ func _facade_node(f: int) -> MultiMeshInstance3D:
 ## `_fp` entries. Layout asserts on the standing city, no flight (the
 ## district-palettes scenario shape).
 func _scenario_city_facades_fit_floors() -> void:
-	var pin_default := 1006789400 ## Fingerprint baseline — moved for T-051's two-axis footprint `_fp` entry and again for T-029's plaza-landmark `_fp` entry, both re-derived with a headless City.generate probe (pre-T-051: 2492360539; pre-T-029: 4188136223).
-	var pin_foreign := 3359332191 ## Foreign-seed fingerprint, ditto (pre-T-051: 2662825400; pre-T-029: 547420287).
+	var pin_default := 650664268 ## Fingerprint baseline — moved for T-051's two-axis footprint `_fp` entry, again for T-029's plaza-landmark `_fp` entry and again for T-091's four district-anchor `_fp` entries, each re-derived with a headless City.generate probe (pre-T-051: 2492360539; pre-T-029: 4188136223; pre-T-091: 1006789400).
+	var pin_foreign := 4031380170 ## Foreign-seed fingerprint, ditto (pre-T-051: 2662825400; pre-T-029: 547420287; pre-T-091: 3359332191).
 	var baseline_ok: bool = _city.fingerprint == pin_default
 	var default_seed: int = _city.seed_value
 	var fp_first: int = _city.fingerprint
@@ -2576,7 +2577,9 @@ func _vec_spots_equal(a: Array[Vector3], b: Array[Vector3]) -> bool:
 ## and exactly one crumb spot
 ## in the never-propped (+,+) quadrant at roof-top + 0.06, so city-wide
 ## `bread_spots` grows by exactly the building count (8 ring spots × 49 blocks
-## + one per bench seat + one per building). A crumb instantiated at a low
+## + one per bench seat + one per building) — plus, since T-091, one crumb per
+## district anchor (4 at the M1 seed), the same y > 1.0 roof-spot population
+## this scenario counts. A crumb instantiated at a low
 ## roof's spot is an ordinary crumb: a dropped pigeon waddling in eats it
 ## through the existing eaten path (+30 via Hunger, no BreadSpawner involved).
 ## A drop onto the low roof's first prop settles grounded on its top
@@ -2590,12 +2593,16 @@ func _scenario_city_roofs_inhabited() -> void:
 	var spots_snapshot := _roof_bread_spots()
 	## --- layout audit: prop and spot geometry across every building ----------
 	var props_ok: bool = _city.roof_props.size() >= _city.buildings.size()
-	var spots_ok: bool = spots_snapshot.size() == _city.buildings.size() \
+	## T-091: the 4 district-anchor cap crumbs ride the same y > 1.0 population.
+	var spots_ok: bool = spots_snapshot.size() \
+			== _city.buildings.size() + _city.anchors.size() \
 			and spots_snapshot.size() >= 20
-	## City-wide pool: the T-005 ground spots plus exactly the new roof spots.
+	## City-wide pool: the T-005 ground spots, exactly the new roof spots and
+	## exactly one crumb per district anchor (T-091).
 	var total_ok: bool = _city.bread_spots.size() \
 			== _city.blocks_per_side * _city.blocks_per_side * 8 \
-			+ int(_city.last_report.benches) + _city.buildings.size()
+			+ int(_city.last_report.benches) + _city.buildings.size() \
+			+ _city.anchors.size()
 	var one_per_building := true
 	for info in _city.buildings:
 		var props := _props_of(info)
@@ -2640,7 +2647,9 @@ func _scenario_city_roofs_inhabited() -> void:
 	## Buildings/Props, each layer 1 `world` mask 0 — and every collider is now
 	## a shape child of its group body (no body nests under a body; the Ground
 	## body's one extra child is the grass mesh). The Props body's shapes above
-	## y 5.0 are the roof props: exactly roof_props.size().
+	## y 5.0 are the roof props — exactly roof_props.size() — plus, since T-091,
+	## each district anchor's shaft/head/cap tiers (3 per anchor; the plinth's
+	## center sits at slab+0.5, below the window).
 	var static_root: Node = _city.get_node("Static")
 	var bodies := 0
 	var body_names := {}
@@ -2669,7 +2678,7 @@ func _scenario_city_roofs_inhabited() -> void:
 			if prop_shape != null and prop_shape.position.y > 5.0:
 				high_shapes += 1
 	var colliders_ok := five_ok and layers_ok and shapes_only_ok and props_body_ok \
-			and high_shapes == _city.roof_props.size()
+			and high_shapes == _city.roof_props.size() + 3 * _city.anchors.size()
 	## --- determinism: a real rebuild reproduces props and roof spots ---------
 	_city.generate(default_seed, true)
 	var deterministic: bool = _city.fingerprint == fp_first \
@@ -2739,8 +2748,8 @@ func _scenario_city_roofs_inhabited() -> void:
 					total_ok, one_per_building, colliders_ok, high_shapes,
 					deterministic, physical_ok, eat_ok, prop_ok])
 	## Informational: the M1-seed surface counts (146 buildings → 259 props,
-	## 533 → 679 bread spots) — the ticket's tuned numbers, re-printed on every
-	## re-verification.
+	## 533 → 679 bread spots, +4 anchor crumbs since T-091 → 683) — the ticket's
+	## tuned numbers, re-printed on every re-verification.
 	print("SIM DATA roofs_inhabited: buildings=%d roof_props=%d roof_spots=%d bread_spots=%d fingerprint=%d" % [
 			_city.buildings.size(), _city.roof_props.size(), spots_snapshot.size(),
 			_city.bread_spots.size(), fp_first])
@@ -2892,11 +2901,12 @@ func _scenario_city_crosswalks() -> void:
 ## CollisionObject3D under the Visuals root, a forced same-seed rebuild
 ## reproducing both spot lists byte-identically, and the layout fingerprint
 ## still equal to the cross-version pins recorded by T-047 (seed 20260928 →
-## 1006789400, seed 424242 → 3359332191 — the values moved for T-051's
+## 650664268, seed 424242 → 4031380170 — the values moved for T-051's
 ## mandated two-axis footprint `_fp` entry, re-derived 2026-10-01 with a
-## headless `City.generate` probe (pre-T-051: 2492360539 / 2662825400), and
-## again for T-029's plaza-landmark `_fp` entry, same probe; pre-T-029:
-## 4188136223 / 547420287).
+## headless `City.generate` probe (pre-T-051: 2492360539 / 2662825400), again
+## for T-029's plaza-landmark `_fp` entry, same probe (pre-T-029:
+## 4188136223 / 547420287), and again for T-091's four district-anchor `_fp`
+## entries, same probe; pre-T-091: 1006789400 / 3359332191).
 ##
 ## Transform source: the public `rim_hedge_spots`/`rim_tree_spots` arrays for
 ## the placement legs; the trunk/crown legs walk the queues that feed the
@@ -3003,11 +3013,12 @@ func _scenario_city_apron_rim() -> void:
 			and _spots_equal(trees, _city.rim_tree_spots) \
 			and (_city._visuals["rim_trunk"].xfs as Array).size() == expected_trees \
 			and (_city._visuals["rim_crown"].xfs as Array).size() == expected_trees
-	## --- cross-version pins (moved once for T-051's two-axis `_fp` entry) -----
+	## --- cross-version pins (moved for T-051's `_fp` entry, T-029's and -------
+	## T-091's four district-anchor entries)
 	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 3359332191
+	var pin_foreign: bool = _city.fingerprint == 4031380170
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 1006789400
+	var pin_default: bool = _city.fingerprint == 650664268
 	var rim_detail := "hedges=%d trees=%d/%d hedge_place=%s tree_place=%s trees_3d=%s green=%s (%.3f/%.3f) colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
 			hedges.size(), trees.size(), expected_trees, hedge_place_ok,
 			tree_place_ok, trees_3d_ok, green_ok, hedge_dist, crown_dist,
@@ -3093,10 +3104,10 @@ func _scenario_city_horizon_skyline() -> void:
 			and _spots_equal(skyline_xfs, skyline_b) and _spots_equal(tall_xfs, tall_b)
 	## --- cross-version pins and the foreign-seed contract ---------------------
 	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 3359332191 \
+	var pin_foreign: bool = _city.fingerprint == 4031380170 \
 			and _city._visuals["skyline_tall"].xfs.size() != tall_xfs.size()
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 1006789400
+	var pin_default: bool = _city.fingerprint == 650664268
 	var skyline_detail := "nodes=%s total=%d tall=%d place=%s size=%s colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
 			nodes_ok, total, tall_xfs.size(), place_ok, size_ok, collider_count,
 			deterministic, pin_foreign, pin_default]
@@ -3253,9 +3264,9 @@ func _scenario_city_park_trees() -> void:
 	var foreign_parks: int = _city.last_report.parks
 	var foreign_ok: bool = (_city._visuals["tree_trunk"].xfs as Array).size() == 4 * foreign_parks \
 			and (_city._visuals["tree_crown"].xfs as Array).size() == 4 * foreign_parks
-	var pin_foreign: bool = _city.fingerprint == 3359332191
+	var pin_foreign: bool = _city.fingerprint == 4031380170
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 1006789400
+	var pin_default: bool = _city.fingerprint == 650664268
 	var trees_detail := "parks=%d trees=%d/%d centers=%d place=%s inside=%s trees_3d=%s green=%s (%.3f) clear=%s (worst %.2f m) arith=%s (%.2f m margin) colliders=%d det=%s foreign=%s pins=%s/%s" % [
 			parks, trunk_xfs.size(), expected_count, park_centers.size(), place_ok,
 			inside_ok, trees_3d_ok, green_ok, crown_dist, clear_ok, worst_bread,
@@ -3420,6 +3431,275 @@ func _scenario_city_plaza_landmark() -> void:
 	## Informational: the landmark's tuned numbers — the ticket's bars, re-printed.
 	print("SIM DATA city_plaza_landmark: top=%.2f cap=%.2f clear_radius=%.1f fingerprint=%d" % [
 			top, cap_top, _city.spawn_clear_radius, fp_first])
+
+
+## --- scenario (T-091 district anchors) ---------------------------------------
+
+
+## Byte-identical `anchors` comparison (the `_props_reproduced` pattern).
+func _anchors_reproduced(a: Array[Dictionary], b: Array[Dictionary]) -> bool:
+	if a.size() != b.size():
+		return false
+	for i in a.size():
+		var pa: Dictionary = a[i]
+		var pb: Dictionary = b[i]
+		if pa.center != pb.center or pa.district != pb.district \
+				or pa.top != pb.top or pa.cap_top != pb.cap_top:
+			return false
+	return true
+
+
+## One tall anchor per district (T-091): exactly four deterministic clock posts,
+## one per district quadrant, at the pinned blocks' alley-cross centers —
+## audited like the plaza landmark (the `city_plaza_landmark` pattern). The
+## legs: records — `anchors` holds exactly 4 entries, one per district, each at
+## a pinned block's center re-derived from the block grid, `top` the harness's
+## own tier-constant sum (1.0 + 13.6 + 2.2 + 0.5 = 17.3 above the slab) under
+## `max_roof_height`; the do-not-fold rule — `report.max_roof_height` still
+## equals the BUILDING roofs only (max(buildings[].top) − block_slab_height;
+## newly guarded here, nothing pinned it before); clearance — the 1.4 m
+## plinth's per-axis daylight re-derived from `buildings[]` so a bad seed fails
+## loudly (worst 0.024 m at the M1 seed, 0.0016 m at the foreign one — flush,
+## never overlapping), no bread spot but the anchor's own cap crumb within 5 m
+## XZ (measured) and the bench line / lamps+bins / tourist loop / park-tree
+## crown distances held by constants arithmetic; the cap crumb sitting in
+## `bread_spots` at cap_top + 0.06; `last_report.plaza_clear` still true;
+## visuals — the four tier queues hold 4 instances each, over the anchor
+## centers at the tier scales and stacked y, every head tinted one of the four
+## districts' first palette colors with all four present; collision — one
+## layer-1 `Props` box per tier under the shared group body, exactly 3 of them
+## above the y 5.0 window per anchor (the plinth sits below it); determinism —
+## a forced same-seed rebuild reproduces `anchors` and `bread_spots`
+## byte-identically, and the foreign seed raises the same four posts; physical
+## — a drop onto a cap settles grounded at cap_top + 0.3 (the prop-landing
+## template) and the anchor crumb is an ordinary crumb a grounded pigeon on the
+## cap eats (+30 through Hunger). No pinned block is a park at either pinned
+## seed (parks sit at (0,0)/(3,1) on 20260928 and (3,5)/(6,2)/(6,4) on 424242),
+## so the stands-in-parks guarantee rests on the code structure (the gate sits
+## OUTSIDE the plaza/park/building branch) plus the constants arithmetic — the
+## (±5, ±5) park trees leave ≈ 2.2 m per axis clear of the plinth.
+func _scenario_city_district_anchors() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	var anchors_snapshot := _city.anchors.duplicate()
+	var bread_snapshot := _city.bread_spots.duplicate()
+	## The harness's own copy of the tier layout numbers (the
+	## `_expected_sign_plaque` pattern): key + size, stacked from the slab top.
+	var tiers := [
+		["anchor_plinth", Vector3(1.4, 1.0, 1.4)],
+		["anchor_shaft", Vector3(0.7, 13.6, 0.7)],
+		["anchor_head", Vector3(1.8, 2.2, 1.8)],
+		["anchor_cap", Vector3(2.0, 0.5, 2.0)],
+	]
+	## --- records: exactly 4, one per district, at the pinned block centers ---
+	var pins: Array[Vector2i] = [Vector2i(1, 1), Vector2i(5, 1), Vector2i(1, 5), Vector2i(5, 5)]
+	var half_blocks := float(_city.blocks_per_side - 1) * 0.5
+	var count_ok: bool = _city.anchors.size() == 4
+	var districts_seen := {}
+	var pins_ok := count_ok
+	var height_ok := count_ok
+	var recompute_ok := count_ok
+	for rec in _city.anchors:
+		var district: int = rec.district
+		districts_seen[district] = true
+		height_ok = height_ok and (rec.top as float) <= _city.max_roof_height
+		var c: Vector3 = rec.center
+		var matched := false
+		for pin in pins:
+			var g := _city.to_global(Vector3(
+					(pin.x - half_blocks) * _city.block_pitch, 0.0,
+					(pin.y - half_blocks) * _city.block_pitch))
+			if Vector2(g.x - c.x, g.z - c.z).length() < 0.01:
+				matched = true
+				pins_ok = pins_ok and district == _city.district_of(pin.x, pin.y)
+				recompute_ok = recompute_ok \
+						and absf((rec.top as float) - 17.3) < 0.001 \
+						and absf((rec.cap_top as float)
+								- (_city.block_slab_height + 17.3)) < 0.001
+		pins_ok = pins_ok and matched
+	var districts_ok := districts_seen.size() == 4
+	## --- the do-not-fold rule: the report stays the BUILDING roofs ------------
+	var max_top := 0.0
+	for info in _city.buildings:
+		max_top = maxf(max_top, info.top)
+	var report_pin: bool = count_ok \
+			and absf((_city.last_report.max_roof_height as float)
+					- (max_top - _city.block_slab_height)) < 0.001
+	## --- plinth daylight, re-derived per seed from buildings[] ----------------
+	var standoff_ok := count_ok
+	var worst_daylight := INF
+	for rec in _city.anchors:
+		var c: Vector3 = rec.center
+		for info in _city.buildings:
+			var bc: Vector3 = info.center
+			if absf(bc.x - c.x) > _city.block_size * 0.5 \
+					or absf(bc.z - c.z) > _city.block_size * 0.5:
+				continue ## Not this block's lot.
+			var size: Vector2 = info.size
+			var face_x := absf(bc.x - c.x) - size.x * 0.5 - 0.7
+			var face_z := absf(bc.z - c.z) - size.y * 0.5 - 0.7
+			standoff_ok = standoff_ok and face_x >= 0.0 and face_z >= 0.0
+			worst_daylight = minf(worst_daylight, minf(face_x, face_z))
+	## --- bread clearance: nothing but the anchor's own crumb near the post ----
+	var clear_ok := count_ok
+	var worst_bread := INF
+	for rec in _city.anchors:
+		var local := _city.to_local(rec.center)
+		for spot in _city.bread_spots:
+			var flat := Vector2(spot.x - local.x, spot.z - local.z).length()
+			if flat < 0.5:
+				continue ## The anchor's own cap crumb rides the center.
+			worst_bread = minf(worst_bread, flat)
+			clear_ok = clear_ok and flat >= 5.0
+	## Constants arithmetic, holding at EVERY seed: the 10.9 m tourist-loop
+	## line, the 6.5 m inner ground bread-ring axis, the 9.75 m bench line less
+	## the bench's 0.9 m half-depth, and the park-tree crown half-diagonal at
+	## its fixed ±5 offset — all vs the plinth's 0.99 m half-diagonal.
+	var plinth_half_diag := sqrt(2.0) * 0.7
+	var arithmetic_ok: bool = _city.block_size * 0.5 - 0.1 - plinth_half_diag >= 1.0 \
+			and _city.block_size * 0.5 - 4.5 - plinth_half_diag >= 1.0 \
+			and _city.block_size * 0.5 - 1.25 - 0.9 - plinth_half_diag >= 1.0 \
+			and _city.PARK_TREE_OFFSET - _city.PARK_CROWN_SIZE.x * sqrt(2.0) * 0.5 \
+					- plinth_half_diag >= 1.0
+	## --- the cap crumb sits in bread_spots at cap_top + 0.06 ------------------
+	var crumb_ok := count_ok
+	for rec in _city.anchors:
+		var local := _city.to_local(rec.center)
+		var want_y: float = (rec.cap_top as float) + 0.06
+		var found := false
+		for spot in _city.bread_spots:
+			found = found or (Vector2(spot.x - local.x, spot.z - local.z).length() < 0.001
+					and absf(spot.y - want_y) < 0.001)
+		crumb_ok = crumb_ok and found
+	var plaza_ok: bool = _city.last_report.plaza_clear
+	## --- the tier queues: 4 instances each, over the centers, stacked ---------
+	var visuals_ok := count_ok
+	var head_colors := {}
+	var tier_base := 0.0
+	for tier in tiers:
+		var key: String = tier[0]
+		var size: Vector3 = tier[1]
+		var queue: Array = _city._visuals[key].xfs if _city._visuals.has(key) else []
+		var colors: Array = _city._visuals[key].colors if _city._visuals.has(key) else []
+		visuals_ok = visuals_ok and queue.size() == 4
+		var want_y := _city.block_slab_height + tier_base + size.y * 0.5
+		for i in queue.size():
+			var o: Vector3 = (queue[i] as Transform3D).origin
+			var sc: Vector3 = (queue[i] as Transform3D).basis.get_scale()
+			var over_anchor := false
+			for rec in _city.anchors:
+				var local := _city.to_local(rec.center)
+				over_anchor = over_anchor \
+						or Vector2(o.x - local.x, o.z - local.z).length() < 0.01
+			visuals_ok = visuals_ok and over_anchor \
+					and sc.distance_to(size) < 0.001 \
+					and absf(o.y - want_y) < 0.001
+			if key == "anchor_head":
+				head_colors[colors[i]] = true
+		tier_base += size.y
+	var all_four := head_colors.size() == 4
+	for palette: Array in _city.DISTRICT_PALETTES:
+		all_four = all_four and head_colors.has(palette[0])
+	visuals_ok = visuals_ok and all_four
+	## --- collision: one Props box per tier, 3 above the y 5.0 window ----------
+	var props_body := _city.get_node("Static/Props") as StaticBody3D
+	var colliders_ok := props_body != null \
+			and props_body.collision_layer == 1 and props_body.collision_mask == 0
+	var high_shapes := 0
+	if colliders_ok:
+		for rec in _city.anchors:
+			var local := _city.to_local(rec.center)
+			var per_anchor := 0
+			for shape_node in props_body.find_children("*", "CollisionShape3D", true, false):
+				var shape := shape_node as CollisionShape3D
+				var box := shape.shape as BoxShape3D
+				if box == null:
+					continue
+				var pos := shape.position
+				if Vector2(pos.x - local.x, pos.z - local.z).length() > 1.5:
+					continue
+				var tier_floor := 0.0
+				for tier in tiers:
+					var size: Vector3 = tier[1]
+					if box.size.distance_to(size) < 0.001 \
+							and absf(pos.y - (_city.block_slab_height + tier_floor
+									+ size.y * 0.5)) < 0.001:
+						per_anchor += 1
+						if pos.y > 5.0:
+							high_shapes += 1
+					tier_floor += size.y
+			colliders_ok = colliders_ok and per_anchor == 4
+		colliders_ok = colliders_ok and high_shapes == 3 * _city.anchors.size()
+	## --- determinism: a real rebuild reproduces anchors and bread spots ------
+	_city.generate(default_seed, true)
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and _anchors_reproduced(anchors_snapshot, _city.anchors) \
+			and _vec_spots_equal(bread_snapshot, _city.bread_spots)
+	## --- foreign seed: the same four posts stand at the pinned blocks --------
+	_city.generate(424242)
+	var foreign_ok: bool = _city.anchors.size() == 4
+	for rec in _city.anchors:
+		var c: Vector3 = rec.center
+		var matched := false
+		for pin in pins:
+			var g := _city.to_global(Vector3(
+					(pin.x - half_blocks) * _city.block_pitch, 0.0,
+					(pin.y - half_blocks) * _city.block_pitch))
+			matched = matched or Vector2(g.x - c.x, g.z - c.z).length() < 0.01
+		foreign_ok = foreign_ok and matched
+	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
+	## --- the physical legs, on the first anchor (NW quadrant) -----------------
+	var land_ok := false
+	var eat_ok := false
+	if count_ok:
+		var rec: Dictionary = _city.anchors[0]
+		var cap_center: Vector3 = rec.center
+		var cap_top: float = rec.cap_top
+		var hunger := Hunger.new()
+		hunger.player = _player
+		add_child(hunger)
+		## Mid-bar BEFORE the drop so the +30 restore is measurable: unlike the
+		## roof-crumb leg (a waddle away), this crumb is underfoot at touchdown,
+		## so the eat can land the very frame grounding lands.
+		hunger.value = 40.0
+		var hunger0 := hunger.value
+		var crumb: BreadCrumb = CRUMB_SCENE.instantiate()
+		crumb.position = Vector3(cap_center.x, cap_top + 0.06, cap_center.z)
+		add_child(crumb)
+		crumb.eaten.connect(hunger.eat)
+		await _set_up(true, Vector3(cap_center.x, cap_top + 0.5, cap_center.z),
+				Vector3.ZERO)
+		await _await_grounded(150)
+		land_ok = _player.is_grounded \
+				and absf(_player.position.y - (cap_top + 0.3)) < 0.2 \
+				and _player.velocity.is_finite()
+		for _i in 90:
+			await get_tree().physics_frame
+			eat_ok = not is_instance_valid(crumb) and hunger.value > hunger0 + 10.0
+			if eat_ok:
+				break
+		hunger.free()
+	_check("city_district_anchors_present",
+			count_ok and districts_ok and pins_ok and height_ok and recompute_ok
+					and report_pin and standoff_ok and clear_ok and arithmetic_ok
+					and crumb_ok and plaza_ok and visuals_ok and colliders_ok
+					and deterministic and foreign_ok and land_ok and eat_ok,
+			("count=%s districts=%d pins=%s height=%s recompute=%s report=%s "
+			+ "standoff=%s (worst %.4f m) clear=%s (worst %.2f m) arith=%s "
+			+ "crumb=%s plaza=%s visuals=%s colliders=%s (%d high) det=%s "
+			+ "foreign=%s land=%s eat=%s") % [
+					count_ok, districts_seen.size(), pins_ok, height_ok,
+					recompute_ok, report_pin, standoff_ok, worst_daylight,
+					clear_ok, worst_bread, arithmetic_ok, crumb_ok, plaza_ok,
+					visuals_ok, colliders_ok, high_shapes, deterministic,
+					foreign_ok, land_ok, eat_ok])
+	## Informational: the anchors' tuned numbers — the ticket's bars, re-printed.
+	print("SIM DATA city_district_anchors: anchors=%d top=%.2f cap=%.2f worst_daylight=%.4f m worst_bread=%.2f m fingerprint=%d" % [
+			_city.anchors.size(),
+			_city.anchors[0].top if not _city.anchors.is_empty() else 0.0,
+			_city.anchors[0].cap_top if not _city.anchors.is_empty() else 0.0,
+			worst_daylight, worst_bread, fp_first])
 
 
 ## --- scenarios (T-007 tourists) ---------------------------------------------
