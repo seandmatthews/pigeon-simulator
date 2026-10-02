@@ -75,7 +75,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-055 | [Stop the per-frame redundant presentation writes and the HUD pointer's per-frame array churn](T-055-redundant-writes-pointer-churn.md) | code-optimization | 2 | 1 | done |
 | T-057 | [Derive the bread-pointer chevron from screen space; pin Gate 1b to independent ground truth](T-057-screen-space-bread-chevron.md) | ui-ux | 4 | 3 | done |
 | T-058 | [Make the off-city void readable: teach the chevron convention and cue the edge](T-058-off-city-turn-around.md) | ui-ux | 3 | 1 | proposed |
-| T-059 | [Retune the world score popup: legible at hit distances, de-cluster chained hits](T-059-score-popup-retune.md) | ui-ux | 3 | 1 | proposed |
+| T-059 | [Retune the world score popup: legible at hit distances, de-cluster chained hits](T-059-score-popup-retune.md) | ui-ux | 3 | 1 | done |
 | T-060 | [Make the splat humanly possible and coach the lead](T-060-poop-hitbox-coach.md) | ui-ux | 4 | 2 | proposed |
 | T-061 | [Make a stall fall: grade the velocity-align cut by stall depth](T-061-stall-fall-develops.md) | flight-control | 4 | 3 | superseded (T-081) |
 | T-062 | [Fade pitch authority near vertical — no more stuck 68–101° ballooning attitudes](T-062-pitch-authority-falloff.md) | flight-control | 4 | 3 | superseded (T-083) |
