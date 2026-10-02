@@ -47,6 +47,12 @@ const TIER_PULSE_HZ: Array[float] = [0.0, 0.0, 3.0, 6.0] ## Flash rate per tier 
 const TIER_PULSE_TO := Color(1.0, 0.85, 0.8) ## The bright end both pulsing tiers breathe toward.
 const POOP_READY_DIM_ALPHA := 0.25 ## (T-077) The F glyph's alpha while the poop cooldown runs — dim, but readable.
 const POINTER_CLIMB_CUE_M := 3.0 ## (T-098) Vertical delta beyond which the bread readout carries the ▲/▼ climb cue.
+## (T-058) Appended to the pointer text while the target bearing is stern-facing
+## — composed AFTER the T-098 climb cue, so a stern high crumb reads
+## "bread 12 m ▲ — turn around" and an over-run city reads "city 141 m — turn
+## around". Derived from world space (never the chevron): the text is written
+## before T-057's camera guards.
+const STERN_SUFFIX := " — turn around"
 const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds the "home again" note stays up.
 
 @export_group("Juice") ## T-013
@@ -232,6 +238,10 @@ func _pulse_score(combo: int) -> void:
 ## " ▲"/" ▼" when that crumb sits well above/below the pigeon); beyond half the
 ## city span the ring is lost and the same slot points home instead
 ## ("city 131 m", horizontal distance to city.spawn_point, never arrowed).
+## Either mode says " — turn around" when the target bearing is stern-facing
+## (T-058) — past the ring with the nose pointing away from home, or behind you
+## after flying past a crumb — the plain-language replacement for the untaught
+## ▼-means-behind convention.
 ## Hidden whenever it has nothing to say. Since T-057 the chevron's
 ## rotation_degrees carries the target's direction ON SCREEN — both ends
 ## unprojected through the live chase camera, 0° = screen-up, clockwise
@@ -266,6 +276,13 @@ func _update_bread_pointer() -> void:
 ## POINTER_CLIMB_CUE_M above/below the pigeon gets a trailing " ▲"/" ▼", so a
 ## roof crumb stops reading like a blank wall it points into. City mode never
 ## carries the cue: its target is always street level.
+## The stern suffix (T-058): BOTH modes — when the player's flat nose dotted
+## with the flat to-target direction is negative (target strictly behind the
+## nose; exact abeam dots ≈ 0 → no suffix, the strict > 90° half-space with no
+## epsilon), the text gains " — turn around" after any climb cue. Derived from
+## world space, deliberately not from the chevron: the text is written here
+## BEFORE the camera guards above, so the suffix survives every behind-lens or
+## degenerate-camera frame instead of freezing with the chevron.
 func _aim_bread_pointer(target: Vector3, what: String, distance: float,
 		with_climb_cue: bool = false) -> void:
 	bread_pointer.visible = true
@@ -276,7 +293,16 @@ func _aim_bread_pointer(target: Vector3, what: String, distance: float,
 			climb_cue = " ▲"
 		elif dy < -POINTER_CLIMB_CUE_M:
 			climb_cue = " ▼"
-	bread_pointer.text = "%s %d m%s" % [what, roundi(distance), climb_cue]
+	## (T-058) Stern test in world space, convention-free: flat nose vs flat
+	## to-target. A degenerate flat target (dead overhead) normalizes to zero
+	## and dots 0 → not stern — the same no-suffix call as exact abeam.
+	var forward_flat := Vector2(-player.global_transform.basis.z.x,
+			-player.global_transform.basis.z.z).normalized()
+	var to_target_flat := Vector2(target.x - player.global_position.x,
+			target.z - player.global_position.z).normalized()
+	var stern := forward_flat.dot(to_target_flat) < 0.0
+	bread_pointer.text = "%s %d m%s%s" % [what, roundi(distance), climb_cue,
+			STERN_SUFFIX if stern else ""]
 	var camera := get_viewport().get_camera_3d()
 	if camera == null or camera.is_position_behind(target):
 		return
