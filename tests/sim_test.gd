@@ -2363,20 +2363,24 @@ func _expected_cafe_spot(city: City, info: Dictionary) -> Transform3D:
 	return Transform3D(Basis(Vector3.UP, atan2(-normal.x, -normal.z)), pos)
 
 
-## Cafe tables (T-031): the city records one pure-layout spot per awninged
-## building (the pinned 104 at the M1 seed; non-awninged buildings get none),
-## every spot recomputable from its building's `door_face`/`size`/`lot_offset`,
-## same-seed regeneration reproducing the spot list byte-identically, and a
-## spawner rig seating tables-with-sitters exactly on the spots
-## (`elder_placement_no_rng` template). Placement holds the street clearances:
-## on the sidewalk band with the table center ≥ 0.5 m inside the tourist
-## loop's 10.9 m curb line (square metrics — the loop legs are lines), ≥ 1.0 m
-## off the block's bread spots (bench seats; corner bread-ring spots lie
-## outside every block's radius), ≥ 1.2 m edge-to-edge off the door line.
-## Sitters are layer-3 `npc` static bodies (mask 0), 1-2 per table by the
-## even/odd spot rule (104 tables → 156), shirts straight from the tourist
-## palette by spot index — and a grounded pigeon can waddle up and perch
-## beside a table, which stops the waddle dead (solid layer-1 furniture).
+## Cafe tables (T-031, batched T-094): the city records one pure-layout spot
+## per awninged building (the pinned 104 at the M1 seed; non-awninged
+## buildings get none), every spot recomputable from its building's
+## `door_face`/`size`/`lot_offset`, same-seed regeneration reproducing the
+## spot list byte-identically, and a spawner rig seating the batched furniture
+## exactly on the spots (`elder_placement_no_rng` template). Placement holds
+## the street clearances: on the sidewalk band with the table center ≥ 0.5 m
+## inside the tourist loop's 10.9 m curb line (square metrics — the loop legs
+## are lines), ≥ 1.0 m off the block's bread spots (bench seats; corner
+## bread-ring spots lie outside every block's radius), ≥ 1.2 m edge-to-edge
+## off the door line. Since T-094 the rig reads the batch: one positioned
+## shape per piece under the two merged bodies (`Tables` layer 1 `world`,
+## `Sitters` collision-layer value 4 — the retired scenes' value — mask 0
+## both), sitters 1-2 per table by the even/odd spot rule (104 tables → 156)
+## counted through the spawner exposure, shirts straight from the tourist
+## palette by spot index read off the torso/arm MultiMesh instance colors —
+## and a grounded pigeon can waddle up and perch beside a table, which stops
+## the waddle dead (solid layer-1 furniture).
 func _scenario_city_cafe_tables() -> void:
 	var default_seed: int = _city.seed_value
 	var fp_first: int = _city.fingerprint
@@ -2444,49 +2448,85 @@ func _scenario_city_cafe_tables() -> void:
 	_city.generate(default_seed)
 	var deterministic: bool = _city.fingerprint == fp_first \
 			and _spots_equal(spots, _city.cafe_spots)
-	## Spawner rig over the real generated city (the elder-rig template).
+	## Spawner rig over the real generated city (the elder-rig template). The
+	## T-094 batch replaces the per-table nodes: the reads go through the
+	## spawner's exposures — the two merged bodies (one shape per piece, in
+	## build order = spot/seat order), the per-sitter records, and the
+	## torso/arm per-instance shirt colors off the spawner's queues (the exact
+	## values fed into `set_instance_color` — this engine build's headless
+	## RenderingServer answers instance readbacks with identity/black, the
+	## `city_crosswalks_present` caveat, so the queue is the per-instance
+	## channel that can be asserted here; instance COUNTS do read back, and
+	## the queue↔instance correspondence is anchored by them below).
 	var spawner := CafeSpawner.new()
 	spawner.city = _city
 	add_child(spawner)
 	await _wait_frames(4)
-	var tables := spawner.living_tables()
-	var seated: bool = tables.size() == spots.size()
-	var count_ok_rig := seated
-	var shirts_ok := seated
-	var layers_ok := seated
+	var tables_body: StaticBody3D = spawner.tables_body
+	var sitters_body: StaticBody3D = spawner.sitters_body
+	var torso_mm: MultiMeshInstance3D = spawner.visual("sitter_torso")
+	var arm_mm: MultiMeshInstance3D = spawner.visual("sitter_arm")
+	var seated: bool = tables_body != null and sitters_body != null \
+			and tables_body.get_child_count() == spots.size()
+	var layers_ok: bool = tables_body != null and sitters_body != null \
+			and tables_body.collision_layer == 1 and tables_body.collision_mask == 0 \
+			and sitters_body.collision_layer == 4 and sitters_body.collision_mask == 0
+	var count_ok_rig: bool = seated and spawner.sitters.size() > 0
+	var shirts_ok: bool = seated
 	var total_sitters := 0
-	for i in tables.size():
-		var table: CafeTable = tables[i]
-		seated = seated and table.global_position.distance_to(
-				_city.to_global((spots[i] as Transform3D).origin)) < 0.01
-		count_ok_rig = count_ok_rig and table.sitters.size() == (2 if i % 2 == 0 else 1)
-		for j in table.sitters.size():
-			var sitter: CafeSitter = table.sitters[j]
+	for i in spots.size():
+		## The table's merged shape sits at the spot — the batched "seated"
+		## read: the shape is the table footprint at (0, 0.36, 0) above it.
+		var shape := tables_body.get_child(i) as CollisionShape3D
+		seated = seated and shape.global_position.distance_to(
+				_city.to_global((spots[i] as Transform3D).origin + Vector3(0.0, 0.36, 0.0))) < 0.01
+		## The sitter side: count by the pure even/odd rule, then each seat's
+		## shape on its seat transform and its shirt off the instance colors —
+		## torso at the sitter's own ordinal, arms at 2× and 2×+1.
+		count_ok_rig = count_ok_rig and spawner.sitter_count(i) == (2 if i % 2 == 0 else 1)
+		for seat in spawner.sitter_count(i):
+			var rec: Dictionary = spawner.sitters[total_sitters]
+			var sitter_shape := sitters_body.get_child(total_sitters) as CollisionShape3D
+			var sitter_xf: Transform3D = (spots[i] as Transform3D) * Transform3D(
+					Basis(Vector3.UP, CafeSpawner.SITTER_YAWS[seat]),
+					CafeSpawner.SITTER_SEATS[seat])
+			seated = seated and rec.get("spot") == i and rec.get("seat") == seat \
+					and sitter_shape.global_position.distance_to(
+							_city.to_global(sitter_xf * CafeSpawner.SITTER_SHAPE_OFFSET)) < 0.01
+			var expected: Color = Tourist.SHIRT_PALETTE[(i + seat) % Tourist.SHIRT_PALETTE.size()]
+			shirts_ok = shirts_ok \
+					and spawner.instance_color("sitter_torso", total_sitters).is_equal_approx(expected) \
+					and spawner.instance_color("sitter_arm", total_sitters * 2).is_equal_approx(expected) \
+					and spawner.instance_color("sitter_arm", total_sitters * 2 + 1).is_equal_approx(expected)
 			total_sitters += 1
-			layers_ok = layers_ok and sitter.collision_layer == 4 \
-					and sitter.collision_mask == 0
-			var mat := sitter._torso.material_override as StandardMaterial3D
-			shirts_ok = shirts_ok and mat != null and mat.albedo_color.is_equal_approx(
-					Tourist.SHIRT_PALETTE[(i + j) % Tourist.SHIRT_PALETTE.size()])
+	## The batch is complete: one shape and one record per sitter, the torso
+	## MultiMesh carrying one instance per sitter and the arm key one per arm
+	## (anchoring the queue indices above to the live MultiMeshes), and the
+	## even/odd total: 104 tables → 52 even × 2 + 52 odd × 1 = 156 sitters.
+	count_ok_rig = count_ok_rig \
+			and sitters_body.get_child_count() == total_sitters \
+			and spawner.sitters.size() == total_sitters \
+			and torso_mm.multimesh.instance_count == total_sitters \
+			and arm_mm.multimesh.instance_count == 2 * total_sitters \
+			and total_sitters == awnings + awnings / 2
 	## A grounded pigeon waddles up and perches beside table 0 …
-	var table0: CafeTable = tables[0]
-	var seat: Vector3 = _city.to_global((spots[0] as Transform3D).origin)
+	var seat0: Vector3 = _city.to_global((spots[0] as Transform3D).origin)
 	var table_basis: Basis = (spots[0] as Transform3D).basis
-	var beside := seat + table_basis.x * 1.5 + Vector3(0.0, 0.5, 0.0)
+	var beside := seat0 + table_basis.x * 1.5 + Vector3(0.0, 0.5, 0.0)
 	await _set_up(true, beside, Vector3.ZERO)
 	await _await_grounded(120)
-	var flat := Vector2(_player.position.x - seat.x, _player.position.z - seat.z)
+	var flat := Vector2(_player.position.x - seat0.x, _player.position.z - seat0.z)
 	var perch_ok: bool = _player.is_grounded and flat.length() > 0.55 and flat.length() < 2.0
 	## … and the table itself is solid: a waddle aimed straight into it stops at
 	## its edge (parked street-side, past the tabletop, before the sitters' line).
-	var street_side := seat - table_basis.z * 1.0 + Vector3(0.0, 0.5, 0.0)
-	var to_table := seat - street_side
+	var street_side := seat0 - table_basis.z * 1.0 + Vector3(0.0, 0.5, 0.0)
+	var to_table := seat0 - street_side
 	to_table.y = 0.0
 	await _set_up(true, street_side, Vector3.ZERO,
 			rad_to_deg(atan2(-to_table.x, -to_table.z)))
 	await _await_grounded(120)
 	await _hold("pitch_up", 25)
-	flat = Vector2(_player.position.x - seat.x, _player.position.z - seat.z)
+	flat = Vector2(_player.position.x - seat0.x, _player.position.z - seat0.z)
 	perch_ok = perch_ok and _player.is_grounded \
 			and flat.length() > 0.5 and flat.length() < 0.8
 	_check("city_cafe_tables_present",
@@ -2496,8 +2536,8 @@ func _scenario_city_cafe_tables() -> void:
 			("spots %d vs awnings %d, recompute=%s band=%s bread=%s door=%s det=%s, "
 				+ "seated=%d tables, sitters=%d (rule=%s shirts=%s layers=%s), perch=%s") % [
 						spots.size(), awnings, recompute_ok, band_ok, bread_ok, door_ok,
-						deterministic, tables.size(), total_sitters, count_ok_rig, shirts_ok,
-						layers_ok, perch_ok])
+						deterministic, tables_body.get_child_count(), total_sitters,
+						count_ok_rig, shirts_ok, layers_ok, perch_ok])
 	spawner.free()
 
 

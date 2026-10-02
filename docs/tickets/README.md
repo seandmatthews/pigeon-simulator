@@ -99,7 +99,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-090 | [Signboards over the shop doors](T-090-shop-signboards.md) | worldbuilding | 3 | 1 | done |
 | T-091 | [One tall anchor per district — a destination you can steer by](T-091-district-anchors.md) | worldbuilding | 4 | 2 | done |
 | T-093 | [Merge the city's 840 single-shape static bodies into one body per group](T-093-city-one-body-per-group.md) | code-optimization | 2 | 2 | done |
-| T-094 | [Cafe furniture is ~58% of boot nodes — batch it like the city props](T-094-cafe-furniture-batched.md) | code-optimization | 3 | 3 | proposed |
+| T-094 | [Cafe furniture is ~58% of boot nodes — batch it like the city props](T-094-cafe-furniture-batched.md) | code-optimization | 3 | 3 | done |
 | T-095 | [Make the off-world return and the buzz flinch visible to pilot sessions](T-095-pilot-off-world-buzz-events.md) | code-optimization | 3 | 1 | done |
 | T-097 | [Stop the title screen's Esc key from hard-quitting the app](T-097-title-esc-no-quit.md) | ui-ux | 3 | 1 | done |
 | T-098 | [Give the bread pointer an up/down cue — roof crumbs currently point into walls](T-098-bread-pointer-climb-cue.md) | ui-ux | 4 | 1 | done |
