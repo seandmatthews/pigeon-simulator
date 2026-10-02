@@ -1,6 +1,6 @@
 # T-104 — Move the spawn plaza's bins outside the bench ring: today they bury into the diagonal benches
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-029, T-093 (both landed — the plaza landmark this layout edits, and the one-body-per-group `Static/Props` structure the new scenario reads)
 - **Refs:** owner request (2026-10-02): "bins clip through the four diagonal benches … fix: honor the stated intent — bins on the diagonals but radially outside the bench ring — and add a Gate 1b check that plaza prop colliders don't intersect" · research: [`docs/references/plaza-bench-ring/research.md`](../references/plaza-bench-ring/research.md) (+ its 8 Commons images, [`credits.md`](../references/plaza-bench-ring/credits.md)) · sibling note: [`docs/references/plaza-litter-bin/research.md`](../references/plaza-litter-bin/research.md)
 
@@ -100,34 +100,35 @@ interpenetrates an existing one fails the suite instead of a human's eye.
 
 ## Acceptance criteria
 
-- [ ] Gate 1b `city_plaza_props_clear` passes: no pair of plaza `Props`
+- [x] Gate 1b `city_plaza_props_clear` passes: no pair of plaza `Props`
       colliders (boxes yawed-SAT, lamps circle-vs-OBB, Y-overlap required,
       0.01 m touch tolerance) intersects within 16 m of `_plaza_center`, at the
       default seed and one foreign seed. *(This criterion is only satisfiable
       by the harness scenario — it is the scenario.)*
-- [ ] Red-before/green-after holds: on the pre-fix tree the same scenario
+- [x] Red-before/green-after holds: on the pre-fix tree the same scenario
       fails reporting exactly the four diagonal bench×bin pairs (probe-verified
       2026-10-02: 4 × `overlap=true`, all other pairs false); after the move it
       passes.
-- [ ] The scenario's intent pins hold: bin-to-bench collider gap ≥ 0.3 m
+- [x] The scenario's intent pins hold: bin-to-bench collider gap ≥ 0.3 m
       (measured 0.611 m at (±7.0, ±7.0)) and bins on the slab (per-axis extent
       ≤ 11.0 − 0.389 m), every seed.
-- [ ] Both fingerprint pins re-derived with the headless `City.generate` probe
+- [x] Both fingerprint pins re-derived with the headless `City.generate` probe
       and moved in the same change-set — `pin_default`/`pin_foreign`
       (`tests/sim_test.gd:1131-1132`), the three literal pin checks
       (`tests/sim_test.gd:3061`, `:3150`, `:3309`) and their move-history
       comment (~`:2944`), plus the pin history in VERIFICATION.md's
       `city_crosswalks_present` row; same-seed regen still reproduces the new
       fingerprint byte-identically.
-- [ ] `PLAZA_DROP_OFFSET` comment text updated to the new bin radius
+- [x] `PLAZA_DROP_OFFSET` comment text updated to the new bin radius
       (`tests/sim_test.gd:72-78`); no numeric change needed (offset point stays
       5.0 m clear).
-- [ ] Gate 1 + full Gate 1b suite + Gate 2 green, with the new scenario row
+- [x] Gate 1 + full Gate 1b suite + Gate 2 green, with the new scenario row
       added to VERIFICATION.md's Gate 1b table in the same change-set.
-- [ ] [Gate 3] From plaza eye level and from a low orbit of each diagonal, each
+- [x] [Gate 3] From plaza eye level and from a low orbit of each diagonal, each
       bin reads as its own object standing on the paving with visible daylight
       to its bench; benches, elders, lamps and the statue read untouched, and
-      the ring still reads as a ring with walk-in gaps.
+      the ring still reads as a ring with walk-in gaps. *(Reviewer sign-off
+      2026-10-02.)*
 
 ## Verification
 
@@ -145,6 +146,43 @@ benches r=8.0 span [7.100, 8.900]; 4 bins r=7.778 span [7.389, 8.167]; 4 lamps
 r=13.859; 1 plinth), overlap=true on exactly the 4 diagonal bench×bin pairs;
 candidates (6.5, 6.5) → still overlapping (−0.097), (6.8, 6.8) → 0.328 and
 (7.0, 7.0) → 0.611 clear.
+
+**Red-before failure signature (2026-10-02, this change-set: the new
+`city_plaza_props_clear` scenario run against the pre-fix tree, full Gate 1b
+suite — 113 passes, this 1 failure):**
+
+```
+SIM FAIL city_plaza_props_clear: shapes=17 clash='bench#1×bin#0 @0.64 m bench#3×bin#1 @0.64 m bench#5×bin#3 @0.64 m bench#7×bin#2 @0.64 m' bin_bench=1.325 slab=true det=true foreign=[shapes=17 clash='bench#1×bin#0 @0.64 m bench#3×bin#1 @0.64 m bench#5×bin#3 @0.64 m bench#7×bin#2 @0.64 m' bin_bench=1.325 slab=true]
+```
+
+— exactly the four diagonal bench×bin pairs (bench indices 1/3/5/7, the
+elder-free ones), 0.64 m penetration each (the probe's ≈0.64 m minimum push),
+identical at the default and foreign seed; every other pair clear, census
+8/4/4/1 as pinned, `SIM SUMMARY: 1 failure(s)`.
+
+**Recorded during implementation (2026-10-02):**
+
+- Bins moved to (±7.0, ±7.0) in `_build_plaza` (`scripts/city.gd` — the one
+  line, plus the block docstring/comment now say "just outside the bench
+  ring"); bin geometry, collider size and `_fp` entry shape untouched.
+- Fingerprint pins re-derived with a temporary headless `City.generate` probe
+  (validated first: it reproduced the pre-fix 650664268 / 4031380170
+  byte-identically, then read the moved values on the fixed tree):
+  **seed 20260928 → 4045370482** (was 650664268), **seed 424242 → 533171164**
+  (was 4031380170). Moved in `pin_default`/`pin_foreign`, the three literal
+  checks (rim / skyline / park trees), the rim scenario's history comment, and
+  the pin histories in VERIFICATION.md's `city_facades_fit_floors`,
+  `city_crosswalks_present`, `city_apron_rim_present` and
+  `city_park_trees_present` rows (all four state the pins; only crosswalks is
+  named by the criterion — the other three would have been left lying).
+- Gates run green on the fixed tree: Gate 1 `--import` (exit 0; only the
+  pre-existing "33 resources still in use at exit" line, identical on the
+  pristine main checkout) and `--quit-after 120` boot (exit 0, zero error
+  lines); full Gate 1b suite exit 0 — **114 passes, 0 failures**, the new
+  scenario printing `SIM DATA city_plaza_props_clear: shapes=17
+  worst_bin_bench=0.611 fingerprint=4045370482`; Gate 2 autoplay exit 0,
+  `AUTOPLAY DONE ok=true … restart=true`, no `SCRIPT ERROR` (fps 130,
+  poses/effects/sfx all reporting as before the move).
 
 ## References
 

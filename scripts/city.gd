@@ -1071,9 +1071,9 @@ func cafe_spot_for(info: Dictionary) -> Transform3D:
 
 
 ## The spawn plaza: an open paved block — benches around a landmarked middle,
-## lamps on the corners, bins on the diagonals. The center carries the T-029
-## landmark (the bronze pigeon on its plinth); everything else stays on the
-## 8 m ring and outside.
+## lamps on the corners, bins on the diagonals just outside the bench ring.
+## The center carries the T-029 landmark (the bronze pigeon on its plinth);
+## everything else stays on the 8 m ring and beyond.
 func _build_plaza(center: Vector3) -> void:
 	for i in 8:
 		var ang := TAU * i / 8.0
@@ -1088,7 +1088,13 @@ func _build_plaza(center: Vector3) -> void:
 				Vector3(pos.x, block_slab_height + 0.60, pos.z)))
 	for corner: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
 		_add_lamp(center + Vector3(corner.x * 9.8, 0.0, corner.y * 9.8))
-		_add_bin(center + Vector3(corner.x * 5.5, 0.0, corner.y * 5.5))
+		## (T-104) The bins keep the diagonal azimuths but sit radially OUTSIDE
+		## the 8 m bench ring: (7.0, 7.0) puts the bin center at r ≈ 9.9 m,
+		## 0.611 m clear of the bench colliders' outer end (8.9 m) — the probed
+		## minimum is ~6.6 per axis, (6.5, 6.5) still clips. On the slab
+		## (per-axis reach 7.389 ≪ 11.0), 3.96 m from the lamps, 5.0 m from the
+		## sim harness's PLAZA_DROP_OFFSET landing point.
+		_add_bin(center + Vector3(corner.x * 7.0, 0.0, corner.y * 7.0))
 	_add_landmark(center) ## T-029 — after the ring, at the center.
 
 

@@ -72,9 +72,10 @@ const MUSH_MIN_VY_BAR := -2.0 ## Most-negative vy (m/s) the window must reach.
 ## (T-029) The plaza-anchor drop offset: the plaza-anchor scenarios ground the
 ## pigeon ON the plaza but no longer AT its center — the T-029 landmark plinth
 ## stands there now. The offset puts the drop 5.0 m out from the center: clear
-## of the 2.4 m plinth footprint (1.70 m half-diagonal) and the ±5.5 m diagonal
-## bins, still inside the 8 m bench ring. The anchor's meaning is "grounded on
-## the plaza (block under the center)", not "at the exact center".
+## of the 2.4 m plinth footprint (1.70 m half-diagonal) and — the bins pushed
+## outside the 8 m bench ring by T-104, to (±7.0, ±7.0) — 5.0 m clear of the
+## nearest diagonal bin. The anchor's meaning is "grounded on the plaza (block
+## under the center)", not "at the exact center".
 const PLAZA_DROP_OFFSET := Vector3(4.0, 0.0, 3.0)
 
 ## Set SIM_DEBUG=1 to print per-scenario trajectory samples.
@@ -220,6 +221,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_horizon_skyline() ## T-088 commit 2 — after the rim, same audit pattern.
 	await _scenario_city_park_trees() ## T-030 — after the skyline, same audit pattern.
 	await _scenario_city_plaza_landmark() ## T-029 — after the park trees, same audit chain.
+	await _scenario_city_plaza_props_clear() ## T-104 — after the plaza landmark, same audit chain.
 	await _scenario_city_district_anchors() ## T-091 — after the plaza landmark, same audit chain.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
@@ -1129,8 +1131,8 @@ func _facade_node(f: int) -> MultiMeshInstance3D:
 ## `_fp` entries. Layout asserts on the standing city, no flight (the
 ## district-palettes scenario shape).
 func _scenario_city_facades_fit_floors() -> void:
-	var pin_default := 650664268 ## Fingerprint baseline — moved for T-051's two-axis footprint `_fp` entry, again for T-029's plaza-landmark `_fp` entry and again for T-091's four district-anchor `_fp` entries, each re-derived with a headless City.generate probe (pre-T-051: 2492360539; pre-T-029: 4188136223; pre-T-091: 1006789400).
-	var pin_foreign := 4031380170 ## Foreign-seed fingerprint, ditto (pre-T-051: 2662825400; pre-T-029: 547420287; pre-T-091: 3359332191).
+	var pin_default := 4045370482 ## Fingerprint baseline — moved for T-051's two-axis footprint `_fp` entry, again for T-029's plaza-landmark `_fp` entry, again for T-091's four district-anchor `_fp` entries, and again for T-104's four plaza-bin `_fp` x/z entries, each re-derived with a headless City.generate probe (pre-T-051: 2492360539; pre-T-029: 4188136223; pre-T-091: 1006789400; pre-T-104: 650664268).
+	var pin_foreign := 533171164 ## Foreign-seed fingerprint, ditto (pre-T-051: 2662825400; pre-T-029: 547420287; pre-T-091: 3359332191; pre-T-104: 4031380170).
 	var baseline_ok: bool = _city.fingerprint == pin_default
 	var default_seed: int = _city.seed_value
 	var fp_first: int = _city.fingerprint
@@ -2942,12 +2944,14 @@ func _scenario_city_crosswalks() -> void:
 ## CollisionObject3D under the Visuals root, a forced same-seed rebuild
 ## reproducing both spot lists byte-identically, and the layout fingerprint
 ## still equal to the cross-version pins recorded by T-047 (seed 20260928 →
-## 650664268, seed 424242 → 4031380170 — the values moved for T-051's
+## 4045370482, seed 424242 → 533171164 — the values moved for T-051's
 ## mandated two-axis footprint `_fp` entry, re-derived 2026-10-01 with a
 ## headless `City.generate` probe (pre-T-051: 2492360539 / 2662825400), again
 ## for T-029's plaza-landmark `_fp` entry, same probe (pre-T-029:
-## 4188136223 / 547420287), and again for T-091's four district-anchor `_fp`
-## entries, same probe; pre-T-091: 1006789400 / 3359332191).
+## 4188136223 / 547420287), again for T-091's four district-anchor `_fp`
+## entries, same probe (pre-T-091: 1006789400 / 3359332191), and again for
+## T-104's four plaza-bin `_fp` x/z entries, same probe
+## (pre-T-104: 650664268 / 4031380170)).
 ##
 ## Transform source: the public `rim_hedge_spots`/`rim_tree_spots` arrays for
 ## the placement legs; the trunk/crown legs walk the queues that feed the
@@ -3055,11 +3059,11 @@ func _scenario_city_apron_rim() -> void:
 			and (_city._visuals["rim_trunk"].xfs as Array).size() == expected_trees \
 			and (_city._visuals["rim_crown"].xfs as Array).size() == expected_trees
 	## --- cross-version pins (moved for T-051's `_fp` entry, T-029's and -------
-	## T-091's four district-anchor entries)
+	## T-091's four district-anchor entries, T-104's four plaza-bin entries)
 	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 4031380170
+	var pin_foreign: bool = _city.fingerprint == 533171164
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 650664268
+	var pin_default: bool = _city.fingerprint == 4045370482
 	var rim_detail := "hedges=%d trees=%d/%d hedge_place=%s tree_place=%s trees_3d=%s green=%s (%.3f/%.3f) colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
 			hedges.size(), trees.size(), expected_trees, hedge_place_ok,
 			tree_place_ok, trees_3d_ok, green_ok, hedge_dist, crown_dist,
@@ -3145,10 +3149,10 @@ func _scenario_city_horizon_skyline() -> void:
 			and _spots_equal(skyline_xfs, skyline_b) and _spots_equal(tall_xfs, tall_b)
 	## --- cross-version pins and the foreign-seed contract ---------------------
 	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 4031380170 \
+	var pin_foreign: bool = _city.fingerprint == 533171164 \
 			and _city._visuals["skyline_tall"].xfs.size() != tall_xfs.size()
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 650664268
+	var pin_default: bool = _city.fingerprint == 4045370482
 	var skyline_detail := "nodes=%s total=%d tall=%d place=%s size=%s colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
 			nodes_ok, total, tall_xfs.size(), place_ok, size_ok, collider_count,
 			deterministic, pin_foreign, pin_default]
@@ -3305,9 +3309,9 @@ func _scenario_city_park_trees() -> void:
 	var foreign_parks: int = _city.last_report.parks
 	var foreign_ok: bool = (_city._visuals["tree_trunk"].xfs as Array).size() == 4 * foreign_parks \
 			and (_city._visuals["tree_crown"].xfs as Array).size() == 4 * foreign_parks
-	var pin_foreign: bool = _city.fingerprint == 4031380170
+	var pin_foreign: bool = _city.fingerprint == 533171164
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 650664268
+	var pin_default: bool = _city.fingerprint == 4045370482
 	var trees_detail := "parks=%d trees=%d/%d centers=%d place=%s inside=%s trees_3d=%s green=%s (%.3f) clear=%s (worst %.2f m) arith=%s (%.2f m margin) colliders=%d det=%s foreign=%s pins=%s/%s" % [
 			parks, trunk_xfs.size(), expected_count, park_centers.size(), place_ok,
 			inside_ok, trees_3d_ok, green_ok, crown_dist, clear_ok, worst_bread,
@@ -3472,6 +3476,190 @@ func _scenario_city_plaza_landmark() -> void:
 	## Informational: the landmark's tuned numbers — the ticket's bars, re-printed.
 	print("SIM DATA city_plaza_landmark: top=%.2f cap=%.2f clear_radius=%.1f fingerprint=%d" % [
 			top, cap_top, _city.spawn_clear_radius, fp_first])
+
+
+## --- scenario (T-104 plaza props clear) --------------------------------------
+
+
+## (T-104) Audit scope around `_plaza_center`: the 8 m bench ring, the bins at
+## (±7.0, ±7.0) (r ≈ 9.9) and the corner lamps (r ≈ 13.86) all fit inside; the
+## nearest foreign prop (a neighbor block's bench, worst case
+## block_size + road_width − 9.75 − 4.0 = 18.25 m out) stays outside, so the
+## census is exactly the plaza's 17 shapes.
+const PLAZA_AUDIT_RADIUS := 16.0
+## (T-104) Shapes may kiss within this much; deeper interpenetration fails.
+const PLAZA_TOUCH_TOLERANCE := 0.01
+## (T-104) Bin-beside-bench clear space — the research note's 0.3–1 m band floor
+## (measured 0.611 m at the (±7.0, ±7.0) fix).
+const PLAZA_BIN_BENCH_GAP := 0.3
+## (T-104) The bin collider's half-diagonal (0.275·√2) — its worst per-axis
+## reach at any yaw, the conservative on-slab pin bound.
+const PLAZA_BIN_HALF_DIAG := 0.389
+
+
+## The two XZ face normals of a yawed box (the `Basis(Vector3.UP, yaw)` columns
+## projected to the ground plane) — the SAT candidate axes for the pair verdict.
+func _plaza_box_axes(box: Dictionary) -> Array[Vector2]:
+	var c := cos(float(box.yaw))
+	var s := sin(float(box.yaw))
+	return [Vector2(c, -s), Vector2(s, c)]
+
+
+## Half-extent of a yawed box projected on a unit XZ axis — the SAT support width.
+func _plaza_box_extent(box: Dictionary, axis: Vector2) -> float:
+	var axes := _plaza_box_axes(box)
+	return float(box.half_x) * absf(axes[0].dot(axis)) \
+			+ float(box.half_z) * absf(axes[1].dot(axis))
+
+
+## A world XZ point in a yawed box's local frame — the yaw's transpose applied.
+func _plaza_box_to_local(box: Dictionary, p: Vector2) -> Vector2:
+	var d := p - Vector2(float(box.center.x), float(box.center.z))
+	var axes := _plaza_box_axes(box)
+	return Vector2(d.dot(axes[0]), d.dot(axes[1]))
+
+
+## XZ verdict for one pair of plaza audit shapes (keyed on `kind` — "box" or
+## "cyl"): yawed-box SAT over both boxes' face normals — the returned `gap` is
+## the max per-axis separation (a lower bound of the true distance, exact for
+## the face-to-corner bin/bench case); a cylinder reads as a circle —
+## circle-vs-OBB against a box (closest point on the box, exact) or
+## circle-circle against a cylinder. Y-range overlap is required on top; any
+## XZ axis separating by more than `PLAZA_TOUCH_TOLERANCE` (or a Y miss) clears
+## the pair. Returns {intersects, gap} — `gap` negative means penetration.
+func _plaza_pair_verdict(a: Dictionary, b: Dictionary) -> Dictionary:
+	var ac: Vector3 = a.center
+	var bc: Vector3 = b.center
+	var y_gap: float = absf(ac.y - bc.y) - (float(a.half_y) + float(b.half_y))
+	if y_gap > PLAZA_TOUCH_TOLERANCE:
+		return {"intersects": false, "gap": y_gap}
+	var dxz := Vector2(bc.x - ac.x, bc.z - ac.z)
+	if a.kind == "cyl" and b.kind == "cyl":
+		var cc_gap: float = dxz.length() - float(a.radius) - float(b.radius)
+		return {"intersects": cc_gap < -PLAZA_TOUCH_TOLERANCE, "gap": cc_gap}
+	if a.kind == "cyl" or b.kind == "cyl":
+		var cyl: Dictionary = a if a.kind == "cyl" else b
+		var box: Dictionary = b if a.kind == "cyl" else a
+		var local := _plaza_box_to_local(box,
+				Vector2(float(cyl.center.x), float(cyl.center.z)))
+		var nearest := local.clamp(Vector2(-float(box.half_x), -float(box.half_z)),
+				Vector2(float(box.half_x), float(box.half_z)))
+		var obb_gap := (local - nearest).length() - float(cyl.radius)
+		return {"intersects": obb_gap < -PLAZA_TOUCH_TOLERANCE, "gap": obb_gap}
+	var worst := -INF
+	for axis: Vector2 in _plaza_box_axes(a) + _plaza_box_axes(b):
+		var sep: float = absf(dxz.dot(axis)) \
+				- _plaza_box_extent(a, axis) - _plaza_box_extent(b, axis)
+		worst = maxf(worst, sep)
+		if sep > PLAZA_TOUCH_TOLERANCE:
+			return {"intersects": false, "gap": worst}
+	return {"intersects": true, "gap": worst}
+
+
+## One pass of the T-104 audit over the standing city: every `CollisionShape3D`
+## under `Static/Props` (one body per group, T-093 — shapes carry city-local
+## transforms) whose XZ center lies within `PLAZA_AUDIT_RADIUS` of
+## `_plaza_center`, classified bench/bin/lamp/plinth by collider geometry.
+## Returns {clear, pins, count, worst, clashes, slab}: `clear` = no pair
+## intersects (`_plaza_pair_verdict`); `pins` = the census is exactly
+## 8 benches / 4 bins / 4 lamps / 1 plinth, every bin ≥ `PLAZA_BIN_BENCH_GAP`
+## clear of every bench (`worst` gap), every bin on the slab (`slab`);
+## `clashes` names the intersecting pairs for the failure detail.
+func _plaza_props_audit() -> Dictionary:
+	var plaza: Vector3 = _city._plaza_center
+	var shapes: Array[Dictionary] = []
+	var seen := {}
+	var props := _city.get_node("Static/Props") as StaticBody3D
+	for node: Node in props.find_children("*", "CollisionShape3D", true, false):
+		var col := node as CollisionShape3D
+		var pos := col.position
+		if Vector2(pos.x - plaza.x, pos.z - plaza.z).length() > PLAZA_AUDIT_RADIUS:
+			continue
+		var item := {"center": pos}
+		var group := ""
+		var box := col.shape as BoxShape3D
+		if box != null:
+			item["kind"] = "box"
+			item["half_x"] = box.size.x * 0.5
+			item["half_z"] = box.size.z * 0.5
+			item["half_y"] = box.size.y * 0.5
+			item["yaw"] = col.rotation.y
+			if absf(box.size.x - 1.8) < 0.01 and absf(box.size.y - 0.55) < 0.01:
+				group = "bench" ## The `_add_bench` collider.
+			elif absf(box.size.x - 0.55) < 0.01 and absf(box.size.y - 0.8) < 0.01:
+				group = "bin" ## The `_add_bin` collider.
+			elif absf(box.size.x - _city.LANDMARK_PLINTH_BASE.x) < 0.01 \
+					and absf(box.size.y - _city.LANDMARK_PLINTH_TOP) < 0.01:
+				group = "plinth" ## The `_add_landmark` collider.
+		elif col.shape is CylinderShape3D:
+			var cyl := col.shape as CylinderShape3D
+			item["kind"] = "cyl"
+			item["radius"] = cyl.radius
+			item["half_y"] = cyl.height * 0.5
+			group = "lamp" ## The `_add_lamp` collider.
+		else:
+			continue ## No such shape under Props today; a new kind needs a label.
+		item["group"] = group
+		seen[group] = int(seen.get(group, 0)) + 1
+		item["label"] = "%s#%d" % [group, int(seen[group]) - 1]
+		shapes.append(item)
+	var census := {"bench": 0, "bin": 0, "lamp": 0, "plinth": 0}
+	for a: Dictionary in shapes:
+		census[a.group] = int(census[a.group]) + 1
+	var census_ok: bool = census == {"bench": 8, "bin": 4, "lamp": 4, "plinth": 1}
+	var clashes: Array[String] = []
+	var clear := true
+	var worst := INF
+	for i in shapes.size():
+		for j in range(i + 1, shapes.size()):
+			var v := _plaza_pair_verdict(shapes[i], shapes[j])
+			if v.intersects:
+				clear = false
+				clashes.append("%s×%s @%.2f m" % [shapes[i].label, shapes[j].label, -v.gap])
+			elif shapes[i].group == "bin" and shapes[j].group == "bench" \
+					or shapes[i].group == "bench" and shapes[j].group == "bin":
+				worst = minf(worst, v.gap)
+	var slab_ok := true
+	for a: Dictionary in shapes:
+		if a.group != "bin":
+			continue
+		var c: Vector3 = a.center
+		slab_ok = slab_ok \
+				and absf(c.x - plaza.x) + PLAZA_BIN_HALF_DIAG <= _city.block_size * 0.5 \
+				and absf(c.z - plaza.z) + PLAZA_BIN_HALF_DIAG <= _city.block_size * 0.5
+	return {"clear": clear, "pins": census_ok and worst >= PLAZA_BIN_BENCH_GAP and slab_ok,
+			"count": shapes.size(), "worst": worst,
+			"clashes": " ".join(clashes), "slab": slab_ok}
+
+
+## The plaza's props never interpenetrate (T-104): every collider under
+## `Static/Props` within `PLAZA_AUDIT_RADIUS` of `_plaza_center` is checked
+## pairwise (`_plaza_pair_verdict` — yawed-box SAT, circle-vs-OBB lamps, Y
+## overlap required, touch tolerated) with the intent pins riding along — the
+## 8/4/4/1 census, bin-beside-bench clear space, bins on the slab. The plaza
+## layout is RNG-free, so the audit must hold at the default seed AND one
+## foreign seed, and a same-seed rebuild still reproduces the fingerprint (the
+## elder scenario's double-seed shape).
+func _scenario_city_plaza_props_clear() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	var default_run := _plaza_props_audit()
+	_city.generate(424242)
+	var foreign_run := _plaza_props_audit()
+	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
+	var deterministic: bool = _city.fingerprint == fp_first
+	_check("city_plaza_props_clear",
+			default_run.clear and default_run.pins and foreign_run.clear
+					and foreign_run.pins and deterministic,
+			"shapes=%d clash='%s' bin_bench=%.3f slab=%s det=%s foreign=[shapes=%d clash='%s' bin_bench=%.3f slab=%s]" % [
+					default_run.count, default_run.clashes, default_run.worst,
+					default_run.slab, deterministic,
+					foreign_run.count, foreign_run.clashes, foreign_run.worst,
+					foreign_run.slab])
+	## Informational: the audit's tuned numbers — the ticket's bars, re-printed.
+	print("SIM DATA city_plaza_props_clear: shapes=%d worst_bin_bench=%.3f fingerprint=%d" % [
+			default_run.count, default_run.worst, fp_first])
 
 
 ## --- scenario (T-091 district anchors) ---------------------------------------
