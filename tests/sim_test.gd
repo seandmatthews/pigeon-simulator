@@ -180,12 +180,14 @@ func _run_scenarios() -> void:
 	await _scenario_poop_splat_ground()
 	await _scenario_poop_splat_wall()
 	await _scenario_poop_event_target()
-	await _scenario_poop_ball_visible() ## T-086 — the drop reads from the chase cam: bigger emissive ball, collider untouched.
+	await _scenario_poop_ball_visible() ## T-086 — the drop reads from the chase cam: bigger emissive ball; collider re-pinned to 0.30 by T-060.
 	await _scenario_poop_impact_marker_matches_fall() ## T-046 — bare rig, direct instantiation, no Main alive.
 	await _scenario_poop_impact_marker_spawns_from_main() ## T-046 — real-Main rig, the T-077 parked pattern.
 	await _scenario_poop_ready_indicator_tracks_cooldown() ## T-077 — unpaused tree, no live Main, like the poop block.
+	await _scenario_coach_hint_shows_until_first_hit() ## T-060 — after the T-077 rig: owns one instanced Main in its own space, leaves the stretch as it found it.
 	await _scenario_tourists_walk()
 	await _scenario_tourist_splat()
+	await _scenario_poop_hits_tourist_within_lead_window() ## T-060 — the lead shot with the stroll ALIVE, beside the frozen-target splat.
 	await _scenario_tourist_buzz()
 	await _scenario_tourists_recycle()
 	await _scenario_cars_traffic()
@@ -1765,8 +1767,10 @@ func _scenario_poop_event_target() -> void:
 ## scenario running at all, plus the reported emission alpha of 1.0, is that
 ## proof), and the albedo keeps >= 0.25 Euclidean RGB from both wash-out
 ## backdrops (sunlit grass, plaza), distances printed informationally. The
-## collider stays pinned at its landed 0.07 — the visible ball overhangs it on
-## purpose, and every hit-registration scenario above is untouched by that.
+## collider stays pinned at T-060's retuned 0.30 (the landed 0.07 pin amended
+## in place — the pin's purpose survives: the collider still deliberately
+## differs from the 0.12 mesh, the overhang direction flipped, and every
+## hit-registration scenario keeps its layer/mask meaning).
 func _scenario_poop_ball_visible() -> void:
 	var poop: Poop = POOP_SCENE.instantiate() as Poop
 	var ball := poop.get_node("BallMesh") as MeshInstance3D
@@ -1784,7 +1788,7 @@ func _scenario_poop_ball_visible() -> void:
 			collider.radius, vs_grass, vs_plaza])
 	_check("poop_ball_visible",
 			sphere.radius >= 0.10 and emission_ok and vs_grass >= 0.25 and vs_plaza >= 0.25
-					and absf(collider.radius - 0.07) < 0.005, ## float32-stored 0.07 sits a hair above the literal.
+					and absf(collider.radius - 0.30) < 0.005, ## float32-stored 0.30 sits a hair above the literal.
 			"radius=%.2f emission_enabled=%s emission=%s grass=%.3f plaza=%.3f collider=%.2f" % [
 					sphere.radius, mat.emission_enabled, mat.emission, vs_grass, vs_plaza,
 					collider.radius])
@@ -2001,6 +2005,87 @@ func _scenario_poop_ready_indicator_tracks_cooldown() -> void:
 			"lit=%s style=%s dim=%s early_lit=%s frozen=%s resumed=%s relit=%s hidden=%s air=%s cooling=%s restart_lit=%s" % [
 					lit_ok, style_ok, dim_ok, early_lit, frozen_ok, resumed_ok,
 					relit, hidden_ok, airborne_again, cooling_again, restart_lit])
+
+
+## The lead coach (T-060), through the REAL main scene (the T-077 instanced-Main
+## pattern — own space, the spawner tightened to ONE tourist before _ready so
+## the coach's scan has exactly one candidate): held airborne well out of
+## coach_range the slot shows the plain air hint; held airborne ~20 m ahead of
+## the tourist (within coach_range, ahead-ish) it teaches the lead —
+## MainGame.COACH_POOP; one synthetic `Game.add_tourist_hit` (the scoring
+## relay's exact entry — the coach is keyed on `tourist_hits`, never on a
+## signal, so nothing but a real tourist splat retires it) silences it back to
+## HINT_AIR while still airborne and in range; and landing grounded — beside
+## the tourist, still within range, i.e. ineligible only by grounding — shows
+## HINT_GROUND regardless. Registered beside the other poop scenarios —
+## unpaused tree, no live Main — and it leaves it exactly that.
+func _scenario_coach_hint_shows_until_first_hit() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	var spawner: TouristSpawner = main_game.get_node("TouristSpawner") as TouristSpawner
+	spawner.target_count = 1
+	spawner.spawn_min_dist = 0.0
+	spawner.spawn_max_dist = 10.0 ## One candidate, seeded near the spawn corridor before _ready populates.
+	main_game.position = Vector3(5500.0, 0.0, -5500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var hint: Label = main_game.hint_label
+	var pigeon: Player = main_game.player
+	var spawn_local: Vector3 = main_game.city.to_local(main_game.city.spawn_point)
+	var tourists := main_game.tourist_spawner.living_tourists()
+	if tourists.is_empty():
+		_check("coach_hint_shows_until_first_hit", false, "no tourist spawned")
+		main_game.free()
+		Game.hunger.player = null
+		Game.reset_run()
+		return
+	var tourist: Tourist = tourists[0]
+	var tourist_local: Vector3 = main_game.to_local(tourist.global_position)
+	## Out of range: held airborne ~60 m north of the only tourist — the T-077
+	## way, a reset_flight per frame — the coach has nobody to teach, the plain
+	## air hint owns the slot.
+	var far_hover: Vector3 = spawn_local + Vector3(0.0, 12.0, 60.0)
+	for _i in 8:
+		pigeon.reset_flight(far_hover)
+		await get_tree().physics_frame
+	await _wait_frames(2) ## The _process driver's ticks.
+	var far_ok: bool = not pigeon.is_grounded and hint.text == MainGame.HINT_AIR
+	## In range, ahead-ish (yaw 0 flies −Z; the tourist sits 20 m dead ahead):
+	## the lead lesson shows.
+	var near_hover: Vector3 = tourist_local + Vector3(0.0, 8.0, 20.0)
+	for _i in 8:
+		pigeon.reset_flight(near_hover)
+		await get_tree().physics_frame
+	await _wait_frames(2)
+	var coach_ok: bool = not pigeon.is_grounded and Game.tourist_hits == 0 \
+			and hint.text == MainGame.COACH_POOP
+	## One synthetic tourist hit through the scoring relay's exact entry: the
+	## coach is dead for the rest of the run — the slot falls back to the air
+	## hint while still airborne, still in range, tourist still ahead.
+	Game.add_tourist_hit(tourist.global_position)
+	await _wait_frames(2)
+	var after_hit_ok: bool = Game.tourist_hits == 1 and hint.text == MainGame.HINT_AIR
+	## Grounded (a 0.4 m drop beside the tourist, still within coach_range —
+	## ineligible only by grounding): the ground hint shows regardless.
+	pigeon.reset_flight(tourist_local + Vector3(0.0, 0.4, 5.0))
+	var landed := false
+	for _i in 300:
+		await get_tree().physics_frame
+		if pigeon.is_grounded:
+			landed = true
+			break
+	await _wait_frames(3) ## The driver's next ticks reconcile the slot.
+	var grounded_ok: bool = landed and pigeon.is_grounded \
+			and hint.text == MainGame.HINT_GROUND
+	var final_hint: String = hint.text ## Read before the teardown — the label dies with the scene.
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("coach_hint_shows_until_first_hit",
+			far_ok and coach_ok and after_hit_ok and grounded_ok,
+			"far=%s coach=%s after_hit=%s grounded=%s (hint '%s')" % [
+					far_ok, coach_ok, after_hit_ok, grounded_ok, final_hint])
 
 
 ## --- scenarios (T-020 park elders) ------------------------------------------
@@ -3475,6 +3560,133 @@ func _scenario_tourist_splat() -> void:
 					dropped, fired, _tourist_relay, panicked, max_hspeed, flees_impact,
 					Game.score, calm_ok, flush_ok, flush_color])
 	spawner.free()
+
+
+## The retuned hit tolerance makes the LEAD shot real (T-060): a tourist KEEPING
+## its stroll loop (never frozen), a drop released 4 m above the predicted
+## impact — the autoplay formula, live flat position + live flat velocity × the
+## 0.8165 s a 4 m fall takes at poop.gd's `fall_gravity` 12 — CONNECTS through
+## the 0.30 collider (contact reach 0.30 + 0.25 capsule = 0.55 m): splatted
+## fires, the tourist panics. The same drop aimed 1.5 m lateral of the
+## prediction does NOT — 0.95 m of clean margin outside the reach keeps the
+## lead a skill, not a shotgun: the stray drop may splat the ground, but no
+## event targets the tourist and the mood never reaches PANIC. And the
+## criterion's own bar — 0.4 m lateral, inside the reach — connects again.
+func _scenario_poop_hits_tourist_within_lead_window() -> void:
+	_dropped.clear()
+	_splat_events.clear()
+	var spawner := TouristSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	spawner.target_count = 1
+	spawner.spawn_min_dist = 0.0
+	spawner.spawn_max_dist = 10.0 ## Pin the loop to the plaza block, like the frozen-target scenario.
+	add_child(spawner)
+	await _wait_frames(4)
+	var tourists := spawner.living_tourists()
+	if tourists.is_empty():
+		_check("poop_hits_tourist_within_lead_window", false, "no tourist spawned")
+		spawner.free()
+		return
+	var tourist: Tourist = tourists[0]
+	var fall := sqrt(2.0 * 4.0 / 12.0) ## ≈ 0.8165 s: the 4 m release fall at fall_gravity 12.
+	## Positive arm — dead on the prediction: seat mid-leg (straight walking for
+	## the whole fall window), read the LIVE stroll velocity, drop from 4.3 m
+	## (the drop leaves 0.3 m under the body — poop_drop_offset).
+	_seat_mid_leg(tourist)
+	await _wait_frames(3) ## Straight-leg stroll ticks to settle the velocity read.
+	var lead_spot := _predict_lead_spot(tourist, fall)
+	await _set_up(true, lead_spot + Vector3(0.0, 4.3, 0.0), Vector3.ZERO)
+	await _tap("poop")
+	await _wait_frames(2)
+	var dropped := _dropped.size() == 1
+	if dropped:
+		_dropped[0].splatted.connect(_on_test_splatted)
+	var panicked := false
+	for _i in 120: ## Contact ~0.7 s in; the panic sprint follows it.
+		await get_tree().physics_frame
+		panicked = panicked or tourist.mood == Tourist.Mood.PANIC
+	var lead_hit: bool = _splat_events.size() == 1 \
+			and _splat_events[0].target == tourist
+	var events_after_lead := _splat_events.size()
+	## Negative arm — the same prediction 1.5 m lateral (perpendicular to the
+	## stroll): let the panic burn out first (bounded — a second splat would
+	## restart it, and none can fire here), re-seat mid-leg, read the live
+	## velocity again at THIS release.
+	for _i in 200:
+		if tourist.mood != Tourist.Mood.PANIC:
+			break
+		await get_tree().physics_frame
+	_seat_mid_leg(tourist)
+	await _wait_frames(3)
+	var tv := Vector2(tourist.velocity.x, tourist.velocity.z)
+	var perp := Vector2(-tv.y, tv.x).normalized()
+	var stray_spot := _predict_lead_spot(tourist, fall) + Vector3(
+			perp.x * 1.5, 0.0, perp.y * 1.5)
+	await _set_up(true, stray_spot + Vector3(0.0, 4.3, 0.0), Vector3.ZERO)
+	await _tap("poop")
+	await _wait_frames(2)
+	if _dropped.size() == 2:
+		_dropped[1].splatted.connect(_on_test_splatted)
+	var clean_mood := true
+	for _i in 120: ## The stray's whole fall plus margin — panic must never come.
+		await get_tree().physics_frame
+		clean_mood = clean_mood and tourist.mood != Tourist.Mood.PANIC
+	var no_stray_tourist := true
+	for i in range(events_after_lead, _splat_events.size()):
+		no_stray_tourist = no_stray_tourist and _splat_events[i].target != tourist
+	var strays := _splat_events.size() - events_after_lead
+	## Half-way arm — the acceptance bar itself: the same drop 0.4 m lateral of
+	## the prediction must STILL connect (the criterion's "≤ 0.4 m lateral aim
+	## error" — under the 0.55 m contact reach). The stray left the tourist
+	## calm and strolling, so the live re-read needs no panic burn-out here.
+	_seat_mid_leg(tourist)
+	await _wait_frames(3)
+	var tv_half := Vector2(tourist.velocity.x, tourist.velocity.z)
+	var perp_half := Vector2(-tv_half.y, tv_half.x).normalized()
+	var near_spot := _predict_lead_spot(tourist, fall) + Vector3(
+			perp_half.x * 0.4, 0.0, perp_half.y * 0.4)
+	await _set_up(true, near_spot + Vector3(0.0, 4.3, 0.0), Vector3.ZERO)
+	await _tap("poop")
+	await _wait_frames(2)
+	if _dropped.size() == 3:
+		_dropped[2].splatted.connect(_on_test_splatted)
+	var half_panicked := false
+	for _i in 120:
+		await get_tree().physics_frame
+		half_panicked = half_panicked or tourist.mood == Tourist.Mood.PANIC
+	var half_events := _splat_events.size() - events_after_lead - strays
+	var half_hit: bool = half_events == 1 \
+			and _splat_events[_splat_events.size() - 1].target == tourist
+	_check("poop_hits_tourist_within_lead_window",
+			dropped and lead_hit and panicked and clean_mood and no_stray_tourist
+					and strays <= 1 and half_hit and half_panicked,
+			"dropped=%s lead_hit=%s panicked=%s stray_mood_clean=%s stray_tourist_free=%s stray_events=%d half_hit=%s half_panicked=%s" % [
+					dropped, lead_hit, panicked, clean_mood, no_stray_tourist, strays,
+					half_hit, half_panicked])
+	spawner.free()
+
+
+## Seats a stroller mid-leg between two loop waypoints and retargets: the
+## sidewalk ring's legs are ~21.8 m, so the next ~10 m of walking is dead
+## straight — a corner turn cannot bend the stroll off the lead prediction
+## mid-fall. (The splat scenarios freeze targets with an empty path; this one
+## needs the loop ALIVE, so it curates the walk instead.)
+func _seat_mid_leg(tourist: Tourist) -> void:
+	var path := tourist.path
+	if path.size() < 2:
+		return
+	tourist.global_position = path[0].lerp(path[1], 0.5)
+	tourist._retarget_nearest_waypoint()
+
+
+## The autoplay's lead prediction (tests/autoplay.gd `_tourist_in_lead`): where
+## the tourist will have strolled to when the drop lands — live flat position
+## plus live flat velocity times the fall time, read at the release frame.
+func _predict_lead_spot(tourist: Tourist, fall: float) -> Vector3:
+	var v := Vector2(tourist.velocity.x, tourist.velocity.z)
+	var spot := Vector2(tourist.global_position.x, tourist.global_position.z) + v * fall
+	return Vector3(spot.x, tourist.global_position.y, spot.y)
 
 
 ## A slow pass through the buzz zone earns nothing; a fast one earns a flinch

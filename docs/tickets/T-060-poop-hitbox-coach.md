@@ -1,6 +1,16 @@
 # T-060 — Make the splat humanly possible and coach the lead
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Landed (this change-set, machine-verified):** collider 0.07 → **0.30** landed as tuned;
+  `coach_range` 30.0 landed; `COACH_POOP` verbatim. Gate 1b: `coach_hint_shows_until_first_hit`
+  and `poop_hits_tourist_within_lead_window` green (the lead scenario runs THREE arms — on-prediction
+  connects, 0.4 m lateral connects (the criterion bar), 1.5 m lateral never does); full suite
+  111 PASS / 0 FAIL with `poop_ball_visible` green under the re-pinned 0.30 assertion (measured
+  collider 0.30, mesh 0.12 untouched). Gate 2 green (`AUTOPLAY DONE ok=true … restart=true`);
+  this run's pilot still finished `panics=0 honks=0 score=0` — the 1.5 m tolerance is a chance
+  shot by the pilot's own contract, the counts may but need not rise. Gate 3 coach-line grab:
+  `.captures/t060_coach_line.png` (coach line live in flight, pedestrians ahead); the human
+  playtest lines stay pending. **Reviewer sign-off 2026-10-02 — ticket done.**
 - **Depends on:** —
 - **Refs:** sweep 2 sessions `uiuxs2b`/`uiuxs2bx` (readings below; captures in the lane worktree's
   gitignored `.captures/`) · T-086 (bigger emissive VISIBLE ball — landed 2026-09-30; this
@@ -91,19 +101,19 @@ feedback, hence the coach line riding the existing hint slot.
 
 ## Acceptance criteria
 
-- [ ] A drop aimed at a WALKING tourist's predicted position (predicted from the
+- [x] A drop aimed at a WALKING tourist's predicted position (predicted from the
       tourist's live velocity and the 12 m/s fall, `scripts/poop.gd:18`) connects
       with ≤ 0.4 m lateral aim error — under the 0.55 m contact reach
-- [ ] The same drop aimed 1.5 m lateral of the predicted position does NOT
+- [x] The same drop aimed 1.5 m lateral of the predicted position does NOT
       connect: the lead stays a skill, not a shotgun (a ground splat may fire;
       no tourist splat, no panic)
-- [ ] `tourist_splat_panics_scores` — the frozen-target lob (`tests/sim_test.gd:2880`,
+- [x] `tourist_splat_panics_scores` — the frozen-target lob (`tests/sim_test.gd:2880`,
       path frozen at `:2917`, checked at `:2945-2947`) — still connects and scores
       end to end
-- [ ] Airborne within `coach_range` ahead of a living tourist with zero tourist
+- [x] Airborne within `coach_range` ahead of a living tourist with zero tourist
       hits, the hint slot shows the coach line; grounded shows the ground hint
       regardless; after the first tourist hit the coach never shows again that run
-- [ ] Full Gate-1b suite green (111 `_check`s today), explicitly
+- [x] Full Gate-1b suite green (111 `_check`s today), explicitly
       `poop_inherits_and_arcs` (`tests/sim_test.gd:1342`),
       `poop_grounded_no_drop` (`:1356`), `poop_cooldown_blocks_stream` (`:1373`),
       `poop_splats_ground_and_fades` (`:1410`), `poop_splats_wall` (`:1453`),
