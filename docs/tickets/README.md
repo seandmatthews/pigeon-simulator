@@ -107,7 +107,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-100 | [Whisper 'home again' when the off-world guard snaps the pigeon back](T-100-off-world-home-note.md) | ui-ux | 3 | 1 | superseded (T-087) |
 | T-101 | [Boot muted: start silent unless a sound-design session opts in](T-101-boot-muted.md) | ui-ux | 3 | 1 | done |
 | T-102 | [Zebra stripes run with the traffic: flip T-069's crossing stripes 90°](T-102-crosswalk-stripe-orientation.md) | visual-design | 3 | 1 | done |
-| T-103 | [Stand the shop doors up: fix the inverted axis swap that renders them as fins](T-103-shop-door-orientation.md) | worldbuilding | 2 | 1 | proposed |
+| T-103 | [Stand the shop doors up: fix the inverted axis swap that renders them as fins](T-103-shop-door-orientation.md) | worldbuilding | 2 | 1 | done |
 | T-104 | [Move the spawn plaza's bins outside the bench ring: today they bury into the diagonal benches](T-104-plaza-bins-outside-bench-ring.md) | worldbuilding | 3 | 2 | done |
 | T-105 | [One persistent poop target: the live/frozen reticle that replaces the per-drop ring](T-105-poop-target-reticle.md) | visual-design | 4 | 2 | done |
 

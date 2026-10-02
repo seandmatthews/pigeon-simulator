@@ -999,8 +999,12 @@ func _add_shopfront(base_center: Vector3, footprint: Vector2, lot_offset: Vector
 	## T-051: the footprint extent ALONG the face normal decides the face plane;
 	## the awning's along-face span uses the OTHER axis.
 	var face_out := footprint.x if absf(face_normal.x) > 0.5 else footprint.y
-	var door_size := Vector3(0.95, 2.05, 0.1) if absf(face_normal.x) > 0.5 \
-			else Vector3(0.1, 2.05, 0.95)
+	## T-103: the door lies flush in the band face — thin 0.1 m depth on the
+	## face-normal axis, 0.95 m width along the wall (the awning's convention;
+	## the landed branches had the two axes swapped and every door read as a
+	## fin). Pure scale, derived from the already-rolled `face_normal` — no RNG.
+	var door_size := Vector3(0.1, 2.05, 0.95) if absf(face_normal.x) > 0.5 \
+			else Vector3(0.95, 2.05, 0.1)
 	_add_mm("door", _box_xf(
 			base_center + face_normal * (face_out * 0.5 + band_outset + 0.01)
 					+ Vector3(0.0, block_slab_height + 1.025, 0.0),
@@ -1008,12 +1012,12 @@ func _add_shopfront(base_center: Vector3, footprint: Vector2, lot_offset: Vector
 	## Signboard plaque (T-090): one blank cream plaque per building, centered
 	## above the door on the shop band — spanning slab+2.30 to slab+2.80, so it
 	## clears the door top (slab+2.05) below and the awning underside
-	## (slab+2.855) above when one is present. Orientation follows the AWNING's
-	## convention — the thin 0.08 m depth on the face-normal axis, the 2.2 m
-	## width along the wall — so the plaque hangs flush; NOT the door's
-	## inverted swap (T-103). Visual-only like the awning, and pure layout:
-	## zero RNG draws of any stream, zero `_fp` entries, so every pinned count
-	## and the layout fingerprint stay byte-identical.
+	## (slab+2.855) above when one is present. Orientation follows the door's
+	## and AWNING's shared convention — the thin depth on the face-normal axis,
+	## the 2.2 m width along the wall — so the plaque hangs flush. Visual-only
+	## like the awning, and pure layout: zero RNG draws of any stream, zero
+	## `_fp` entries, so every pinned count and the layout fingerprint stay
+	## byte-identical.
 	var sign_size := Vector3(0.08, 0.5, 2.2) if absf(face_normal.x) > 0.5 \
 			else Vector3(2.2, 0.5, 0.08)
 	_add_mm("sign", _box_xf(
