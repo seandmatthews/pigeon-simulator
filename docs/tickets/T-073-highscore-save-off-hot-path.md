@@ -1,6 +1,6 @@
 # T-073 — Take the high-score save off the scoring hot path (save once per run, flush at game over)
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 2 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** code-optimization · **Value (1-5):** 2 · **Risk (1-5):** 2
 - **Depends on:** — (T-009 scoring/high score, T-005 hunger and T-010 game-over flow, whose surfaces it touches, are landed)
 - **Refs:** sweep 1 planning lane (code quality & performance) · line numbers pinned to commit
   f77da93 when written; re-cited at HEAD ad02528 during the 2026-10-01 backlog audit
@@ -67,7 +67,7 @@ and over.
 
 ## Acceptance criteria
 
-- [ ] New Gate 1b scenario `highscore_save_throttled` (slotted directly after
+- [x] New Gate 1b scenario `highscore_save_throttled` (slotted directly after
       `_scenario_high_score_persists` — call slot `sim_test.gd:150`, before
       the T-019-window block that starts at `:157`): redirect
       `Game.save_path` to `SIM_SAVE_PATH` (whole-run pattern in `_ready`,
@@ -106,27 +106,27 @@ and over.
       `:3381`, p3 = 300 at `:3383`, and the final check holds score and high
       both 2,890 at `:3418`). The save-count arithmetic (one beat save, delta
       exactly 2 after the flush) is the same under either convention
-- [ ] Crash-safety intent preserved at the first beat:
+- [x] Crash-safety intent preserved at the first beat:
       `score_high_score_persists` stays green unchanged (it plants
       `high_score = 0` at `sim_test.gd:3431`, fires ONE hit at `:3432` — which
       IS the first beat — and asserts the file exists immediately at `:3433`,
       then loads it back `:3436-3437`)
-- [ ] Scoring math and the game-over flow unchanged:
+- [x] Scoring math and the game-over flow unchanged:
       `score_combo_style_values` (`sim_test.gd:3416`),
       `score_high_score_persists` (`:3438`),
       `score_popup_floats_and_fades` (`:3456`), `pause_freezes_world`
       (`:3485`), `game_over_shows_score_screen` (`:3556`),
       `restart_resets_run` (`:3593`) and `restart_same_seed_skips_rebuild`
       (`:3655`) all stay green without edits
-- [ ] Docstrings state the real contract, including the mid-chain-crash
+- [x] Docstrings state the real contract, including the mid-chain-crash
       nuance (a crash keeps the record as of the first beat)
-- [ ] No new @export tunables, no input actions, no scene changes;
+- [x] No new @export tunables, no input actions, no scene changes;
       `PIGEON_NO_PERSIST=1` still produces zero writes (and `_save_count`
       stays flat). Checked in its own targeted headless run, NOT inside the
       standard suite — the flag is read once at autoload load
       (`game.gd:36`), so a suite process that booted without it cannot assert
       this leg after the fact
-- [ ] VERIFICATION.md Gate 1b table: new `highscore_save_throttled` row
+- [x] VERIFICATION.md Gate 1b table: new `highscore_save_throttled` row
 
 ## Verification
 
@@ -146,3 +146,23 @@ re-run `score_high_score_persists`, `score_combo_style_values`,
 record in a real run, chain two or more further hits, Alt-F4, relaunch: the
 record comes back as the first-beat value (the accepted nuance above), and a
 normal game-over run still persists the final score.
+
+## Implementation notes (2026-10-02, implementer run)
+
+- Result (recorded values): a chain against a planted record of 100 pays
+  exactly one hot-frame write at the FIRST beat (file = 300 after hit 2 of 20)
+  and exactly one flush write at game over (file = 21,000) — `_save_count`
+  delta exactly 2 across the whole chain. No @export values changed.
+- Gate 1: import and 120-frame boot both exit 0 with zero project error lines
+  (import's exit prints only the known-benign `addons/godot_mcp` tooling line
+  documented in VERIFICATION.md's "Known issues"; the boot run is fully clean).
+- Gate 1b: `SIM SUMMARY: 0 failure(s)`, exit 0, 110 `SIM PASS` lines vs 109 on
+  the pristine base — exactly the one new scenario. All seven named regression
+  scenarios re-ran green. (`grep -c '_check("'` is now 122 on this tree, not
+  the ticket's pinned 110/111 — scenarios merged since ad02528; the gate is
+  the summary line, which is 0.)
+- `PIGEON_NO_PERSIST=1` targeted leg: a throwaway headless probe scene (run
+  then deleted, not committed) reported `saves=0 file_exists=false` exit 0;
+  the same probe WITHOUT the env var reported `saves=2 file_exists=true` —
+  the assertion is not vacuous.
+- Gate 2: `AUTOPLAY DONE ok=true … restart=true`, fps 137, no SCRIPT ERROR.

@@ -3,10 +3,11 @@ extends Node
 ## (DESIGN: tourist 100, car 30), the combo (consecutive hits without landing
 ## escalate ×1 → ×2 → ×3 …, reset by landing or by combo_window), the +50%
 ## style bonus for hits born of a fast/low dive, the high score persisted to
-## user:// the moment a run beats it, and the Hunger clock (T-005, moved off
-## Main). Main wires the player and the city services into it and renders the
-## results (HUD line, world-space popups); the autoload itself stays
-## presentation-free so the sim harness can drive it headless.
+## user:// the moment a run FIRST beats it (T-073: further beats in the same
+## run only mark a dirty flag, flushed at game over or quit), and the Hunger
+## clock (T-005, moved off Main). Main wires the player and the city services
+## into it and renders the results (HUD line, world-space popups); the autoload
+## itself stays presentation-free so the sim harness can drive it headless.
 
 ## Fired on every resolved hit: the points scored, the combo multiplier that
 ## applied, the world-space hit position (popups spawn there) and whether the
@@ -55,13 +56,30 @@ var tourist_hits: int = 0
 ## Cars splatted this run — the game-over score screen's breakdown (T-010).
 var car_hits: int = 0
 
-## Best score ever seen; written to save_path as soon as a run beats it, so a
-## crash or an Alt-F4 still keeps the record.
+## Best score ever seen. The record is written to save_path the moment a run
+## FIRST beats it (T-073) — that write keeps a crash or an Alt-F4 safe as of
+## the first beat. Further beats in the same run only mark
+## `_high_score_dirty`, flushed at game over or on quit — so a crash mid-chain
+## keeps the record as of the first beat, not the last.
 var high_score: int = 0
 
 ## True once this run pushed the record up — the score screen's "new high
 ## score" banner reads this, so an exact tie can't fake it.
 var record_beaten: bool = false
+
+## (T-073) True after this run's FIRST record-beating write, so every later
+## beat in the same run skips the synchronous disk write and only marks the
+## dirty flag instead.
+var _saved_this_run: bool = false
+
+## (T-073) True while a run has beats past the first that save_path has not
+## seen yet — `_flush_high_score()` writes and clears it.
+var _high_score_dirty: bool = false
+
+## (T-073) Real disk writes performed by `_save_high_score()` since boot, past
+## the `_persistence_enabled` guard — the sim harness's throttle assertion
+## counts this, never the beat count.
+var _save_count: int = 0
 
 ## The hunger clock (T-005), created in _ready — Main attaches the player to
 ## it; the sim harness builds its own instances directly.
@@ -79,6 +97,7 @@ func _ready() -> void:
 	hunger = Hunger.new()
 	hunger.name = "Hunger"
 	add_child(hunger)
+	hunger.game_over.connect(_flush_high_score) ## (T-073) Starvation flushes the run's dirty beats.
 	load_high_score()
 
 
@@ -128,12 +147,15 @@ func on_grounding_changed(grounded: bool) -> void:
 
 ## Fresh-run state (restarts, the sim harness): zeroes the score, the
 ## tourist/car breakdown and the combo, refills hunger. The high score is
-## deliberately kept — it persists.
+## deliberately kept — it persists — and so is any not-yet-flushed beat (T-073:
+## only the per-run beat bookkeeping clears; a dirty record still flushes).
 func reset_run() -> void:
 	score = 0
 	tourist_hits = 0
 	car_hits = 0
 	record_beaten = false
+	_saved_this_run = false
+	_high_score_dirty = false
 	_end_combo()
 	_release_age = 999.0
 	hunger.reset()
@@ -158,7 +180,11 @@ func _register_hit(base_points: int, pos: Vector3) -> int:
 	if score > high_score:
 		high_score = score
 		record_beaten = true
-		_save_high_score()
+		if not _saved_this_run: ## (T-073) The FIRST beat writes on its frame — a crash keeps the record.
+			_saved_this_run = true
+			_save_high_score()
+		else: ## Further beats in the same run only mark the flag; game over or quit flushes.
+			_high_score_dirty = true
 	hit_scored.emit(points, combo_multiplier(), pos, style)
 	return points
 
@@ -176,9 +202,25 @@ func _end_combo() -> void:
 	_combo_idle = 0.0
 
 
+## (T-073) Writes the run's accumulated beats past the first-beat save — at
+## game over (hunger.game_over), at the window close request, or at teardown.
+## A no-op while nothing is dirty.
+func _flush_high_score() -> void:
+	if not _high_score_dirty:
+		return
+	_save_high_score()
+	_high_score_dirty = false
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_PREDELETE:
+		_flush_high_score() ## (T-073) Alt-F4 / quit paths flush too; the dirty guard makes it a no-op when clean.
+
+
 func _save_high_score() -> void:
 	if not _persistence_enabled:
 		return
+	_save_count += 1
 	var cfg := ConfigFile.new()
 	cfg.set_value("score", "high", high_score)
 	cfg.save(save_path)

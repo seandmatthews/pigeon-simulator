@@ -80,7 +80,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-061 | [Make a stall fall: grade the velocity-align cut by stall depth](T-061-stall-fall-develops.md) | flight-control | 4 | 3 | superseded (T-081) |
 | T-062 | [Fade pitch authority near vertical — no more stuck 68–101° ballooning attitudes](T-062-pitch-authority-falloff.md) | flight-control | 4 | 3 | superseded (T-083) |
 | T-069 | [Paint the intersections — crosswalks so streets read as streets](T-069-crosswalk-intersection-paint.md) | worldbuilding | 3 | 1 | done |
-| T-073 | [Take the high-score save off the scoring hot path (save once per run, flush at game over)](T-073-highscore-save-off-hot-path.md) | code-optimization | 2 | 2 | proposed |
+| T-073 | [Take the high-score save off the scoring hot path (save once per run, flush at game over)](T-073-highscore-save-off-hot-path.md) | code-optimization | 2 | 2 | done |
 | T-074 | [Fix the broken failure diagnostics in two Gate 1b scenarios (string-precedence bug)](T-074-gate1b-fail-diagnostics.md) | code-optimization | 3 | 1 | done |
 | T-075 | [Calm the hunger→HUD write storm: emit only on real change, stop rewriting the bar at tick rate (T-055's missed 4th site)](T-075-hunger-hud-write-storm.md) | code-optimization | 2 | 2 | done |
 | T-077 | [Give F a readiness cue: three silent failure modes, one glyph](T-077-poop-ready-cue.md) | ui-ux | 4 | 1 | done |
