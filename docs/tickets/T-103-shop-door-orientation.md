@@ -1,6 +1,6 @@
 # T-103 — Stand the shop doors up: fix the inverted axis swap that renders them as fins
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 2 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 2 · **Risk (1-5):** 1
 - **Depends on:** — (builds on the landed T-017 shopfronts; surfaced and confirmed during the 2026-09-30 backlog audit, see the addendum in [backlog-audit-2026-09-30.md](backlog-audit-2026-09-30.md); [T-090](T-090-shop-signboards.md) documents the defect and avoids inheriting it)
 - **Refs:** `scripts/city.gd:668-669` (the inverted swap) · `scripts/city.gd:676-678` (the awning's CORRECT convention, same function) · `_add_shopfront` at `scripts/city.gd:649-683`
 
@@ -55,7 +55,7 @@ at door geometry, which is also why the bug survived T-017's green gates.
 
 ## Acceptance criteria
 
-- [ ] (Gate 1b) `city_shopfronts_present` (`tests/sim_test.gd:792-855`) extended
+- [x] (Gate 1b) `city_shopfronts_present` (`tests/sim_test.gd:792-855`) extended
       with a geometry leg: every queued door transform
       (`_city._visuals["door"].xfs` — the privates precedent of the crosswalk
       scenario, `tests/sim_test.gd:1909`) decomposes (basis columns — pure
@@ -63,16 +63,38 @@ at door geometry, which is also why the bug survived T-017's green gates.
       face-normal direction and the 0.95 m axis along the wall, re-derived per
       building from its `door_face` record; door count still 146. This is a NEW
       assert, not a re-pin — nothing asserts door geometry today.
-- [ ] (Gate 1b) `city_shopfronts_deterministic` (the twin leg,
+      (Landed as the `door_xfs` leg + the `_expected_door` re-derivation;
+      red-before proven: the pre-fix tree fails exactly this scenario with
+      `door_xfs=146/146 false` and nothing else.)
+- [x] (Gate 1b) `city_shopfronts_deterministic` (the twin leg,
       `tests/sim_test.gd:840-855`), `city_same_seed_deterministic` and
       `city_regenerate_restores_layout` stay green — same-seed regeneration
-      reproduces the (fixed) door transforms byte-identically.
-- [ ] (Gate 1b) the other pinned-count scenarios stay green unchanged:
+      reproduces the (fixed) door transforms byte-identically. (The
+      deterministic leg now snapshots the door queue and exact-compares it
+      across a forced rebuild, alongside the sign plaques.)
+- [x] (Gate 1b) the other pinned-count scenarios stay green unchanged:
       `city_cafe_tables_present`, `city_roofs_inhabited`,
       `elder_placement_no_rng`, `city_plaza_spawn`.
-- [ ] [screenshot] (Gate 3) From the spawn street at eye level, doors read as
+- [x] [screenshot] (Gate 3) From the spawn street at eye level, doors read as
       flush slabs standing in the band face — no fins protruding past the
       shopfront line; reads correctly on both x-facing and z-facing streets.
+      (Agent grabs: `.captures/t103_street_xfacing_row.png`
+      and `.captures/t103_street_xfacing_closeup.png` — x-facing doors flush in
+      their bands at eye level, under awnings — and
+      `.captures/t103_street_zfacing_row.png` — z-facing doors flush across the
+      intersection; no fin protrudes past any shopfront line in any grab;
+      reviewer sign-off 2026-10-02.)
+
+## Landed (2026-10-02)
+
+Final values — exactly the ticket's What section, no retunes needed: door
+size `(0.1, 2.05, 0.95)` on ±x faces / `(0.95, 2.05, 0.1)` on ±z faces
+(scripts/city.gd, `_add_shopfront`), transform site, `+0.01` outset and
+slab+1.025 centering untouched, zero new RNG draws. Pinned counts held:
+146 doors, 104 awnings (71.2%), 679 bread spots. Gate 1b full suite 115
+scenarios, 0 failures (red-before: the pre-fix tree fails exactly
+`city_shopfronts_present` with `door_xfs=146/146 false`); Gate 2 `AUTOPLAY
+DONE ok=true`, `restart=true`; Gate 3 reviewer sign-off 2026-10-02.
 
 ## Verification
 

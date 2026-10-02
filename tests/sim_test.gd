@@ -1330,11 +1330,11 @@ func _scenario_city_footprints_vary() -> void:
 ## layout numbers, the `_expected_cafe_spot` pattern) so the scenario proves
 ## the plaques, not just the city function that filled them. The face distance
 ## uses the footprint component ALONG the door-face normal (T-051: `size.x` on
-## ±x faces, `size.y` on ±z), and the size MUST encode the CORRECTED flush
-## convention — the thin 0.08 m depth on the face-normal axis, the 2.2 m width
-## along the wall, the AWNING's convention — NOT the door's inverted swap
-## (T-103): a perpendicular plank has the same origin and euler (both builds
-## are unrotated diagonal bases), so only the per-axis scale compare keeps it
+## ±x faces, `size.y` on ±z), and the size MUST encode the flush convention —
+## the thin 0.08 m depth on the face-normal axis, the 2.2 m width along the
+## wall, the AWNING's convention (shared by the door since T-103's fix): a
+## perpendicular plank has the same origin and euler (both builds are
+## unrotated diagonal bases), so only the per-axis scale compare keeps it
 ## failing.
 func _expected_sign_plaque(city: City, info: Dictionary) -> Transform3D:
 	var normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][
@@ -1349,12 +1349,38 @@ func _expected_sign_plaque(city: City, info: Dictionary) -> Transform3D:
 	return Transform3D(Basis.from_scale(size), pos)
 
 
+## The door transform T-103's fixed math claims for one building — an
+## independent re-derivation (the `_expected_sign_plaque` pattern) so the
+## scenario proves the doors, not just the city function that filled them.
+## The face distance uses the footprint component ALONG the door-face normal
+## (T-051: `size.x` on ±x faces, `size.y` on ±z), and the size MUST encode the
+## flush convention T-103 fixed — the thin 0.1 m depth on the face-normal
+## axis, the 0.95 m width along the wall, the awning's convention — NOT the
+## landed inverted swap: a fin has the same origin and euler (both builds are
+## unrotated diagonal bases), so only the per-axis scale compare keeps it
+## failing.
+func _expected_door(city: City, info: Dictionary) -> Transform3D:
+	var normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][
+			int(info.door_face)]
+	var face_axis_x := absf(normal.x) > 0.5
+	var face_out: float = (info.size as Vector2).x if face_axis_x \
+			else (info.size as Vector2).y
+	var size := Vector3(0.1, 2.05, 0.95) if face_axis_x else Vector3(0.95, 2.05, 0.1)
+	var pos: Vector3 = city.to_local(info.center) \
+			+ normal * (face_out * 0.5 + 0.12 + 0.01) \
+			+ Vector3(0.0, city.block_slab_height + 1.025, 0.0)
+	return Transform3D(Basis.from_scale(size), pos)
+
+
 ## Every building wears a ground-floor shop band, a door on one of its two
 ## street-facing faces, and the seeded share of awnings; the shopfront palette
 ## stays measurably distinct from all four district palettes. Under the fixed
 ## seed every roll is deterministic, so coverage is asserted at 100% and the
 ## awning count is pinned to the seed's exact draw (104 of 146 = 71.2% for
 ## awning_chance 0.6 at seed 20260928 — retune the pin if the chance changes).
+## Since T-103 the door geometry is asserted too: every queued `door` transform
+## decomposes as a pure scale with the ≈0.1 m thin axis ON the face-normal
+## direction and the 0.95 m width along the wall (a flush slab, not a fin).
 func _scenario_city_shopfronts() -> void:
 	var members_ok := true
 	var doors_on_street := true
@@ -1417,12 +1443,42 @@ func _scenario_city_shopfronts() -> void:
 					and (xf.basis.get_scale() - expected.basis.get_scale()).length() < 0.01 \
 					and xf.basis.get_euler().distance_to(expected.basis.get_euler()) < 0.01
 			sign_i += 1
-	_check("city_shopfronts_present", coverage_ok and awn_ok and signs_ok,
-			"buildings=%d members=%s doors_on_street=%s palette_distinct=%s awnings=%d (%.1f%%) signs=%d/%d %s"
+	## Door geometry (T-103): the `door` visual queue holds exactly one door
+	## per building (146 at the M1 seed, paired 1:1 in order like the sign
+	## queue), and every transform is a FLUSH slab — the basis decomposes as
+	## pure scale, no rotation (per `_box_xf`), with the ≈0.1 m thin axis ON
+	## the face-normal direction and the 0.95 m width along the wall, re-derived
+	## per building from its `door_face` record (the `_expected_door` re-derivation
+	## pins origin too). The landed inverted swap kept origin and euler and only
+	## swapped the per-axis scales — exactly what this leg reads — so a fin
+	## fails here on both the raw-axis compare and the expected-scale compare.
+	var door_queue: Array = _city._visuals.get("door", {}).get("xfs", [])
+	var doors_ok: bool = door_queue.size() == 146 and door_queue.size() == count
+	if doors_ok:
+		var door_i := 0
+		for info in _city.buildings:
+			var xf: Transform3D = door_queue[door_i]
+			var normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][
+					int(info.door_face)]
+			var door_scale: Vector3 = xf.basis.get_scale()
+			var normal_axis: float = door_scale.x if absf(normal.x) > 0.5 else door_scale.z
+			var wall_axis: float = door_scale.z if absf(normal.x) > 0.5 else door_scale.x
+			var expected: Transform3D = _expected_door(_city, info)
+			doors_ok = doors_ok \
+					and xf.basis.get_euler().length() < 0.01 \
+					and absf(normal_axis - 0.1) < 0.01 \
+					and absf(wall_axis - 0.95) < 0.01 \
+					and absf(door_scale.y - 2.05) < 0.01 \
+					and xf.origin.distance_to(expected.origin) < 0.01
+			door_i += 1
+	_check("city_shopfronts_present", coverage_ok and awn_ok and signs_ok and doors_ok,
+			"buildings=%d members=%s doors_on_street=%s palette_distinct=%s awnings=%d (%.1f%%) signs=%d/%d %s door_xfs=%d/%d %s"
 					% [count, members_ok, doors_on_street, palette_distinct,
-					awnings, awn_share * 100.0, sign_queue.size(), count, signs_ok])
+					awnings, awn_share * 100.0, sign_queue.size(), count, signs_ok,
+					door_queue.size(), count, doors_ok])
 	## Same seed → every shopfront roll reproduces identically — and the sign
-	## plaque queue byte-identically (the `_spots_equal` exact-compare pattern).
+	## plaque and door queues byte-identically (the `_spots_equal` exact-compare
+	## pattern).
 	var default_seed: int = _city.seed_value
 	var snapshot: Array = []
 	for info in _city.buildings:
@@ -1430,6 +1486,9 @@ func _scenario_city_shopfronts() -> void:
 	var sign_snapshot: Array[Transform3D] = []
 	for xf: Transform3D in sign_queue:
 		sign_snapshot.append(xf)
+	var door_snapshot: Array[Transform3D] = []
+	for xf: Transform3D in door_queue:
+		door_snapshot.append(xf)
 	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces the rolls.
 	var reproduced := snapshot.size() == _city.buildings.size()
 	if reproduced:
@@ -1445,10 +1504,17 @@ func _scenario_city_shopfronts() -> void:
 		for xf: Transform3D in _city._visuals["sign"].xfs:
 			sign_rebuild.append(xf)
 		signs_reproduced = _spots_equal(sign_snapshot, sign_rebuild)
-	reproduced = reproduced and signs_reproduced
+	var doors_reproduced: bool = _city._visuals.has("door")
+	if doors_reproduced:
+		var door_rebuild: Array[Transform3D] = []
+		for xf: Transform3D in _city._visuals["door"].xfs:
+			door_rebuild.append(xf)
+		doors_reproduced = _spots_equal(door_snapshot, door_rebuild)
+	reproduced = reproduced and signs_reproduced and doors_reproduced
 	_check("city_shopfronts_deterministic", reproduced,
-			"snapshot %d vs regenerated %d signs_reproduced=%s" % [
-					snapshot.size(), _city.buildings.size(), signs_reproduced])
+			"snapshot %d vs regenerated %d signs_reproduced=%s doors_reproduced=%s" % [
+					snapshot.size(), _city.buildings.size(), signs_reproduced,
+					doors_reproduced])
 
 
 ## --- scenarios (T-005 bread & hunger) --------------------------------------
