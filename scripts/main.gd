@@ -27,7 +27,6 @@ const COACH_POOP := "F poop · release ~15 m early to lead them"
 const COMBO_NOTE_SECONDS := 2.5
 const SCORE_POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const HIT_MARKER_SCENE: PackedScene = preload("res://scenes/hit_marker.tscn")
-const POOP_MARKER_SCENE: PackedScene = preload("res://scenes/poop_marker.tscn")
 const MENU_SCENE_PATH := "res://scenes/menu.tscn"
 
 ## Hunger warning tiers (T-019): the bar is the fail state's messenger, so it
@@ -73,6 +72,10 @@ const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds t
 @onready var hint_label: Label = %HintLabel
 ## The F readiness glyph (T-077) — sits beside the hint line it qualifies.
 @onready var poop_ready_label: Label = %PoopReady
+## The one persistent poop target (T-105) — the live/frozen reticle that
+## replaced T-046's per-drop ring. Sibling of Player/City; the player stays
+## decoupled from it (it reads the player, never the reverse).
+@onready var poop_reticle: PoopReticle = %PoopReticle
 @onready var bread_pointer: Label = %BreadPointer
 ## The last-hit line (T-040) — sits under the pointer slot in the left column.
 @onready var combo_strip: Label = %ComboStrip
@@ -432,13 +435,13 @@ func _on_hunger_changed(value: float, max_value: float) -> void:
 
 ## Release conditions for the style bonus: where and how fast the poop left
 ## the pigeon — the Game autoload judges "fast/low dive" from this.
-## (T-046) Main also spawns the predicted-impact ring for the fresh drop and
-## hands it the drop to track — the player stays decoupled from the marker,
-## the same shape the harness asserts for poop.gd itself.
+## (T-105, replacing T-046's per-drop marker spawn) Main freezes the ONE
+## persistent reticle onto the fresh drop — the reticle is instanced in
+## main.tscn and never spawns or frees per press; a re-press under cooldown
+## re-snaps it to the newest drop. The player stays decoupled, the same shape
+## the harness asserts for poop.gd itself.
 func _on_player_pooped(poop: Poop) -> void:
-	var marker: PoopMarker = POOP_MARKER_SCENE.instantiate()
-	add_child(marker)
-	marker.track(poop)
+	poop_reticle.lock_to(poop)
 	Game.on_poop_released(poop.global_position, poop.linear_velocity)
 
 
@@ -539,8 +542,11 @@ func restart_run() -> void:
 		popup.queue_free()
 	for poop in get_tree().get_nodes_in_group("poops"):
 		poop.queue_free()
-	for marker in get_tree().get_nodes_in_group("poop_markers"): ## (T-046) A restart mid-fall cannot strand a ring.
-		marker.queue_free()
+	## (T-105) No marker/group cleanup: the reticle is instanced in main.tscn
+	## and persists across restarts by design — the poops loop above frees its
+	## locked drop, and the reticle's validity poll flips it back to live on
+	## its own; reset_flight below returns the player to AIR with a zeroed
+	## cooldown, so the next tick drives the right state.
 	combo_strip.text = "" ## (T-040) A fresh run starts with no last hit on the strip.
 	_combo_strip_left = 0.0
 	_return_fade_phase = -1.0 ## (T-087) A fresh run never inherits a mid fade or a stale note.

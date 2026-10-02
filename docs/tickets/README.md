@@ -64,7 +64,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-043 | [Cap the sustained-flap throttle so dives own the top end](T-043-sustained-flap-cap.md) | flight-control | 3 | 3 | done |
 | T-044 | [Trim the pinned FOV kick and pull the arm in at speed (adopt T-024)](T-044-fov-arm-trim.md) | flight-control | 3 | 1 | done |
 | T-045 | [Give the bird a pale rump/wing-bar anchor that survives roads and roofs](T-045-pale-rump-anchor.md) | visual-design | 3 | 1 | superseded (T-085) |
-| T-046 | [Add a predicted-impact ring for drops — the bombsight behind T-086's bigger ball](T-046-poop-impact-ring.md) | visual-design | 4 | 2 | done |
+| T-046 | [Add a predicted-impact ring for drops — the bombsight behind T-086's bigger ball](T-046-poop-impact-ring.md) — superseded by T-105 (the persistent live/frozen reticle; its undamped-march bias fixed there) | visual-design | 4 | 2 | superseded (T-105) |
 | T-047 | [Build a readable rim at the city edge — trees/hedge ring instead of the infinite flat apron](T-047-city-edge-rim.md) | visual-design | 3 | 2 | superseded (T-088) |
 | T-048 | [Adopt T-027's folded-wing chord fix — confirmed live, plus an elder-read accent](T-048-folded-wing-chord-adoption.md) | visual-design | 3 | 2 | done |
 | T-049 | [Fit facade windows to each building's real floor count](T-049-facade-floors.md) | worldbuilding | 3 | 1 | done |
@@ -109,7 +109,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-102 | [Zebra stripes run with the traffic: flip T-069's crossing stripes 90°](T-102-crosswalk-stripe-orientation.md) | visual-design | 3 | 1 | done |
 | T-103 | [Stand the shop doors up: fix the inverted axis swap that renders them as fins](T-103-shop-door-orientation.md) | worldbuilding | 2 | 1 | proposed |
 | T-104 | [Move the spawn plaza's bins outside the bench ring: today they bury into the diagonal benches](T-104-plaza-bins-outside-bench-ring.md) | worldbuilding | 3 | 2 | done |
-| T-105 | [One persistent poop target: the live/frozen reticle that replaces the per-drop ring](T-105-poop-target-reticle.md) | visual-design | 4 | 2 | proposed |
+| T-105 | [One persistent poop target: the live/frozen reticle that replaces the per-drop ring](T-105-poop-target-reticle.md) | visual-design | 4 | 2 | done |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since

@@ -1,6 +1,6 @@
 # T-105 — One persistent poop target: the live/frozen reticle that replaces the per-drop ring
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-046 (the predicted-impact ring + its analytic march, landed — this ticket replaces it), T-077 (the poop-ready dim convention + `poop_ready` getter, landed), T-018 (the perf budget the live march must stay inside, landed)
 - **Refs:** owner request (2026-10-02): replace the per-drop impact marker with ONE persistent target
   reticle (ring + center dot + cross ticks, not a bare circle) with a live mode (airborne, no drop in
@@ -159,35 +159,65 @@ As a reticle, prediction must match reality or the player learns to aim at a lie
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: `reticle_frozen_pin_matches_damped_fall` — bare rig, direct instantiation +
+- [x] Gate 1b: `reticle_frozen_pin_matches_damped_fall` — bare rig, direct instantiation +
       `lock_to(drop)` after a real tap from `_set_up(true, Vector3(0, 20, 0), Vector3(0, 0, -12))`:
       frozen pin within 0.5 m of the scenario's independent DAMPED closed-form recompute (analytic
       check: the damped impact at this release sits ~1.3–1.5 m nearer than T-046's measured undamped
       (0, 0, −21.54) — the leg fails the unfixed march by construction); pin stable (≤ 0.05 m drift)
       through the fall; back to live within 0.5 s of the splat with the reticle still alive
-- [ ] Gate 1b: `reticle_main_lifecycle` — real-Main rig: exactly one reticle node for the WHOLE
+- [x] Gate 1b: `reticle_main_lifecycle` — real-Main rig: exactly one reticle node for the WHOLE
       scenario through live (hover pin within 1.0 m of the hover's hypothetical damped impact) →
       frozen + dimmed 0.25 on a real tap → alpha 1.0 again once the cooldown expires with the drop
       still airborne → live again on splat → hidden when grounded → live again after
       `restart_run()` mid-freeze
-- [ ] Full Gate 1b suite green unchanged elsewhere: the six original `poop_*` scenarios
+- [x] Full Gate 1b suite green unchanged elsewhere: the six original `poop_*` scenarios
       (`tests/sim_test.gd:1608,1622,1639,1676,1719,1760`), `poop_ball_visible` (`:1791`),
       `poop_ready_indicator_tracks_cooldown`, `restart_resets_run` / `restart_same_seed_skips_rebuild`
       (`:4909`), and `density_cpu_budget` (`:6470`) — the named T-018 gate for the live march's ray cost
-- [ ] PoopMarker fully removed (`scripts/poop_marker.gd`, `scenes/poop_marker.tscn`, `.uid` files,
+- [x] PoopMarker fully removed (`scripts/poop_marker.gd`, `scenes/poop_marker.tscn`, `.uid` files,
       `main.gd:30`, `main.gd:439-441`, `main.gd:542-543`, `sim_test.gd:16`) with no dangling
       references — proven by Gate 1 clean and the suite green
-- [ ] VERIFICATION.md carries the two replacement Gate 1b rows and the Gate 3 lines below in the
+- [x] VERIFICATION.md carries the two replacement Gate 1b rows and the Gate 3 lines below in the
       same change-set; T-046's rows (`:88-89`) and its Gate 3 screenshot line (`:294`, including the
       undamped-bias judgement note) are retired by the replacement, and T-046's index row is marked
       superseded (T-105) when this lands
-- [ ] [screenshot] At cruise the reticle reads as ring + center dot + four cardinal ticks (not a bare
+- [x] [screenshot] At cruise the reticle reads as ring + center dot + four cardinal ticks (not a bare
       circle) against road AND grass, and the splat lands inside the ring at play distances — the
       damped agreement is the point; the old "splat short of the ring" note must not reproduce (Gate 3 — human judgement)
-- [ ] [screenshot] The live→frozen→live handover reads correctly in real flight: the mark follows the
+      (accepted by reviewer sign-off 2026-10-02)
+- [x] [screenshot] The live→frozen→live handover reads correctly in real flight: the mark follows the
       glide's intent before the press, holds the released point while the ball falls, and resumes
       following after the splat; the cooldown dim (0.25) is distinguishable from the live full state
       at a glance, and grounded hides the mark entirely (Gate 3 — human judgement)
+      (accepted by reviewer sign-off 2026-10-02)
+
+## Landed
+
+**Tuned values (as landed, `scripts/poop_reticle.gd` / `scenes/poop_reticle.tscn`):**
+Ring TorusMesh inner 0.6 / outer 0.8 (T-046's ring, unchanged) · Dot CylinderMesh height 0.01,
+top/bottom radius 0.05 (Ø 0.1 m) at the exact center · 4× tick BoxMesh 0.02 × 0.01 × 0.3, long
+axis radial, centered on the ring line at r = 0.7 · `surface_lift` 0.03 · `dim_alpha` 0.25
+(duplicated from `Main.POOP_READY_DIM_ALPHA`) · `frozen_march_step` 0.05 · `live_march_step` 0.1 ·
+`live_refresh_hz` 10 (every 6th physics tick) · `world_mask` 1 · material family albedo
+(0.94, 0.9, 0.78, 0.9), emission (0.85, 0.78, 0.55) @ 0.55, unshaded, `cast_shadow` 0, one
+duplicated material shared by all six meshes · no pulse (T-046's ±10 % @ 2 Hz dies with the marker).
+
+**Measured (headless, `--fixed-fps 60`, this branch):** `reticle_frozen_pin_matches_damped_fall`
+pin `(0.0, 0.03, −20.380)` vs the scenario's independent damped recompute `(0.0, 0.0, −20.377)` —
+**0.03 m apart** (bar 0.5); measured damped-vs-undamped separation **1.03 m** at this release, and
+the red-before probe (march reverted to T-046's undamped parabola) measured the pin **1.16 m** off
+and FAILed the leg — the damping fix is load-bearing; informational reality check: the real
+rigid-body splat landed **0.23 m** from the pin. `reticle_main_lifecycle`: one reticle node through
+the whole scenario, hover pin **0.03 m** (bar 1.0), frozen + dimmed 0.25 on the real tap, relit
+while frozen, live on splat, hidden grounded, restart_run() mid-freeze self-recovery. Full Gate 1b
+suite **114 pass / 0 fail** including the six untouched `poop_*` rows, `poop_ball_visible`,
+`poop_ready_indicator_tracks_cooldown`, `restart_resets_run`, `restart_same_seed_skips_rebuild` and
+`density_cpu_budget` (median **277.2 ms** per 100 physics frames vs the 750 budget). Gate 1 import +
+120-frame boot exit 0 (only the documented benign addon line; the 1-instance ObjectDB leak warning
+reproduced identically on the pristine main checkout). Gate 2 autoplay `AUTOPLAY DONE ok=true …
+restart=true`, exit 0, DONE line **bit-identical** to a pristine-tree baseline run. Gate 3: both
+[screenshot] lines accepted by reviewer sign-off (2026-10-02); the matching VERIFICATION.md
+playtest lines are checked.
 
 ## Verification
 
