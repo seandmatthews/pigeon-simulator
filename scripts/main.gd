@@ -11,6 +11,10 @@ extends Node3D
 
 const HINT_AIR := "W/S pitch · A/D turn · Space flap · F poop · land by bread to eat"
 const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off · walk into crumbs to eat"
+## (T-079) How long the "landing ended the ×N combo" note stays up after a
+## landing kills a live combo — game time, like the HUD pulses and the T-040
+## strip, so it freezes with a paused or ended run.
+const COMBO_NOTE_SECONDS := 2.5
 const SCORE_POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const HIT_MARKER_SCENE: PackedScene = preload("res://scenes/hit_marker.tscn")
 const MENU_SCENE_PATH := "res://scenes/menu.tscn"
@@ -52,6 +56,10 @@ const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds t
 @onready var bread_pointer: Label = %BreadPointer
 ## The last-hit line (T-040) — sits under the pointer slot in the left column.
 @onready var combo_strip: Label = %ComboStrip
+## The landing-cost note (T-079) — one row under the strip in the same column:
+## it names the combo a landing just erased, so the ×N's disappearance teaches
+## the rule at the instant it bites.
+@onready var combo_note: Label = %ComboNote
 ## The pointer's rotatable chevron (T-037): 0 = screen-up, clockwise positive
 ## on screen. Since T-057 it carries the target's direction ON SCREEN —
 ## where the target actually sits in the frame — not a bearing from the nose.
@@ -86,6 +94,7 @@ var _last_hit_kind: String = "" ## (T-040) "Tourist"/"Car", stashed by the splat
 var _combo_strip_left: float = 0.0 ## (T-040) Game-time seconds left before the strip clears; 0 = at rest, empty.
 var _return_fade_phase: float = -1.0 ## (T-087) <0 idle; 0..return_fade_seconds while the return fade runs — game time, like the tier pulse.
 var _home_note_phase: float = 0.0 ## (T-087, folded from T-100) Game-time seconds the note has shown; advanced only while visible.
+var _combo_note_left: float = 0.0 ## (T-079) Game-time seconds left before the landing note clears; 0 = at rest, empty.
 
 
 func _ready() -> void:
@@ -163,6 +172,12 @@ func _process(delta: float) -> void:
 		if _home_note_phase >= HOME_NOTE_SECONDS:
 			home_note.visible = false
 			_home_note_phase = 0.0
+	if _combo_note_left > 0.0: ## (T-079) The landing note expires on the same game-time
+		_combo_note_left -= delta ## cadence as the strip — the countdown guard makes the
+		if _combo_note_left <= 0.0: ## clear a once-per-expiry write, never per-frame churn.
+			_combo_note_left = 0.0
+			combo_note.text = ""
+			combo_note.visible = false
 
 
 ## The HUD pulse (T-013): a combo escalation bumps the score line up a size —
@@ -409,6 +424,9 @@ func restart_run() -> void:
 	return_fade.color.a = 0.0
 	home_note.visible = false
 	_home_note_phase = 0.0
+	combo_note.text = "" ## (T-079) …and no landing note mid-display — Game.reset_run()
+	combo_note.visible = false ## zeroes the streak but knows nothing of the HUD.
+	_combo_note_left = 0.0
 	city.generate(city.seed_value)
 	player.reset_flight(city.to_local(city.spawn_point))
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)
@@ -428,5 +446,23 @@ func _quit() -> void:
 
 ## The player signals every landing/takeoff so the hint always shows the
 ## controls that currently do something (T-003 grounded readability).
+## (T-079) LOAD-BEARING ORDER: _ready connects this handler BEFORE
+## Game.on_grounding_changed, and connections fire in connect order — so the
+## combo_multiplier() read below still sees the PRE-reset streak; Game's
+## _end_combo only runs once this returns. Reordering the two connects in
+## _ready silently kills the note (the read would always be ×0) — the sim
+## scenario drives the real signal precisely to keep this covered.
 func _on_grounding_changed(grounded: bool) -> void:
 	hint_label.text = HINT_GROUND if grounded else HINT_AIR
+	if not grounded:
+		return
+	## Read while the streak is still live — see the order note above.
+	var multiplier := Game.combo_multiplier()
+	if multiplier < 2: ## ×0/×1 landings lose nothing worth naming.
+		return
+	var note := "landing ended the ×%d combo" % multiplier
+	if combo_note.text != note: ## (T-035/T-055) Guarded writes: repeat landings and
+		combo_note.text = note ## same-text re-shots touch nothing but the countdown.
+	if not combo_note.visible:
+		combo_note.visible = true
+	_combo_note_left = COMBO_NOTE_SECONDS ## A fresh loss restarts the window.

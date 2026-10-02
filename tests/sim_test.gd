@@ -157,6 +157,7 @@ func _run_scenarios() -> void:
 	await _scenario_hud_bread_pointer_tracks_nearest_crumb() ## T-037 — T-019 window: unpaused tree, no live Main.
 	await _scenario_hud_hunger_tiers() ## T-019 — must follow the restart scenarios: unpaused tree, no live Main.
 	await _scenario_combo_strip_reports_last_hit() ## T-040 — same T-019 window: unpaused tree, no live Main.
+	await _scenario_combo_note_on_landing() ## T-079 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_pause_menu_shows_controls() ## T-099 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_elder_placement_no_rng()
 	await _scenario_elder_shares_bread_after_hangout()
@@ -4345,6 +4346,74 @@ func _scenario_combo_strip_reports_last_hit() -> void:
 					spread_ok, style_ok, placed_ok, empty_at_rest, texts_ok,
 					text_a, text_b, text_c, markers_ok, at_hit, expired,
 					stays_cleared, cleaned, refilled, restart_cleared])
+
+
+## --- scenario (T-079 combo landing note) -------------------------------------
+
+
+## The landing-cost note (T-079), through the REAL main scene: a landing while
+## a ×2+ combo is live shows "landing ended the ×2 combo" for 2.5 s of game
+## time, then clears itself; a landing with no live combo shows nothing;
+## restart_run() mid-display clears it. Own-space Main, same T-019 window as
+## _scenario_hud_hunger_tiers, with the same cleanup tail (free() →
+## Game.hunger.player = null → Game.reset_run()). THE LOAD-BEARING PART: the
+## landing is the REAL `grounding_changed` signal — `emit(true)`, never a
+## direct `_on_grounding_changed` call — so both _ready connects fire in
+## connect order and Main's handler provably reads the PRE-reset streak before
+## Game._end_combo zeroes it; a future connect reorder fails the `shown` leg.
+## The streak is built with synthetic add_tourist_hit calls (the
+## scoring_values pattern) — the note itself is presentation-only, so no
+## physics is needed anywhere.
+func _scenario_combo_note_on_landing() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(-7500.0, 0.0, 7500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var note: Label = main_game.combo_note
+	## Park the pigeon high so its spawn drop (and the real combo-ending landing
+	## it eventually fires) cannot land inside the streak-live legs below — the
+	## streak state here is set explicitly, never by the pigeon's own touchdown.
+	main_game.player.reset_flight(main_game.city.to_local(
+			main_game.city.spawn_point) + Vector3(0.0, 40.0, 0.0))
+	## Under the strip row, the T-019 outline treatment, empty and hidden at rest.
+	var style_ok: bool = \
+			note.get_theme_color("font_outline_color").is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
+			and note.get_theme_constant("outline_size") == 4 \
+			and note.get_theme_font_size("font_size") == 14 \
+			and note.get_theme_color("font_color").is_equal_approx(Color(1.0, 1.0, 1.0, 0.75))
+	var placed_ok: bool = note.offset_top >= main_game.combo_strip.offset_bottom
+	var empty_at_rest: bool = note.text == "" and not note.visible
+	## Leg 1 — synthetic streak → 2, then the REAL landing signal: the note
+	## names the pre-reset multiplier exactly.
+	Game.add_tourist_hit(Vector3(-7500.0, 0.5, 7500.0))
+	Game.add_tourist_hit(Vector3(-7500.0, 0.5, 7501.0))
+	main_game.player.grounding_changed.emit(true)
+	var shown: bool = note.text == "landing ended the ×2 combo" and note.visible
+	## 2.5 s of game time at the fixed 60 Hz is 150 frames — 190 crosses it.
+	await _wait_frames(190)
+	var expired: bool = note.text == "" and not note.visible
+	## Leg 2 — a landing with no live combo shows nothing.
+	main_game.player.grounding_changed.emit(true)
+	var stays_empty: bool = note.text == "" and not note.visible
+	## Leg 3 — rebuild the streak, land again, and the restart clear mid-display.
+	Game.add_tourist_hit(Vector3(-7500.0, 0.5, 7500.0))
+	Game.add_tourist_hit(Vector3(-7500.0, 0.5, 7501.0))
+	main_game.player.grounding_changed.emit(true)
+	var reshot: bool = note.text == "landing ended the ×2 combo" and note.visible
+	main_game.restart_run()
+	var restart_cleared: bool = note.text == "" and not note.visible
+	var note_after_restart: String = note.text ## Read before the free below.
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("combo_note_on_landing",
+			style_ok and placed_ok and empty_at_rest and shown and expired
+					and stays_empty and reshot and restart_cleared,
+			"style=%s placed=%s empty=%s shown=%s expired=%s stays_empty=%s reshot=%s restart=%s ('%s')" % [
+					style_ok, placed_ok, empty_at_rest, shown, expired,
+					stays_empty, reshot, restart_cleared, note_after_restart])
 
 
 ## --- scenarios (T-011 pigeon presentation) ----------------------------------
