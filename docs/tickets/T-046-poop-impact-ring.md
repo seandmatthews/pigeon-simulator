@@ -1,6 +1,6 @@
 # T-046 — Add a predicted-impact ring for drops — the bombsight behind T-086's bigger ball
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-006 (poop mechanic, landed) · builds on T-086 (bigger emissive drop ball, landed 2026-09-30 — this ticket is additive to it)
 - **Refs:** re-based during the 2026-09-30 backlog audit (T-025 was superseded/adopted by
   T-086 in the meantime) · re-anchored 2026-10-01 against the current tree — every line
@@ -106,10 +106,10 @@ tracking a speck — the ring stays pinned to the ground while ball and target m
 
 ## Acceptance criteria
 
-- [ ] Gate 1b: `poop_impact_marker_spawns_from_main` — real-Main rig (parked in
+- [x] Gate 1b: `poop_impact_marker_spawns_from_main` — real-Main rig (parked in
       its own space, the T-077 pattern), one poop tap → exactly one node sits in
       the `poop_markers` group (proves the Main spawn wiring)
-- [ ] Gate 1b: `poop_impact_marker_matches_fall` — bare rig, direct
+- [x] Gate 1b: `poop_impact_marker_matches_fall` — bare rig, direct
       `poop_marker.tscn` instantiation + `track(drop)` from
       `_set_up(true, Vector3(0, 20, 0), Vector3(0, 0, -12))` plus one poop tap:
       the marker's global position is within 0.5 m of the impact point
@@ -119,25 +119,51 @@ tracking a speck — the ring stays pinned to the ground while ball and target m
       ground y = 0 (analytic t = sqrt(2·19.7/12) ≈ 1.81 s → ≈ (0, 0, −21.75);
       both sides undamped — the real splat sits ~1.5 m short of this, which is
       the Gate 3 eye's note, not this assertion)
-- [ ] Gate 1b: same scenarios — after the splat fires (~1.8 s of fall) the
+- [x] Gate 1b: same scenarios — after the splat fires (~1.8 s of fall) the
       marker is gone: freed within 0.5 s of the splat on the bare rig; on the
       Main rig the `poop_markers` group is likewise empty again after the drop
       splats
-- [ ] `poop_inherits_and_arcs`, `poop_grounded_no_drop`,
+- [x] `poop_inherits_and_arcs`, `poop_grounded_no_drop`,
       `poop_cooldown_blocks_stream`, `poop_splats_ground_and_fades`,
       `poop_splats_wall`, `poop_event_reaches_any_body`, T-086's
       `poop_ball_visible` (collider pin at `tests/sim_test.gd:1515-1517`) and
       the full suite stay green unchanged — no physics touched
-- [ ] A restart during a fall leaves no stranded marker: the `poop_markers` free
+- [x] A restart during a fall leaves no stranded marker: the `poop_markers` free
       loop in `restart_run()` exists beside the `poops` free loop
       (`scripts/main.gd:419-420`), and `restart_resets_run` /
       `restart_same_seed_skips_rebuild` (`tests/sim_test.gd:3593`, `:3655`)
       stay green (no marker is alive in those scenarios, so this criterion is
       code inspection plus the suite — honestly not a dedicated machine leg;
       the drop-validity poll is the primary cleanup)
-- [ ] [screenshot] The ring reads against road AND grass at cruise, sits where the
+- [x] [screenshot] The ring reads against road AND grass at cruise, sits where the
       splat lands, pulses while the drop falls and vanishes on impact (Gate 3 —
-      human judgement)
+      human judgement) — accepted by reviewer sign-off (2026-10-02), with the
+      undamped-ring-vs-damped-splat agreement judged honest at play distances.
+
+## Implementation record
+
+- **Landed values:** torus `outer_radius` 0.8 / `inner_radius` 0.6 (ring plane in
+  XZ, +Y along the hit normal via the poop.gd decal-basis helper), `surface_lift`
+  0.03, material unshaded (`shading_mode 0`) + alpha transparency + emission
+  `(0.85, 0.78, 0.55)` at energy 0.55 (the T-086 family), albedo
+  `(0.94, 0.9, 0.78, 0.9)`; pulse ±10 % at 2 Hz; march step 0.05 s; fade 0.3 s;
+  march ray `collision_mask = 1` (world only — floors, roofs, walls; never the
+  player, targets or the drop itself).
+- **The march stayed UNDAMPED**, deliberately: the mandated machine leg pins the
+  ring against an independent closed-form UNDAMPED recompute, so folding the
+  body's linear_damp into the march would fail it by design. The damping
+  discrepancy remains Gate 3 judgement context (recorded on the VERIFICATION.md
+  playtest line).
+- **Measured (headless, `--fixed-fps 60`, this branch):** `poop_impact_marker_matches_fall`
+  ring `(0.0, 0.03, −21.537)` vs independent recompute `(0.0, 0.0, −21.538)` —
+  **0.030 m apart** (just the surface lift; bar 0.5), t = 1.76 s. Full Gate 1b
+  suite 107 pass / 0 fail including both new scenarios, the six untouched
+  `poop_*` rows, `poop_ball_visible`, `restart_resets_run` and
+  `restart_same_seed_skips_rebuild`. Gate 1 import + 120-frame boot exit 0
+  (only the documented benign addon line). Gate 2 autoplay `AUTOPLAY DONE
+  ok=true … restart=true`, exit 0, DONE line unchanged. Gate 3: the
+  [screenshot] line passed review — accepted by reviewer sign-off
+  (2026-10-02); the matching VERIFICATION.md playtest line is checked.
 
 ## Verification
 
