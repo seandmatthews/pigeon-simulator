@@ -64,7 +64,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-043 | [Cap the sustained-flap throttle so dives own the top end](T-043-sustained-flap-cap.md) | flight-control | 3 | 3 | done |
 | T-044 | [Trim the pinned FOV kick and pull the arm in at speed (adopt T-024)](T-044-fov-arm-trim.md) | flight-control | 3 | 1 | done |
 | T-045 | [Give the bird a pale rump/wing-bar anchor that survives roads and roofs](T-045-pale-rump-anchor.md) | visual-design | 3 | 1 | superseded (T-085) |
-| T-046 | [Add a predicted-impact ring for drops — the bombsight behind T-025's bigger ball](T-046-poop-impact-ring.md) | visual-design | 4 | 2 | proposed |
+| T-046 | [Add a predicted-impact ring for drops — the bombsight behind T-086's bigger ball](T-046-poop-impact-ring.md) | visual-design | 4 | 2 | proposed |
 | T-047 | [Build a readable rim at the city edge — trees/hedge ring instead of the infinite flat apron](T-047-city-edge-rim.md) | visual-design | 3 | 2 | superseded (T-088) |
 | T-048 | [Adopt T-027's folded-wing chord fix — confirmed live, plus an elder-read accent](T-048-folded-wing-chord-adoption.md) | visual-design | 3 | 2 | done |
 | T-049 | [Fit facade windows to each building's real floor count](T-049-facade-floors.md) | worldbuilding | 3 | 1 | done |
