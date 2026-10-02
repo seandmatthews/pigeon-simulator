@@ -4353,12 +4353,15 @@ func _scan_nearest_crumb(spawner: BreadSpawner, pos: Vector3) -> BreadCrumb:
 	return nearest
 
 
-## Reads the "<what> <n> m[ ▲|▼]" distance out of the pointer text — -1.0 when
-## the text is not in an expected shape (hidden, empty, malformed). The fourth
-## part is the T-098 climb cue and is optional; any other fourth part (or a
-## missing "m") stays malformed.
+## Reads the "<what> <n> m[ ▲|▼][ — turn around]" distance out of the pointer
+## text — -1.0 when the text is not in an expected shape (hidden, empty,
+## malformed). The fourth part is the T-098 climb cue and is optional; since
+## T-058 the stern suffix (" — turn around", always after any climb cue) is
+## stripped before the split, so a suffixed readout still parses to its metres;
+## any other fourth part (or a missing "m") stays malformed.
 func _pointer_distance_m(text: String) -> float:
-	var parts := text.strip_edges().split(" ")
+	var bare: String = text.strip_edges().split(" — ")[0] ## T-058: the suffix never carries the metres.
+	var parts := bare.split(" ")
 	if parts.size() == 3 and parts[2] == "m":
 		return float(parts[1])
 	if parts.size() == 4 and parts[2] == "m" \
@@ -4422,7 +4425,13 @@ func _chevron_screen_dot(chevron: Polygon2D, camera: Camera3D,
 ## cue, scan-decided like every arm: " ▲" with a hand-placed crumb ~10 m over
 ## a grounded pigeon, " ▼" from ~10 m above a street crumb, no arrow within
 ## the ±3 m band, and city mode never arrowed (_pointer_distance_m accepts
-## both shapes).
+## both shapes). Since T-058 the readout carries the stern suffix, decided in
+## world space: the city hover holds all three geometries — yaw 90 (home dead
+## ahead) must show NO suffix, yaw 270 (home strictly behind) must end
+## " — turn around" and still parse to the horizontal distance, yaw 0 (home
+## exactly abeam, dot ≈ 0) must show NO suffix — and bread mode gets the
+## suffix too: a hand-placed crumb 5 m BEHIND the hover's nose reads
+## "bread N m ▼ — turn around" (climb cue first, stern last) and parses ±1 m.
 func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
@@ -4556,8 +4565,11 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 				and absf(chevron.rotation_degrees - held_before) < 0.01 \
 				and is_finite(chevron.rotation_degrees)
 	## --- approaching the pointed-at crumb decreases the readout ----------------
-	pigeon.reset_flight(city.to_local(target.global_position + Vector3(2.6, 2.0, 0.0)), 0.0)
-	await _wait_frames(2)
+	## Re-pinned like the T-058 arms: the hover is an exact-abeam geometry, and
+	## the fall drift would tip its knife-edge dot stern within ~2 frames.
+	for _i in 5:
+		pigeon.reset_flight(city.to_local(target.global_position + Vector3(2.6, 2.0, 0.0)), 0.0)
+		await _wait_frames(1)
 	var d_near := pigeon.global_position.distance_to(target.global_position)
 	var shown_near := _pointer_distance_m(pointer.text)
 	var approach_ok: bool = shown_near >= 0.0 and shown_near < shown \
@@ -4682,9 +4694,27 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	## is unreliable. The camera is converged onto the teleport (re-pinned, as
 	## in the bread arm) before sampling. Text asserts unchanged; the chevron
 	## gets the same independent half-plane check.
+	## (T-058) The same hover holds all three stern geometries: yaw 90 stays the
+	## AHEAD arm — home dead ahead must show NO suffix (made explicit below; a
+	## stray suffix would also drive the parse to −1.0); yaw 270 is the STERN
+	## arm — home strictly behind at 180°, dot −1, the text must end
+	## " — turn around" AND still parse to the horizontal distance (only the
+	## suffix-tolerant parser passes that leg); yaw 0 is the ABEAM arm — home
+	## exactly 90° off the nose, dot ≈ 0, the strict `< 0.0` must show NO
+	## suffix. The two new arms are text-only asserts (the pointer text is
+	## composed from world space before T-057's camera guards) sampled from the
+	## RE-PINNED pose (pin each frame, as the converge loops do): left to fall,
+	## the stalled pigeon drifts along its flat nose within ~2 frames and the
+	## knife-edge abeam dot tips a hair negative — that would test the fall
+	## drift, not the geometry the criterion names.
 	var city_hover := Vector3(city.city_span * 0.5 + 40.0, 30.0, 0.0)
 	var city_dot := -2.0
 	var city_ok := false
+	var city_stern_ok := false
+	var city_abeam_ok := false
+	var city_ahead_text := ""
+	var city_stern_text := ""
+	var city_abeam_text := ""
 	if camera != null:
 		for _i in 9:
 			pigeon.reset_flight(city_hover, 90.0)
@@ -4693,10 +4723,86 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 		var flat_home := Vector2(home.x - pigeon.global_position.x,
 				home.z - pigeon.global_position.z)
 		city_dot = _chevron_screen_dot(chevron, camera, pigeon, home)
-		city_ok = pointer.visible and pointer.text.begins_with("city ") \
-				and not (pointer.text.ends_with(" ▲") or pointer.text.ends_with(" ▼")) \
-				and absf(_pointer_distance_m(pointer.text) - flat_home.length()) <= 2.0 \
+		city_ahead_text = pointer.text
+		city_ok = pointer.visible and city_ahead_text.begins_with("city ") \
+				and not (city_ahead_text.ends_with(" ▲") or city_ahead_text.ends_with(" ▼")) \
+				and not city_ahead_text.ends_with(" — turn around") \
+				and absf(_pointer_distance_m(city_ahead_text) - flat_home.length()) <= 2.0 \
 				and not camera.is_position_behind(home) and city_dot > 0.0
+		for _i in 5: ## Stern arm: home strictly behind (dot −1), pose re-pinned.
+			pigeon.reset_flight(city_hover, 270.0)
+			await _wait_frames(1)
+		var flat_stern := Vector2(home.x - pigeon.global_position.x,
+				home.z - pigeon.global_position.z)
+		city_stern_text = pointer.text
+		city_stern_ok = pointer.visible \
+				and city_stern_text.ends_with(" — turn around") \
+				and absf(_pointer_distance_m(city_stern_text) - flat_stern.length()) <= 2.0
+		for _i in 5: ## Abeam arm: home exactly 90° off the nose (dot ≈ 0).
+			pigeon.reset_flight(city_hover, 0.0)
+			await _wait_frames(1)
+		var flat_abeam := Vector2(home.x - pigeon.global_position.x,
+				home.z - pigeon.global_position.z)
+		city_abeam_text = pointer.text
+		city_abeam_ok = pointer.visible and city_abeam_text.begins_with("city ") \
+				and not city_abeam_text.ends_with(" — turn around") \
+				and absf(_pointer_distance_m(city_abeam_text) - flat_abeam.length()) <= 2.0
+	## --- T-058 bread stern: the suffix serves bread mode too -------------------
+	## The T-098 scan-decided pattern: pre-pick a street spot whose HOVER (10 m
+	## straight up) sits ≥ 14 m from every living crumb in 3D, so the
+	## hand-placed crumb — 5 m due +Z of the spot at street level, ~11.2 m from
+	## the hover — wins the independent 3D scan by construction. The hover's
+	## nose faces −Z (yaw 0), so the crumb due +Z rides strictly BEHIND the
+	## nose (flat dot −1): the read must carry the stern suffix AFTER the ▼
+	## climb cue ("bread N m ▼ — turn around" — cue first, stern last) and
+	## still parse to the distance within the ±1 m band against the crumb the
+	## scan names.
+	var stern_ground := Vector3.ZERO
+	for spot in city.bread_spots:
+		var spot_world := city.to_global(spot)
+		if spot_world.y > 0.3:
+			continue
+		## Stay well inside the pointer's bread-mode ring (past half the city
+		## span the slot flips to "city" and this arm would read the wrong mode).
+		var stern_off: Vector3 = spot_world - city.global_position
+		stern_off.y = 0.0
+		if stern_off.length() > city.city_span * 0.35:
+			continue
+		var stern_hover := spot_world + Vector3(0.0, 10.0, 0.0)
+		var hover_clear := true
+		for crumb in spawner.living_crumbs():
+			if stern_hover.distance_to(crumb.global_position) < 14.0:
+				hover_clear = false
+				break
+		if hover_clear:
+			stern_ground = spot_world
+			break
+	var stern_placed: BreadCrumb = null
+	if stern_ground != Vector3.ZERO:
+		spawner.drop_crumb(stern_ground + Vector3(0.0, 0.3, 5.0))
+		for crumb in spawner.living_crumbs():
+			if crumb.global_position.distance_to(
+					stern_ground + Vector3(0.0, 0.3, 5.0)) < 0.5:
+				stern_placed = crumb
+				break
+	var bread_stern_ok := false
+	var bread_stern_text := ""
+	var bread_stern_true := -1.0
+	var bread_stern_shown := -1.0
+	if stern_placed != null:
+		for _i in 5: ## Re-pinned like the city arms — sample the hover pose, not the fall.
+			pigeon.reset_flight(
+					city.to_local(stern_ground + Vector3(0.0, 10.0, 0.0)), 0.0)
+			await _wait_frames(1)
+		var at_stern := pigeon.global_position
+		bread_stern_true = at_stern.distance_to(stern_placed.global_position)
+		bread_stern_text = pointer.text
+		bread_stern_shown = _pointer_distance_m(bread_stern_text)
+		bread_stern_ok = _scan_nearest_crumb(spawner, at_stern) == stern_placed \
+				and pointer.visible and bread_stern_text.begins_with("bread ") \
+				and bread_stern_text.ends_with(" ▼ — turn around") \
+				and bread_stern_shown >= 0.0 \
+				and absf(bread_stern_shown - bread_stern_true) <= 1.0
 	## --- the T-019 outline treatment -------------------------------------------
 	var style_ok: bool = \
 			pointer.get_theme_color("font_outline_color").is_equal_approx(Color(0.0, 0.0, 0.0, 0.85)) \
@@ -4710,8 +4816,9 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	_check("hud_bread_pointer_tracks_nearest_crumb",
 			spread_ok and query_ok and dist_ok and bearing_ok and flip_ok and behind_ok
 					and degenerate_ok and approach_ok and level_ok and reaim_ok
-					and cue_up_ok and cue_down_ok and city_ok and style_ok and none_ok,
-			"spread=%s query=%s dist=%s (%.1f true, shows %.0f) bearing=%s (rot %.1f dot %.2f) flip=%s (rot %.1f dot %.2f) behind=%s (last honest %.1f) degenerate=%s approach=%s (%.0f→%.0f, near true %.1f) level=%s ('%s') reaim=%s (eaten %s) cue_up=%s ('%s' %.1f true, shows %.0f) cue_down=%s ('%s' %.1f true, shows %.0f) city=%s ('%s' dot %.2f) style=%s none=%s" % [
+					and cue_up_ok and cue_down_ok and city_ok and city_stern_ok
+					and city_abeam_ok and bread_stern_ok and style_ok and none_ok,
+			"spread=%s query=%s dist=%s (%.1f true, shows %.0f) bearing=%s (rot %.1f dot %.2f) flip=%s (rot %.1f dot %.2f) behind=%s (last honest %.1f) degenerate=%s approach=%s (%.0f→%.0f, near true %.1f) level=%s ('%s') reaim=%s (eaten %s) cue_up=%s ('%s' %.1f true, shows %.0f) cue_down=%s ('%s' %.1f true, shows %.0f) city=%s ('%s' dot %.2f) city_stern=%s ('%s') city_abeam=%s ('%s') bread_stern=%s ('%s' %.1f true, shows %.0f) style=%s none=%s" % [
 					spread_ok, query_ok, dist_ok, d_true, shown,
 					bearing_ok, rot_a, dot_a,
 					flip_ok, rot_b, dot_b,
@@ -4722,7 +4829,10 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 					reaim_ok, eaten,
 					cue_up_ok, cue_up_text, cue_up_true, cue_up_shown,
 					cue_down_ok, cue_down_text, cue_down_true, cue_down_shown,
-					city_ok, pointer.text, city_dot,
+					city_ok, city_ahead_text, city_dot,
+					city_stern_ok, city_stern_text,
+					city_abeam_ok, city_abeam_text,
+					bread_stern_ok, bread_stern_text, bread_stern_true, bread_stern_shown,
 					style_ok, none_ok])
 	main_game.free()
 	Game.hunger.player = null ## The autoload's clock outlives this scene instance.

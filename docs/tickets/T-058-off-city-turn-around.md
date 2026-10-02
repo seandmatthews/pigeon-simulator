@@ -1,6 +1,6 @@
 # T-058 — Make the off-city void readable: teach the chevron convention and cue the edge
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-098 and T-057 (both landed — the suffix composes with the climb cue's
   slot and must survive the screen-space chevron rewrite; pure text written before the
   camera guards, it does)
@@ -93,19 +93,20 @@ anywhere in `scripts/main.gd` or the harness (grepped 2026-10-01).
 
 ## Acceptance criteria
 
-- [ ] Beyond half the city span with the heading facing away from home, the pointer
+- [x] Beyond half the city span with the heading facing away from home, the pointer
       reads "city <n> m — turn around"; with the heading facing home, the suffix is
       absent (Gate 1b: a dedicated stern arm plus the existing yaw-90 city arm)
-- [ ] Exact-abeam geometry (target bearing ≈ 90° off the nose, dot ≈ 0) shows NO
+- [x] Exact-abeam geometry (target bearing ≈ 90° off the nose, dot ≈ 0) shows NO
       suffix — proven by a DEDICATED abeam arm this ticket adds (see Verification):
       the scenario's only city arm has faced yaw 90 since T-057
       (`tests/sim_test.gd:4011`, `:4016` — home dead ahead), so the abeam case is
       otherwise unchecked
-- [ ] The suffix also appears in bread mode when the nearest living crumb is stern,
+- [x] The suffix also appears in bread mode when the nearest living crumb is stern,
       and the metres still parse within the existing ±1 m tolerance
-- [ ] [screenshot] At cruise past the ring, the suffixed "city <n> m — turn around"
+- [x] [screenshot] At cruise past the ring, the suffixed "city <n> m — turn around"
       line reads at a glance in one look (the session reading was "city 414 m — turn
-      around" at the ring overrun)
+      around" at the ring overrun) (reviewer sign-off 2026-10-02; agent grab
+      `.captures/t058_city_turn_around.png`, pilot session `t058b`)
 
 ## Verification
 
@@ -155,3 +156,30 @@ Gate 3 line beside the T-037/T-098 playtest lines (`VERIFICATION.md:310-313`). G
 the autoplay never leaves the city — unaffected; run anyway. Gate 3 [screenshot]:
 at-a-glance "turn around" read at cruise past the ring; the
 edge-visible-from-inside-the-ring playtest line belongs to T-088, not here.
+
+## Landed (agent, 2026-10-02 — reviewer sign-off 2026-10-02, DONE)
+
+- **Gates run on the commit tree:** Gate 1 (`--import` exit 0, only the documented
+  benign `ERROR: 33 resources still in use at exit` addon line; 120-frame boot exit 0,
+  no ERROR lines — no `--check-only` leg per the recorded repo-wide breakage),
+  Gate 1b 109/109 `SIM PASS`, Gate 2 `AUTOPLAY DONE ok=true … restart=true` (fps 136).
+- **Landed values (verbose Gate 1b run of `hud_bread_pointer_tracks_nearest_crumb`):**
+  ahead arm `'city 141 m'` (no suffix, chevron dot 1.00), stern arm
+  `'city 141 m — turn around'` (±2 m parse), abeam arm `'city 141 m'` (no suffix),
+  bread stern arm `'bread 11 m ▼ — turn around'` (10.9 m true, shows 11 — within the
+  ±1 m band, cue first / suffix last); the T-098 arms are unchanged (`'bread 9 m ▲'`,
+  `'bread 12 m ▼'`, level `'bread 3 m'`).
+- **One deliberate deviation from the arm recipe, measured not assumed:** the
+  one-shot `reset_flight(hover, yaw)` + 2-frame wait samples the FALL, not the
+  geometry — a temporary probe scene showed the re-pinned stall drift (velocity
+  chases the dipping nose, ~0.02 m/s of −Z drift) tips the exact-abeam dot a hair
+  negative within ~2 frames, and the first Gate 1b run read the abeam arm as
+  `'city 141 m — turn around'` (FAIL). The two new city arms and the bread stern arm
+  therefore sample from the scenario's established RE-PINNED pose (pin each frame,
+  read the same frame's text, as the converge loops do); the asserts are exactly as
+  the ticket prescribes. The approach/level read got the same re-pin so its text
+  matches its abeam geometry deterministically; its assert is untouched.
+- **Gate 3 [screenshot] agent grab, reviewer sign-off 2026-10-02:**
+  `.captures/t058_city_turn_around.png` (pilot session `t058b`) — airborne at
+  (16, ~20, ~-157), yaw 0, home due behind (flat dot −1.00), the HUD line reads
+  "▼ city 157 m — turn around" in one look over the void past the ring.
