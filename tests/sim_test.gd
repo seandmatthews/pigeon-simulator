@@ -13,6 +13,7 @@ const POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const SPLAT_TARGET_SCRIPT := preload("res://tests/splat_target.gd")
 const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 const POOP_SCENE: PackedScene = preload("res://scenes/poop.tscn")
+const POOP_MARKER_SCENE: PackedScene = preload("res://scenes/poop_marker.tscn")
 const MENU_SCENE: PackedScene = preload("res://scenes/menu.tscn")
 
 ## The Game autoload's high score file is redirected here for the scoring
@@ -179,6 +180,8 @@ func _run_scenarios() -> void:
 	await _scenario_poop_splat_wall()
 	await _scenario_poop_event_target()
 	await _scenario_poop_ball_visible() ## T-086 — the drop reads from the chase cam: bigger emissive ball, collider untouched.
+	await _scenario_poop_impact_marker_matches_fall() ## T-046 — bare rig, direct instantiation, no Main alive.
+	await _scenario_poop_impact_marker_spawns_from_main() ## T-046 — real-Main rig, the T-077 parked pattern.
 	await _scenario_poop_ready_indicator_tracks_cooldown() ## T-077 — unpaused tree, no live Main, like the poop block.
 	await _scenario_tourists_walk()
 	await _scenario_tourist_splat()
@@ -1735,6 +1738,110 @@ func _scenario_poop_ball_visible() -> void:
 					sphere.radius, mat.emission_enabled, mat.emission, vs_grass, vs_plaza,
 					collider.radius])
 	poop.free()
+
+
+## The predicted-impact ring (T-046) — the bare-rig analytic leg. The marker
+## is instantiated DIRECTLY (no Main alive, so no spawn wiring runs) and
+## tracks the one drop a real poop tap produced from the cooldown scenario's
+## exact set-up. The impact point is recomputed INDEPENDENTLY in closed form
+## from the drop's own position and inherited velocity — read fresh at track
+## time, never through the marker's march (the `_scan_nearest_crumb`
+## no-self-test rule) — under the drop's pure fall_gravity onto the flat
+## y = 0 test ground; both sides are undamped by design (the live body's
+## default linear_damp lands the real splat a touch short and late — the Gate
+## 3 eye's note, not this assertion). Lifecycle: after the splat the marker
+## must free itself within 0.5 s.
+func _scenario_poop_impact_marker_matches_fall() -> void:
+	_dropped.clear()
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	await _tap("poop")
+	await _wait_frames(2) ## The poop_lob read shape — the drop exists by here.
+	var spawned := _dropped.size() == 1
+	var drop: Poop = _dropped[0] if spawned else null
+	var p0 := Vector3.ZERO
+	var v0 := Vector3.ZERO
+	var marker: PoopMarker = null
+	if drop != null:
+		p0 = drop.global_position ## The actual spawn point (one step of fall in — read fresh, used by BOTH sides).
+		v0 = drop.linear_velocity
+		marker = POOP_MARKER_SCENE.instantiate()
+		add_child(marker)
+		marker.track(drop)
+	await _wait_frames(4) ## The marker marches on its first physics frame.
+	var matched := false
+	var ring_at := Vector3.ZERO
+	var impact := Vector3.ZERO
+	if marker != null and drop != null:
+		var g: float = drop.fall_gravity
+		var t := (v0.y + sqrt(v0.y * v0.y + 2.0 * g * p0.y)) / g ## Closed form on the flat y = 0 ground.
+		impact = Vector3(p0.x + v0.x * t, 0.0, p0.z + v0.z * t)
+		ring_at = marker.global_position
+		matched = ring_at.distance_to(impact) <= 0.5
+		print("SIM INFO impact marker ring=%s impact=%s (%.1f, 0, %.1f) dist=%.3f m t=%.2f s" % [
+				ring_at, impact, impact.x, impact.z, ring_at.distance_to(impact), t])
+	var drop_gone := false
+	for _i in 180: ## 3 s budget — the fall is ~1.9 s under the body's damping.
+		await get_tree().physics_frame
+		if not is_instance_valid(drop):
+			drop_gone = true
+			break
+	var freed_in_time := false
+	if drop_gone:
+		for _i in 31: ## 0.5 s budget after the splat (fade is 0.3 s + the free flush).
+			await get_tree().physics_frame
+			if not is_instance_valid(marker):
+				freed_in_time = true
+				break
+	_check("poop_impact_marker_matches_fall",
+			spawned and matched and drop_gone and freed_in_time,
+			"spawned=%s ring=%s vs impact=%s (%.2f m, bar 0.5) drop_gone=%s freed_in_time=%s" % [
+					spawned, ring_at, impact,
+					ring_at.distance_to(impact) if marker != null and drop != null else -1.0,
+					drop_gone, freed_in_time])
+
+
+## The predicted-impact ring (T-046) — the spawn-wiring leg through the REAL
+## main scene (the T-077 instanced-Main pattern, parked in its own corner).
+## The bare test pigeon is parked GROUNDED first, so one poop tap can only
+## fire through Main's own player (poop is air-only): Main must answer by
+## seating exactly one node in the `poop_markers` group, and after the drop
+## splats the group must be empty again — the fade-and-free covered end to end
+## through the real wiring. Leaves the tree unpaused with no live Main, like
+## the rest of this block.
+func _scenario_poop_impact_marker_spawns_from_main() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO) ## Park the bare pigeon grounded…
+	await _await_grounded(90) ## …so the tap cannot fire through it.
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(4500.0, 0.0, 4500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var pigeon: Player = main_game.player
+	var spawn_local: Vector3 = main_game.city.to_local(main_game.city.spawn_point)
+	var hover: Vector3 = spawn_local + Vector3(0.0, 6.0, 0.0) ## Above the clear spawn corridor.
+	## Hold the pigeon airborne the T-077 way — a reset_flight per frame (which
+	## also zeroes the cooldown, keeping the tap fresh).
+	for _i in 8:
+		pigeon.reset_flight(hover)
+		await get_tree().physics_frame
+	var before: int = get_tree().get_nodes_in_group("poop_markers").size()
+	await _tap("poop") ## One REAL drop through Main's own wiring.
+	await _wait_frames(2) ## The marker spawns mid-step, marches next frame.
+	var markers := get_tree().get_nodes_in_group("poop_markers")
+	var one_spawned: bool = before == 0 and markers.size() == 1
+	var emptied := false
+	for _i in 240: ## 4 s budget — ~1 s fall onto the plaza + 0.3 s fade, with margin.
+		await get_tree().physics_frame
+		if get_tree().get_nodes_in_group("poop_markers").is_empty():
+			emptied = true
+			break
+	_check("poop_impact_marker_spawns_from_main", one_spawned and emptied,
+			"before=%d after_tap=%d emptied=%s" % [
+					before, markers.size(), emptied])
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
 
 
 ## The F readiness glyph (T-077), through the REAL main scene: airborne with a

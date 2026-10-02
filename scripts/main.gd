@@ -17,6 +17,7 @@ const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off · walk
 const COMBO_NOTE_SECONDS := 2.5
 const SCORE_POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const HIT_MARKER_SCENE: PackedScene = preload("res://scenes/hit_marker.tscn")
+const POOP_MARKER_SCENE: PackedScene = preload("res://scenes/poop_marker.tscn")
 const MENU_SCENE_PATH := "res://scenes/menu.tscn"
 
 ## Hunger warning tiers (T-019): the bar is the fail state's messenger, so it
@@ -317,7 +318,13 @@ func _on_hunger_changed(value: float, max_value: float) -> void:
 
 ## Release conditions for the style bonus: where and how fast the poop left
 ## the pigeon — the Game autoload judges "fast/low dive" from this.
+## (T-046) Main also spawns the predicted-impact ring for the fresh drop and
+## hands it the drop to track — the player stays decoupled from the marker,
+## the same shape the harness asserts for poop.gd itself.
 func _on_player_pooped(poop: Poop) -> void:
+	var marker: PoopMarker = POOP_MARKER_SCENE.instantiate()
+	add_child(marker)
+	marker.track(poop)
 	Game.on_poop_released(poop.global_position, poop.linear_velocity)
 
 
@@ -418,6 +425,8 @@ func restart_run() -> void:
 		popup.queue_free()
 	for poop in get_tree().get_nodes_in_group("poops"):
 		poop.queue_free()
+	for marker in get_tree().get_nodes_in_group("poop_markers"): ## (T-046) A restart mid-fall cannot strand a ring.
+		marker.queue_free()
 	combo_strip.text = "" ## (T-040) A fresh run starts with no last hit on the strip.
 	_combo_strip_left = 0.0
 	_return_fade_phase = -1.0 ## (T-087) A fresh run never inherits a mid fade or a stale note.
