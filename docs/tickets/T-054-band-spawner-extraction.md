@@ -2,16 +2,22 @@
 
 - **Milestone:** Sweep backlog · **Status:** proposed · **Category:** code-optimization · **Value (1-5):** 3 · **Risk (1-5):** 3
 - **Depends on:** — (T-007 and T-008, whose spawners it refactors, are landed) · implements **T-034**
-- **Refs:** sweep 2 planning lane · re-based during the 2026-09-30 backlog audit — **T-089 landed after this ticket was written and changed the car recycle path** (see What), so re-locate by symbol, not line number: older text has already drifted (T-034 cites the tourist recycle scenario at `sim_test.gd:1418-1451`; it is at `sim_test.gd:2170` today)
+- **Refs:** sweep 2 planning lane · re-based during the 2026-09-30 backlog audit after T-089 changed the car recycle path (see What); every line number re-verified against the tree on 2026-10-01 — when a file has drifted since, re-locate by symbol
 
 ## What
 
 TouristSpawner and CarSpawner each carry a verbatim copy of the band/recycle
 machinery — the five helpers `_anchor_flat/_flat_dist/_blocks_in_band/_nearest_blocks/_center_dist`
 and the `_physics_process` recycle-scan timer are byte-identical between the two
-scripts (symbol-level compare, re-verified during the 2026-09-30 audit; the
-sweep-2 sed-range check no longer aligns because the car side gained
-T-089's `_on_car_splatted`/`_flat_dist_pos`/`_pick_recycle_block` since).
+scripts (symbol-level compare re-run 2026-10-01, 6/6 IDENTICAL: tourist
+`_physics_process`/`_anchor_flat`/`_flat_dist`/`_blocks_in_band`/`_nearest_blocks`/`_center_dist`
+at `tourist_spawner.gd:55-61/137-138/141-142/147-153/158-163/166-168` vs car
+`:66-72/176-177/180-181/191-197/202-207/210-212`; the sweep-2 sed-range diff no
+longer aligns — `diff <(sed -n 137,168p scripts/tourist_spawner.gd) <(sed -n
+168,199p scripts/car_spawner.gd)` is non-empty because the span now catches the
+car-only `_on_car_splatted` (T-008's honk relay) and T-089's `_flat_dist_pos`
+(`_pick_recycle_block` was added further down, `car_spawner.gd:235-247`, outside
+this span)).
 
 The recycle exports are duplicated equal too — `recycle_interval` 0.5,
 `spawn_min_dist` 30, `spawn_max_dist` 70 (`tourist_spawner.gd:23-25`,
@@ -49,36 +55,46 @@ Both spawners `extends BandSpawner` and keep only their specifics:
   caller;
 - their `_populate` bodies (loose tourist groups vs traffic + parked with the
   `_spot_taken` retry loop);
-- their `_recycle_far` bodies: tourists `recycle_to`; cars keep the `PARKED` branch —
-  `park_at` + the `_spot_taken` continue (`car_spawner.gd:132-139`);
-- `_loop_for` stays per-subclass (sidewalk vs traffic loops — genuinely different
-  data), and CarSpawner keeps `_point_at_fraction` (deterministic traffic spread),
-  `_spot_taken` (the 4.5 m curb-exclusivity rule, `car_spawner.gd:300-305`) and
-  everything T-089 added: `_pick_recycle_block`, `_clear_rejoin_point`,
-  `_probe_clear`, `_flat_dist_pos`, the `ring_traffic_soft_cap` /
-  `recycle_probe_count` exports — all subclass specifics under the general rule;
+- their `_recycle_far` bodies: tourists `recycle_to` (`tourist_spawner.gd:96-110`);
+  cars keep the `PARKED` branch — `park_at` + the `_spot_taken` continue
+  (`car_spawner.gd:132-138`, `else:` at `:139` goes with the traffic tail);
+- `_loop_for` stays per-subclass (sidewalk `tourist_spawner.gd:172-176` vs traffic
+  `car_spawner.gd:216-220` — genuinely different city calls), and CarSpawner keeps
+  `_point_at_fraction` (`car_spawner.gd:281-295`), `_spot_taken` (the 4.5 m
+  curb-exclusivity rule, `car_spawner.gd:300-305`) and everything T-089 added:
+  `_pick_recycle_block`, `_clear_rejoin_point` (`:256-262`), `_probe_clear`
+  (`:268-276`), `_flat_dist_pos` (`:185-186`), the `ring_traffic_soft_cap` /
+  `recycle_probe_count` exports (`:35-36`) — all subclass specifics under the
+  general rule;
 - CarSpawner sets `recycle_radius = 100.0` in `_init()` — a GDScript subclass cannot
   redeclare an inherited export, so the 80/100 split becomes an `_init` override
   (move the load-bearing comment from `car_spawner.gd:27-30` down with it).
 
 `scenes/main.tscn` is untouched by the commit: the spawner scripts are referenced by
-path (`main.tscn:3-12`) and the scene sets only `city_path`/`player_path` NodePaths
-(`main.tscn:74-82`), whose names live on in the base class — verified this session,
-the scene sets no `recycle_radius`, so the `_init` override is safe.
+path (ext_resources `main.tscn:3-12`, tourist `:7`, car `:8`) and the scene sets only
+`city_path`/`player_path` NodePaths on the two nodes (`TouristSpawner` `:74-77`,
+`CarSpawner` `:79-82`), whose names live on in the base class — verified 2026-10-01,
+the scene sets no `recycle_radius` (nor any recycle export), so the `_init` override
+is safe.
 
 The coverage win attached — stated precisely, because T-089 already claimed part
-of it: `CarSpawner._recycle_far()` (`car_spawner.gd:119-142`) had NO Gate 1b
-scenario when this ticket was written; T-089's `traffic_recycle_keeps_flow`
-(dispatch `sim_test.gd:127`, scenario `:2402`, check `:2529`, VERIFICATION.md:90)
-now asserts the rejoin-insertion half of the contract for TRAFFIC cars — the
-`_clear_rejoin_point` insertion (`sim_test.gd:2454`) keeps seeded pairwise gaps
-≥ 4 m and the fleet gap > 2 m, and no in-radius car is yanked (max frame move
-≤ 5 m). Still asserted by nothing, and what `cars_recycle_around_player` exists
-to close: the end-to-end timer-driven `_recycle_far` scan on cars (instance-id
-reuse, the 20 traffic + 16 parked counts, radius-or-band placement per car) and
-the entire PARKED branch — no double-booked curb spot during a recycle
-(`cars_traffic_loops_blocks` only proves parked cars never move from their
-seeds, `sim_test.gd:2286-2290`).
+of it: the end-to-end timer-driven `CarSpawner._recycle_far()`
+(`car_spawner.gd:119-142`) — the scan `_physics_process` fires (`:66-72`) — has NO
+Gate 1b scenario: no scenario calls `_recycle_far` (only comments mention it,
+`sim_test.gd:3219` and `:3278`). T-089's `traffic_recycle_keeps_flow`
+(dispatch `sim_test.gd:148`, scenario `:3227`, check `:3356`, VERIFICATION.md:92)
+asserts the rejoin-insertion half of the contract for TRAFFIC cars — it seeds 5
+traffic cars and performs the insertion manually via `spawner._clear_rejoin_point`
+(`sim_test.gd:3279`), asserting seeded pairwise gaps ≥ 4.0 m and the fleet gap
+> 2.0 m, and no in-radius car yanked (max frame move ≤ 5.0 m, `:3341-3343`), plus
+the light-ring draw preference (`:3333-3340`). Still asserted by nothing, and what
+`cars_recycle_around_player` exists to close: the end-to-end timer-driven
+`_recycle_far` scan on cars (instance-id reuse, the 20 traffic + 16 parked counts
+from `car_spawner.gd:23-24`, radius-or-band placement per car) and the entire
+PARKED branch (`car_spawner.gd:132-138`) — no double-booked curb spot during a
+recycle (`cars_traffic_loops_blocks` only proves parked cars never move from their
+seeds — `parked_ok` travel < 0.05 m, `sim_test.gd:3111-3115`, check `:3140-3144`).
+No `cars_recycle` label exists in any code and VERIFICATION.md has no such row.
 
 ## Why
 
@@ -102,34 +118,43 @@ recycle contract, shipping unverified while its tourist twin is machine-proven.
       and no two parked cars come within the 4.5 m `_spot_taken` threshold of each
       other
 - [ ] Spawner exports still resolve from the scene at boot: the real `main.tscn`
-      still boots to 18 tourists / 36 cars (the density assert inside
-      `density_cpu_budget` keeps proving it, `sim_test.gd:3786-3790`)
+      still boots to 18 tourists / 36 cars (the `density_ok` assert inside
+      `density_cpu_budget` keeps proving it — `sim_test.gd:5040-5042`, checked at
+      `:5049-5053`)
 - [ ] `git diff` shows no change to `scenes/main.tscn`
 
 ## Verification
 
 Gate 1 + Gate 1b, adding `cars_recycle_around_player` — a clone of the tourist
-recycle scenario (`_scenario_tourists_recycle`, `sim_test.gd:2170-2203`,
-radius-or-band assert `:2196-2198`) with the car
+recycle scenario (`_scenario_tourists_recycle`, `sim_test.gd:2995-3028`,
+radius-or-band assert `:3021-3023`, check `:3024`) with the car
 specifics: build a `CarSpawner` on the harness city with the pigeon GROUNDED first
-(the anchor pin `cars_traffic` uses, `sim_test.gd:2217-2218` — a standing bird stops
-the spawner's recycle anchor wandering mid-scenario), record the fleet's instance
-ids, then `_set_up` the player ~120 m west (`_city.position + Vector3(-120.0, 25.0,
-0.0)`) — beyond `recycle_radius` 100 so cars genuinely recycle, but close enough that
-block centers still sit inside the 30–70 m spawn band (centers span only ±96 m,
-`city.gd:306-308`, pitch 32 at `city.gd:205-208`: from the new anchor the local-x
-−96/−64 columns sit 40/56 m flat
-away; a 200 m hop would empty the band and legitimately recycle nobody). Wait ≥ 90
-frames (≥ 2 scans — a parked car whose drawn spot was taken legitimately skips one
-scan), then assert id-reuse, the 20 traffic + 16 parked counts, radius-or-band
-placement per car, and pairwise parked distance ≥ 4.5 m.
+(the anchor pin `cars_traffic` uses, `sim_test.gd:3042-3043` — `_set_up(true, …
+Vector3(0.0, 1.5, 0.0))` + `await _await_grounded(90)`; a standing bird stops the
+spawner's recycle anchor wandering mid-scenario), record the fleet's instance ids
+(the `:3004-3006` pattern), then `_set_up` the player ~120 m west
+(`_city.position + Vector3(-120.0, 25.0, 0.0)`) — beyond `recycle_radius` 100 so
+cars genuinely recycle, but close enough that block centers still sit inside the
+30–70 m spawn band (`blocks_per_side` 7, `city.gd:159`; `block_pitch` =
+`block_size + road_width` = 22 + 10 = 32, `city.gd:160-161` + `:281-282`; centers
+`(ix − 3) · 32` span ±96, `city.gd:384-386`: from the new anchor the (−96, ±32)
+centers sit 40 m and (−64, 0) sits 56 m flat away; a 200 m hop would leave the
+nearest center 104 m out — past `spawn_max_dist` 70 — so `_blocks_in_band` empties
+and `_recycle_far` early-returns, `car_spawner.gd:127-129`, legitimately recycling
+nobody). Wait ≥ 90 frames (3 scans at the fixed 60 Hz step — `recycle_interval`
+0.5 s is 30 frames; a parked car whose drawn spot was taken legitimately skips one
+scan, `car_spawner.gd:136-137`), then assert id-reuse, the 20 traffic + 16 parked
+counts, radius-or-band placement per car, and pairwise parked distance ≥ 4.5 m.
 
-Explicitly re-run: `tourists_walk_loose_groups`, `tourists_recycle_around_player`,
-`cars_traffic_loops_blocks`, `traffic_recycle_keeps_flow`,
-`car_splat_honk_and_continue`,
-`sfx_splat_yelp_panic_honk` (constructs both spawners), `density_cpu_budget`
-(quiet machine — it false-FAILs under fleet load, per its own warning at
-`sim_test.gd:3742`). Gate 2 (the DONE line's tourist counts and `honks`
-exercise both refactored spawners live). Gate 3: no new lines — the T-007/T-008
+Explicitly re-run: `tourists_walk_loose_groups` (`sim_test.gd:2870`),
+`tourists_recycle_around_player` (`:3024`), `cars_traffic_loops_blocks`
+(`:3059`/`:3140`), `traffic_recycle_keeps_flow` (`:3263`/`:3283`/`:3356`),
+`car_splat_honk_and_continue` (`:3183`/`:3208`),
+`sfx_splat_yelp_panic_honk` (`:4919`/`:4944` — its scenario
+`_scenario_audio_hit_sounds`, `:4893`, constructs both spawners), and
+`density_cpu_budget` (`:5049`; dispatch `:187` — quiet machine, it false-FAILs
+under fleet load per its own note at `sim_test.gd:5003`). Gate 2 (the autoplay
+DONE line reports `tourists`/`honks`/`run_cars`, `tests/autoplay.gd:144` — it
+exercises both refactored spawners live). Gate 3: no new lines — the T-007/T-008
 playtest lines already cover the visible behavior. VERIFICATION.md: one new Gate 1b
 row.
