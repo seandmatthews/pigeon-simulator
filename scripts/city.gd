@@ -140,6 +140,34 @@ const PARK_TRUNK_SIZE := Vector3(0.35, 2.2, 0.35) ## Rising from the slab.
 const PARK_CROWN_SIZE := Vector3(2.6, 2.2, 2.6) ## Centered 3.3 m up — sits on the 2.2 m trunk.
 const PARK_CROWN_CENTER_Y := 3.3 ## Crown box center height above the slab top (m).
 
+## District anchor layout (T-091): one tall clock post per district quadrant, at
+## the pinned blocks' alley-cross centers — the one spot on EVERY block the
+## layout math keeps clear (lot centers sit ±4.25 m out per axis, footprints are
+## ≤ 7.1 m wide, so every building's inner face stays 0.70–1.48 m off the block
+## center per axis; block props sit ≥ 8 m out, the ground bread ring ≥ 6.5 m per
+## axis and the tourist loop on the 10.9 m curb line). The gate sits OUTSIDE the
+## plaza/park/building branch, so the post stands in parks too — the (±5, ±5)
+## park trees leave 5.0 − 1.84 crown half-diagonal − 0.99 plinth half-diagonal
+## ≈ 2.2 m per axis clear. The ANCHOR_BLOCKS pins assume the M1 `blocks_per_side`
+## 7. Four tiers of MultiMesh boxes rise from the slab top — plinth, shaft,
+## head, cap — the cap's top face (slab + 17.3 m) the landable pad, under
+## `max_roof_height` and the 23 m autoplay cruise floor. Zero RNG of any stream
+## (no draw touches `_rng`/`_shop_rng`) and exactly one `_fp` entry per anchor,
+## so every seeded sequence and every pinned count stays byte-identical and the
+## fingerprint tracks the anchors' positions. The anchors deliberately do NOT
+## feed `_max_roof` — the `city_district_anchors_present` scenario re-pins
+## `report.max_roof_height` to the building roofs so the rule is guarded. The
+## head wears the district's first `DISTRICT_PALETTES` color so the quadrant
+## reads from the air.
+const ANCHOR_BLOCKS: Array[Vector2i] = [
+	Vector2i(1, 1), Vector2i(5, 1), Vector2i(1, 5), Vector2i(5, 5),
+]
+const ANCHOR_PLINTH_SIZE := Vector3(1.4, 1.0, 1.4) ## Alley-cross footing, rising from the slab.
+const ANCHOR_SHAFT_SIZE := Vector3(0.7, 13.6, 0.7) ## The post — slab+1.0 up to slab+14.6.
+const ANCHOR_HEAD_SIZE := Vector3(1.8, 2.2, 1.8) ## The clock/bell housing — district-tinted.
+const ANCHOR_CAP_SIZE := Vector3(2.0, 0.5, 2.0) ## The landable pad.
+const ANCHOR_CRUMB_LIFT := 0.06 ## Crumb height above the cap's top face (the T-032 roof-crumb pattern).
+
 ## Distant skyline layout (T-088 commit 2): a ring of flat-shaded background
 ## towers on the grass apron — the horizon reads as a larger city under haze
 ## instead of a void edge. Placement is a deterministic hash chain (one
@@ -279,6 +307,17 @@ var cafe_spots: Array[Transform3D] = []
 ## `cafe_spots`.
 var roof_props: Array[Dictionary] = []
 
+## District anchors (T-091): one record per pinned anchor post, appended by
+## `_build_district_anchor` — `center` (global), `district`, `top` (the anchor's
+## total height above the slab top: the pure tier-constant sum, 17.3 m at the
+## defaults) and `cap_top` (global y of the cap's top face — the landing
+## surface). Pure layout math at fixed block centers: zero RNG of any stream
+## and exactly one `_fp` entry per anchor, so the layout fingerprint tracks the
+## anchors while every seeded stream stays byte-identical. The anchors are NOT
+## folded into `_max_roof` (see the `ANCHOR_BLOCKS` const note); the
+## `city_district_anchors_present` scenario pins that rule.
+var anchors: Array[Dictionary] = []
+
 ## City-edge rim (T-088 commit 1): one transform per hedge band — origin at the
 ## band's box center on the boundary line, basis scale = its oriented
 ## (city_span, 1.2, 0.8) size — and, in `rim_tree_spots`, one per rim tree.
@@ -359,6 +398,7 @@ func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
 	elder_spots = []
 	cafe_spots = []
 	roof_props = []
+	anchors = []
 	rim_hedge_spots = []
 	rim_tree_spots = []
 	block_centers = []
@@ -540,6 +580,10 @@ func _make_meshes() -> void:
 		"skyline_tall": _unit_box(_vertex_color_material()),
 		"plinth": _unit_box(_flat_material(COLOR_STONE)),
 		"figure": _unit_box(_flat_material(COLOR_BRONZE)),
+		"anchor_plinth": _unit_box(_flat_material(COLOR_STONE)),
+		"anchor_shaft": _unit_box(_flat_material(COLOR_METAL)),
+		"anchor_head": _unit_box(_vertex_color_material()),
+		"anchor_cap": _unit_box(_flat_material(COLOR_STONE)),
 	}
 	## Facades (T-049): one key per floor count a building can have — each its
 	## own material drawing exactly that many window rows, so a BoxMesh face
@@ -751,6 +795,11 @@ func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 		_build_park_trees(center)
 	else:
 		_build_block_buildings(center, district_of(bx, bz), bx, bz)
+	## District anchor (T-091) — OUTSIDE the plaza/park/building branch, so the
+	## post stands in parks too (the pinned blocks' alley cross is clear there
+	## by the same layout math; see the ANCHOR_BLOCKS const note).
+	if ANCHOR_BLOCKS.has(Vector2i(bx, bz)):
+		_build_district_anchor(center, district_of(bx, bz))
 	_build_block_props(center, is_plaza)
 
 
@@ -770,6 +819,43 @@ func _build_park_trees(center: Vector3) -> void:
 					base + Vector3.UP * (PARK_TRUNK_SIZE.y * 0.5), PARK_TRUNK_SIZE))
 			_add_mm("tree_crown", _box_xf(
 					base + Vector3.UP * PARK_CROWN_CENTER_Y, PARK_CROWN_SIZE))
+
+
+## One district anchor (T-091): the four-tier clock post at `center` (a block
+## center), its head tinted `district`'s first palette color so the quadrant
+## reads. Tiers stack from the slab top; every tier carries its own layer-1
+## `Props` box (the T-093 shape-per-group pattern — the cap's top face is the
+## landing surface). Appends the cap crumb to `bread_spots` (the T-032
+## roof-crumb pattern) and the record to `anchors`, and leaves the one `["anchor",
+## center.x, center.z, district]` `_fp` entry — zero RNG of any stream.
+func _build_district_anchor(center: Vector3, district: int) -> void:
+	var palette: Array = DISTRICT_PALETTES[district]
+	var head_color: Color = palette[0]
+	var y := block_slab_height
+	var pos := center + Vector3(0.0, y + ANCHOR_PLINTH_SIZE.y * 0.5, 0.0)
+	_add_mm("anchor_plinth", _box_xf(pos, ANCHOR_PLINTH_SIZE))
+	_add_collider("Props", ANCHOR_PLINTH_SIZE, pos)
+	y += ANCHOR_PLINTH_SIZE.y
+	pos = center + Vector3(0.0, y + ANCHOR_SHAFT_SIZE.y * 0.5, 0.0)
+	_add_mm("anchor_shaft", _box_xf(pos, ANCHOR_SHAFT_SIZE))
+	_add_collider("Props", ANCHOR_SHAFT_SIZE, pos)
+	y += ANCHOR_SHAFT_SIZE.y
+	pos = center + Vector3(0.0, y + ANCHOR_HEAD_SIZE.y * 0.5, 0.0)
+	_add_mm("anchor_head", _box_xf(pos, ANCHOR_HEAD_SIZE), head_color)
+	_add_collider("Props", ANCHOR_HEAD_SIZE, pos)
+	y += ANCHOR_HEAD_SIZE.y
+	pos = center + Vector3(0.0, y + ANCHOR_CAP_SIZE.y * 0.5, 0.0)
+	_add_mm("anchor_cap", _box_xf(pos, ANCHOR_CAP_SIZE))
+	_add_collider("Props", ANCHOR_CAP_SIZE, pos)
+	y += ANCHOR_CAP_SIZE.y
+	bread_spots.append(center + Vector3(0.0, y + ANCHOR_CRUMB_LIFT, 0.0))
+	anchors.append({
+		"center": to_global(center),
+		"district": district,
+		"top": y - block_slab_height, ## Total height above the slab top.
+		"cap_top": to_global(Vector3(0.0, y, 0.0)).y, ## Global cap-top face y.
+	})
+	_fp.append(["anchor", center.x, center.z, district])
 
 
 ## Subdivides a block interior into 2x2 lots and fills 2–4 of them with

@@ -97,7 +97,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-088 | [Make the city edge legible: T-047's near rim plus T-050's far skyline as one pass](T-088-city-edge-rim-skyline.md) | visual-design | 4 | 2 | done |
 | T-089 | [Unclog the band: traffic must move when you stand still](T-089-traffic-recycle-flow.md) | worldbuilding | 4 | 2 | done |
 | T-090 | [Signboards over the shop doors](T-090-shop-signboards.md) | worldbuilding | 3 | 1 | done |
-| T-091 | [One tall anchor per district — a destination you can steer by](T-091-district-anchors.md) | worldbuilding | 4 | 2 | proposed |
+| T-091 | [One tall anchor per district — a destination you can steer by](T-091-district-anchors.md) | worldbuilding | 4 | 2 | done |
 | T-093 | [Merge the city's 840 single-shape static bodies into one body per group](T-093-city-one-body-per-group.md) | code-optimization | 2 | 2 | done |
 | T-094 | [Cafe furniture is ~58% of boot nodes — batch it like the city props](T-094-cafe-furniture-batched.md) | code-optimization | 3 | 3 | proposed |
 | T-095 | [Make the off-world return and the buzz flinch visible to pilot sessions](T-095-pilot-off-world-buzz-events.md) | code-optimization | 3 | 1 | done |

@@ -1,6 +1,6 @@
 # T-091 — One tall anchor per district — a destination you can steer by
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** — (complements proposed T-029, the plaza statue — this is the
   per-district slice its "Not claimed" line at
   `docs/tickets/T-029-plaza-landmark.md:86-92` reserves; T-029 there calls the
@@ -161,18 +161,18 @@ this extends.
 
 ## Acceptance criteria
 
-- [ ] Exactly one anchor stands per district quadrant at the pinned blocks
+- [x] Exactly one anchor stands per district quadrant at the pinned blocks
       `(1,1)/(5,1)/(1,5)/(5,5)`, total top 17.3 m above the slab (17.42 m
       global), the 1.4 m plinth clear of every building face — the per-axis
       standoff re-derived per seed from `buildings[]` (≥ 5.5 mm at the M1
       seed, flush-but-never-overlapping at the theoretical worst) — and
       touching no prop, bread-ring spot or tourist loop at any seed, standing
       in parks too with no `is_park` override.
-- [ ] The cap is landable: a drop onto the cap settles grounded at
+- [x] The cap is landable: a drop onto the cap settles grounded at
       cap-top + 0.3 (the prop-landing template, `tests/sim_test.gd:2263-2272`
       — add the leg to the new scenario), and the anchor crumb is an ordinary
       crumb a grounded pigeon on the cap can eat (+30 through Hunger).
-- [ ] (Gate 1b) new `city_district_anchors_present` scenario in
+- [x] (Gate 1b) new `city_district_anchors_present` scenario in
       `tests/sim_test.gd`: on a real generated City — `anchors` holds exactly
       4 records, one per district, at the pinned blocks; every `top` ≤
       `max_roof_height`; `report.max_roof_height` equals
@@ -188,25 +188,25 @@ this extends.
       Props body; and `generate(default_seed, true)` reproduces `anchors` and
       `bread_spots` byte-identically (the `_props_reproduced`/
       `_vec_spots_equal` pattern, `tests/sim_test.gd:2087-2096,2100-2106`).
-- [ ] (Gate 1b) `city_roofs_inhabited` passes with its amended pins: roof-spot
+- [x] (Gate 1b) `city_roofs_inhabited` passes with its amended pins: roof-spot
       snapshot == buildings + anchors, city-wide total == blocks² × 8 +
       benches + buildings + anchors (683 at the M1 seed), and Props-body
       shapes above y 5.0 == roof_props + 3 × anchors (271).
-- [ ] (Gate 1b) the four cross-version fingerprint-pin scenarios pass with
+- [x] (Gate 1b) the four cross-version fingerprint-pin scenarios pass with
       both values re-derived for the four new `_fp` entries —
       `city_facades_fit_floors`, `city_apron_rim_present`,
       `city_horizon_skyline`, `city_park_trees_present` — with every
       `VERIFICATION.md` row quoting the values refreshed in the same
       change-set.
-- [ ] (Gate 1b) every within-build determinism scenario passes unchanged —
+- [x] (Gate 1b) every within-build determinism scenario passes unchanged —
       `city_same_seed_deterministic`, `city_regenerate_restores_layout`,
       `elder_placement_no_rng`, `city_cafe_tables_present`,
       `city_footprints_vary`.
-- [ ] (Gate 1b) `city_street_flyover`, `city_roof_landable` and
+- [x] (Gate 1b) `city_street_flyover`, `city_roof_landable` and
       `city_plaza_spawn` pass unchanged (the anchors stand ~90 m off the
       plaza and ~80 m off the spawn corridor; the flyover leg runs the
       x = 16 m street, ≥ 48 m from any anchor).
-- [ ] [screenshot] From cruise height each quadrant shows one tall silhouette
+- [x] [screenshot] From cruise height each quadrant shows one tall silhouette
       that reads as a destination against the roofscape (the T-088 backdrop
       ring stays clearly background); from the block below, the post reads as
       a clock/bell tower, not a bare pole.
@@ -228,3 +228,49 @@ new line — "(T-091) Each district has a tall anchor you can steer by —
 visible from cruise height, landable, with a crumb on top [screenshot]" —
 plus the existing T-004 city-readability lines re-checked
 (`VERIFICATION.md:256-260`).
+
+## Implementation record (2026-10-02; accepted by reviewer sign-off)
+
+Landed as specified: `ANCHOR_BLOCKS` + tier-size consts and
+`_build_district_anchor` in `scripts/city.gd`, the gate sitting outside the
+plaza/park/building branch of `_build_block`, the public `anchors` array
+(`center` global, `district`, `top` = the 17.3 m tier sum above the slab,
+`cap_top` = global cap-top-face y), one cap crumb per anchor in
+`bread_spots` (y 17.48 global at the M1 slab) and one
+`["anchor", center.x, center.z, district]` `_fp` entry per anchor — zero RNG
+draws of any stream, nothing folded into `_max_roof`. New visual keys
+`anchor_plinth` (stone) / `anchor_shaft` (metal) / `anchor_head`
+(vertex-color, the district's first palette color) / `anchor_cap` (stone);
+one layer-1 `Props` box per tier.
+
+Re-derived with a headless `City.generate` probe on this tree (both pinned
+seeds): seed 20260928 → fingerprint **650664268** (was 1006789400), seed
+424242 → **4031380170** (was 3359332191); bread_spots 679 → **683** (= 49·8 +
+141 + 146 + 4); anchors 4 at (±64, ±64) with top 17.3 / cap_top 17.42;
+`report.max_roof_height` still 18.25 (= max buildings top 18.37 − 0.12); the
+four pins were re-derived again in the same probe AFTER the change landed
+(the T-051 precedent). Measured plinth daylight, re-derived per seed from
+`buildings[]`: worst 24.2 mm at the M1 seed, 1.6 mm at seed 424242 — flush,
+never overlapping; nearest bread spot of any kind but the anchor's own crumb:
+8.27 m. Both pinned seeds keep parks off the pinned blocks ((0,0)/(3,1) and
+(3,5)/(6,2)/(6,4) respectively), so the stands-in-parks guarantee rests on the
+gate's placement plus the constants arithmetic, as computed in What §1.
+
+Gates run on this tree: Gate 1 — `--import` exit 0, 120-frame boot exit 0
+(0 error lines), `--check-only --script res://scripts/city.gd` exit 0. Gate
+1b — full suite exit 0: `SIM SUMMARY: 0 failure(s)`, 113 `SIM PASS` lines
+including `city_district_anchors_present` and every scenario named above.
+Gate 2 — `godot --path . res://tests/autoplay.tscn` exit 0 with `AUTOPLAY
+DONE ok=true` (fps 135, `restart=true`) — the 23 m cruise floor clears the
+17.42 m tops.
+
+**Human playtest (Gate 3):** the [screenshot] line — each district's
+silhouette reads as a destination from cruise height with the T-088 ring
+still background; from the block below the post reads as a clock/bell
+tower — **passed human review (reviewer sign-off 2026-10-02)**. Agent-side
+pilot flights could not produce a framed grab: the pilot's open-loop
+steering (held-pitch climbs brake near the ground; command files execute
+their holds concurrently, so multi-line flight scripts collapse) never
+converged on an anchor framing — the physical claims rest on the machine
+legs (cap-top landing, crumb eaten, geometry pins), and the visual read on
+the reviewer's pass.
