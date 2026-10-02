@@ -15,6 +15,12 @@ const HINT_GROUND := "Grounded! W/S waddle · A/D turn · Space flap off · walk
 ## the apron — the one place with no floor ahead — naming WHY the course keeps
 ## bending home, ahead of the T-042 guard's fall.
 const HINT_EDGE := "Nothing out there — turn back"
+## (T-060) The lead coach: shown on the same slot while the pigeon is airborne
+## with a clean tourist-splat slate and a living tourist strolling ahead within
+## coach_range. A ~15 m lead is the right order for a 4 m drop at cruise:
+## sqrt(2·4/12) ≈ 0.82 s of fall at ~20 m/s. Per-run only — reset_run() zeroes
+## tourist_hits, so a fresh run re-teaches; nothing persists.
+const COACH_POOP := "F poop · release ~15 m early to lead them"
 ## (T-079) How long the "landing ended the ×N combo" note stays up after a
 ## landing kills a live combo — game time, like the HUD pulses and the T-040
 ## strip, so it freezes with a paused or ended run.
@@ -53,6 +59,9 @@ const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds t
 @export var return_fade_peak: float = 0.65 ## Peak alpha of the warm full-screen fade that covers the guard's hard cut (taste value — Gate 3).
 @export var return_fade_seconds: float = 0.6 ## Total game-time seconds the fade takes to rise to its peak and fall back to transparent.
 @export var return_fade_color: Color = Color(1.0, 0.85, 0.6, 1.0) ## Warm tone of the fade — "came home", not danger.
+
+@export_group("Coach") ## T-060: the poop lead coach.
+@export var coach_range: float = 30.0 ## Flat metres at which a tourist ahead of the nose makes the lead worth teaching (a 4 m drop travels ~16 m at cruise, so the lesson must fire well before the tourist is under the beak).
 
 @onready var stats_label: Label = %StatsLabel
 @onready var hint_label: Label = %HintLabel
@@ -100,7 +109,7 @@ var _combo_strip_left: float = 0.0 ## (T-040) Game-time seconds left before the 
 var _return_fade_phase: float = -1.0 ## (T-087) <0 idle; 0..return_fade_seconds while the return fade runs — game time, like the tier pulse.
 var _home_note_phase: float = 0.0 ## (T-087, folded from T-100) Game-time seconds the note has shown; advanced only while visible.
 var _combo_note_left: float = 0.0 ## (T-079) Game-time seconds left before the landing note clears; 0 = at rest, empty.
-var _edge_hinting: bool = false ## (T-023) True while the edge hint owns the hint line — re-evaluated every _process frame, so grounding (including the guard's teleport-then-drop) self-clears it and hands the label back to `_on_grounding_changed` instead of the two writers fighting.
+var _edge_hinting: bool = false ## (T-023) True while the edge hint owns the hint line — re-evaluated every _process frame, so grounding (including the guard's teleport-then-drop) self-clears it and hands the label back to the steady-state writers (`_update_hint`, and `_on_grounding_changed`'s edge write) instead of the writers fighting.
 
 
 func _ready() -> void:
@@ -168,6 +177,7 @@ func _process(delta: float) -> void:
 	_update_bread_pointer() ## Wayfinding (T-037) — refreshed alongside the stats line.
 	_update_poop_ready() ## The F readiness glyph (T-077) — same game-time cadence.
 	_update_edge_hint() ## The T-023 turn-back cue past the apron — same game-time cadence.
+	_update_hint() ## The T-060 poop lead coach — owns the slot's steady state, same game-time cadence.
 	if _combo_strip_left > 0.0: ## (T-040) The strip expires in game time like the tier pulse —
 		_combo_strip_left -= delta ## deterministic under --fixed-fps, frozen while paused/over.
 		if _combo_strip_left <= 0.0:
@@ -315,6 +325,49 @@ func _update_edge_hint() -> void:
 	_edge_hinting = past_edge
 	hint_label.text = HINT_EDGE if past_edge \
 			else (HINT_GROUND if player.is_grounded else HINT_AIR)
+
+
+## The hint slot's steady-state owner (T-060): while the T-023 edge hint is up
+## it yields (`_update_edge_hint` writes the line that frame); otherwise the
+## slot reads COACH_POOP exactly while the lesson applies — airborne, no
+## tourist splat on this run's slate yet (keyed on `Game.tourist_hits`, NOT on
+## `hit_scored`, so a car splat never kills the coach; `reset_run()` zeroes it,
+## so a fresh run re-teaches) and a living tourist strolling ahead within
+## coach_range — the lead is only worth teaching with a target to lead. Any
+## other state shows the plain grounding hint. This absorbs
+## `_on_grounding_changed`'s edge write the next _process frame (its write
+## still fires first, so landing/takeoff swaps the line instantly; this frame
+## re-decides whether the coach should own it) — one steady-state decision, no
+## fight, no flicker. Every write is guarded by a text-changed check so idle
+## frames touch nothing (the T-035/T-055 redundant-write pattern).
+func _update_hint() -> void:
+	if _edge_hinting:
+		return ## (T-023) The turn-back cue owns the line while it is up.
+	var eligible := not player.is_grounded and Game.tourist_hits == 0 \
+			and _tourist_ahead_within(coach_range)
+	var want := COACH_POOP if eligible \
+			else (HINT_GROUND if player.is_grounded else HINT_AIR)
+	if hint_label.text != want:
+		hint_label.text = want
+
+
+## True while some living tourist stands within `range_m` (flat) of the pigeon
+## AND ahead-ish of its nose — the flat forward vector dotted with the flat
+## pigeon→tourist offset stays positive. A scan over the tourist spawner's
+## living set, the same API the splat scenarios and the autoplay's lead pilot
+## read; the dot test keeps the lesson pointed where the player is heading.
+func _tourist_ahead_within(range_m: float) -> bool:
+	var flat_fwd := -player.transform.basis.z
+	flat_fwd.y = 0.0
+	if flat_fwd.length_squared() < 0.0001:
+		return false
+	flat_fwd = flat_fwd.normalized()
+	for tourist in tourist_spawner.living_tourists():
+		var to_tourist := tourist.global_position - player.global_position
+		to_tourist.y = 0.0
+		if to_tourist.length() <= range_m and flat_fwd.dot(to_tourist) > 0.0:
+			return true
+	return false
 
 
 ## The hunger bar mirrors Game.hunger.changed — the number stays on the stats
@@ -501,6 +554,10 @@ func _on_grounding_changed(grounded: bool) -> void:
 	## (T-023) The edge hint owns the line while `_edge_hinting` is up — every
 	## past-edge frame is airborne, so grounding always makes the condition
 	## false and the next _process frame rewrites the normal hint here anyway.
+	## (T-060) This stays the edge write it always was: it makes a
+	## landing/takeoff hint swap immediate, and `_update_hint` re-decides the
+	## steady state (coach vs plain grounding hint) the very next _process
+	## frame — one reconciliation, no fight.
 	## Only the hint write yields; the combo-note read below stays live in both
 	## writers (the load-bearing order note above still holds).
 	if not _edge_hinting:
