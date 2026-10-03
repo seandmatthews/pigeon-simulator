@@ -17,7 +17,14 @@ extends CharacterBody3D
 ## symmetric, so steep dive entries past -50° fade progressively too. Since
 ## T-082 a RELEASED pitch input eases the nose toward the velocity vector
 ## (`trim_rate`) — hands-off flight settles into a real glide instead of
-## preserving whatever deck angle the last input left. Since T-081 the
+## preserving whatever deck angle the last input left. Since T-106 the bank is
+## MEASURED off the body basis every frame (`_measured_roll`) and no roll
+## bookkeeping exists — the same fix class pitch already had: the bank
+## controller, the chase camera and the ground leveler all close on truth, the
+## trim decomposes into a world-up heading turn plus a body-right pitch step
+## (the only rotations that cannot apply an untracked roll), and the ground
+## leveler slerps the whole basis to upright at the measured heading. Since
+## T-081 the
 ## velocity-align chase itself is graded by lift deficiency: below
 ## `glide_speed` its rate fades toward `mush_align_fraction`, so a slow,
 ## nose-high mush heaves over into a real sink instead of the aligner bending
@@ -136,8 +143,11 @@ var stalled: bool
 var state: State = State.AIR
 
 ## Current bank angle in radians — the chase camera and later HUD read this.
+## (T-106) Measured off the body basis, not bookkept: during any transient
+## where another rotation path has moved the body, the camera follows the true
+## cant, not a stale number.
 var bank_angle: float:
-	get: return _roll
+	get: return _measured_roll()
 
 
 ## True while the pigeon is in the grounded waddle state — HUD and tests read this.
@@ -157,7 +167,6 @@ var _time_since_flap: float = 10.0
 var _poop_timer: float = 0.0
 var _time_since_poof: float = 10.0 ## Seconds since the last feather poof — throttles the flap juice (T-013).
 var _touchdown_velocity: Vector3 = Vector3.ZERO ## Velocity of the first floor contact in flight — the landing juice reads this, not the skid's leftovers (T-013).
-var _roll: float = 0.0
 var _air_grace: int = 0 ## Frames after a teleport where is_on_floor() is stale and must not trigger a landing.
 
 
@@ -170,7 +179,6 @@ func reset_flight(pos: Vector3, yaw_deg: float = 0.0) -> void:
 	position = pos
 	rotation = Vector3(0.0, deg_to_rad(yaw_deg), 0.0)
 	velocity = Vector3.ZERO
-	_roll = 0.0
 	_flap_timer = 0.0
 	_poop_timer = 0.0
 	_time_since_flap = 10.0
@@ -307,17 +315,24 @@ func _waddle(delta: float) -> void:
 	_level_attitude(delta)
 
 
-## On the floor the body rights itself: pitch and roll ease back to level so
-## the waddle stands upright instead of face-planting.
+## On the floor the body rights itself: the WHOLE basis slerps to upright at
+## the measured heading, so the waddle stands exactly level instead of
+## face-planting — and, since T-106, instead of standing skewed: the old
+## bookkept easing went blind once its tracked variable read 0, so whatever
+## true cant flight had leaked survived the landing. The weight reproduces the
+## old easing scale (ground_level_rate 6.0 ≈ 0.1 per 60 Hz frame, the old step
+## clamp) so the waddle keeps its smooth right-up rather than a snap, but the
+## terminal state is now exactly upright — measured roll and pitch 0, yaw
+## whatever the waddle turn left. Basis.slerp needs orthonormal inputs (the
+## player basis only ever receives rotations) and the trailing
+## .orthonormalized() re-pins the basis against accumulated float drift.
 func _level_attitude(delta: float) -> void:
 	var fwd := -transform.basis.z
-	var pitch := asin(clampf(fwd.y, -1.0, 1.0))
-	var step := clampf(ground_level_rate * delta, 0.0, 1.0)
-	if absf(pitch) > 0.001:
-		rotate_object_local(Vector3.RIGHT, -pitch * step)
-	var new_roll := move_toward(_roll, 0.0, ground_level_rate * delta)
-	rotate_object_local(Vector3.BACK, new_roll - _roll)
-	_roll = new_roll
+	var flat := Vector3(fwd.x, 0.0, fwd.z)
+	if flat.length_squared() > 0.000001:  # a vertical nose cannot stand on a floor; guard the skid anyway
+		var yaw := atan2(-flat.x, -flat.z)  # Basis(UP, yaw).z == (sin yaw, 0, cos yaw) == -fwd_flat
+		var level := Basis(Vector3.UP, yaw)
+		transform.basis = transform.basis.slerp(level, clampf(ground_level_rate * delta, 0.0, 1.0)).orthonormalized()
 
 
 ## The presentation (T-011) mirrors this state machine every physics frame:
@@ -407,6 +422,20 @@ func _try_poop() -> void:
 	pooped.emit(poop)
 
 
+## Bank measured off the body basis (the yaw-pitch-roll roll): atan2(right.y, up.y).
+## 0 for an upright bird, signed left-positive exactly like the input term —
+## turn_left drives target_roll positive and lifts the right wing, the same sign
+## `banked_left_turn` already asserts (basis.x.y > 0, tests/sim_test.gd).
+## (T-106) No roll bookkeeping exists: every controller closes its loop on
+## this read, the same fix class pitch already had (`asin((-basis.z).y)`).
+## Godot's atan2(0, 0) is 0, not NaN, so the measurement's pole — the nose at
+## vertical, both y-components → 0 — degrades to 0 rather than blowing up;
+## T-083's falloff asymptotes input flight just under 85°, so the pole is
+## transient in real flight.
+func _measured_roll() -> float:
+	return atan2(transform.basis.x.y, transform.basis.y.y)
+
+
 func _steer(delta: float) -> void:
 	var authority := clampf(forward_speed / glide_speed, min_control_authority, 1.0)
 	var turn_input := Input.get_axis("turn_right", "turn_left")
@@ -416,13 +445,17 @@ func _steer(delta: float) -> void:
 	# path (the yaw below follows whatever the body is banked at). It can never
 	# command more than `home_nudge_rate` of the envelope — well under a full
 	# player input — and the clamp keeps the SUM inside the modeled ±max_bank.
+	# (T-106) The chase below runs on the MEASURED bank: hands-off (target 0)
+	# it now actively drives whatever cant other rotation paths leaked back
+	# inside the ±max_bank envelope at the normal bank_rate — the cant becomes
+	# a transient instead of a state, and roll feels the same both ways.
+	var roll := _measured_roll()
 	var target_roll := clampf(turn_input * max_bank + _home_nudge_bank(), -max_bank, max_bank)
-	var new_roll := move_toward(_roll, target_roll, bank_rate * authority * delta)
-	rotate_object_local(Vector3.BACK, new_roll - _roll)
-	_roll = new_roll
-	if absf(_roll) > 0.01:
+	var new_roll := move_toward(roll, target_roll, bank_rate * authority * delta)
+	rotate_object_local(Vector3.BACK, new_roll - roll)
+	if absf(new_roll) > 0.01:
 		# Yaw follows the bank: pigeon-like, not tank-like.
-		rotate_y((_roll / max_bank) * full_bank_yaw_rate * authority * delta)
+		rotate_y((new_roll / max_bank) * full_bank_yaw_rate * authority * delta)
 	var pitch_input := Input.get_axis("pitch_down", "pitch_up")
 	# (T-083, adopting T-062) Bound the attitude at the input: the pitch term
 	# fades to zero across the band from `pitch_auth_full_deg` to
@@ -440,8 +473,7 @@ func _steer(delta: float) -> void:
 			0.0, 1.0)
 	rotate_object_local(Vector3.RIGHT, pitch_input * pitch_speed * authority * fade * delta)
 	# (T-082) Hands-off trim: with the pitch input released, ease the nose toward
-	# the velocity direction (shortest arc, no roll component — the trim never
-	# fights the bank), so a released glide settles onto its flow instead of
+	# the velocity direction, so a released glide settles onto its flow instead of
 	# preserving whatever deck angle the last input left. The guards keep every
 	# existing owner in charge: the stall path owns the nose (its own drop rate
 	# below), a held input keeps full manual authority — the trim never fights
@@ -449,11 +481,29 @@ func _steer(delta: float) -> void:
 	# steers. Scaled by the same `authority` as the input terms so slow flight
 	# trims gently. No auto-centering to the horizon: the trim targets the flow,
 	# so a hands-off dive stays a dive.
+	# (T-106) The rotation is DECOMPOSED, no longer one free shortest-arc
+	# quaternion: a world-up heading turn (a pre-multiplication — it leaves
+	# every basis column's y-component, hence pitch AND measured roll, exactly
+	# unchanged) plus a body-right pitch step (leaves the right column
+	# untouched). The old shortest arc rolls the bird once the nose passes
+	# vertical — its axis tilts toward the body's forward axis exactly where
+	# the loop repro flies — and nothing bookkept the leak. The decomposition
+	# is not perfectly commutative at large pitch (the body-right step shifts
+	# measured roll a little when up is far from vertical), but that residual
+	# is MEASURED — the bank controller above closes on it the very next frame.
 	if not stalled and absf(pitch_input) < 0.01 and velocity.length() > stall_speed:
 		var nose := -transform.basis.z
 		var flow := velocity.normalized()
-		var target := nose.slerp(flow, clampf(trim_rate * authority * delta, 0.0, 1.0)).normalized()
-		transform.basis = Basis(Quaternion(nose, target)) * transform.basis
+		var d := nose.dot(flow)
+		if absf(d) < 0.999:  # near-parallel needs no rotation; ANTIparallel is the degenerate 180° slerp — refuse to steer it
+			var target := nose.slerp(flow, clampf(trim_rate * authority * delta, 0.0, 1.0)).normalized()
+			var flat_nose := nose; flat_nose.y = 0.0
+			var flat_target := target; flat_target.y = 0.0
+			if flat_nose.length_squared() > 0.000001 and flat_target.length_squared() > 0.000001:
+				var heading := flat_nose.normalized().signed_angle_to(flat_target.normalized(), Vector3.UP)
+				transform.basis = Basis(Vector3.UP, heading) * transform.basis
+			var pitch_step := asin(clampf(target.y, -1.0, 1.0)) - asin(clampf(nose.y, -1.0, 1.0))
+			rotate_object_local(Vector3.RIGHT, pitch_step)
 
 
 ## (T-023) The edge nudge's target-bank contribution (radians, signed

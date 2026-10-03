@@ -110,7 +110,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-103 | [Stand the shop doors up: fix the inverted axis swap that renders them as fins](T-103-shop-door-orientation.md) | worldbuilding | 2 | 1 | done |
 | T-104 | [Move the spawn plaza's bins outside the bench ring: today they bury into the diagonal benches](T-104-plaza-bins-outside-bench-ring.md) | worldbuilding | 3 | 2 | done |
 | T-105 | [One persistent poop target: the live/frozen reticle that replaces the per-drop ring](T-105-poop-target-reticle.md) | visual-design | 4 | 2 | done |
-| T-106 | [Kill the post-loop roll cant: drive the bank controller and leveler from measured roll](T-106-loop-roll-cant.md) | flight-control | 4 | 3 | proposed |
+| T-106 | [Kill the post-loop roll cant: drive the bank controller and leveler from measured roll](T-106-loop-roll-cant.md) | flight-control | 4 | 3 | done |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since

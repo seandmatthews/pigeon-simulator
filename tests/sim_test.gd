@@ -160,6 +160,7 @@ func _run_scenarios() -> void:
 	await _scenario_hands_off_glide_trims() ## T-082 — a released pitch input trims the nose onto the velocity vector instead of freezing it.
 	await _scenario_hands_off_mush_exits() ## T-081 — a slow nose-high hands-off mush falls into a sink instead of hovering at the aligner's equilibrium.
 	await _scenario_stall_falls_develops() ## T-081/T-061 — a stalled climb develops a real fall within ~0.75 s of the stall flag.
+	await _scenario_loop_over_top_roll_recovers() ## T-106 — the owner's loop repro leaves no persistent roll cant, and the landing stands level with its heading kept.
 	await _scenario_off_world_fall_respawns() ## T-042 — flight-model guard: the void past the apron walks home.
 	await _scenario_edge_nudge_turns_home() ## T-023 — the prevention layer ahead of the guard: past the apron the course bends home.
 	await _scenario_city_layout()
@@ -303,6 +304,13 @@ func _await_grounded(max_frames: int) -> void:
 		await get_tree().physics_frame
 		if _player.is_grounded:
 			return
+
+
+## The player's flat heading (radians): atan2 over the level-projected forward,
+## the same read `reset_flight`'s yaw convention and the chase rig's target use.
+func _flat_yaw() -> float:
+	var fwd := -_player.transform.basis.z
+	return atan2(-fwd.x, -fwd.z)
 
 
 func _dbg(msg: String) -> void:
@@ -553,6 +561,8 @@ func _scenario_ground_waddle() -> void:
 	await _hold("pitch_up", 20)
 	var walked: Vector3 = _player.position - pos0
 	var hspeed := Vector2(_player.velocity.x, _player.velocity.z).length()
+	print("SIM DATA waddles_on_ground: landed=%s walked %.2f m at %.2f m/s horizontal" % [
+			landed, walked.length(), hspeed]) ## (T-106) margin evidence
 	_check("waddles_on_ground",
 			landed and _player.is_grounded and walked.length() > 0.2
 					and hspeed < _player.walk_speed + 0.6,
@@ -839,6 +849,175 @@ func _scenario_stall_falls_develops() -> void:
 	_check("stall_falls_develops", fell and finite,
 			"stalled at frame %d of 300, vy reached %.2f m/s in %d/45 frames (bar <= -6.0), finite=%s" % [
 					stall_frame, _player.velocity.y, fall_frame, finite])
+
+
+## (T-106) The post-loop roll cant, dead: the owner's repro — hold pitch-up
+## through a loop until the bird goes over the top — used to leave a persistent
+## one-way cant, because roll lived in a bookkept float the other rotation
+## paths never reported into (the released-pitch trim's shortest arc, the
+## body-axis pitch terms). This scenario flies that repro on the paced flap
+## (the only thrust source; `boost` is declared-but-unimplemented). Measured
+## natural history on the pre-fix tree (both runs recorded in the ticket): the
+## held input asymptotes the nose at the T-083 park (|pitch| → 85°, nose
+## frozen) while each flap kick swings the FLOW past vertical (~24°) and the
+## aligner sags it back — so the over-the-top NOSE crossing is a RELEASE
+## phenomenon: the released trim slerps the nose after a freshly-kicked,
+## over-the-top flow, through exactly the shortest-arc geometry that leaks
+## roll. Recipe: settled cruise glide, a short turn_left hold seeding a real
+## loop entry's asymmetry, then pitch_up held directly (the `_hold` helper
+## cannot overlap the flap cadence) with a near-fully-rested flap tap every 21
+## frames until the nose has parked at the asymptote (nose.y ≥ sin 84° for 20
+## frames), ending the hold ON a cadence tap so the release rides a fresh
+## full-power kick. The STEERING input (pitch, turn) then releases for the
+## 120-frame recovery window while the repro's own paced flap cadence CONTINUES
+## — re-derived, not silently weakened: with the flap also dead the bird has no
+## boost (declared-but-unimplemented) and no thrust left, stalls at the top,
+## and the stall unwind carries the nose back down the near side, un-doing the
+## leak (measured pre-fix all-input-dead run: end |roll| 1.16° — a vacuous
+## green that hides the defect; both runs recorded in the ticket). With the
+## repro's own throttle alive the bird stays in flight, the nose demonstrably
+## sweeps past vertical onto the far side — `dot(nose, entry_fwd) < 0` within
+## 240 frames, bank-tolerant and unambiguous where the pitch sine is not (0.99
+## is both 81.9° and 98.1°), with a sanity arm that nose.y exceeded +0.9
+## somewhere (a yaw-around, not a loop, must fail loudly — the precondition is
+## asserted, never skipped) — and the MEASURED roll (atan2(basis.x.y,
+## basis.y.y) — what the fixed controllers close on) must sit ≤ 5° at window
+## end and be non-increasing across its last 60 frames (hands-off steering the
+## target roll is 0, so leaked cant becomes a transient the closed loop eats
+## at bank_rate). The ground leg then demands a LEVEL stand (|roll| ≤ 2°) with
+## the heading kept through the leveling (touchdown-to-read change ≤ 2°).
+## Measured on the pre-fix tree, no descent of the parked bird can carry the
+## cant to touchdown — every path back down traverses the measurement pole and
+## the leak self-erases there (all-input-dead stall tumble 176.8° → 1.4°,
+## input-driven dive 155.5° → 1.0°), and the pole reading itself is
+## azimuth-like (an inverted bird, not the owner's "canted to one side") — so
+## the leg REPLAYS the defect class: a full-envelope flying cant the book
+## cannot see, on a fresh low cruise glide descended passively, exactly the
+## flying-with-leaked-cant state the owner landed with. The pre-fix leveler
+## (bookkept) leaves that bird standing skewed; the measured controller eats
+## the cant in flight and Fix 3 levels whatever the skid leaves.
+func _scenario_loop_over_top_roll_recovers() -> void:
+	await _set_up(true, Vector3(0.0, 25.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	await _wait_frames(30) ## Settle into the trim glide (the flap_speed_envelope leg-2 recipe).
+	await _hold("turn_left", 15) ## Seed the asymmetry a real loop entry has.
+	var entry_fwd := -_player.transform.basis.z
+	var over_top := false
+	var frames_to_top := -1
+	var max_nose_y := -INF
+	var max_steep_roll_deg := 0.0 ## |Measured roll| while |pitch| > ~80° — the near-pole jitter probe behind Fix 1's no-gating default.
+	var parked := false ## The T-083 asymptote park: nose.y ≥ sin 84° held for 20 frames.
+	var park_frame := -1
+	Input.action_press("pitch_up")
+	for _i in 600:
+		if _i % 21 == 0:
+			Input.action_press("flap") ## Paced, near-fully-rested taps (flap_interval 0.35 s = 21 frames).
+		elif _i % 21 == 1:
+			Input.action_release("flap")
+		await get_tree().physics_frame
+		var nose := -_player.transform.basis.z
+		max_nose_y = maxf(max_nose_y, nose.y)
+		if absf(nose.y) > 0.17:
+			max_steep_roll_deg = maxf(max_steep_roll_deg, absf(rad_to_deg(
+					atan2(_player.transform.basis.x.y, _player.transform.basis.y.y))))
+		if _debug and _i % 10 == 0:
+			print("[dbg] hold f%d nose (%.2f, %.2f, %.2f) flow (%.2f, %.2f, %.2f) speed %.1f roll %.1f deg pitch %.1f deg" % [
+					_i, nose.x, nose.y, nose.z, _player.velocity.x, _player.velocity.y,
+					_player.velocity.z, _player.velocity.length(),
+					rad_to_deg(atan2(_player.transform.basis.x.y, _player.transform.basis.y.y)),
+					rad_to_deg(asin(clampf(nose.y, -1.0, 1.0)))])
+		if nose.dot(entry_fwd) < 0.0:
+			over_top = true
+			frames_to_top = _i
+			break
+		if not parked and nose.y >= 0.9945:
+			parked = true
+			park_frame = _i
+		## End the hold ON a cadence tap frame (a fresh, fully-rested kick just
+		## fired — the flow is swinging over the top NOW), so the released trim
+		## chases a flow that starts past vertical, exactly the leak geometry.
+		if parked and park_frame >= 0 and _i >= park_frame + 20 and _i % 21 == 0:
+			break
+	Input.action_release("pitch_up")
+	Input.action_release("flap")
+	var roll_samples: Array[float] = []
+	for _i in 240: ## Steering hands off; the released trim takes the nose over the top and the closed roll loop must eat the leak.
+		if _i < 120 and _i % 21 == 0:
+			Input.action_press("flap") ## The repro's own throttle — keeps the bird alive to BE corrected (re-derived recipe, see above).
+		elif _i < 120 and _i % 21 == 1:
+			Input.action_release("flap")
+		await get_tree().physics_frame
+		var nose := -_player.transform.basis.z
+		var roll_deg := absf(rad_to_deg(atan2(
+				_player.transform.basis.x.y, _player.transform.basis.y.y)))
+		if _i < 120:
+			roll_samples.append(roll_deg)
+			if absf(nose.y) > 0.17:
+				max_steep_roll_deg = maxf(max_steep_roll_deg, roll_deg)
+		if frames_to_top < 0 and nose.dot(entry_fwd) < 0.0:
+			frames_to_top = _i
+			over_top = true
+		if _debug and _i % 10 == 0:
+			print("[dbg] release f%d nose (%.2f, %.2f, %.2f) flow (%.2f, %.2f, %.2f) speed %.1f roll %.1f deg grounded=%s" % [
+					_i, nose.x, nose.y, nose.z, _player.velocity.x, _player.velocity.y,
+					_player.velocity.z, _player.velocity.length(), roll_deg,
+					_player.is_grounded])
+		if _i >= 120:
+			Input.action_release("flap")
+			if over_top:
+				break
+	var end_roll_deg := roll_samples[119]
+	var roll_trend_deg := roll_samples[119] - roll_samples[59] ## ≤ 0 = non-increasing across the last 60 frames.
+	var reached := over_top and max_nose_y > 0.9 ## The repro precondition — a fail here is loud, never vacuous.
+	var air_ok := reached and end_roll_deg <= 5.0 and roll_trend_deg <= 0.0
+	print("SIM DATA loop_over_top_roll_recovers: over top %s %d frames after release (max nose.y %.2f), max steep |roll| %.1f deg, end |roll| %.2f deg (60 frames earlier %.2f deg)" % [
+			over_top, frames_to_top, max_nose_y, max_steep_roll_deg, end_roll_deg, roll_samples[59]])
+	_check("loop_over_top_roll_recovers", air_ok,
+			"precondition over_top=%s, max nose.y %.2f (sanity bar > 0.9), crossed %s frames after release — a repro that cannot reach vertical is a different bug; end |roll| %.2f deg (bar <= 5.0), trend %+.2f deg over the last 60 frames (bar <= 0.0)" % [
+					over_top, max_nose_y, frames_to_top, end_roll_deg, roll_trend_deg])
+	## Ground leg — RE-DERIVED, both measured runs recorded in the ticket: from
+	## the window-end state EVERY descent path traverses the measurement pole
+	## whose leak self-erases on the pre-fix tree (all-input-dead stall tumble
+	## 176.8° → 1.4°; input-driven dive 155.5° → 1.0° — the near-pole rotations
+	## un-roll the bird symmetrically on the way down), and the pole reading
+	## itself (176.9°) is azimuth-like — an inverted bird, not the owner's
+	## "canted to one side". The leg therefore REPLAYS the defect class the
+	## owner landed with — a full-envelope flying cant the book cannot see —
+	## onto a fresh low cruise glide and descends it passively. The pre-fix
+	## bank controller cannot see the cant, the shallow touchdown gives the old
+	## leveler's pitch arm nothing to couple through, and the bookkept roll arm
+	## no-ops: the bird stands skewed (red on the level arm — "the cant
+	## persists even on the ground"). The measured controller eats the cant in
+	## flight and Fix 3 levels whatever the skid leaves.
+	var replay_roll := deg_to_rad(_player.max_bank_deg)
+	_player.reset_flight(Vector3(0.0, 2.5, 0.0), 0.0) ## Low start: the canted trim glide sinks only ~1.5 m/s, so a high start glides past the test slab's -100 edge and the T-042 guard's upright reset vacuously greens the stand read (measured).
+	_player.velocity = Vector3(0.0, 0.0, -17.0) ## Cruise along the (still level-projected) nose.
+	_player.rotate_object_local(Vector3.BACK, replay_roll)
+	await _wait_frames(2)
+	for _i in 1200:
+		await get_tree().physics_frame
+		if _player.is_grounded:
+			break
+		if _debug and _i % 40 == 0:
+			var fwd := -_player.transform.basis.z
+			print("[dbg] replay f%d pos (%.1f, %.1f, %.1f) nose (%.2f, %.2f, %.2f) speed %.1f fwd %.1f stalled=%s roll %.2f deg on_floor=%s grounded=%s" % [
+					_i, _player.position.x, _player.position.y, _player.position.z,
+					fwd.x, fwd.y, fwd.z, _player.velocity.length(), _player.forward_speed,
+					_player.stalled,
+					rad_to_deg(atan2(_player.transform.basis.x.y, _player.transform.basis.y.y)),
+					_player.is_on_floor(), _player.is_grounded])
+	var touch_yaw := _flat_yaw()
+	await _wait_frames(60)
+	var stand_roll_deg := absf(rad_to_deg(atan2(
+			_player.transform.basis.x.y, _player.transform.basis.y.y)))
+	var yaw_drift_deg := absf(rad_to_deg(angle_difference(touch_yaw, _flat_yaw())))
+	var finite := _player.velocity.is_finite() and _player.position.is_finite()
+	print("SIM DATA loop_lands_level_keeps_yaw: grounded=%s stand |roll| %.2f deg (replayed %.1f deg), yaw drift %.2f deg" % [
+			_player.is_grounded, stand_roll_deg, rad_to_deg(replay_roll), yaw_drift_deg])
+	_check("loop_lands_level_keeps_yaw",
+			_player.is_grounded and stand_roll_deg <= 2.0 and yaw_drift_deg <= 2.0 and finite,
+			"grounded=%s, stand |roll| %.2f deg (bar <= 2.0; replayed cant %.1f deg), heading moved %.2f deg touchdown-to-read (bar <= 2.0), finite=%s" % [
+					_player.is_grounded, stand_roll_deg, rad_to_deg(replay_roll),
+					yaw_drift_deg, finite])
 
 
 ## --- scenario (T-042 off-world guard) ---------------------------------------
