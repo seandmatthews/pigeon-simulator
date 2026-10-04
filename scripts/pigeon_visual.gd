@@ -1,14 +1,16 @@
 class_name PigeonVisual
 extends Node3D
-## The low-poly pigeon presentation (T-011), hand-built from primitives in
-## `scenes/pigeon_visual.tscn` — gray body, darker wingtips and tail, green
-## metallic neck sheen, orange feet. The player's flight state machine drives
-## it through `drive()` every physics frame: the pose always mirrors the
-## physics state (GLIDE wings-out / DIVE wings-swept in the air, WADDLE /
-## STAND folded on the ground), so picture and model cannot desync for long.
-## Two timed overlays ride on top of the base pose: the flap beat, triggered
-## on every real flap impulse, and the comedic head-slam peck, triggered when
-## a crumb is eaten. All tunables are @export for live tweaking.
+## The pigeon presentation, driven by the player's flight state machine
+## through `drive()` every physics frame. Since T-107 the visible bird is the
+## B6 Merged Blender sculpt (`assets/pigeon_variants/b6_merged.glb`) — a
+## static folded-pose mesh — while the T-011 pose engine keeps mirroring the
+## physics state (GLIDE / DIVE / WADDLE / STAND) on the retained pivots: the
+## wing and head joint targets stay live for the sim harness, and the ROOT
+## cosmetics still play (grounded squat, waddle bob + sway, peck body lean).
+## What the static mesh cannot do (yet): visible wing beats, the head-thrust
+## bob and the beak peck. Two timed overlays (flap beat on every real flap
+## impulse, comedic head-slam peck on a crumb) still run their clocks. All
+## tunables are @export for live tweaking.
 
 ## The base poses — which one is active follows the player's state machine.
 enum Pose { GLIDE, DIVE, WADDLE, STAND }
@@ -92,13 +94,25 @@ var _head_base_z: float = -0.24 ## Matches HeadPivot's scene position; re-read i
 
 
 func _ready() -> void:
-	## Static rigging the scene file keeps rotation-free (repo convention):
-	## the cone beak points forward, the tail fans up, the wingtips sweep back.
-	$HeadPivot/Beak.rotation.x = -PI / 2.0
-	$Tail.rotation.x = -0.16 ## Tail tips up (a +Z-backward mesh pitches down under +X rotation).
-	$Rump.rotation.x = 0.25 ## Pale rump patch laid tangent on the sloping back (+Z edge dips).
-	$WingL/Tip.rotation.y = 0.3
-	$WingR/Tip.rotation.y = -0.3
+	## Primitive-rig cosmetics, applied only when the nodes exist — the B6
+	## Merged sculpt scene (T-107) has no Beak/Tail/Rump/Tip nodes. Static
+	## rigging keeps rotation-free (repo convention): the cone beak points
+	## forward, the tail fans up, the wingtips sweep back.
+	var beak := get_node_or_null("HeadPivot/Beak") as Node3D
+	if beak != null:
+		beak.rotation.x = -PI / 2.0
+	var tail := get_node_or_null("Tail") as Node3D
+	if tail != null:
+		tail.rotation.x = -0.16 ## Tail tips up (a +Z-backward mesh pitches down under +X rotation).
+	var rump := get_node_or_null("Rump") as Node3D
+	if rump != null:
+		rump.rotation.x = 0.25 ## Pale rump patch laid tangent on the sloping back (+Z edge dips).
+	var tip_l := get_node_or_null("WingL/Tip") as Node3D
+	if tip_l != null:
+		tip_l.rotation.y = 0.3
+	var tip_r := get_node_or_null("WingR/Tip") as Node3D
+	if tip_r != null:
+		tip_r.rotation.y = -0.3
 	_head_base_z = _head.position.z
 
 

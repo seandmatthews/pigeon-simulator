@@ -227,7 +227,7 @@ func _run_scenarios() -> void:
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
-	await _scenario_pigeon_silhouette_contrast()
+	await _scenario_pigeon_b6_visual()
 	await _scenario_juice_splat_burst()
 	await _scenario_juice_feather_poof()
 	await _scenario_juice_dust_puff()
@@ -6563,96 +6563,37 @@ func _rgb(color: Color) -> Vector3:
 	return Vector3(color.r, color.g, color.b)
 
 
-## The player bird must carry its own silhouette (T-016): the play pass showed
-## the old body albedo ≈ the sidewalk albedo and lighter than the cream
-## facades, so the bird washed out exactly where it flies most. Gates the two
-## named wash-out backdrops at Euclidean RGB ≥ 0.20 (sidewalk + the sandy-cream
-## family), demands luminance ≥ 0.05 darker than EVERY district backdrop's mean,
-## and keeps the identity accents (wingtips a readable step darker, head a step
-## lighter). The full 12-color sweep prints informationally — a per-channel gate
-## across all 13 backdrops is only satisfiable by a near-black bird.
-##
-## T-026 re-valued the ground planes (darker sidewalk/plaza, lighter asphalt)
-## and pins them apart here so a future tweak cannot silently re-merge the
-## surfaces: sidewalk ↔ asphalt ≥ 0.30 (the retune narrows the old 0.62 gap on
-## purpose, but the road must keep reading darker than the pavement) and
-## sidewalk ↔ body ≥ 0.20 (the T-016 floor, re-asserted explicitly on the
-## ground pair because the darker sidewalk is what makes it load-bearing).
-##
-## T-045/T-085 add the dark-ground leg: the gray body melts into asphalt/roof
-## (0.225 / 0.151 at the retuned values), so the bird must always carry ONE
-## bright anchor over that family — the head (already a dark-backdrop anchor
-## with almost no projected area) and the new pale rump/underwing patches
-## (Mat_rump) each sit ≥ 0.30 Euclidean RGB from COLOR_ASPHALT and COLOR_ROOF;
-## the four distances print informationally. The patch rig is also pinned
-## here: both underwings wear the exact Mat_rump sub-resource the Rump wears,
-## and the bird scene stays visual-only (Node3D/MeshInstance3D, no physics).
-func _scenario_pigeon_silhouette_contrast() -> void:
+## The interim presentation (T-107) is the B6 Merged sculpt: one fused,
+## textured mesh instanced from assets/pigeon_variants/b6_merged.glb under the
+## unchanged PigeonVisual drive() contract. This replaces the T-016
+## primitive-palette silhouette check, which gated flat primitive albedos the
+## textured sculpt no longer has — palette contrast for the sculpt is a Gate 3
+## read now (VERIFICATION.md, T-107). The T-026 ground-pair floors and the
+## T-045/T-085 dark-anchor analysis were properties of the old primitive
+## palette; bring them back as a render-based scenario if a future sculpt
+## needs automated contrast.
+func _scenario_pigeon_b6_visual() -> void:
 	var bird: PigeonVisual = load("res://scenes/pigeon_visual.tscn").instantiate() as PigeonVisual
 	add_child(bird)
-	var body := _rgb(_mesh_albedo(bird, "Body"))
-	var head := _rgb(_mesh_albedo(bird, "HeadPivot/Head"))
-	var tip := _rgb(_mesh_albedo(bird, "WingL/Tip"))
-	var rump := _rgb(_mesh_albedo(bird, "Rump"))
-	var rump_mat: Material = (bird.get_node("Rump") as MeshInstance3D).mesh.surface_get_material(0)
-	var under_l_mat: Material = (bird.get_node("WingL/Under") as MeshInstance3D).mesh.surface_get_material(0)
-	var under_r_mat: Material = (bird.get_node("WingR/Under") as MeshInstance3D).mesh.surface_get_material(0)
-	var patches_wear_rump := under_l_mat == rump_mat and under_r_mat == rump_mat
-	var visual_only := bird.get_class() == "Node3D"
-	for node: Node in bird.find_children("*", "Node", true, false):
-		visual_only = visual_only and node.get_class() in ["Node3D", "MeshInstance3D"]
+	var model_source := ""
+	for child in bird.get_children():
+		if child.scene_file_path.contains("b6_merged"):
+			model_source = child.scene_file_path
+	var mesh_count := 0
+	for mesh in bird.find_children("*", "MeshInstance3D", true, false):
+		mesh_count += 1
+	## The drive() contract still tracks flight poses on the retained pivots.
+	for _i in 45:
+		bird.drive(false, false, false, 1.0 / 60.0) ## Airborne: glide targets.
+	var glide_sweep: float = bird.wing_sweep
+	for _i in 45:
+		bird.drive(true, false, false, 1.0 / 60.0) ## Grounded: fold targets.
+	var fold_sweep: float = bird.wing_sweep
 	bird.free()
-	var sidewalk := _rgb(City.COLOR_SIDEWALK)
-	var near_backdrops: Array[Vector3] = [sidewalk]
-	for backdrop: Color in City.DISTRICT_PALETTES[1]: ## The sandy-cream family.
-		near_backdrops.append(_rgb(backdrop))
-	var near_gate := true
-	var distances := []
-	for backdrop: Vector3 in near_backdrops:
-		var d := body.distance_to(backdrop)
-		distances.append("%.2f" % d)
-		near_gate = near_gate and d >= 0.2
-	var body_mean := (body.x + body.y + body.z) / 3.0
-	var worst_margin := INF
-	var luminance_gate := true
-	for family: Array in City.DISTRICT_PALETTES:
-		for backdrop: Color in family:
-			var margin := (backdrop.r + backdrop.g + backdrop.b) / 3.0 - body_mean
-			worst_margin = minf(worst_margin, margin)
-			luminance_gate = luminance_gate and margin >= 0.05
-	var tip_step := tip.distance_to(body) >= 0.15
-	var head_step := head.x > body.x and head.y > body.y and head.z > body.z
-	var sidewalk_asphalt := sidewalk.distance_to(_rgb(City.COLOR_ASPHALT))
-	var sidewalk_body := sidewalk.distance_to(body)
-	var ground_gate := sidewalk_asphalt >= 0.3 and sidewalk_body >= 0.2
-	var asphalt := _rgb(City.COLOR_ASPHALT)
-	var roof := _rgb(City.COLOR_ROOF)
-	var head_asphalt := head.distance_to(asphalt)
-	var head_roof := head.distance_to(roof)
-	var rump_asphalt := rump.distance_to(asphalt)
-	var rump_roof := rump.distance_to(roof)
-	var dark_ground_gate := head_asphalt >= 0.3 and head_roof >= 0.3 \
-			and rump_asphalt >= 0.3 and rump_roof >= 0.3
-	var sweep := []
-	for family: Array in City.DISTRICT_PALETTES:
-		for backdrop: Color in family:
-			sweep.append("%.2f" % body.distance_to(_rgb(backdrop)))
-	print("SIM INFO silhouette distances to all 12 district colors: [%s]" % [", ".join(sweep)])
-	print("SIM INFO ground pairs (T-026): sidewalk-asphalt=%.3f (>= 0.30) sidewalk-body=%.3f (>= 0.20)"
-			% [sidewalk_asphalt, sidewalk_body])
-	print(("SIM INFO dark-ground anchors (T-045/T-085): head-asphalt=%.3f head-roof=%.3f "
-			+ "rump-asphalt=%.3f rump-roof=%.3f (all >= 0.30)")
-			% [head_asphalt, head_roof, rump_asphalt, rump_roof])
-	_check("pigeon_silhouette_contrast", near_gate and luminance_gate and tip_step and head_step
-			and ground_gate and dark_ground_gate and patches_wear_rump and visual_only,
-			("sidewalk+cream=[%s] worst luminance margin %.3f tip_step=%s head_step=%s "
-			+ "ground sidewalk-asphalt=%.3f sidewalk-body=%.3f "
-			+ "dark-ground head-asphalt=%.3f head-roof=%.3f rump-asphalt=%.3f rump-roof=%.3f "
-			+ "patches_wear_rump=%s visual_only=%s") % [
-					", ".join(distances), worst_margin, tip_step, head_step,
-					sidewalk_asphalt, sidewalk_body,
-					head_asphalt, head_roof, rump_asphalt, rump_roof,
-					patches_wear_rump, visual_only])
+	_check("pigeon_b6_sculpt_visual",
+			model_source != "" and mesh_count > 0 and glide_sweep < 0.3 and fold_sweep > 0.7,
+			"source=%s meshes=%d glide_sweep=%.2f (< 0.3) fold_sweep=%.2f (> 0.7)" % [
+					model_source, mesh_count, glide_sweep, fold_sweep])
 
 
 ## --- scenarios (T-013 juice pass) -------------------------------------------
