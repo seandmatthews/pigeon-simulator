@@ -2,12 +2,14 @@
 
 [ext_resource type="Script" path="res://scripts/pigeon_visual.gd" id="1_bird"]
 
-[ext_resource type="PackedScene" path="res://assets/pigeon_variants/b6_merged.glb" id="2_b6"]
+[ext_resource type="PackedScene" path="res://assets/models/pigeon_realistic/pigeon_realistic.glb" id="2_real"]
 
 [node name="Pigeon" type="Node3D"]
 script = ExtResource("1_bird")
 
-[node name="Model" parent="." instance=ExtResource("2_b6")]
+[node name="Model" parent="." instance=ExtResource("2_real")]
+position = Vector3(0, -0.292, 0)
+scale = Vector3(2.6, 2.6, 2.6)
 
 [node name="HeadPivot" type="Node3D" parent="."]
 

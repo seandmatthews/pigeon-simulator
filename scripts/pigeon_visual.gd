@@ -1,9 +1,10 @@
 class_name PigeonVisual
 extends Node3D
 ## The pigeon presentation, driven by the player's flight state machine
-## through `drive()` every physics frame. Since T-107 the visible bird is the
-## B6 Merged Blender sculpt (`assets/pigeon_variants/b6_merged.glb`) — a
-## static folded-pose mesh — while the T-011 pose engine keeps mirroring the
+## through `drive()` every physics frame. Since T-108 the visible bird is the
+## realistic Blender pigeon (`assets/models/pigeon_realistic/pigeon_realistic.glb`,
+## instanced at 2.6x with a −0.292 m drop so its feet hold the b6 ground line) —
+## a static folded-pose mesh — while the T-011 pose engine keeps mirroring the
 ## physics state (GLIDE / DIVE / WADDLE / STAND) on the retained pivots: the
 ## wing and head joint targets stay live for the sim harness, and the ROOT
 ## cosmetics still play (grounded squat, waddle bob + sway, peck body lean).

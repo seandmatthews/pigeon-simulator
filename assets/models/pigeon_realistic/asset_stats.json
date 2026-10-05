@@ -1,0 +1,28 @@
+{
+  "name": "Blue-bar rock pigeon",
+  "triangles": 64697,
+  "vertices": 41337,
+  "bounds_m": [
+    [
+      -0.0468238927423954,
+      0.04682541266083717
+    ],
+    [
+      -0.204510897397995,
+      0.10400000214576721
+    ],
+    [
+      0.0009000003337860107,
+      0.23097188770771027
+    ]
+  ],
+  "materials": 2,
+  "texture_size": 2048,
+  "pose": "standing, folded wings",
+  "rigged": false,
+  "forward_blender": "+Y",
+  "forward_godot": "-Z",
+  "up_godot": "+Y",
+  "origin": "ground at center",
+  "source": "Original procedural geometry and textures; unchanged body UVs and textures preserved"
+}

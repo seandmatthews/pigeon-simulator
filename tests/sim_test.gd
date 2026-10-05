@@ -227,7 +227,7 @@ func _run_scenarios() -> void:
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
-	await _scenario_pigeon_b6_visual()
+	await _scenario_pigeon_realistic_visual()
 	await _scenario_juice_splat_burst()
 	await _scenario_juice_feather_poof()
 	await _scenario_juice_dust_puff()
@@ -6563,21 +6563,20 @@ func _rgb(color: Color) -> Vector3:
 	return Vector3(color.r, color.g, color.b)
 
 
-## The interim presentation (T-107) is the B6 Merged sculpt: one fused,
-## textured mesh instanced from assets/pigeon_variants/b6_merged.glb under the
-## unchanged PigeonVisual drive() contract. This replaces the T-016
-## primitive-palette silhouette check, which gated flat primitive albedos the
-## textured sculpt no longer has — palette contrast for the sculpt is a Gate 3
-## read now (VERIFICATION.md, T-107). The T-026 ground-pair floors and the
-## T-045/T-085 dark-anchor analysis were properties of the old primitive
-## palette; bring them back as a render-based scenario if a future sculpt
-## needs automated contrast.
-func _scenario_pigeon_b6_visual() -> void:
+## The presentation (T-108) is the realistic Blender pigeon: one textured mesh
+## instanced from assets/models/pigeon_realistic/pigeon_realistic.glb under the
+## unchanged PigeonVisual drive() contract. This replaces the T-107 B6 check,
+## which gated the interim sculpt the realistic bird succeeds — palette
+## contrast for the new sculpt is a Gate 3 read now (VERIFICATION.md, T-108).
+## The T-026 ground-pair floors and the T-045/T-085 dark-anchor analysis were
+## properties of the old primitive palette; bring them back as a render-based
+## scenario if a future sculpt needs automated contrast.
+func _scenario_pigeon_realistic_visual() -> void:
 	var bird: PigeonVisual = load("res://scenes/pigeon_visual.tscn").instantiate() as PigeonVisual
 	add_child(bird)
 	var model_source := ""
 	for child in bird.get_children():
-		if child.scene_file_path.contains("b6_merged"):
+		if child.scene_file_path.contains("pigeon_realistic"):
 			model_source = child.scene_file_path
 	var mesh_count := 0
 	for mesh in bird.find_children("*", "MeshInstance3D", true, false):
@@ -6590,7 +6589,7 @@ func _scenario_pigeon_b6_visual() -> void:
 		bird.drive(true, false, false, 1.0 / 60.0) ## Grounded: fold targets.
 	var fold_sweep: float = bird.wing_sweep
 	bird.free()
-	_check("pigeon_b6_sculpt_visual",
+	_check("pigeon_realistic_visual",
 			model_source != "" and mesh_count > 0 and glide_sweep < 0.3 and fold_sweep > 0.7,
 			"source=%s meshes=%d glide_sweep=%.2f (< 0.3) fold_sweep=%.2f (> 0.7)" % [
 					model_source, mesh_count, glide_sweep, fold_sweep])

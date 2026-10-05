@@ -3,7 +3,7 @@
 A third-person pigeon flight sim built with Godot 4. Wander the city, eat bread to
 survive, and earn points by pooping on tourists and their cars.
 
-> **Status:** pre-alpha scaffold. A gray placeholder pigeon flies over a procedural
+> **Status:** pre-alpha scaffold. A realistic Blender-modeled pigeon flies over a procedural
 > gray-box city, lands on roofs, sidewalks and the spawn plaza, waddles around,
 > runs on a hunger clock fed by breadcrumbs — land and walk into a crumb to eat —
 > and lobs poop splats over the city with **F** while flying, past the tourists
