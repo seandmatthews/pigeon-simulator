@@ -113,6 +113,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-106 | [Kill the post-loop roll cant: drive the bank controller and leveler from measured roll](T-106-loop-roll-cant.md) | flight-control | 4 | 3 | done |
 | T-107 | [Adopt the B6 Merged sculpt as the interim player pigeon](T-107-b6-merged-pigeon.md) | visual-design | 4 | 2 | done |
 | T-108 | [Adopt the realistic Blender pigeon as the player bird](T-108-realistic-pigeon-player.md) | visual-design | 5 | 2 | done |
+| T-109 | [Articulate the realistic pigeon: rigged wings, head and feet](T-109-realistic-pigeon-rig.md) | visual-design | 5 | 2 | done |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since

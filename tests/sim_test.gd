@@ -6563,12 +6563,13 @@ func _rgb(color: Color) -> Vector3:
 	return Vector3(color.r, color.g, color.b)
 
 
-## The presentation (T-108) is the realistic Blender pigeon: one textured mesh
-## instanced from assets/models/pigeon_realistic/pigeon_realistic.glb under the
-## unchanged PigeonVisual drive() contract. This replaces the T-107 B6 check,
-## which gated the interim sculpt the realistic bird succeeds — palette
-## contrast for the new sculpt is a Gate 3 read now (VERIFICATION.md, T-108).
-## The T-026 ground-pair floors and the T-045/T-085 dark-anchor analysis were
+## The presentation (T-109) is the rigged realistic Blender pigeon: one skinned
+## textured mesh instanced from assets/models/pigeon_realistic/pigeon_realistic.glb
+## under the unchanged PigeonVisual drive() contract, carrying the six pose
+## clips the state machine mirrors (glide/dive/stand/waddle holds, flap/peck
+## one-shots). This replaces the T-108 static-mesh check — palette contrast
+## for the sculpt is a Gate 3 read now (VERIFICATION.md, T-108/T-109). The
+## T-026 ground-pair floors and the T-045/T-085 dark-anchor analysis were
 ## properties of the old primitive palette; bring them back as a render-based
 ## scenario if a future sculpt needs automated contrast.
 func _scenario_pigeon_realistic_visual() -> void:
@@ -6581,6 +6582,14 @@ func _scenario_pigeon_realistic_visual() -> void:
 	var mesh_count := 0
 	for mesh in bird.find_children("*", "MeshInstance3D", true, false):
 		mesh_count += 1
+	## The rig ships the six clips the presentation drives (T-109).
+	var anim: AnimationPlayer = bird.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	var clips := 0
+	if anim != null:
+		for clip_name: String in ["pigeon_glide", "pigeon_dive", "pigeon_flap",
+				"pigeon_peck", "pigeon_stand", "pigeon_waddle"]:
+			if anim.has_animation(clip_name):
+				clips += 1
 	## The drive() contract still tracks flight poses on the retained pivots.
 	for _i in 45:
 		bird.drive(false, false, false, 1.0 / 60.0) ## Airborne: glide targets.
@@ -6590,9 +6599,10 @@ func _scenario_pigeon_realistic_visual() -> void:
 	var fold_sweep: float = bird.wing_sweep
 	bird.free()
 	_check("pigeon_realistic_visual",
-			model_source != "" and mesh_count > 0 and glide_sweep < 0.3 and fold_sweep > 0.7,
-			"source=%s meshes=%d glide_sweep=%.2f (< 0.3) fold_sweep=%.2f (> 0.7)" % [
-					model_source, mesh_count, glide_sweep, fold_sweep])
+			model_source != "" and mesh_count > 0 and clips == 6
+					and glide_sweep < 0.3 and fold_sweep > 0.7,
+			"source=%s meshes=%d clips=%d/6 glide_sweep=%.2f (< 0.3) fold_sweep=%.2f (> 0.7)" % [
+					model_source, mesh_count, clips, glide_sweep, fold_sweep])
 
 
 ## --- scenarios (T-013 juice pass) -------------------------------------------

@@ -1,20 +1,32 @@
 class_name PigeonVisual
 extends Node3D
 ## The pigeon presentation, driven by the player's flight state machine
-## through `drive()` every physics frame. Since T-108 the visible bird is the
-## realistic Blender pigeon (`assets/models/pigeon_realistic/pigeon_realistic.glb`,
-## instanced at 2.6x with a −0.292 m drop so its feet hold the b6 ground line) —
-## a static folded-pose mesh — while the T-011 pose engine keeps mirroring the
-## physics state (GLIDE / DIVE / WADDLE / STAND) on the retained pivots: the
-## wing and head joint targets stay live for the sim harness, and the ROOT
-## cosmetics still play (grounded squat, waddle bob + sway, peck body lean).
-## What the static mesh cannot do (yet): visible wing beats, the head-thrust
-## bob and the beak peck. Two timed overlays (flap beat on every real flap
-## impulse, comedic head-slam peck on a crumb) still run their clocks. All
-## tunables are @export for live tweaking.
+## through `drive()` every physics frame. Since T-109 the visible bird is the
+## rigged realistic Blender pigeon (`assets/models/pigeon_realistic/pigeon_realistic.glb`,
+## instanced at 2.6x with a −0.292 m drop so its feet hold the b6 ground line):
+## state changes crossfade the matching pose clip (glide/dive/waddle/stand),
+## flap impulses and crumb pecks play one-shot overlays, and the stand/waddle
+## clips carry the look-around and head-thrust micro-motion. The T-011 pose
+## engine keeps mirroring the physics state (GLIDE / DIVE / WADDLE / STAND) on
+## the retained pivots exactly as before — the wing and head joint targets stay
+## live for the sim harness, and the ROOT cosmetics still play (grounded squat,
+## waddle bob + sway, peck body lean) on top of the clips. All tunables are
+## @export for live tweaking.
 
 ## The base poses — which one is active follows the player's state machine.
 enum Pose { GLIDE, DIVE, WADDLE, STAND }
+
+## The sculpt clip crossfaded in for each base pose (T-109).
+const _STATE_CLIPS := {
+	Pose.GLIDE: "pigeon_glide",
+	Pose.DIVE: "pigeon_dive",
+	Pose.WADDLE: "pigeon_waddle",
+	Pose.STAND: "pigeon_stand",
+}
+const _FLAP_CLIP := "pigeon_flap"
+const _PECK_CLIP := "pigeon_peck"
+const _STATE_BLEND := 0.18 ## Crossfade seconds between pose clips.
+const _OVERLAY_BLEND := 0.05 ## Fast blend in/out for one-shot flap/peck.
 
 @export_group("Waddle")
 @export var grounded_squat: float = 0.82 ## Root Y scale while grounded — readable "I'm walking now" pose.
@@ -88,6 +100,10 @@ var _peck_left: float = 0.0
 var _phase: float = 0.0
 var _time: float = 0.0
 var _head_base_z: float = -0.24 ## Matches HeadPivot's scene position; re-read in _ready().
+var _anim: AnimationPlayer ## Inside the rigged sculpt instance; null-safe everywhere.
+var _pose_clip: String = "" ## The state clip currently mirrored; "" until first drive().
+var _overlaying: bool = false ## A one-shot flap/peck clip is playing over the state clip.
+
 
 @onready var _head: Node3D = $HeadPivot
 @onready var _wing_l: Node3D = $WingL
@@ -95,8 +111,8 @@ var _head_base_z: float = -0.24 ## Matches HeadPivot's scene position; re-read i
 
 
 func _ready() -> void:
-	## Primitive-rig cosmetics, applied only when the nodes exist — the B6
-	## Merged sculpt scene (T-107) has no Beak/Tail/Rump/Tip nodes. Static
+	## Primitive-rig cosmetics, applied only when the nodes exist — the rigged
+	## realistic sculpt (T-109) has no Beak/Tail/Rump/Tip nodes. Static
 	## rigging keeps rotation-free (repo convention): the cone beak points
 	## forward, the tail fans up, the wingtips sweep back.
 	var beak := get_node_or_null("HeadPivot/Beak") as Node3D
@@ -115,6 +131,15 @@ func _ready() -> void:
 	if tip_r != null:
 		tip_r.rotation.y = -0.3
 	_head_base_z = _head.position.z
+	## The sculpt's pose clips: hold poses loop (glide/dive are static, stand
+	## carries the look-around, waddle the head-thrust); one-shots don't.
+	_anim = find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if _anim != null:
+		for clip_name: String in [_STATE_CLIPS[Pose.GLIDE], _STATE_CLIPS[Pose.DIVE],
+				_STATE_CLIPS[Pose.STAND], _STATE_CLIPS[Pose.WADDLE]]:
+			if _anim.has_animation(clip_name):
+				_anim.get_animation(clip_name).loop_mode = Animation.LOOP_LINEAR
+		_anim.animation_finished.connect(_on_clip_finished)
 
 
 ## Mirror the flight state machine (called by the player every physics frame):
@@ -187,15 +212,45 @@ func drive(grounded: bool, moving: bool, diving: bool, delta: float) -> void:
 	_head.rotation.x = lerpf(_head.rotation.x, -peck * peck_angle,
 			1.0 - exp(-25.0 * delta))
 
+	_sync_pose_clip()
+
+
+## Crossfades the sculpt's pose clip to the active base pose (T-109). Skipped
+## while a one-shot overlay plays — it resumes whichever clip is current when
+## it finishes. Null-safe: the static-mesh fallback is the untouched pivots.
+func _sync_pose_clip() -> void:
+	if _anim == null:
+		return
+	var clip: String = _STATE_CLIPS.get(pose, _STATE_CLIPS[Pose.GLIDE])
+	if clip == _pose_clip:
+		return
+	_pose_clip = clip
+	if not _overlaying:
+		_anim.play(clip, _STATE_BLEND)
+
 
 ## Plays one wing beat — the player fires this on every real flap impulse.
 func trigger_flap() -> void:
 	_flap_left = flap_beat_seconds
+	if _anim != null and _anim.has_animation(_FLAP_CLIP):
+		_overlaying = true
+		_anim.play(_FLAP_CLIP, _OVERLAY_BLEND)
 
 
 ## Plays the peck — Main wires the bread service's crumb_eaten relay to it.
 func trigger_peck() -> void:
 	_peck_left = peck_seconds
+	if _anim != null and _anim.has_animation(_PECK_CLIP):
+		_overlaying = true
+		_anim.play(_PECK_CLIP, _OVERLAY_BLEND)
+
+
+## A one-shot overlay burnt out — back to whichever state clip is current.
+func _on_clip_finished(clip_name: StringName) -> void:
+	if _overlaying and (clip_name == _FLAP_CLIP or clip_name == _PECK_CLIP):
+		_overlaying = false
+		if _anim != null and _pose_clip != "":
+			_anim.play(_pose_clip, _OVERLAY_BLEND)
 
 
 ## Hard-resets the whole presentation (flight reset, restart flow): base pose,
@@ -222,3 +277,7 @@ func reset_pose() -> void:
 	if _head != null:
 		_head.rotation = Vector3.ZERO
 		_head.position.z = _head_base_z
+	if _anim != null and _anim.has_animation(_STATE_CLIPS[Pose.GLIDE]):
+		_overlaying = false
+		_pose_clip = _STATE_CLIPS[Pose.GLIDE]
+		_anim.play(_pose_clip, 0.0)

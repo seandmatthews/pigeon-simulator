@@ -18,11 +18,19 @@
   ],
   "materials": 2,
   "texture_size": 2048,
-  "pose": "standing, folded wings",
-  "rigged": false,
+  "pose": "standing, folded wings (rest); rigged glide/dive/flap/peck",
+  "rigged": true,
   "forward_blender": "+Y",
   "forward_godot": "-Z",
   "up_godot": "+Y",
   "origin": "ground at center",
-  "source": "Original procedural geometry and textures; unchanged body UVs and textures preserved"
+  "source": "Original procedural geometry and textures; unchanged body UVs and textures preserved",
+  "animations": [
+    "pigeon_glide",
+    "pigeon_dive",
+    "pigeon_flap",
+    "pigeon_peck",
+    "pigeon_stand",
+    "pigeon_waddle"
+  ]
 }
