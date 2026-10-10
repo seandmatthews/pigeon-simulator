@@ -5,7 +5,7 @@ extends Node3D
 ## the EOTech grammar — that shows where a poop release would land. Two modes,
 ## ONE shape (a real reticle never changes shape, only brightness): LIVE while
 ## airborne with no drop in flight continuously re-marches a hypothetical
-## release from the player's exact release point and velocity (~10 Hz, coarse
+## release from the player's exact release point and velocity (~30 Hz, coarse
 ## step); FROZEN (lock_to, driven by Main on the pooped signal) pins the
 ## released drop's predicted impact until that drop splats or expires, then
 ## resumes LIVE — a press mid-flight re-snaps to the newest drop by
@@ -31,8 +31,8 @@ enum Mode { LIVE, FROZEN }
 
 @export_group("Prediction")
 @export var frozen_march_step: float = 0.05 ## Fixed dt (s) of the one-shot locked march — T-046's landed step.
-@export var live_march_step: float = 0.1 ## Fixed dt (s) of the live hypothetical march — coarser; the live mode runs at 10x the frozen volume.
-@export var live_refresh_hz: float = 10.0 ## Live re-march rate (Hz) — every Nth physics tick of the fixed 60 Hz step.
+@export var live_march_step: float = 0.1 ## Fixed dt (s) of the live hypothetical march — coarser; live re-marches every live_refresh_hz, so its cumulative ray volume far exceeds the frozen one-shot.
+@export var live_refresh_hz: float = 30.0 ## Live re-march rate (Hz) — every Nth physics tick of the fixed 60 Hz step; whole ticks only, so 24 would resolve to 20.
 @export var world_mask: int = 1 ## Collision layers the march ray may hit: the world. Never bodies (player, targets, the drop itself).
 
 ## The driver state: frozen holds a pin from lock_to()'s snapshot; live marches

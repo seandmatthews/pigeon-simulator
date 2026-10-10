@@ -185,6 +185,7 @@ func _run_scenarios() -> void:
 	await _scenario_poop_ball_visible() ## T-086 — the drop reads from the chase cam: bigger emissive ball; collider re-pinned to 0.30 by T-060.
 	await _scenario_reticle_frozen_pin_matches_damped_fall() ## T-105 — bare rig, direct instantiation, no Main alive.
 	await _scenario_reticle_main_lifecycle() ## T-105 — real-Main rig, the T-077 parked pattern.
+	await _scenario_reticle_live_refresh_lock() ## T-110 — the tuned live cadence, bare-rig value lock.
 	await _scenario_poop_ready_indicator_tracks_cooldown() ## T-077 — unpaused tree, no live Main, like the poop block.
 	await _scenario_coach_hint_shows_until_first_hit() ## T-060 — after the T-077 rig: owns one instanced Main in its own space, leaves the stretch as it found it.
 	await _scenario_tourists_walk()
@@ -2295,6 +2296,23 @@ func _scenario_reticle_main_lifecycle() -> void:
 					live_ok, hover_pin_ok,
 					pin.distance_to(impact) if reticle != null else -1.0,
 					frozen_dim_ok, relit, splat_live_ok, hidden_ok, airborne_again, restart_ok])
+
+
+## The reticle's live re-march cadence (T-110): the tuned 30 Hz is a whole-tick
+## lock on the fixed 60 Hz step — 2 ticks. A silent revert of the export (the
+## T-105 10.0 resolves to 6) FAILs both arms. Bare rig, no player: the
+## derivation runs in _ready, while live-mode marching itself needs a moving
+## pigeon — the feel leg is the ticket's Gate 3 line, not this scenario.
+func _scenario_reticle_live_refresh_lock() -> void:
+	var reticle: PoopReticle = POOP_RETICLE_SCENE.instantiate() as PoopReticle
+	add_child(reticle)
+	await _wait_frames(2) ## _ready resolves _refresh_ticks from the export.
+	var hz: float = reticle.live_refresh_hz
+	var ticks: int = reticle._refresh_ticks
+	reticle.free()
+	_check("reticle_live_refresh_30hz",
+			is_equal_approx(hz, 30.0) and ticks == 2,
+			"hz=%.1f ticks=%d (want 30.0 / 2)" % [hz, ticks])
 
 
 ## The F readiness glyph (T-077), through the REAL main scene: airborne with a

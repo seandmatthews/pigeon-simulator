@@ -114,6 +114,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-107 | [Adopt the B6 Merged sculpt as the interim player pigeon](T-107-b6-merged-pigeon.md) | visual-design | 4 | 2 | done |
 | T-108 | [Adopt the realistic Blender pigeon as the player bird](T-108-realistic-pigeon-player.md) | visual-design | 5 | 2 | done |
 | T-109 | [Articulate the realistic pigeon: rigged wings, head and feet](T-109-realistic-pigeon-rig.md) | visual-design | 5 | 2 | done |
+| T-110 | [Reticle live refresh: 10 Hz → 30 Hz](T-110-reticle-live-refresh-30hz.md) | visual-design | 3 | 1 | done |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since
