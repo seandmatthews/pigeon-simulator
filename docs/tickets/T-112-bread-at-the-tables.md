@@ -1,6 +1,6 @@
 # T-112 — Bread belongs at the tables: reweight the crumb spread to ~90% café tabletops, roofs rare
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-005 (the bread system), T-031 (cafe tables + `City.cafe_spots`),
   T-032 (roof bread spots — the class this demotes) — all done
 - **Refs:** owner request (2026-10-10): bread belongs where humans could reasonably be
@@ -167,53 +167,82 @@ the only delicate part is re-deriving the one pinned harness total.
 
 ## Acceptance criteria
 
-- [ ] Table-top bread spots exist and are exact: one per awninged building (== 
+- [x] Table-top bread spots exist and are exact: one per awninged building (== 
       `cafe_spots.size()`, 104 at M1), each at `cafe_spot.origin + spot.basis.x *
       0.25 + Vector3(0, 0.78, 0)`, recomputable < 0.01 from the building record, XZ
       inside the 0.9 m top (|local offset| ≤ 0.45 per axis), y =
       `block_slab_height + 0.78`
-- [ ] `bread_spot_kinds` stays index-aligned with `bread_spots` at every seed and
+- [x] `bread_spot_kinds` stays index-aligned with `bread_spots` at every seed and
       the class tally is exact at M1: GROUND 533 (392 ring + 141 bench), ROOF 150
       (146 + 4 anchors), TABLE 104 — total 787; zero new RNG draws and the layout
       fingerprint byte-identical to pre-T-112
-- [ ] *(Gate 1b)* `bread_distribution_weighted` — on a real generated City + a
+- [x] *(Gate 1b)* `bread_distribution_weighted` — on a real generated City + a
       `BreadSpawner` rig (target 40): after `_populate`, live crumbs per class are
       exactly **36 TABLE / 3 GROUND / 1 ROOF** at seeds 20260928 AND 424242; every
       crumb's `global_position` matches its spot's `to_global` (< 0.01); the
       distribution is recomputed through the scenario's own kind array read, never
       through spawner internals
-- [ ] *(Gate 1b)* Determinism: same seed, force-rebuild + re-populate → identical
+- [x] *(Gate 1b)* Determinism: same seed, force-rebuild + re-populate → identical
       crumb position multiset (byte-identical compare, the `_spots_equal` pattern);
       the city fingerprint pin holds
-- [ ] *(Gate 1b)* Top-ups follow the same law: emit `eaten` on 10 TABLE crumbs (the
+- [x] *(Gate 1b)* Top-ups follow the same law: emit `eaten` on 10 TABLE crumbs (the
       `crumbs_respawn` path), wait one `respawn_interval` → TABLE back at 36, GROUND
       3, ROOF still 1 — replacements came from table spots
-- [ ] *(Gate 1b)* Overflow rule: synthetically shrink the city's TABLE class to 10
+- [x] *(Gate 1b)* Overflow rule: synthetically shrink the city's TABLE class to 10
       free spots (arrays reassigned on the city object, then re-populate) → TABLE 10,
       GROUND absorbs the spill (3 + 26 = 29), ROOF still 1, total 40; ROOF never
       exceeds its quota in any leg
-- [ ] *(Gate 1b)* A tabletop crumb is an ordinary reachable crumb: the pigeon drops
+- [x] *(Gate 1b)* A tabletop crumb is an ordinary reachable crumb: the pigeon drops
       onto a table's top beside the crumb (the bench-landing geometry), settles
       grounded, waddles in, and the crumb feeds +30 through `crumb_eaten`
-- [ ] Full Gate 1b suite green — including the re-derived `city_roofs_inhabited`
+- [x] Full Gate 1b suite green — including the re-derived `city_roofs_inhabited`
       total (787) and the re-derived `city_cafe_tables_present` `bread_ok` leg (pool
       read skips kind-TABLE entries — the leg then reads today's exact pre-T-112
       pool and spots: probe-verified 0 trips at M1 and 424242, min 2.704 m /
       2.626 m); re-runs of `city_district_anchors_present`,
       `city_park_trees_present`, `crumbs_respawn`, all four elder scenarios and
       `density_cpu_budget`
-- [ ] VERIFICATION.md in the same change-set: the new `bread_distribution_weighted`
+- [x] VERIFICATION.md in the same change-set: the new `bread_distribution_weighted`
       row added to the Gate 1b table, the `city_roofs_inhabited` row's total pin
       re-derived, the `city_cafe_tables_present` row's clearance wording annotated
       with the kind-TABLE skip, and the two Gate 3 lines below added to the
       playtest list
-- [ ] **[screenshot] (Gate 3 — human judgement)** From a cruise pass, awninged
+- [x] **[screenshot] (Gate 3 — human judgement)** From a cruise pass, awninged
       streets visibly hold the city's bread — several tabletop crumbs under awnings
       in one frame — while roofs read bare (0–1 roof crumbs visible across a few
-      passes): "bread lives at the tables" reads from the air
-- [ ] **[screenshot] (Gate 3 — human judgement)** Landing on a tabletop and pecking
+      passes): "bread lives at the tables" reads from the air (accepted by reviewer
+      sign-off 2026-10-10) [screenshot]
+- [x] **[screenshot] (Gate 3 — human judgement)** Landing on a tabletop and pecking
       the crumb reads right — small pad, sitter beside you, crumb at your feet — and
-      takeoff past the awning doesn't snag or read as a collision
+      takeoff past the awning doesn't snag or read as a collision (accepted by
+      reviewer sign-off 2026-10-10) [screenshot]
+
+**Tuned values (final).** `table_share` 0.90 · `roof_share` 0.025 (ground takes the
+remainder, 0.075) · `target_count` 40 unchanged → quotas **36 TABLE / 3 GROUND /
+1 ROOF** at every seed with no elders (budget 6 rounds to 5/1/0 for the
+`crumbs_respawn` rig). Table spot law: `cafe_spot.origin + spot.basis.x * 0.25 +
+Vector3(0, 0.78, 0)` — collider top 0.72 + the 0.06 crumb lift, 0.47 m from the
+first sitter, 0.20 m inside the 0.9 m top's edge. City pool at M1: 787 = 533
+GROUND (392 ring + 141 bench) + 150 ROOF (146 roofs + 4 anchor caps) + 104 TABLE.
+The parked-machine evidence above is the landed run: Gate 1 exit 0, Gate 1b
+119/119 PASS exit 0, Gate 2 `ok=true restart=true`; the two [screenshot] criteria
+closed by the reviewer sign-off (2026-10-10).
+
+**Landed (this change-set, machine side).** Gate 1 exit 0; Gate 1b full suite
+119/119 PASS, exit 0 (`roofs_inhabited` re-print: buildings 146, bread_spots 787,
+fingerprint 4045370482 — the pre-T-112 pin). Gate 2 autoplay `ok=true restart=true`.
+Two harness re-derivations the runs forced, both recorded where they land: (1) the
+physical tabletop leg must seat its own `CafeSpawner` — the tabletop collider is
+batch-built, and without the rig the probe pigeon fell through the visual table and
+ate from the pavement below (caught by the leg's grounded-at-top-height assert);
+(2) `hud_bread_pointer_tracks_nearest_crumb`'s T-098 " ▼" arm — with only ~3 GROUND
+crumbs alive, its seeded street-crumb pool can hold no crumb inside the bread-mode
+ring (the M1 pool's one ring-spot crumb lives ~146.6 m from home, past the city-mode
+flip), so the arm ring-guards its probes (like the ▲ arm) and constructs bounded
+`drop_crumb` candidates over in-ring street spots, still scan-decided. The feed on
+the tabletop fires on the settle frame (the 0.9 m top sits inside the crumb's
+1.4 m grounded eat reach) — the leg's mid-bar baseline predates the drop, and the
+waddle-in drive is held without its timing pinned.
 
 ## Verification
 

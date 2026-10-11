@@ -69,6 +69,19 @@ const CAFE_FACE_OUTSET := 0.12 ## The shop band's outset (the `_add_shopfront` b
 const CAFE_STANDOFF := 1.9 ## Table center out from the face plane (m).
 const CAFE_SIDE_OFFSET := 2.2 ## Table center along the face from the door center (m).
 
+## Tabletop crumb layout (T-112): one TABLE bread spot per awninged building,
+## riding its own cafe table. The spot's y is CAFE_CRUMB_TABLE_LIFT above the
+## table spot origin — the merged collider's walkable top face at +0.72
+## (CafeSpawner.TABLE_SHAPE_SIZE/OFFSET) plus the 0.06 crumb lift, the exact
+## roof/anchor spot convention (ANCHOR_CRUMB_LIFT) — and its XZ sits
+## CAFE_CRUMB_SIT_INSET along the table's local +X, toward the first sitter
+## (CafeSpawner.SITTER_SEATS puts one at ±0.72 on every table): the
+## diner's-edge plate, 0.47 m from that sitter and 0.20 m inside the 0.9 m
+## top's edge. Pure layout numbers; the placement draws no RNG of any stream
+## and appends no `_fp` entry, so the layout fingerprint stays byte-identical.
+const CAFE_CRUMB_TABLE_LIFT := 0.78 ## Spot y above the table spot origin: collider top 0.72 + crumb lift 0.06.
+const CAFE_CRUMB_SIT_INSET := 0.25 ## Spot XZ offset along the table's local +X, toward the first sitter.
+
 ## Intersection crosswalk layout (T-069, bars re-oriented longitudinal by
 ## T-102): one zebra band per intersection approach, its center CROSSWALK_OUTSET
 ## out from the road-center node along the approach axis, on the road
@@ -284,6 +297,17 @@ signal regenerated
 ## seed and never shifts the building RNG sequence.
 var bread_spots: Array[Vector3] = []
 
+## What surface class each `bread_spots` entry is (T-112), index-aligned —
+## appended in lockstep with every `bread_spots` append and cleared beside it:
+## GROUND for the sidewalk ring and bench seats, ROOF for the roof corners and
+## district-anchor caps, TABLE for the cafe tabletops. The spawner (T-112)
+## weights the live spread per class — tables most, roofs rare — and the
+## harness scenarios read the kinds instead of re-deriving surfaces from
+## heights. Zero RNG of its own and zero `_fp` entries (the `bread_spots`
+## precedent), so the layout fingerprint stays byte-identical.
+enum BreadKind { GROUND, TABLE, ROOF }
+var bread_spot_kinds: Array[int] = []
+
 ## Seated spots (city-local) for the park elders (T-020): one transform per
 ## plaza-ring bench — position on the seat line, yaw = the bench's own. Purely
 ## derived from the layout — no RNG of its own — so it is deterministic per
@@ -395,6 +419,7 @@ func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
 	_plaza_clear = true
 	buildings = []
 	bread_spots = []
+	bread_spot_kinds = []
 	elder_spots = []
 	cafe_spots = []
 	roof_props = []
@@ -507,7 +532,9 @@ func _bread_ring_spots(center: Vector3) -> void:
 	for sx: float in [ring, -ring]:
 		for sz: float in [mid, -mid]:
 			bread_spots.append(center + Vector3(sx, y, sz))
+			bread_spot_kinds.append(BreadKind.GROUND)
 			bread_spots.append(center + Vector3(sz, y, sx))
+			bread_spot_kinds.append(BreadKind.GROUND)
 
 
 ## Corner waypoints (city-local) for one block's traffic loop (T-008): the
@@ -849,6 +876,7 @@ func _build_district_anchor(center: Vector3, district: int) -> void:
 	_add_collider("Props", ANCHOR_CAP_SIZE, pos)
 	y += ANCHOR_CAP_SIZE.y
 	bread_spots.append(center + Vector3(0.0, y + ANCHOR_CRUMB_LIFT, 0.0))
+	bread_spot_kinds.append(BreadKind.ROOF) ## The anchor's cap crumb (T-112 kinds).
 	anchors.append({
 		"center": to_global(center),
 		"district": district,
@@ -942,6 +970,7 @@ func _add_building(base_center: Vector3, footprint: Vector2, district: int,
 			signf(lot_offset.x) * footprint.x * ROOF_BREAD_INSET,
 			roof_top + 0.06,
 			signf(lot_offset.y) * footprint.y * ROOF_BREAD_INSET))
+	bread_spot_kinds.append(BreadKind.ROOF) ## The roof-corner crumb (T-112 kinds).
 	buildings.append({
 		"center": to_global(Vector3(base_center.x, 0.0, base_center.z)),
 		"size": footprint,
@@ -1043,10 +1072,22 @@ func _add_shopfront(base_center: Vector3, footprint: Vector2, lot_offset: Vector
 ## pinned awning count and the layout fingerprint stay byte-identical; the
 ## spots are pinned by the `city_cafe_tables_present` scenario directly, like
 ## `elder_spots`.
+##
+## Since T-112 each table also seeds one TABLE-class bread spot on its own
+## tabletop (`bread_spot_kinds`, appended in lockstep): the crumb rides the
+## table's walkable top face (spot origin + CAFE_CRUMB_TABLE_LIFT — collider
+## top 0.72 + the 0.06 crumb lift) inset CAFE_CRUMB_SIT_INSET along the
+## table's local +X toward the first sitter — the diner's-edge plate. Still
+## zero RNG and zero `_fp` entries: `bread_spots` was never fingerprinted, so
+## every pinned count and the fingerprint stay byte-identical.
 func _build_cafe_spots() -> void:
 	for info in buildings:
 		if info.has_awning:
-			cafe_spots.append(cafe_spot_for(info))
+			var spot := cafe_spot_for(info)
+			cafe_spots.append(spot)
+			bread_spots.append(spot.origin + spot.basis.x * CAFE_CRUMB_SIT_INSET
+					+ Vector3(0.0, CAFE_CRUMB_TABLE_LIFT, 0.0))
+			bread_spot_kinds.append(BreadKind.TABLE)
 
 
 ## The transform for one building's cafe table (T-031) — a pure function of its
@@ -1166,6 +1207,7 @@ func _add_bench(pos: Vector3, yaw: float) -> void:
 	var base := Vector3(pos.x, block_slab_height, pos.z)
 	var xf := Transform3D(Basis(Vector3.UP, yaw), base)
 	bread_spots.append(base + Vector3(0.0, 0.60, 0.0)) ## Seat top — crumb sits on the bench (T-005).
+	bread_spot_kinds.append(BreadKind.GROUND)
 	_add_mm("bench_seat", xf * _box_xf(Vector3(0.0, 0.5, 0.0), Vector3(1.8, 0.08, 0.5)))
 	_add_mm("bench_leg", xf * _box_xf(Vector3(-0.75, 0.25, 0.0), Vector3(0.1, 0.5, 0.44)))
 	_add_mm("bench_leg", xf * _box_xf(Vector3(0.75, 0.25, 0.0), Vector3(0.1, 0.5, 0.44)))

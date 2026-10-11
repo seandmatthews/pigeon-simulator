@@ -218,6 +218,7 @@ func _run_scenarios() -> void:
 	await _scenario_elder_cooldown_blocks_second_share()
 	await _scenario_city_cafe_tables() ## T-031 — after the elder block, same rig pattern.
 	await _scenario_city_roofs_inhabited() ## T-032 — after the cafe block, same audit pattern.
+	await _scenario_bread_distribution_weighted() ## T-112 — the weighted spread over a real city.
 	await _scenario_city_crosswalks() ## T-069 — after the roofs block, same audit pattern.
 	await _scenario_city_apron_rim() ## T-088 commit 1 — after the crosswalks block, same audit pattern.
 	await _scenario_city_horizon_skyline() ## T-088 commit 2 — after the rim, same audit pattern.
@@ -2785,8 +2786,10 @@ func _expected_cafe_spot(city: City, info: Dictionary) -> Transform3D:
 ## exactly on the spots (`elder_placement_no_rng` template). Placement holds
 ## the street clearances: on the sidewalk band with the table center ≥ 0.5 m
 ## inside the tourist loop's 10.9 m curb line (square metrics — the loop legs
-## are lines), ≥ 1.0 m off the block's bread spots (bench seats; corner
-## bread-ring spots lie outside every block's radius), ≥ 1.2 m edge-to-edge
+## are lines), ≥ 1.0 m off the block's PAVEMENT bread spots (bench seats; corner
+## bread-ring spots lie outside every block's radius; since T-112 the pool read
+## skips the kind-TABLE entries — a table's own tabletop crumb riding 0.25 m
+## from its own spot is the feature, not a failure), ≥ 1.2 m edge-to-edge
 ## off the door line. Since T-094 the rig reads the batch: one positioned
 ## shape per piece under the two merged bodies (`Tables` layer 1 `world`,
 ## `Sitters` collision-layer value 4 — the retired scenes' value — mask 0
@@ -2831,6 +2834,10 @@ func _scenario_city_cafe_tables() -> void:
 		## block's radius (spots beyond it, notably the corner bread-ring spots at
 		## radial ~11.7 m, belong to no block). Bench-seat clearance is structural:
 		## the ±4 m bench jitter can never reach the corner-ward table line.
+		## (T-112) The pool read SKIPS kind-TABLE entries: the clearance this leg
+		## guards is cafe furniture vs pavement bread, and a table's own crumb
+		## riding 0.25 m from its own spot is the feature, not a failure — the
+		## skip restores the leg's exact pre-T-112 pool and semantics.
 		var nearest: Vector3 = _city.block_centers[0]
 		var best := INF
 		for center in _city.block_centers:
@@ -2839,7 +2846,10 @@ func _scenario_city_cafe_tables() -> void:
 			if d < best:
 				best = d
 				nearest = center
-		for bread: Vector3 in _city.bread_spots:
+		for b_i in _city.bread_spots.size():
+			if _city.bread_spot_kinds[b_i] == City.BreadKind.TABLE:
+				continue
+			var bread: Vector3 = _city.bread_spots[b_i]
 			if Vector2(bread.x - nearest.x, bread.z - nearest.z).length() \
 					<= _city.block_size * 0.5:
 				bread_ok = bread_ok \
@@ -3052,11 +3062,14 @@ func _scenario_city_roofs_inhabited() -> void:
 			== _city.buildings.size() + _city.anchors.size() \
 			and spots_snapshot.size() >= 20
 	## City-wide pool: the T-005 ground spots, exactly the new roof spots and
-	## exactly one crumb per district anchor (T-091).
+	## exactly one crumb per district anchor (T-091) — plus, since T-112, one
+	## TABLE spot per awninged building riding its own cafe table (the pool's
+	## tail section; the y > 1.0 population above is untouched — tabletops sit
+	## at slab + 0.78 < 1.0).
 	var total_ok: bool = _city.bread_spots.size() \
 			== _city.blocks_per_side * _city.blocks_per_side * 8 \
 			+ int(_city.last_report.benches) + _city.buildings.size() \
-			+ _city.anchors.size()
+			+ _city.anchors.size() + _city.cafe_spots.size()
 	var one_per_building := true
 	for info in _city.buildings:
 		var props := _props_of(info)
@@ -3202,11 +3215,259 @@ func _scenario_city_roofs_inhabited() -> void:
 					total_ok, one_per_building, colliders_ok, high_shapes,
 					deterministic, physical_ok, eat_ok, prop_ok])
 	## Informational: the M1-seed surface counts (146 buildings → 259 props,
-	## 533 → 679 bread spots, +4 anchor crumbs since T-091 → 683) — the ticket's
-	## tuned numbers, re-printed on every re-verification.
+	## 533 → 679 bread spots, +4 anchor crumbs since T-091 → 683, +104 tabletop
+	## spots since T-112 → 787) — the tickets' tuned numbers, re-printed on
+	## every re-verification.
 	print("SIM DATA roofs_inhabited: buildings=%d roof_props=%d roof_spots=%d bread_spots=%d fingerprint=%d" % [
 			_city.buildings.size(), _city.roof_props.size(), spots_snapshot.size(),
 			_city.bread_spots.size(), fp_first])
+
+
+## --- scenarios (T-112 weighted bread distribution) ---------------------------
+
+
+## The live-crumb tally per bread kind, read through the scenario's OWN kind
+## array read (`City.bread_spot_kinds[crumb.spot_index]`) — never through
+## spawner internals. Hand-placed crumbs (spot_index < 0) belong to no class.
+func _live_tally(city: City, spawner: BreadSpawner) -> Array[int]:
+	var tally: Array[int] = [0, 0, 0] ## BreadKind order: GROUND, TABLE, ROOF.
+	for crumb in spawner.living_crumbs():
+		if crumb.spot_index >= 0 and crumb.spot_index < city.bread_spot_kinds.size():
+			tally[city.bread_spot_kinds[crumb.spot_index]] += 1
+	return tally
+
+
+## The living crumbs' world positions as a sorted multiset — the byte-identical
+## compare of the determinism leg (the `_vec_spots_equal` pattern).
+func _crumb_multiset(spawner: BreadSpawner) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	for crumb in spawner.living_crumbs():
+		out.append(crumb.global_position)
+	out.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+		if a.x != b.x:
+			return a.x < b.x
+		if a.y != b.y:
+			return a.y < b.y
+		return a.z < b.z)
+	return out
+
+
+## The T-112 weighted spread (Gate 1b): on a real generated City + a
+## `BreadSpawner` rig at the shipped target 40, `_populate` opens the class
+## quotas — exactly 36 TABLE / 3 GROUND / 1 ROOF at the M1 seed AND at seed
+## 424242 — with every crumb sitting exactly on its spot's `to_global`.
+## City-side, `bread_spot_kinds` stays index-aligned with `bread_spots`, the
+## M1 class tally is exact (GROUND 533 = 392 ring + 141 bench, ROOF 150 =
+## 146 + 4 anchors, TABLE 104 = the awninged buildings — 787 total) and every
+## TABLE spot sits exactly at the tabletop law recomputed from the building
+## record (`cafe_spot.origin + basis.x * 0.25 + UP * 0.78`, XZ inside the
+## 0.9 m top). Determinism: a force-rebuild re-populates the identical crumb
+## position multiset with the fingerprint pinned. Top-ups follow the same law:
+## 10 eaten TABLE crumbs (the `crumbs_respawn` path) refill TABLE to quota in
+## one `respawn_interval`, GROUND and ROOF untouched. The overflow safety net:
+## the TABLE class synthetically shrunk to 10 free spots (arrays reassigned on
+## the city object, then re-populate) spills its deficit to GROUND (3 + 26 =
+## 29) while ROOF stays capped at its quota — "rare" is a ceiling; ROOF never
+## exceeds 1 live crumb in any leg. And a tabletop crumb is an ordinary
+## reachable crumb: the pigeon drops onto the tabletop beside it (the
+## bench-landing geometry), settles grounded and feeds +30 through the Main
+## wiring (`crumb_eaten` → Hunger.eat) — the 0.9 m top sits fully inside the
+## crumb's 1.4 m grounded eat reach, so the feed can fire on the settle frame;
+## the waddle-in drive is still held, only its timing is not pinned.
+func _scenario_bread_distribution_weighted() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	## --- city-side audit: kinds aligned, M1 tally exact, TABLE spots exact ---
+	var kinds_ok: bool = _city.bread_spot_kinds.size() == _city.bread_spots.size()
+	var tally: Array[int] = [0, 0, 0] ## BreadKind order: GROUND, TABLE, ROOF.
+	var table_indices: Array[int] = []
+	for i in _city.bread_spots.size():
+		var kind: int = _city.bread_spot_kinds[i]
+		kinds_ok = kinds_ok and kind >= City.BreadKind.GROUND and kind <= City.BreadKind.ROOF
+		tally[kind] += 1
+		if kind == City.BreadKind.TABLE:
+			table_indices.append(i)
+	var awninged: Array[Dictionary] = []
+	for info in _city.buildings:
+		if info.has_awning:
+			awninged.append(info)
+	var ground_expected: int = _city.blocks_per_side * _city.blocks_per_side * 8 \
+			+ int(_city.last_report.benches)
+	var tally_ok: bool = tally[City.BreadKind.GROUND] == 533 \
+			and tally[City.BreadKind.TABLE] == 104 and tally[City.BreadKind.ROOF] == 150 \
+			and _city.bread_spots.size() == 787 \
+			and tally[City.BreadKind.GROUND] == ground_expected \
+			and tally[City.BreadKind.ROOF] == _city.buildings.size() + _city.anchors.size() \
+			and tally[City.BreadKind.TABLE] == awninged.size()
+	## Every TABLE spot exactly at the tabletop law, recomputed from the
+	## building record (the `_expected_cafe_spot` pattern) — and its XZ inside
+	## the 0.9 m top (|local offset| ≤ 0.45 per axis in the table frame).
+	var spots_exact := table_indices.size() == awninged.size()
+	for k in table_indices.size():
+		var cafe: Transform3D = _expected_cafe_spot(_city, awninged[k])
+		var want: Vector3 = cafe.origin + cafe.basis.x * 0.25 + Vector3(0.0, 0.78, 0.0)
+		var got: Vector3 = _city.bread_spots[table_indices[k]]
+		var local: Vector3 = got - _city.cafe_spots[k].origin
+		var in_top := Vector2(local.dot(_city.cafe_spots[k].basis.x),
+				local.dot(_city.cafe_spots[k].basis.z))
+		spots_exact = spots_exact and got.distance_to(want) < 0.01 \
+				and absf(got.y - (_city.block_slab_height + 0.78)) < 0.001 \
+				and absf(in_top.x) <= 0.45 and absf(in_top.y) <= 0.45
+	## --- the seeded rig at the shipped target: 36 TABLE / 3 GROUND / 1 ROOF --
+	var rig := BreadSpawner.new()
+	rig.city = _city
+	rig.respawn_interval = 0.5 ## The top-up leg's cadence (the respawn-rig value).
+	add_child(rig)
+	await _wait_frames(4)
+	var open_tally := _live_tally(_city, rig)
+	var dist_ok: bool = open_tally[City.BreadKind.TABLE] == 36 \
+			and open_tally[City.BreadKind.GROUND] == 3 \
+			and open_tally[City.BreadKind.ROOF] == 1 \
+			and rig.living_crumbs().size() == 40
+	var on_spots := dist_ok
+	for crumb in rig.living_crumbs():
+		if crumb.spot_index < 0:
+			on_spots = false
+			continue
+		on_spots = on_spots and crumb.global_position.distance_to(
+				_city.to_global(_city.bread_spots[crumb.spot_index])) < 0.01
+	var roof_seen: int = open_tally[City.BreadKind.ROOF]
+	## --- determinism: force-rebuild + re-populate → identical multiset -------
+	var before := _crumb_multiset(rig)
+	_city.generate(default_seed, true) ## regenerated → the rig re-populates.
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and _vec_spots_equal(before, _crumb_multiset(rig)) \
+			and _live_tally(_city, rig) == open_tally
+	## --- top-ups follow the law: 10 eaten TABLE crumbs refill from tables ----
+	var eaten_tables: Array[BreadCrumb] = []
+	for crumb in rig.living_crumbs():
+		if crumb.spot_index >= 0 \
+				and _city.bread_spot_kinds[crumb.spot_index] == City.BreadKind.TABLE:
+			eaten_tables.append(crumb)
+			if eaten_tables.size() == 10:
+				break
+	var topup_ok := eaten_tables.size() == 10
+	for crumb in eaten_tables:
+		crumb.eaten.emit(crumb.restore) ## Same path a grounded pigeon triggers.
+		crumb.free()
+	await _wait_frames(45) ## 0.75 s > respawn_interval.
+	var after_tally := _live_tally(_city, rig)
+	topup_ok = topup_ok and after_tally[City.BreadKind.TABLE] == 36 \
+			and after_tally[City.BreadKind.GROUND] == 3 \
+			and after_tally[City.BreadKind.ROOF] == 1 \
+			and rig.living_crumbs().size() == 40 and rig.eaten_count == 10
+	roof_seen = maxi(roof_seen, after_tally[City.BreadKind.ROOF])
+	rig.respawn_interval = 60.0 ## No further top-up inside the shrink leg's window.
+	## --- overflow: the TABLE class shrunk to 10 free spots, re-populate ------
+	var shrunk_spots: Array[Vector3] = []
+	var shrunk_kinds: Array[int] = []
+	var kept := 0
+	for i in _city.bread_spots.size():
+		if _city.bread_spot_kinds[i] == City.BreadKind.TABLE:
+			kept += 1
+			if kept > 10:
+				continue
+		shrunk_spots.append(_city.bread_spots[i])
+		shrunk_kinds.append(_city.bread_spot_kinds[i])
+	_city.bread_spots = shrunk_spots
+	_city.bread_spot_kinds = shrunk_kinds
+	rig._populate() ## The re-populate under the shrunken class.
+	var over_tally := _live_tally(_city, rig)
+	var overflow_ok: bool = over_tally[City.BreadKind.TABLE] == 10 \
+			and over_tally[City.BreadKind.GROUND] == 29 \
+			and over_tally[City.BreadKind.ROOF] == 1 \
+			and rig.living_crumbs().size() == 40
+	roof_seen = maxi(roof_seen, over_tally[City.BreadKind.ROOF])
+	## --- the physical leg: a tabletop crumb feeds a grounded pigeon ----------
+	_city.generate(default_seed, true) ## Restore the full pool (undoes the shrink).
+	var hunger := Hunger.new()
+	hunger.player = _player
+	add_child(hunger)
+	rig.crumb_eaten.connect(hunger.eat) ## The Main wiring, on the same rig.
+	## A living TABLE crumb, read through the kind array (the shuffle decides
+	## WHICH table) — its spot's TABLE ordinal recovers the table's own
+	## transform (append-order parity: the k-th TABLE spot is cafe_spots[k]).
+	var table_crumb: BreadCrumb = null
+	var table_ordinal := -1
+	for crumb in rig.living_crumbs():
+		if crumb.spot_index >= 0 \
+				and _city.bread_spot_kinds[crumb.spot_index] == City.BreadKind.TABLE:
+			table_crumb = crumb
+			table_ordinal = 0
+			for i in crumb.spot_index:
+				if _city.bread_spot_kinds[i] == City.BreadKind.TABLE:
+					table_ordinal += 1
+			break
+	var eat_ok := table_crumb != null
+	var grounded_on_top := false
+	if eat_ok:
+		## The tabletop is a solid layer-1 box only once the cafe batch stands —
+		## the `city_cafe_tables_present` rig pattern (that scenario frees its
+		## own rig at its end, so this leg seats a fresh one).
+		var cafe_rig := CafeSpawner.new()
+		cafe_rig.city = _city
+		add_child(cafe_rig)
+		await _wait_frames(4)
+		var cafe: Transform3D = _city.cafe_spots[table_ordinal]
+		var spot_global := _city.to_global(_city.bread_spots[table_crumb.spot_index])
+		var toward := -cafe.basis.x ## From the crumb back across the tabletop.
+		var walk_dir := -toward ## The waddle aims at the crumb (+basis.x).
+		hunger.value = 40.0 ## Mid-bar so the +30 restore is measurable.
+		var hunger0 := hunger.value ## Baseline BEFORE the drop: the feed can fire
+		## on the settle frame (the whole top sits inside the crumb's grounded
+		## eat reach), so a post-grounding baseline would already hold the +30.
+		await _set_up(true, spot_global + toward * 0.6 + Vector3(0.0, 0.9, 0.0),
+				Vector3.ZERO, rad_to_deg(atan2(-walk_dir.x, -walk_dir.z)))
+		await _await_grounded(150) ## The bench_landing budget (softened-gravity fall).
+		grounded_on_top = _player.is_grounded \
+				and absf(_player.position.y - (spot_global.y + 0.24)) < 0.25
+		Input.action_press("pitch_up") ## The waddle-in drive.
+		for _i in 120:
+			await get_tree().physics_frame
+			eat_ok = not is_instance_valid(table_crumb) \
+					and hunger.value > hunger0 + 10.0
+			if eat_ok:
+				break
+		Input.action_release("pitch_up")
+		cafe_rig.free()
+	hunger.free()
+	## --- the foreign seed opens the same law: 36 / 3 / 1 at seed 424242 ------
+	_city.generate(424242, true)
+	var foreign_rig := BreadSpawner.new()
+	foreign_rig.city = _city
+	foreign_rig.respawn_interval = 60.0
+	add_child(foreign_rig)
+	await _wait_frames(4)
+	var foreign_tally := _live_tally(_city, foreign_rig)
+	var foreign_ok: bool = foreign_tally[City.BreadKind.TABLE] == 36 \
+			and foreign_tally[City.BreadKind.GROUND] == 3 \
+			and foreign_tally[City.BreadKind.ROOF] == 1 \
+			and foreign_rig.living_crumbs().size() == 40 \
+			and _city.bread_spot_kinds.size() == _city.bread_spots.size()
+	var foreign_awnings := 0
+	var foreign_tables := 0
+	for i in _city.buildings.size():
+		if _city.buildings[i].has_awning:
+			foreign_awnings += 1
+	for kind: int in _city.bread_spot_kinds:
+		if kind == City.BreadKind.TABLE:
+			foreign_tables += 1
+	foreign_ok = foreign_ok and foreign_tables == foreign_awnings
+	roof_seen = maxi(roof_seen, foreign_tally[City.BreadKind.ROOF])
+	foreign_rig.free()
+	_city.generate(default_seed, true) ## Leave the M1 city standing, pool restored.
+	_check("bread_distribution_weighted",
+			kinds_ok and tally_ok and spots_exact and dist_ok and on_spots
+					and deterministic and topup_ok and overflow_ok
+					and grounded_on_top and eat_ok and foreign_ok and roof_seen <= 1,
+			("kinds=%s tally(G/T/R)=%s spots_exact=%s open 36/3/1=%s on_spots=%s "
+				+ "det=%s topup=%s overflow 10/29/1=%s grounded_top=%s eat=%s "
+				+ "foreign 36/3/1=%s roof_max=%d") % [
+					kinds_ok, tally, spots_exact, dist_ok, on_spots, deterministic,
+					topup_ok, overflow_ok, grounded_on_top, eat_ok, foreign_ok,
+					roof_seen])
+	rig.free()
 
 
 ## Zebra crosswalks (T-069, bars re-oriented longitudinal by T-102): the
@@ -5845,17 +6106,58 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	## so the flat bearing stays defined); probe candidates until the scan names
 	## one from its own probe point — again scan-decided. The placed ▲ crumb
 	## (~10 m up) cannot pass the y < 0.3 street filter.
+	## (T-112 re-derivation) The weighted spread keeps only ~3 GROUND crumbs
+	## alive, and the arm's street pool (y < 0.3 — bench seats at 0.72 excluded)
+	## can hold no crumb inside the bread-mode ring: at the M1 seed its one
+	## ring-spot crumb lives ~146.6 m from home, past the city-mode flip at half
+	## the span, where the cue by design never shows. So the arm keeps its
+	## seeded-pool probes (now ring-guarded, like the ▲ arm) and then
+	## CONSTRUCTS candidates the way the ▲ arm places its crumb — one
+	## `drop_crumb` per in-ring street spot, every 40th spot so the probes
+	## spread across blocks, bounded to 12 — each still scan-decided from its
+	## own probe point, never nearest_crumb().
 	var cue_down_crumb: BreadCrumb = null
 	var cue_down_at := Vector3.ZERO
+	var down_candidates: Array[Vector3] = []
 	for crumb in spawner.living_crumbs():
 		if crumb.global_position.y > 0.3:
 			continue
-		pigeon.reset_flight(city.to_local(
-				crumb.global_position + Vector3(0.0, 10.0, 6.0)))
+		var off_centre: Vector3 = crumb.global_position - city.global_position
+		off_centre.y = 0.0
+		if off_centre.length() > city.city_span * 0.35:
+			continue
+		down_candidates.append(crumb.global_position)
+	var placed_down := 0
+	var street_seen := 0
+	for spot in city.bread_spots:
+		if placed_down >= 12:
+			break
+		var spot_world := city.to_global(spot)
+		if spot_world.y > 0.3:
+			continue
+		var off_centre: Vector3 = spot_world - city.global_position
+		off_centre.y = 0.0
+		if off_centre.length() > city.city_span * 0.35:
+			continue
+		street_seen += 1
+		if street_seen % 40 != 1:
+			continue
+		spawner.drop_crumb(spot_world)
+		placed_down += 1
+		down_candidates.append(spot_world)
+	for candidate in down_candidates:
+		var target_down: BreadCrumb = null
+		for crumb in spawner.living_crumbs():
+			if crumb.global_position.distance_to(candidate) < 0.5:
+				target_down = crumb
+				break
+		if target_down == null:
+			continue
+		pigeon.reset_flight(city.to_local(candidate + Vector3(0.0, 10.0, 6.0)))
 		await _wait_frames(2)
 		cue_down_at = pigeon.global_position
-		if _scan_nearest_crumb(spawner, cue_down_at) == crumb:
-			cue_down_crumb = crumb
+		if _scan_nearest_crumb(spawner, cue_down_at) == target_down:
+			cue_down_crumb = target_down
 			break
 	var cue_down_ok := false
 	var cue_down_shown := -1.0
