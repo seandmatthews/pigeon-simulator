@@ -25,6 +25,17 @@ const COACH_POOP := "F poop · release ~15 m early to lead them"
 ## landing kills a live combo — game time, like the HUD pulses and the T-040
 ## strip, so it freezes with a paused or ended run.
 const COMBO_NOTE_SECONDS := 2.5
+## (T-114) How long the favor delta note ("Favor: <n>  (<+delta>)") stays up
+## beside the balance — the combo note's exact game-time machinery, so it
+## freezes with a paused or ended run too.
+const FAVOR_NOTE_SECONDS := 2.5
+## (T-114) The delta note's tints: the HUD-pulse gold (main.gd's escalation
+## flash) for gains, the hunger tier-2 red for losses, and the column's own
+## scene fill at rest — the tint is an ALWAYS-WRITTEN override (never
+## removed: removing it would strip the scene's own font_color override too).
+const FAVOR_REST_COLOR := Color(1.0, 1.0, 1.0, 0.75)
+const FAVOR_GAIN_COLOR := Color(1.0, 0.85, 0.3)
+const FAVOR_LOSS_COLOR := Color(1.0, 0.32, 0.25)
 const SCORE_POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const HIT_MARKER_SCENE: PackedScene = preload("res://scenes/hit_marker.tscn")
 const MENU_SCENE_PATH := "res://scenes/menu.tscn"
@@ -82,6 +93,10 @@ const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds t
 ## it names the combo a landing just erased, so the ×N's disappearance teaches
 ## the rule at the instant it bites.
 @onready var combo_note: Label = %ComboNote
+## (T-114) The favor meter — one row under the landing note in the same
+## column: the elders' favor as a signed balance, with a 2.5 s delta note
+## after every change. Rest text "Favor: <n>" (debt is shown, not hidden).
+@onready var favor_label: Label = %FavorLabel
 @onready var hunger_bar: ProgressBar = %HungerBar
 ## The "home again" note (T-087, folded from T-100) — sits under the combo
 ## strip in the left column, shown by the return beat, self-hiding.
@@ -112,6 +127,8 @@ var _combo_strip_left: float = 0.0 ## (T-040) Game-time seconds left before the 
 var _return_fade_phase: float = -1.0 ## (T-087) <0 idle; 0..return_fade_seconds while the return fade runs — game time, like the tier pulse.
 var _home_note_phase: float = 0.0 ## (T-087, folded from T-100) Game-time seconds the note has shown; advanced only while visible.
 var _combo_note_left: float = 0.0 ## (T-079) Game-time seconds left before the landing note clears; 0 = at rest, empty.
+var _favor_note_left: float = 0.0 ## (T-114) Game-time seconds left before the favor delta note clears back to the rest text; 0 = at rest.
+var _favor_tint_shown: Color = FAVOR_REST_COLOR ## (T-114) The tint last written — the T-055 write-only-on-change guard for the color half.
 var _edge_hinting: bool = false ## (T-023) True while the edge hint owns the hint line — re-evaluated every _process frame, so grounding (including the guard's teleport-then-drop) self-clears it and hands the label back to the steady-state writers (`_update_hint`, and `_on_grounding_changed`'s edge write) instead of the writers fighting.
 ## (T-111) The crumb the bread globe last drew — the flash memory: re-aiming
 ## at a DIFFERENT instance (a valid neighbour, or the fresh pick after the
@@ -137,6 +154,8 @@ func _ready() -> void:
 	player.off_world_reset.connect(_on_off_world_reset) ## (T-087) The guard's return beat: poof, fade, camera snap, note.
 	bread_spawner.crumb_eaten.connect(Game.hunger.eat)
 	bread_spawner.crumb_eaten.connect(player.peck) ## Every swallowed crumb plays the eat peck (T-011).
+	bread_spawner.crumb_favor.connect(Game.add_favor) ## (T-114) Owned bread books its theft.
+	Game.favor_changed.connect(_on_favor_changed) ## (T-114) The HUD favor meter.
 	tourist_spawner.tourist_splatted.connect(_on_tourist_splatted)
 	car_spawner.car_splatted.connect(_on_car_splatted)
 	Game.hit_scored.connect(_on_hit_scored)
@@ -220,6 +239,11 @@ func _process(delta: float) -> void:
 			_combo_note_left = 0.0
 			combo_note.text = ""
 			combo_note.visible = false
+	if _favor_note_left > 0.0: ## (T-114) The favor delta note expires on the same
+		_favor_note_left -= delta ## game-time cadence — frozen by pause like the strip.
+		if _favor_note_left <= 0.0:
+			_favor_note_left = 0.0
+			_show_favor(Game.favor, 0) ## Back to the rest text, no tint.
 
 
 ## The HUD pulse (T-013): a combo escalation bumps the score line up a size —
@@ -461,19 +485,26 @@ func _on_off_world_reset(from: Vector3) -> void:
 ## spawns from the hit_scored event. (T-040) hit_scored carries points but not
 ## the target kind, so the kind word for the HUD combo strip is stashed here —
 ## the synchronous add_tourist_hit → hit_scored chain reads it right back.
+## (T-114) The splat also books the per-class favor delta — deliberately a
+## separate call beside the score call, NOT a changed add_*_hit signature: the
+## harness stages synthetic `Game.add_tourist_hit` calls (the T-060 coach leg)
+## and those must stay favor-silent.
 func _on_tourist_splatted(tourist: Tourist) -> void:
 	_last_hit_kind = "Tourist"
 	_spawn_hit_marker(tourist) ## The ring marks WHICH body took the hit (T-040).
 	Game.add_tourist_hit(tourist.global_position)
+	Game.splat_favor(tourist.citizen_class, false)
 
 
 ## Car splats feed the Game autoload's table (30 base — the cheap target,
 ## DESIGN pillar 3); the popup spawns from the hit_scored event. Same kind
-## stash and marker as the tourist path (T-040).
+## stash and marker as the tourist path (T-040). (T-114) The car's own class
+## books the vehicle favor delta — the visitor car is the jackpot.
 func _on_car_splatted(car: Car) -> void:
 	_last_hit_kind = "Car"
 	_spawn_hit_marker(car) ## The ring marks WHICH body took the hit (T-040).
 	Game.add_car_hit(car.global_position)
+	Game.splat_favor(car.citizen_class, true)
 
 
 ## The hit marker (T-040): a one-shot ring burst at the hit point, parented to
@@ -500,6 +531,36 @@ func _on_hit_scored(points: int, multiplier: int, pos: Vector3, style: bool) -> 
 	if multiplier >= 2:
 		combo_strip.text += " ×%d" % multiplier
 	_combo_strip_left = combo_strip_seconds
+
+
+## (T-114) The favor meter's driver: every `Game.favor_changed` re-writes the
+## label — rest text is the signed balance, and a non-zero delta appends the
+## note ("Favor: <n>  (<+d>)"), tints the row (gold gains, red losses) and
+## arms the 2.5 s game-time expiry that `_process` clears back to rest. Both
+## writes are guarded (the T-055 write-only-on-change rule): idle frames touch
+## nothing. The autoload books; this renders.
+func _on_favor_changed(favor: int, delta: int) -> void:
+	_show_favor(favor, delta)
+	if delta != 0:
+		_favor_note_left = FAVOR_NOTE_SECONDS ## A fresh change restarts the window.
+
+
+## (T-114) Composes and writes the favor row — guarded text, guarded tint.
+## delta 0 is the at-rest form: plain balance, the column's scene fill.
+func _show_favor(favor: int, delta: int) -> void:
+	var text := "Favor: %d" % favor
+	if delta != 0:
+		text += "  (%+d)" % delta
+	if favor_label.text != text:
+		favor_label.text = text
+	var tint := FAVOR_REST_COLOR
+	if delta > 0:
+		tint = FAVOR_GAIN_COLOR
+	elif delta < 0:
+		tint = FAVOR_LOSS_COLOR
+	if _favor_tint_shown != tint:
+		_favor_tint_shown = tint
+		favor_label.add_theme_color_override("font_color", tint)
 
 
 ## The fail state (T-010): starvation opens the score screen — final score,
@@ -543,6 +604,8 @@ func restart_run() -> void:
 	combo_note.text = "" ## (T-079) …and no landing note mid-display — Game.reset_run()
 	combo_note.visible = false ## zeroes the streak but knows nothing of the HUD.
 	_combo_note_left = 0.0
+	_favor_note_left = 0.0 ## (T-114) …and no favor note mid-display — Game.reset_run()
+	_show_favor(Game.favor, 0) ## zeroed the balance; the row follows it, rest text and tint.
 	_edge_hinting = false ## (T-023) A fresh run drops the pigeon on the corridor, well inside the radius — the next _process frame rewrites the normal hint, so no stale edge text across the reset.
 	_last_bread_target = null ## (T-111) A fresh run's first bread acquisition is flash-less: the
 	_drew_bread_target = false ## flash memory empties and any running flash dies with the globe below.

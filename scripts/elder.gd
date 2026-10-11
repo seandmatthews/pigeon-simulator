@@ -92,7 +92,13 @@ func _physics_process(delta: float) -> void:
 	var present := _pigeon_present()
 	if present:
 		_trust = minf(_trust + trust_fill_rate * delta, trust_needed)
-		if _trust >= trust_needed and _cooldown_left <= 0.0:
+		## (T-114) The favor gate, layered ON TOP of the proven trust path —
+		## trust rates, `trust_needed`, the cooldown and the T-078 arm are
+		## untouched. The elders won't hand over bread you can't pay for: a
+		## broke pigeon pins trust at `trust_needed` with no share coming (the
+		## favor meter is what explains the hold).
+		if _trust >= trust_needed and _cooldown_left <= 0.0 \
+				and Game.favor >= Game.elder_loaf_cost * crumbs_per_share:
 			_share()
 	else:
 		_trust = maxf(_trust - trust_decay * delta, 0.0)
@@ -121,6 +127,10 @@ func _pigeon_present() -> bool:
 ## Trust paid off: toss `crumbs_per_share` ordinary crumbs to the pavement in
 ## front of the elder's facing (alternating sideways, so two crumbs read as a
 ## small scatter, not a stack), then go quiet for `share_cooldown`.
+## (T-114) The share IS the purchase: the exact `elder_loaf_cost ×
+## crumbs_per_share` favor is charged here, once, AFTER the spawner guard — a
+## spawner-less elder never charges for bread it cannot toss — so every loaf
+## bought is favor not banked.
 func _share() -> void:
 	_cooldown_left = share_cooldown
 	_trust = 0.0
@@ -130,6 +140,7 @@ func _share() -> void:
 		push_warning("Elder has no BreadSpawner — the shared bread is lost.")
 		shared.emit(self, 0)
 		return
+	Game.add_favor(-Game.elder_loaf_cost * crumbs_per_share) ## (T-114) The spend.
 	var forward := -global_transform.basis.z
 	forward.y = 0.0
 	forward = forward.normalized()

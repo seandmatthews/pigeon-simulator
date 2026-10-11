@@ -1,6 +1,6 @@
 # T-114 — The favor economy: visitor splats earn the elders' favor, local blood and stolen crumbs spend it, and elder bread is bought with it
 
-- **Milestone:** M2 — the town's pigeon (ticket 2 of 3) · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Milestone:** M2 — the town's pigeon (ticket 2 of 3) · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-113 (the citizen classes this pays out on), T-020 (the elder share path the gate rides), T-112 (the tabletop crumbs that become the civilian steal surface), T-009 (the Game autoload score table the meter sits beside) — all done
 - **Refs:** owner-locked decisions (2026-10-11): per-class favor deltas with cars included · favor is SPENT on elder bread, not threshold-gated · stealing civilians' bread costs a little, stealing visitors' earns a little · the per-elder trust system and the T-078 arm stay UNTOUCHED, favor layered on top · `docs/DESIGN.md` → Milestone 2 · T-113's Follow-ups section (this ticket named) · **T-115** (the favor-max victory ending) is the named successor and reads the total this ticket exposes
 
@@ -184,28 +184,28 @@ delta-via-export asserts, the deferred dressing order, and the machine legs belo
 
 ## Acceptance criteria
 
-- [ ] The favor book exists as specified: `Game.favor` int + `favor_changed` + the eight
+- [x] The favor book exists as specified: `Game.favor` int + `favor_changed` + the eight
       `@export` deltas at their defaults, `add_favor`/`splat_favor` as above, `reset_run()`
       zeroes favor, and the autoload books without rendering (no node/HUD reference in
       `game.gd`)
-- [ ] Splat deltas pay through the real chain: a real visitor/civilian/superfan tourist and
+- [x] Splat deltas pay through the real chain: a real visitor/civilian/superfan tourist and
       a real parked visitor/civilian car, splatted through Main's handlers, move
       `Game.favor` by exactly their exports (asserted against the exports, never literals),
       and a synthetic `Game.add_tourist_hit` (the coach scenario's call) pays NO favor
-- [ ] *(Gate 1b)* `splat_favor_follows_citizen_class` — through the REAL main scene (the
+- [x] *(Gate 1b)* `splat_favor_follows_citizen_class` — through the REAL main scene (the
       instanced-Main pattern), with `TouristSpawner`/`CarSpawner` share knobs forced to
       single-class rigs (the `citizen_classes_readable` pattern): `Game.reset_run()` first,
       then each relay driven at a real living node — favor reads exactly
       +`favor_visitor_splat`, −`favor_civilian_splat`, −`favor_superfan_splat`,
       +`favor_visitor_car_splat`, −`favor_civilian_car_splat` in turn, cumulative sum
       exact, and a landing between legs proves splat favor never touches the combo
-- [ ] *(Gate 1b)* `elder_bread_gates_on_favor` — the elder rig (`_add_elder_rig`,
+- [x] *(Gate 1b)* `elder_bread_gates_on_favor` — the elder rig (`_add_elder_rig`,
       `tests/sim_test.gd:2516`): with `Game.favor = 0`, a parked pigeon hangs the full
       `trust_needed` + 5 s margin — trust pins at `trust_needed`, NO share, NO crumbs, NO
       charge; then `Game.add_favor(elder_loaf_cost * crumbs_per_share)` fires the share
       within 3 physics frames (trust is still pinned — the gate was the only blocker), and
       favor reads exactly `elder_loaf_cost * crumbs_per_share` lower afterwards
-- [ ] *(Gate 1b)* `bread_steal_favor_deltas` — bare rigs over a real City: eating a live
+- [x] *(Gate 1b)* `bread_steal_favor_deltas` — bare rigs over a real City: eating a live
       TABLE crumb grounded (the tabletop feed path) emits `crumb_favor` with
       `Game.favor_steal_table` and Main-style wiring moves favor by exactly that; a
       `drop_crumb(pos, Game.favor_steal_visitor)` crumb eaten the same way pays
@@ -214,31 +214,36 @@ delta-via-export asserts, the deferred dressing order, and the machine legs belo
       (6 at the shipped knobs) equals the tailgate crumb count, each within 1.0 m of its
       car and ≥ 0.45 m off the body, no RNG-stream disturbance (the seeded class multisets
       still byte-identical — the `citizen_classes_spawn_deterministic` asserts re-run green)
-- [ ] The three elder scenarios pass with favor staged at setup (`Game.favor` set
+- [x] The three elder scenarios pass with favor staged at setup (`Game.favor` set
       explicitly — they inherit whatever the previous scenario left otherwise), with the
       share scenario additionally asserting the exact spend; every other pinned scenario
       stays green UNTOUCHED, including `bread_distribution_weighted` (36/3/1 — bare rigs
       have no cars) and `crumbs_respawn`
-- [ ] *(Gate 1b)* Full suite green in one headless run; VERIFICATION.md gains the three new
+- [x] *(Gate 1b)* Full suite green in one headless run; VERIFICATION.md gains the three new
       scenario rows in the same change-set, and the elder row's wording notes the favor
       staging; the expected re-derivations (if `hud_bread_pointer_tracks_nearest_crumb`'s
       ring-guarded arms trip on a stray tailgate crumb, extend the T-112 ring-guard
       precedent and record it) are made in this change-set, not waved through
-- [ ] The HUD readout: `%FavorLabel` under `%ComboNote` with the column treatment, guarded
+      — **none were needed**: the pointer scenario passed untouched on the first
+      full-suite run of the landed tree
+- [x] The HUD readout: `%FavorLabel` under `%ComboNote` with the column treatment, guarded
       updates, the signed 2.5 s delta note (gold gains / red losses, game-time, pause-
       frozen), `restart_run()` reset — machine-checked through the real main scene by
       driving `Game.add_favor` and reading the label + expiry
-- [ ] **[screenshot] (Gate 3 — human judgement)** The readout teaches at flight speed: a
+- [x] **[screenshot] (Gate 3 — human judgement)** The readout teaches at flight speed: a
       visitor-car splat jumps the balance with the gold +6 note, a civilian splat shows the
       red −2, a tabletop steal shows −1 — cause and effect readable without a tutorial
-- [ ] **(Gate 3 — human judgement)** A broke elder hangout reads as "they're holding out"
+      (accepted by reviewer sign-off 2026-10-11)
+- [x] **(Gate 3 — human judgement)** A broke elder hangout reads as "they're holding out"
       (arm up, no bread, meter at zero) rather than as a bug; if it reads as a bug, the
       pre-named fallback (broke routes through the arm's cooldown clause) is forged as its
-      own follow-up ticket, not absorbed here
-- [ ] **[screenshot] (Gate 3 — human judgement)** The tailgate steal reads as a cheeky
+      own follow-up ticket, not absorbed here (accepted by reviewer sign-off 2026-10-11 —
+      the fallback was NOT needed)
+- [x] **[screenshot] (Gate 3 — human judgement)** The tailgate steal reads as a cheeky
       heist — a gold-lidded cooler beside a painted visitor car with a crumb at the gutter,
       not buried into a curb, a car, or a café table — and the economy's feel holds: an
       aggressive anti-visitor run trends the meter upward while eating still matters
+      (accepted by reviewer sign-off 2026-10-11)
 
 ## Verification
 
@@ -252,6 +257,42 @@ unchanged; `shares` (reported, never gated, `tests/autoplay.gd:131`) may now hon
 0 while the pilot is broke, and the eaten count may include tailgate crumbs · Gate 3: the
 three human lines above, added to VERIFICATION.md's playtest list in the same change-set.
 Tuned values (final deltas, any retunes) recorded here when the ticket lands.
+
+**Landed run (2026-10-11, this branch).** Gate 1 import + 120-frame boot: exit 0, zero
+error lines. Gate 1b: **124/124 scenarios green, exit 0** (121 existing + the 3 new), the
+pointer scenario passed untouched — no ring-guard re-derivation needed. Gate 2:
+`AUTOPLAY DONE ok=true … restart=true … shares=0` (the broke-pilot zero the ticket
+predicted), fps 136.
+
+**Tuned values (final).** The eight deltas at their ticketed defaults:
+visitor splat +3 · visitor car +6 · civilian splat −1 · civilian car −2 · superfan −8
+(pedestrian or car) · table steal −1 · tailgate steal +1 · `elder_loaf_cost` 2/crumb
+(4 per 2-crumb share). No retunes during the run. The tailgate crumb offset is the
+ticketed `Vector3(1.4, 0.06, 0.75)` car-local (0.45 m off the 0.95 m half-width body,
+gutter + 0.06 lift); the cooler rides the tailgate deck as a translation-only child at
+(0.35, 0.975, 1.75) — white body 0.42 × 0.45 × 0.60 (`BODY_PALETTE` white) + gold lid
+0.42 × 0.06 × 0.60 (`CitizenClass.TEAM_GOLD`) — on the trunk rather than standing in the
+road so traffic visitor cars hauling it never clip lane neighbours, curbs or café tables.
+
+**Implementation notes (mechanics the reviewer should know).** The ticket's 40 − 6 = 34
+spawned-budget arithmetic is real and holds at every point in time, but only because of
+two load-bearing wiring facts landed with the code: (1) `main.tscn` now lists `CarSpawner`
+AHEAD of `BreadSpawner`, so on every `regenerated` the cars populate (and `park_at`
+re-anchors their crumbs) before the bread service computes its quotas — connect order is
+`_ready` order; (2) `BreadSpawner._populate`'s reseed wipe spares hand-placed crumbs
+carrying a non-zero `favor_delta` (the car-anchored tailgate bread) while elder loaves
+still die with the run exactly as always. `drop_crumb` additionally RETURNS the crumb so a
+car can hold and release its own, and `BreadSpawner.forget_crumb` lets a releasing car
+erase it from the books — a queue-freed crumb must never linger in `_crumbs` (it broke
+`living_crumbs()`'s typed filter and `restart_resets`' 40-count before the fix; the
+`CarSpawner._populate` free loop now releases explicitly). `Car._redress_crumb` is
+guarded on bread_spawner/class/mode; `Car.release_tailgate()` is the public release; the
+deferred `_dress_tailgates` pass re-anchors only cars whose crumb died since `park_at`.
+The HUD tint is an always-written override (`FAVOR_REST_COLOR` = the column's 0.75-white
+fill) — removing the override at rest would strip the scene's own font_color too. The
+steal scenario reads "within 1.0 m of its car" as body-surface distance (the pinned offset
+is exactly 0.45 m off the body box; center-to-center would be 1.59 m), with the in-car-
+frame offset legs pinning the exact geometry.
 
 ## Follow-ups (named per the owner's 2026-10-11 split)
 

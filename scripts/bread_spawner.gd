@@ -24,6 +24,13 @@ extends Node3D
 ## Relayed from each crumb's eaten signal — Main wires this into Hunger.eat.
 signal crumb_eaten(amount: float)
 
+## (T-114) Relayed when an OWNED crumb is eaten — the favor its theft books.
+## Fires only for non-zero `favor_delta` crumbs (café TABLE crumbs, tailgate
+## crumbs); gutter and roof spice emit nothing. Main wires this into
+## Game.add_favor — emit-and-listen, so bare harness rigs without Main stay
+## favor-silent.
+signal crumb_favor(delta: int)
+
 ## The class fill/spill order (T-112): tables first, then the ground, roofs
 ## last. `City.BreadKind` values — TABLE 1, GROUND 0, ROOF 2.
 const FILL_ORDER: Array[int] = [City.BreadKind.TABLE, City.BreadKind.GROUND, City.BreadKind.ROOF]
@@ -104,11 +111,23 @@ func nearest_crumb(pos: Vector3) -> BreadCrumb:
 ## ROOF order, each quota taken off its shuffled class list — a class whose
 ## free spots run out spills its deficit to the next class down, ROOF caps at
 ## its quota.
+## (T-114) One carve-out: hand-placed crumbs carrying a favor delta (the
+## visitor cars' tailgate crumbs) survive the wipe — they are owned by living
+## parked cars, whose own populate re-anchored them earlier in the same
+## `regenerated` emission (the CarSpawner is wired ahead of this spawner in
+## main.tscn), so they must live on and keep holding the spawned budget at
+## `target_count − hand_placed`. Unowned hand-placed bread (T-020 elder
+## loaves) still dies with the run, exactly as always.
 func _populate() -> void:
+	var survivors: Array[BreadCrumb] = []
 	for crumb in _crumbs:
-		if is_instance_valid(crumb):
+		if not is_instance_valid(crumb) or crumb.is_queued_for_deletion():
+			continue
+		if crumb.spot_index < 0 and crumb.favor_delta != 0:
+			survivors.append(crumb) ## Car-anchored steal bread — see above.
+		else:
 			crumb.queue_free()
-	_crumbs.clear()
+	_crumbs = survivors
 	_occupied.clear()
 	if city == null:
 		return
@@ -142,13 +161,18 @@ func _top_up() -> void:
 
 ## The per-class spawned quotas over the CURRENT budget: `target_count` minus
 ## the live hand-placed crumbs (T-020 elder loaves stay outside the class
-## math). `table_share` and `roof_share` round to integers; the ground class
-## takes the exact remainder, so the quotas always sum to the budget. At the
-## shipped target 40 with no elders: 36 tables / 3 ground / 1 roof.
+## math; T-114 tailgate crumbs join them). `table_share` and `roof_share`
+## round to integers; the ground class takes the exact remainder, so the
+## quotas always sum to the budget. At the shipped target 40 with no elders
+## and no visitor cars: 36 tables / 3 ground / 1 roof; in the real main scene
+## the 6 tailgate crumbs hold the budget at 34 → 31 / 2 / 1. Crumbs already
+## queued for deletion (a car released its crumb this frame) are dead for
+## accounting — never counted.
 func _quotas() -> Array[int]:
 	var hand_placed := 0
 	for crumb in _crumbs:
-		if is_instance_valid(crumb) and crumb.spot_index < 0:
+		if is_instance_valid(crumb) and not crumb.is_queued_for_deletion() \
+				and crumb.spot_index < 0:
 			hand_placed += 1
 	var budget := maxi(target_count - hand_placed, 0)
 	var table := roundi(table_share * budget)
@@ -194,12 +218,14 @@ func _free_class_indices(kind: int) -> Array[int]:
 	return picks
 
 
-## Live crumbs per kind — hand-placed crumbs (`spot_index` < 0) and stale
-## indices (a city array shrunk under live crumbs) belong to no class.
+## Live crumbs per kind — hand-placed crumbs (`spot_index` < 0), stale
+## indices (a city array shrunk under live crumbs) and crumbs already queued
+## for deletion (released by a car this frame) belong to no class.
 func _live_per_class() -> Array[int]:
 	var counts: Array[int] = [0, 0, 0]
 	for crumb in _crumbs:
-		if not is_instance_valid(crumb) or crumb.spot_index < 0 \
+		if not is_instance_valid(crumb) or crumb.is_queued_for_deletion() \
+				or crumb.spot_index < 0 \
 				or crumb.spot_index >= city.bread_spot_kinds.size():
 			continue
 		counts[city.bread_spot_kinds[crumb.spot_index]] += 1
@@ -211,18 +237,38 @@ func _live_per_class() -> Array[int]:
 ## (the hand-placed case `BreadCrumb` already supports): the crumb occupies no
 ## bread spot, but it joins `_crumbs` like any other, so it is
 ## respawn-accounted and its eaten signal flows through the same wiring.
-func drop_crumb(global_pos: Vector3) -> void:
+## (T-114) Gains the optional `favor_delta` stamp and returns the crumb, so a
+## hand-placer can keep its own reference: elder loaves call it bare (they are
+## paid for at share time, favor_delta 0) and the visitor cars' tailgate drops
+## pass `Game.favor_steal_visitor`, keeping the returned crumb to re-anchor or
+## free when the car moves on.
+func drop_crumb(global_pos: Vector3, favor_delta: int = 0) -> BreadCrumb:
 	var crumb: BreadCrumb = crumb_scene.instantiate()
 	crumb.spot_index = -1
+	crumb.favor_delta = favor_delta
 	crumb.eaten.connect(_on_crumb_eaten.bind(crumb))
 	add_child(crumb)
 	crumb.global_position = global_pos
 	_crumbs.append(crumb)
+	return crumb
+
+
+## (T-114) Forgets a hand-placed crumb its owner is about to free (a car
+## releasing its tailgate bread): erases it from `_crumbs` WITHOUT the eaten
+## bookkeeping — the crumb is gone, not eaten, so `living_crumbs()` never
+## walks a freed node and the hand-placed count stays honest for `_quotas`.
+func forget_crumb(crumb: BreadCrumb) -> void:
+	_crumbs.erase(crumb)
 
 
 func _spawn_at(spot_index: int) -> void:
 	var crumb: BreadCrumb = crumb_scene.instantiate()
 	crumb.spot_index = spot_index
+	## (T-114) The ownership stamp: café TABLE crumbs are the civilians' bread
+	## — stealing one books `Game.favor_steal_table`; GROUND and ROOF crumbs
+	## are gutter and roof spice, nobody's (favor_delta stays 0).
+	crumb.favor_delta = Game.favor_steal_table \
+			if city.bread_spot_kinds[spot_index] == City.BreadKind.TABLE else 0
 	crumb.eaten.connect(_on_crumb_eaten.bind(crumb))
 	add_child(crumb)
 	## Global, set after parenting (the drop_crumb pattern): to_global is a
@@ -239,6 +285,8 @@ func _on_crumb_eaten(amount: float, crumb: BreadCrumb) -> void:
 	_occupied.erase(crumb.spot_index)
 	eaten_count += 1
 	crumb_eaten.emit(amount)
+	if crumb.favor_delta != 0: ## (T-114) Owned bread books its theft; bare bread stays silent.
+		crumb_favor.emit(crumb.favor_delta)
 
 
 ## Fisher–Yates, seeded — deterministic initial spread per city seed.
