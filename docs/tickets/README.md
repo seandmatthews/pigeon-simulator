@@ -8,7 +8,8 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 **Sweep polish, waves W1–W8** — readability, flight feel and performance over
 the M1 slice. Schedule, phase goals and exit criteria:
 [`docs/ROADMAP.md`](../ROADMAP.md). M2 (the town-vs-visitors goal layer) is
-proposed but **not yet ticketed** — see [`DESIGN.md`](../DESIGN.md) →
+approved as a three-ticket sequence (2026-10-11) and its first ticket,
+T-113, is proposed below — see [`DESIGN.md`](../DESIGN.md) →
 Milestone 2; don't pull M2 work into sweep waves.
 
 ## Milestone 1 — vertical slice
@@ -117,6 +118,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-110 | [Reticle live refresh: 10 Hz → 30 Hz](T-110-reticle-live-refresh-30hz.md) | visual-design | 3 | 1 | done |
 | T-111 | [The bread globe: a pigeon-frame 3D bread finder replaces the 2D chevron pointer](T-111-bread-globe.md) | ui-ux | 4 | 3 | done |
 | T-112 | [Bread belongs at the tables: reweight the crumb spread to ~90% café tabletops, roofs rare](T-112-bread-at-the-tables.md) | worldbuilding | 4 | 2 | done |
+| T-113 | [The invasion has a uniform: citizens split into black-and-gold VISITORS, CIVILIAN locals and a rare cardinal-and-gold HOMETOWN SUPERFAN](T-113-citizen-classes.md) | worldbuilding | 4 | 3 | proposed |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since
@@ -125,17 +127,19 @@ been re-reviewed and fixed in their files (see the addendum at the end of
 fixes and commits). Tickets still go stale fast — re-verify a ticket's
 current-state section right before building it.
 
-## Milestone 2 — the town's pigeon (proposed, not yet ticketed)
+## Milestone 2 — the town's pigeon (3-ticket sequence approved by the owner 2026-10-11)
 
 Direction proposed 2026-10-01 — detail and the four open forks in
 [`DESIGN.md`](../DESIGN.md) → Milestone 2. Short version: the town gets memory
 and sides — befriend the locals (park elders first), drive off the rowdy
-visiting fans, game-day arc, real-US-city setting (Ames or Des Moines — US
-street conventions firm, city choice open), no quest machinery. The old M2
+visiting fans, game-day arc, real-US-city setting (Ames — fixed by the split;
+US street conventions firm), no quest machinery. The old M2
 sketch folds in where it serves that spine (hawk hazard, seagull rivals at the
 tailgates, districts as campus/main-street/tailgate palettes, landmark bonus
 targets, gamepad, settings, export builds); objectives & missions stay out.
-No M2 tickets until the forks are decided.
+The approved sequence: **T-113** citizen classes (first ticket, above) →
+**T-114** the favor economy → **T-115** the favor-max victory ending — both
+follow-ups are named in T-113 and forged in order after it lands.
 
 ## Suggested build order
 
