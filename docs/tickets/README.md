@@ -119,6 +119,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-111 | [The bread globe: a pigeon-frame 3D bread finder replaces the 2D chevron pointer](T-111-bread-globe.md) | ui-ux | 4 | 3 | done |
 | T-112 | [Bread belongs at the tables: reweight the crumb spread to ~90% café tabletops, roofs rare](T-112-bread-at-the-tables.md) | worldbuilding | 4 | 2 | done |
 | T-113 | [The invasion has a uniform: citizens split into black-and-gold VISITORS, CIVILIAN locals and a rare cardinal-and-gold HOMETOWN SUPERFAN](T-113-citizen-classes.md) | worldbuilding | 4 | 3 | done |
+| T-114 | [The favor economy: visitor splats earn the elders' favor, local blood and stolen crumbs spend it, and elder bread is bought with it](T-114-favor-economy.md) | worldbuilding | 4 | 3 | proposed |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since
@@ -137,9 +138,9 @@ US street conventions firm), no quest machinery. The old M2
 sketch folds in where it serves that spine (hawk hazard, seagull rivals at the
 tailgates, districts as campus/main-street/tailgate palettes, landmark bonus
 targets, gamepad, settings, export builds); objectives & missions stay out.
-The approved sequence: **T-113** citizen classes (first ticket, above) →
-**T-114** the favor economy → **T-115** the favor-max victory ending — both
-follow-ups are named in T-113 and forged in order after it lands.
+The approved sequence: **T-113** citizen classes (first ticket, above, done) →
+**T-114** the favor economy (proposed above, ticket 2) → **T-115** the favor-max
+victory ending — named in T-113 and forged in order after each lands.
 
 ## Suggested build order
 
