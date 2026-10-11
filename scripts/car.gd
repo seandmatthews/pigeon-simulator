@@ -51,6 +51,25 @@ var mode: Mode = Mode.TRAFFIC
 var block_center: Vector3 = Vector3.ZERO
 var body_color: Color = BODY_PALETTE[0] ## The calm body albedo for every class — the spawner assigns it before _ready (the class draw for VISITOR/SUPERFAN, the palette round-robin for CIVILIAN).
 var citizen_class: CitizenClass.Kind = CitizenClass.Kind.CIVILIAN ## The worn uniform (T-113) — assigned by the spawner before _ready, never re-rolled on recycle.
+## (T-114) The tailgate pair, spawner-assigned before _ready (the
+## `elder.bread_spawner` pattern): `has_cooler` shows the scene's hidden
+## cooler meshes on every visitor car — parked AND traffic, they are
+## transporting their tailgate — and `bread_spawner` is the service the
+## tailgate CRUMB drops through while this car is parked. Null (bare rigs
+## without a spawner) means no crumb, ever.
+var has_cooler: bool = false
+var bread_spawner: BreadSpawner = null
+## This parked car's anchored tailgate crumb — freed and re-dropped by
+## `_redress_crumb`, released when the car leaves the parking spot (or the
+## tree). The crumb lives under the bread spawner, not under the car, so the
+## reference is what ties it to this car.
+var _tailgate_crumb: BreadCrumb = null
+## (T-114) Where the tailgate crumb lands in car-local space: 0.45 m off the
+## body's right side (body half-width 0.95), 0.75 m back toward the tailgate,
+## at gutter height plus the 0.06 crumb lift — within the grounded eat reach
+## of a pigeon waddling the road edge. Derived from the car's own transform
+## at drop time: zero RNG on any stream.
+const TAILGATE_CRUMB_OFFSET := Vector3(1.4, 0.06, 0.75)
 var pace: float = 1.0 ## Per-car speed factor (0.9–1.15) so traffic spreads out.
 ## Honks taken so far — evidence for tests and the autoplay DONE line.
 var honk_count: int = 0
@@ -66,6 +85,7 @@ var _has_via := false
 @onready var _body_mesh: MeshInstance3D = $Visual/Body
 @onready var _flag_pole: MeshInstance3D = $Visual/FlagPole
 @onready var _flag_banner: MeshInstance3D = $Visual/FlagBanner
+@onready var _cooler: Node3D = $Visual/Cooler
 @onready var _front_zone: Area3D = $FrontZone
 
 
@@ -86,6 +106,8 @@ func _ready() -> void:
 			_show_flag(CitizenClass.TEAM_GOLD)
 		_:
 			pass ## CIVILIAN — exactly the pre-T-113 look: no flag.
+	if has_cooler:
+		_cooler.visible = true ## (T-114) The visitor's tailgate rides along — visual only.
 
 
 ## Raises the tailgate flag (T-113) and paints the banner in the pairing
@@ -219,8 +241,10 @@ func honk() -> void:
 ## with the old ring (T-089): a stale `_via_point` is tens of metres away on
 ## the previous loop, and steering at it drags the fresh arrival off its new
 ## lane into the curb — the wedge behind recycled-car clots.
+## (T-114) The tailgate crumb dies with the parking too: the car drove off.
 func recycle_to(pos: Vector3, new_path: PackedVector3Array, new_block: Vector3) -> void:
 	mode = Mode.TRAFFIC
+	_release_crumb()
 	global_position = pos
 	path = new_path
 	block_center = new_block
@@ -231,6 +255,9 @@ func recycle_to(pos: Vector3, new_path: PackedVector3Array, new_block: Vector3) 
 
 ## Teleport-recycle into a curb space (spawner, T-008): parked cars sit where
 ## they are put, aligned with the adjacent lane's flow.
+## (T-114) Parking anchors the tailgate bread: parked visitor cars re-anchor
+## (or drop fresh) through `_redress_crumb` — recycles land the steal surface
+## at the new curb, spawner populate drops the first ones.
 func park_at(pos: Vector3, yaw: float, new_block: Vector3) -> void:
 	mode = Mode.PARKED
 	global_position = pos
@@ -238,6 +265,55 @@ func park_at(pos: Vector3, yaw: float, new_block: Vector3) -> void:
 	velocity = Vector3.ZERO
 	path = PackedVector3Array()
 	block_center = new_block
+	_redress_crumb()
+
+
+## (T-114) Anchors this car's tailgate crumb: free the stale one if it still
+## exists, then drop a fresh one at the gutter through the bread spawner —
+## stamped `Game.favor_steal_visitor`, so eating it books the steal. No-op
+## unless the spawner handed over a bread service, this car wears the visitor
+## uniform and it is actually parked. Idempotent end to end: the spawner's
+## deferred dressing pass only calls it when `tailgate_crumb_alive()` is
+## false, so the two paths can never double-drop.
+func _redress_crumb() -> void:
+	if bread_spawner == null or citizen_class != CitizenClass.Kind.VISITOR \
+			or mode != Mode.PARKED:
+		return
+	_release_crumb()
+	_tailgate_crumb = bread_spawner.drop_crumb(to_global(TAILGATE_CRUMB_OFFSET),
+			Game.favor_steal_visitor)
+
+
+## True while the anchored tailgate crumb is a live, un-queued node — a
+## queue-freed crumb (released by us, or wiped by the bread spawner's
+## populate) does not count as anchored.
+func tailgate_crumb_alive() -> bool:
+	return _tailgate_crumb != null and is_instance_valid(_tailgate_crumb) \
+			and not _tailgate_crumb.is_queued_for_deletion()
+
+
+## (T-114) Public release for the spawner: frees the anchored tailgate crumb
+## and erases it from the bread service's books BEFORE the car itself is
+## freed — a queue-freed crumb must never linger in `BreadSpawner._crumbs`.
+func release_tailgate() -> void:
+	_release_crumb()
+
+
+## (T-114) Frees the anchored tailgate crumb, if any — the car drove off, or
+## is being torn down and must not orphan its bread. The erase through
+## `forget_crumb` keeps the spawner's list free of freed nodes.
+func _release_crumb() -> void:
+	if _tailgate_crumb != null and is_instance_valid(_tailgate_crumb):
+		if bread_spawner != null and is_instance_valid(bread_spawner):
+			bread_spawner.forget_crumb(_tailgate_crumb)
+		_tailgate_crumb.queue_free()
+	_tailgate_crumb = null
+
+
+## (T-114) The crumb lives under the bread spawner, not under this car — any
+## teardown releases it so it never outlives its owner.
+func _exit_tree() -> void:
+	_release_crumb()
 
 
 ## Adopts the loop leg the car sits on and targets its far corner. Spawning or

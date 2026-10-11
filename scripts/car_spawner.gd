@@ -30,8 +30,16 @@ signal car_splatted(car: Car)
 @export var recycle_probe_count: int = 5 ## Evenly spaced loop fractions probed for a follow-gap-clear traffic rejoin point before the random draw (T-089).
 @export var ring_traffic_soft_cap: int = 3 ## Recycled traffic skips rings already holding this many traffic cars while any band ring is lighter (T-089).
 
+@export_group("Wiring")
+@export var bread_spawner_path: NodePath ## (T-114) The bread service tailgate crumbs drop through — Main wires the path.
+
 ## Car honks this run — the autoplay DONE line reports it.
 var honk_count: int = 0
+
+## (T-114) The bread service the tailgate crumbs drop through — resolved from
+## `bread_spawner_path` in _ready; the sim harness assigns directly. Null
+## (bare rigs) means the fleet grows coolers but no crumbs.
+var bread_spawner: BreadSpawner
 
 var _cars: Array[Car] = []
 
@@ -42,6 +50,14 @@ var _cars: Array[Car] = []
 var _class_slots_left: int = 0
 var _visitors_left: int = 0
 var _superfans_left: int = 0
+
+
+func _ready() -> void:
+	# (T-114) Resolve the tailgate bread service BEFORE super()'s populate —
+	# the parked-visitor cars it seeds anchor their crumbs during _populate.
+	if bread_spawner == null and not bread_spawner_path.is_empty():
+		bread_spawner = get_node(bread_spawner_path) as BreadSpawner
+	super()
 
 
 func _init() -> void:
@@ -64,6 +80,7 @@ func living_cars() -> Array[Car]:
 func _populate() -> void:
 	for car in _cars:
 		if is_instance_valid(car):
+			car.release_tailgate() ## (T-114) The anchored bread dies with its car — erased, not orphaned.
 			car.queue_free()
 	_cars.clear()
 	if city == null or player == null:
@@ -91,6 +108,13 @@ func _populate() -> void:
 			continue
 		_spawn_parked(block, global_spot, spot.yaw, made_parked)
 		made_parked += 1
+	## (T-114) The deferred tailgate dressing pass: one idle frame after the
+	## populate. BreadSpawner's own populate may run later in the SAME
+	## `regenerated` emission and queue-free every crumb it re-seeds around;
+	## cars whose anchored crumb died in that wipe re-anchor here, and the
+	## alive-check keeps this pass from ever double-dropping over `park_at`'s
+	## own drops.
+	_dress_tailgates.call_deferred()
 
 
 ## Puts a car that drifted beyond the recycle radius back into the spawn band
@@ -136,6 +160,7 @@ func _spawn_traffic(block_local: Vector3, index: int) -> void:
 	_assign_class(car)
 	if car.citizen_class == CitizenClass.Kind.CIVILIAN:
 		car.body_color = Car.BODY_PALETTE[index % Car.BODY_PALETTE.size()]
+	_assign_tailgate(car) ## (T-114) The cooler rides traffic AND parked visitors.
 	car.pace = _rng.randf_range(0.9, 1.15)
 	var loop := _loop_for(block_local)
 	add_child(car)
@@ -152,10 +177,33 @@ func _spawn_parked(block_local: Vector3, pos: Vector3, yaw: float, index: int) -
 	_assign_class(car)
 	if car.citizen_class == CitizenClass.Kind.CIVILIAN:
 		car.body_color = Car.BODY_PALETTE[index % Car.BODY_PALETTE.size()]
+	_assign_tailgate(car) ## (T-114) Cooler + bread service; park_at anchors the crumb.
 	add_child(car)
 	car.park_at(pos, yaw, city.to_global(block_local))
 	car.splatted.connect(_on_car_splatted)
 	_cars.append(car)
+
+
+## (T-114) Hands a freshly built car its tailgate state before _ready: visitor
+## cars haul the cooler (parked AND traffic) and — when a bread service is
+## wired — anchor their stealable crumb while parked. Civilians and superfans
+## haul nothing.
+func _assign_tailgate(car: Car) -> void:
+	car.has_cooler = car.citizen_class == CitizenClass.Kind.VISITOR
+	car.bread_spawner = bread_spawner
+
+
+## (T-114) The deferred tailgate dressing pass: re-anchors every parked
+## visitor car whose crumb died since its park_at (the BreadSpawner populate
+## wiping-and-reseeding in the same `regenerated` emission is the one case).
+## Cars whose crumb is still valid are skipped, so this pass and `park_at`
+## can never double-drop.
+func _dress_tailgates() -> void:
+	for car in _cars:
+		if is_instance_valid(car) and car.mode == Car.Mode.PARKED \
+				and car.citizen_class == CitizenClass.Kind.VISITOR \
+				and not car.tailgate_crumb_alive():
+			car._redress_crumb()
 
 
 ## The seeded citizen-class draw (T-113): the class counts are the share

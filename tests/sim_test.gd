@@ -92,6 +92,7 @@ var _splat_events: Array[Dictionary] = [] ## {target, velocity} per splatted hit
 var _tourist_relay: int = 0 ## tourist_splatted relays caught from the spawner under test (T-007).
 var _car_relay: int = 0 ## car_splatted relays caught from the spawner under test (T-008).
 var _score_events: Array[Dictionary] = [] ## hit_scored payloads caught from the Game autoload (T-009).
+var _crumb_favor_events: Array[int] = [] ## (T-114) crumb_favor relays caught from the spawner under test.
 var _main_game: MainGame ## The real main.tscn instance the T-010 flow scenarios share.
 var _bread_shared: Array[Dictionary] = [] ## bread_shared relays caught from the elder spawner under test (T-020).
 var _regen_relay: int = 0 ## regenerated relays caught from the city under restart (T-033) — signal counters survive inside lambdas only as members.
@@ -199,6 +200,9 @@ func _run_scenarios() -> void:
 	await _scenario_cars_recycle() ## T-054 — the end-to-end timer-driven car recycle closes its contract.
 	await _scenario_citizen_classes_spawn_deterministic() ## T-113 — the class multiset is a seeded law on both rigs.
 	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
+	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
+	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
+	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
 	await _scenario_scoring_values()
 	await _scenario_high_score_persists()
 	await _scenario_highscore_save_throttled() ## T-073 — directly after the persists scenario: same unpaused tree, no live Main.
@@ -2613,6 +2617,7 @@ func _scenario_elder_shares_bread_after_hangout() -> void:
 	var rig := _add_elder_rig()
 	var spawner: ElderSpawner = rig[0]
 	var crumbs: BreadSpawner = rig[1]
+	Game.favor = 8 ## (T-114) Staged explicitly — the rig inherits whatever the previous scenario left otherwise; 8 funds the share with change to spare.
 	await _wait_frames(4)
 	var elders := spawner.living_elders()
 	if elders.is_empty():
@@ -2656,6 +2661,9 @@ func _scenario_elder_shares_bread_after_hangout() -> void:
 	var still_parked := _player.is_grounded and _player.position.distance_to(park) < 0.5
 	var shared_once: bool = _bread_shared.size() == 1 and _bread_shared[0].elder == elder \
 			and int(_bread_shared[0].crumbs) == elder.crumbs_per_share
+	## (T-114) The share IS the purchase: the exact `elder_loaf_cost ×
+	## crumbs_per_share` favor left the balance at the share.
+	var spend_ok: bool = Game.favor == 8 - Game.elder_loaf_cost * elder.crumbs_per_share
 	var arm_cooldown_pins := still_parked and elder._arm_raise < 0.1 \
 			and elder._trust >= elder.trust_needed
 	var live := 0
@@ -2666,13 +2674,14 @@ func _scenario_elder_shares_bread_after_hangout() -> void:
 		if flat.length() <= elder.toss_distance + elder.toss_spread + 0.05:
 			live += 1
 			ordinary = ordinary and crumb.restore == 30.0 and crumb.spot_index == -1
+			ordinary = ordinary and crumb.favor_delta == 0 ## (T-114) Elder loaves stay unowned — paid at the share.
 	_check("elder_shares_bread_after_hangout",
 			parked and banked > 1.5 and decayed > 0.1 and decayed < banked - 0.5
-					and shared_once and live >= 2 and ordinary
+					and shared_once and live >= 2 and ordinary and spend_ok
 					and arm_meters_trust and arm_down_while_away and arm_cooldown_pins,
-			"parked=%s trust %.2f→%.2f decay, relays %d, live crumbs in reach %d, ordinary=%s, arm %.2f→%.2f rising, absent max %.2f, post-share arm %.2f at trust %.2f" % [
+			"parked=%s trust %.2f→%.2f decay, relays %d, live crumbs in reach %d, ordinary=%s, spend 8→%d ok=%s, arm %.2f→%.2f rising, absent max %.2f, post-share arm %.2f at trust %.2f" % [
 					parked, banked, decayed, _bread_shared.size(), live, ordinary,
-					raise_banked, raise_later, raise_absent_max,
+					Game.favor, spend_ok, raise_banked, raise_later, raise_absent_max,
 					elder._arm_raise, elder._trust])
 	spawner.free()
 	(rig[1] as Node).free()
@@ -2684,6 +2693,7 @@ func _scenario_elder_no_bread_airborne() -> void:
 	var rig := _add_elder_rig()
 	var spawner: ElderSpawner = rig[0]
 	var crumbs: BreadSpawner = rig[1]
+	Game.favor = 0 ## (T-114) Staged explicitly — a broke pigeon could never have paid anyway.
 	await _wait_frames(4)
 	var elders := spawner.living_elders()
 	if elders.is_empty():
@@ -2714,6 +2724,7 @@ func _scenario_elder_cooldown_blocks_second_share() -> void:
 	var rig := _add_elder_rig()
 	var spawner: ElderSpawner = rig[0]
 	var crumbs: BreadSpawner = rig[1]
+	Game.favor = 40 ## (T-114) Staged explicitly — enough favor for both shares and their spends.
 	await _wait_frames(4)
 	var elders := spawner.living_elders()
 	if elders.is_empty():
@@ -5746,6 +5757,374 @@ func _scenario_citizen_classes_readable() -> void:
 			"visitors=%s (finger_seen=%s) superfans=%s civilians=%s · cars v=%s s=%s c=%s · contrast=%s" % [
 					visitors_ok, finger_seen, superfan_ok, civilian_ok,
 					visitor_cars_ok, superfan_cars_ok, civilian_cars_ok, contrast_ok])
+
+
+## --- scenarios (T-114 favor economy) -----------------------------------------
+
+
+## The favor book pays through the REAL chain (T-114), through the real main
+## scene (the instanced-Main pattern, its own corner). Boot leg pins the main
+## scene's spread at the T-114 law: the 6 parked-visitor tailgate crumbs are
+## hand-placed, the spawned budget holds at 34 → 31 TABLE / 2 GROUND / 1 ROOF,
+## 40 living crumbs total (the `restart_resets` contract intact). The splat
+## legs force each share knob to a single-class rig (the
+## `citizen_classes_readable` pattern) and re-populate, then drive the relay
+## at a REAL living node — visitor, civilian and superfan tourists, then
+## parked visitor and civilian cars: favor moves by EXACTLY that class's
+## export every leg (asserted against the exports, never literals), the
+## cumulative sum exact, and a synthetic `Game.add_tourist_hit` (the coach
+## leg's entry) stays favor-silent. A landing between legs zeroes the combo
+## while favor stands still — splat favor never touches the combo. The HUD
+## legs drive `Game.add_favor` directly and read the label text, the
+## gain/loss tints and the 2.5 s game-time expiry, then the restart_run
+## reset. The pigeon is held airborne throughout so no elder trust can bank
+## and no crumb can feed — the only favor movements are the driven ones.
+func _scenario_splat_favor_follows_citizen_class() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	var tourists: TouristSpawner = main_game.get_node("TouristSpawner") as TouristSpawner
+	var cars: CarSpawner = main_game.get_node("CarSpawner") as CarSpawner
+	main_game.position = Vector3(6500.0, 0.0, -6500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	var pigeon: Player = main_game.player
+	var hover: Vector3 = main_game.city.to_local(main_game.city.spawn_point) \
+			+ Vector3(0.0, 60.0, 0.0)
+	pigeon.reset_flight(hover) ## Airborne for the whole scenario — no trust, no crumbs eaten.
+	await _wait_frames(6)
+	var label: Label = main_game.favor_label
+	## Boot leg: the shipped-knob spread.
+	var tally := _live_tally(main_game.city, main_game.bread_spawner)
+	var tailgates := 0
+	for crumb in main_game.bread_spawner.living_crumbs():
+		if crumb.spot_index < 0 and crumb.favor_delta == Game.favor_steal_visitor:
+			tailgates += 1
+	var boot_ok: bool = tally[City.BreadKind.TABLE] == 31 \
+			and tally[City.BreadKind.GROUND] == 2 and tally[City.BreadKind.ROOF] == 1 \
+			and tailgates == roundi(main_game.car_spawner.target_parked
+					* main_game.car_spawner.visitor_share) \
+			and main_game.bread_spawner.living_crumbs().size() \
+					== main_game.bread_spawner.target_count \
+			and label.text == "Favor: 0"
+	## The synthetic scoring entry stays favor-silent (the T-060 coach leg's call).
+	Game.add_tourist_hit(main_game.city.spawn_point)
+	var synthetic_silent := Game.favor == 0
+	## Splat legs — tourist classes in turn.
+	var expected := 0
+	var visitor_ok := false
+	tourists.visitor_share = 1.0
+	tourists.superfan_share = 0.0
+	tourists._populate()
+	await _wait_frames(2)
+	for tourist in tourists.living_tourists():
+		if tourist.citizen_class == CitizenClass.Kind.VISITOR:
+			expected += Game.favor_visitor_splat
+			tourist.on_splatted(Vector3(3.0, -5.0, 0.0)) ## The duck-typed entry the drop calls.
+			visitor_ok = Game.favor == expected
+			break
+	var civilian_ok := false
+	tourists.visitor_share = 0.0
+	tourists.superfan_share = 0.0
+	tourists._populate()
+	await _wait_frames(2)
+	for tourist in tourists.living_tourists():
+		if tourist.citizen_class == CitizenClass.Kind.CIVILIAN:
+			expected += Game.favor_civilian_splat
+			tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
+			civilian_ok = Game.favor == expected
+			break
+	var superfan_ok := false
+	tourists.visitor_share = 0.0
+	tourists.superfan_share = 1.0
+	tourists._populate()
+	await _wait_frames(2)
+	for tourist in tourists.living_tourists():
+		if tourist.citizen_class == CitizenClass.Kind.SUPERFAN:
+			expected += Game.favor_superfan_splat
+			tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
+			superfan_ok = Game.favor == expected
+			break
+	## A landing between legs: the combo zeroes while the favor balance stands.
+	main_game.player.grounding_changed.emit(true)
+	var landing_ok := Game.combo_multiplier() == 0 and Game.favor == expected
+	## Splat legs — parked car classes in turn.
+	var visitor_car_ok := false
+	cars.visitor_share = 1.0
+	cars.superfan_share = 0.0
+	cars._populate()
+	await _wait_frames(2)
+	for car in cars.living_cars():
+		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
+			expected += Game.favor_visitor_car_splat
+			car.on_splatted(Vector3(0.0, -5.0, 0.0))
+			visitor_car_ok = Game.favor == expected
+			break
+	var civilian_car_ok := false
+	cars.visitor_share = 0.0
+	cars.superfan_share = 0.0
+	cars._populate()
+	await _wait_frames(2)
+	for car in cars.living_cars():
+		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.CIVILIAN:
+			expected += Game.favor_civilian_car_splat
+			car.on_splatted(Vector3(0.0, -5.0, 0.0))
+			civilian_car_ok = Game.favor == expected
+			break
+	var legs_ok: bool = visitor_ok and civilian_ok and superfan_ok and landing_ok \
+			and visitor_car_ok and civilian_car_ok and synthetic_silent
+	## HUD legs — drive the autoload directly, read the label: rest form,
+	## gold gain note, the 2.5 s game-time expiry, red loss note, restart reset.
+	## The splat legs left a delta note live — hold airborne past its 2.5 s
+	## window first so the rest read is the genuine at-rest form.
+	var rest_color := MainGame.FAVOR_REST_COLOR ## The column's scene fill.
+	var high := main_game.city.to_local(main_game.city.spawn_point) \
+			+ Vector3(0.0, 60.0, 0.0)
+	for _i in 190: ## 2.5 s of game time at the fixed 60 Hz + margin — held airborne.
+		pigeon.reset_flight(high)
+		await get_tree().physics_frame
+	var rest_ok: bool = label.text == "Favor: %d" % Game.favor \
+			and label.get_theme_color("font_color").is_equal_approx(rest_color)
+	Game.add_favor(6)
+	var gain_ok: bool = label.text == "Favor: %d  (+6)" % Game.favor \
+			and label.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_GAIN_COLOR)
+	for _i in 190: ## The expiry: back to the rest text and the rest tint.
+		pigeon.reset_flight(high)
+		await get_tree().physics_frame
+	var expired_ok: bool = label.text == "Favor: %d" % Game.favor \
+			and label.get_theme_color("font_color").is_equal_approx(rest_color)
+	Game.add_favor(-1)
+	var loss_ok: bool = label.text == "Favor: %d  (-1)" % Game.favor \
+			and label.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_LOSS_COLOR)
+	main_game.restart_run()
+	var restart_ok: bool = label.text == "Favor: 0" \
+			and label.get_theme_color("font_color").is_equal_approx(rest_color)
+	var final_text: String = label.text ## Read before the free below.
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("splat_favor_follows_citizen_class",
+			boot_ok and legs_ok and rest_ok and gain_ok and expired_ok and loss_ok
+					and restart_ok,
+			"boot 31/2/1+6=%s synthetic-silent=%s legs v=%s c=%s s=%s landing=%s vc=%s cc=%s · HUD rest=%s gain=%s expired=%s loss=%s restart=%s ('%s')" % [
+					boot_ok, synthetic_silent, visitor_ok, civilian_ok, superfan_ok,
+					landing_ok, visitor_car_ok, civilian_car_ok, rest_ok, gain_ok,
+					expired_ok, loss_ok, restart_ok, final_text])
+
+
+## The elder gate (T-114), on the `_add_elder_rig` rig with favor STAGED at
+## setup: with `Game.favor = 0`, a grounded pigeon hangs the full
+## `trust_needed` + 5 s margin — trust pins at `trust_needed` but NO share
+## fires, no crumbs land, no favor is charged; then one
+## `Game.add_favor(elder_loaf_cost * crumbs_per_share)` unblocks exactly one
+## share within 3 physics frames (trust is still pinned — the gate was the
+## only blocker) and favor reads exactly `elder_loaf_cost * crumbs_per_share`
+## lower afterwards — the spend booked at the share, not the eat.
+func _scenario_elder_bread_gates_on_favor() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.favor = 0 ## (T-114) Staged explicitly — the rig inherits otherwise.
+	var rig := _add_elder_rig()
+	var spawner: ElderSpawner = rig[0]
+	var crumbs: BreadSpawner = rig[1]
+	await _wait_frames(4)
+	var elders := spawner.living_elders()
+	if elders.is_empty():
+		_check("elder_bread_gates_on_favor", false, "no elder spawned")
+		spawner.free()
+		(rig[1] as Node).free()
+		return
+	var elder: Elder = elders[0]
+	var park := elder.global_position - elder.global_transform.basis.z * 2.6
+	park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
+	await _set_up(true, park, Vector3.ZERO)
+	await _await_grounded(90)
+	var parked := _player.is_grounded and _player.position.distance_to(park) < 0.5
+	var pinned := false
+	for _i in int(elder.trust_needed * 60.0) + 300: ## trust_needed + the 5 s margin.
+		await get_tree().physics_frame
+		pinned = elder._trust >= elder.trust_needed - 0.001
+	var broke_ok: bool = parked and pinned and _bread_shared.is_empty() \
+			and crumbs.living_crumbs().is_empty() and elder.share_count == 0 \
+			and Game.favor == 0
+	Game.add_favor(Game.elder_loaf_cost * elder.crumbs_per_share) ## The gate money.
+	var favor_after_pay := Game.favor
+	var trust_at_pay := elder._trust ## Pinned — the gate was the only blocker.
+	await _wait_frames(3) ## The share fires within 3 physics frames.
+	## The share's own reset signature: trust was pinned at the pay, and the
+	## share has since zeroed it (the post-share refill is single frames).
+	var spent_ok: bool = _bread_shared.size() == 1 and _bread_shared[0].elder == elder \
+			and int(_bread_shared[0].crumbs) == elder.crumbs_per_share \
+			and trust_at_pay >= elder.trust_needed \
+			and elder._trust < elder.trust_needed \
+			and crumbs.living_crumbs().size() == elder.crumbs_per_share \
+			and Game.favor == favor_after_pay - Game.elder_loaf_cost * elder.crumbs_per_share
+	_check("elder_bread_gates_on_favor", broke_ok and spent_ok,
+			"parked=%s trust pinned=%s (%.2f) broke: relays %d crumbs %d favor %d charged=%s · paid: shared=%d favor %.0f→%.0f (spend %d)" % [
+					parked, pinned, elder._trust, _bread_shared.size(),
+					crumbs.living_crumbs().size(), Game.favor, Game.favor != 0,
+					_bread_shared.size(), float(favor_after_pay), float(Game.favor),
+					Game.elder_loaf_cost * elder.crumbs_per_share])
+	spawner.free()
+	(rig[1] as Node).free()
+
+
+## The steal surfaces (T-114), bare rigs over a real City, favor staged by
+## `reset_run()`: a live TABLE crumb eaten grounded (the tabletop feed path)
+## emits `crumb_favor` with exactly `Game.favor_steal_table` and the Main
+## wiring (connect → `Game.add_favor`) books it; a hand-dropped
+## `drop_crumb(pos, Game.favor_steal_visitor)` crumb eaten the same grounded
+## way pays exactly `+favor_steal_visitor`; an ordinary GROUND crumb pays 0
+## and emits nothing. Then the real tailgate surface on a `CarSpawner` rig at
+## the shipped knobs: the scenario's own tally of living parked VISITOR cars
+## (the exact integer quota of the knobs) equals the favor-marked crumb
+## count, and every crumb sits at the documented gutter offset in its own
+## car's frame — 0.45 m off the 0.95 m half-width body (the ≥ 0.45 m leg),
+## 0.75 m back, at ground + the 0.06 lift, body-surface distance inside
+## [0.45, 1.0] m — one crumb per car, bijection enforced. A forced
+## `_recycle_far` re-anchor keeps the law: one crumb per living parked
+## visitor after the shuffle. Zero RNG is structural (placement derives from
+## the car transforms) — the seeded class multisets stay byte-identical via
+## `citizen_classes_spawn_deterministic`, which re-runs green in every full
+## suite pass.
+func _scenario_bread_steal_favor_deltas() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run() ## Favor 0; the legs assert exact deltas against the exports.
+	var rig := BreadSpawner.new()
+	rig.city = _city
+	rig.respawn_interval = 60.0 ## No top-ups inside the scenario.
+	add_child(rig)
+	await _wait_frames(4)
+	_crumb_favor_events.clear()
+	rig.crumb_favor.connect(func(delta: int) -> void: _crumb_favor_events.append(delta))
+	rig.crumb_favor.connect(Game.add_favor) ## The Main wiring, on the bare rig.
+	## Leg A — the TABLE steal through the real tabletop feed path.
+	var table_crumb: BreadCrumb = null
+	var table_ordinal := -1
+	for crumb in rig.living_crumbs():
+		if crumb.spot_index >= 0 \
+				and _city.bread_spot_kinds[crumb.spot_index] == City.BreadKind.TABLE:
+			table_crumb = crumb
+			table_ordinal = 0
+			for i in crumb.spot_index:
+				if _city.bread_spot_kinds[i] == City.BreadKind.TABLE:
+					table_ordinal += 1
+			break
+	var table_ok := false
+	if table_crumb != null:
+		var cafe_rig := CafeSpawner.new()
+		cafe_rig.city = _city
+		add_child(cafe_rig)
+		await _wait_frames(4) ## The tabletop must stand before the drop (the distribution scenario's physical leg).
+		var cafe: Transform3D = _city.cafe_spots[table_ordinal]
+		var spot_global := _city.to_global(_city.bread_spots[table_crumb.spot_index])
+		var toward := -cafe.basis.x ## From the crumb back across the tabletop.
+		var walk_dir := -toward
+		await _set_up(true, spot_global + toward * 0.6 + Vector3(0.0, 0.9, 0.0),
+				Vector3.ZERO, rad_to_deg(atan2(-walk_dir.x, -walk_dir.z)))
+		await _await_grounded(150)
+		Input.action_press("pitch_up") ## The waddle-in drive; the feed may fire on the settle frame.
+		for _i in 120:
+			await get_tree().physics_frame
+			table_ok = not is_instance_valid(table_crumb) \
+					and Game.favor == Game.favor_steal_table \
+					and _crumb_favor_events == [Game.favor_steal_table]
+			if table_ok:
+				break
+		Input.action_release("pitch_up")
+		cafe_rig.free()
+	else:
+		_check("bread_steal_favor_deltas", false, "no live TABLE crumb on the rig")
+	## Leg B — the visitor steal: a favor-stamped drop eaten grounded pays +.
+	await _set_up(false, Vector3(0.0, 0.4, 1.8), Vector3.ZERO) ## The bread_eating recipe.
+	await _await_grounded(90)
+	var favor_b := Game.favor
+	var steal_crumb := rig.drop_crumb(Vector3(0.0, 0.16, 0.0), Game.favor_steal_visitor)
+	await _hold("pitch_up", 90) ## Waddle in (facing -Z, crumb ahead).
+	var steal_ok: bool = not is_instance_valid(steal_crumb) \
+			and Game.favor == favor_b + Game.favor_steal_visitor \
+			and _crumb_favor_events == [Game.favor_steal_table, Game.favor_steal_visitor]
+	## Leg C — the GROUND control: an ordinary crumb pays 0 and emits nothing.
+	var favor_c := Game.favor
+	var plain_crumb := rig.drop_crumb(_player.global_position \
+			- _player.transform.basis.z * 1.2 + Vector3(0.0, 0.1, 0.0))
+	await _hold("pitch_up", 90)
+	var plain_ok: bool = not is_instance_valid(plain_crumb) \
+			and Game.favor == favor_c \
+			and _crumb_favor_events == [Game.favor_steal_table, Game.favor_steal_visitor]
+	## Leg D — the real tailgate surface: parked VISITOR cars anchor the crumbs.
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 25.0, 0.0),
+			Vector3.ZERO)
+	await _wait_frames(2)
+	var car_rig := CarSpawner.new()
+	car_rig.city = _city
+	car_rig.player = _player
+	car_rig.bread_spawner = rig ## The harness assigns directly (the elder-rig pattern).
+	add_child(car_rig)
+	await _wait_frames(6) ## Populate + the deferred dressing pass.
+	var parked_visitors := 0
+	for car in car_rig.living_cars():
+		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
+			parked_visitors += 1
+	var tailgate_crumbs: Array[BreadCrumb] = []
+	for crumb in rig.living_crumbs():
+		if crumb.favor_delta == Game.favor_steal_visitor:
+			tailgate_crumbs.append(crumb)
+	var count_ok: bool = parked_visitors == tailgate_crumbs.size() \
+			and parked_visitors == roundi(float(car_rig.target_parked) * car_rig.visitor_share)
+	var geometry_ok := count_ok
+	var claimed := {} ## car instance_id -> one crumb each — the bijection half.
+	for crumb in tailgate_crumbs:
+		var nearest: Car = null
+		var best := INF
+		for car in car_rig.living_cars():
+			if car.mode != Car.Mode.PARKED:
+				continue
+			var d := crumb.global_position.distance_to(car.global_position)
+			if d < best:
+				best = d
+				nearest = car
+		if nearest == null or nearest.citizen_class != CitizenClass.Kind.VISITOR \
+				or claimed.has(nearest.get_instance_id()):
+			geometry_ok = false
+			break
+		claimed[nearest.get_instance_id()] = true
+		## The documented gutter offset, read in the car's own frame: 0.45 m
+		## off the 0.95 m half-width body, 0.75 m back, ground + 0.06 lift.
+		## The body-surface distance lands inside [0.45, 1.0] m — off the
+		## body, never buried into the car.
+		var local := nearest.to_local(crumb.global_position)
+		var dx := maxf(absf(local.x) - 0.95, 0.0)
+		var dz := maxf(absf(local.z) - 2.2, 0.0)
+		var body_dist := sqrt(dx * dx + dz * dz)
+		geometry_ok = geometry_ok \
+				and absf(local.x) >= 1.35 and absf(local.x) <= 1.45 \
+				and absf(local.z) >= 0.65 and absf(local.z) <= 0.85 \
+				and absf(local.y) <= 0.25 \
+				and body_dist >= 0.44 and body_dist <= 1.0
+	## The recycle re-anchor: force the scan from beyond the recycle radius —
+	## re-parked visitors re-anchor, traffic-bound visitors release, and the
+	## one-crumb-per-parked-visitor law holds afterwards.
+	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
+	await _wait_frames(2)
+	car_rig._recycle_far()
+	await _wait_frames(6)
+	var parked_after := 0
+	for car in car_rig.living_cars():
+		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
+			parked_after += 1
+	var tailgates_after := 0
+	for crumb in rig.living_crumbs():
+		if crumb.favor_delta == Game.favor_steal_visitor:
+			tailgates_after += 1
+	var recycle_ok := tailgates_after == parked_after
+	_check("bread_steal_favor_deltas",
+			table_ok and steal_ok and plain_ok and count_ok and geometry_ok and recycle_ok,
+			"table=%s (favor %d, events %s) steal=%s plain=%s · tailgates %d/%d (quota %d) geometry=%s bijection=%d · recycle %d/%d" % [
+					table_ok, Game.favor, _crumb_favor_events, steal_ok, plain_ok,
+					tailgate_crumbs.size(), parked_visitors,
+					roundi(float(car_rig.target_parked) * car_rig.visitor_share),
+					geometry_ok, claimed.size(), tailgates_after, parked_after])
+	car_rig.free()
+	rig.free()
 
 
 ## --- scenarios (T-009 scoring & combos) -------------------------------------

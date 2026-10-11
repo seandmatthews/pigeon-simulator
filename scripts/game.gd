@@ -4,8 +4,10 @@ extends Node
 ## escalate ×1 → ×2 → ×3 …, reset by landing or by combo_window), the +50%
 ## style bonus for hits born of a fast/low dive, the high score persisted to
 ## user:// the moment a run FIRST beats it (T-073: further beats in the same
-## run only mark a dirty flag, flushed at game over or quit), and the Hunger
-## clock (T-005, moved off Main). Main wires the player and the city services
+## run only mark a dirty flag, flushed at game over or quit), the Hunger
+## clock (T-005, moved off Main) and the park elders' favor (T-114 — a
+## per-run currency the splat handlers, the bread steals and the elder share
+## all book through). Main wires the player and the city services
 ## into it and renders the results (HUD line, world-space popups); the autoload
 ## itself stays presentation-free so the sim harness can drive it headless.
 
@@ -13,6 +15,11 @@ extends Node
 ## applied, the world-space hit position (popups spawn there) and whether the
 ## style bonus applied. Main listens; the juice pass (T-013) may too.
 signal hit_scored(points: int, multiplier: int, pos: Vector3, style: bool)
+
+## (T-114) Fired on every favor change: the new balance and the delta that
+## moved it (negatives allowed). Main listens and renders the HUD meter; the
+## autoload itself stays presentation-free — it only books and emits.
+signal favor_changed(favor: int, delta: int)
 
 @export_group("Points")
 @export var tourist_points: int = 100 ## Splatting a tourist (DESIGN table — the skill shot).
@@ -27,6 +34,16 @@ signal hit_scored(points: int, multiplier: int, pos: Vector3, style: bool)
 @export var style_min_speed: float = 14.0 ## Poop release speed (m/s) that counts as "fast".
 @export var style_max_height: float = 6.0 ## Poop release height (m) that counts as "low".
 @export var style_release_window: float = 3.0 ## A release only styles hits resolved within this many seconds.
+
+@export_group("Favor (T-114)")
+@export var favor_visitor_splat: int = 3 ## Splatting a VISITOR pedestrian.
+@export var favor_visitor_car_splat: int = 6 ## The jackpot — a visitor vehicle.
+@export var favor_civilian_splat: int = -1 ## Friendly fire on a local pedestrian.
+@export var favor_civilian_car_splat: int = -2 ## Friendly fire on a local car.
+@export var favor_superfan_splat: int = -8 ## The rare loyalist — costs a lot, pedestrian or car.
+@export var favor_steal_table: int = -1 ## Stealing a café tabletop crumb (civilians' bread).
+@export var favor_steal_visitor: int = 1 ## Stealing a tailgate crumb (visitors' bread).
+@export var elder_loaf_cost: int = 2 ## Favor per crumb the elders share (a 2-crumb share spends 4).
 
 ## Where the high score persists. Sim scenarios redirect it so test runs never
 ## touch the real record.
@@ -50,6 +67,11 @@ func boot_muted(user_args: PackedStringArray) -> bool:
 
 ## Points this run so far — zeroed only by reset_run().
 var score: int = 0
+
+## The park elders' favor (T-114) — the per-run currency earned by splatting
+## black-and-gold visitors and stolen visitor bread, spent on the bread they
+## share, nicked by every local you hit or rob. Zeroed only by reset_run().
+var favor: int = 0
 
 ## Tourists splatted this run — the game-over score screen's breakdown (T-010).
 var tourist_hits: int = 0
@@ -129,6 +151,30 @@ func add_car_hit(pos: Vector3) -> int:
 	return _register_hit(car_points, pos)
 
 
+## (T-114) Books a favor delta — negatives allowed, no floor and no cap: a
+## floor would make civilian splats free once you are broke, and the ceiling
+## is T-115's to define. Emits favor_changed; Main renders the meter.
+func add_favor(delta: int) -> void:
+	favor += delta
+	favor_changed.emit(favor, delta)
+
+
+## (T-114) The favor a splat is worth: the per-class delta table, cars
+## included — the visitor vehicle is the jackpot and the superfan pays the
+## same on foot or on wheels. Books through add_favor and returns the delta.
+func splat_favor(kind: CitizenClass.Kind, vehicle: bool) -> int:
+	var delta: int
+	match kind:
+		CitizenClass.Kind.VISITOR:
+			delta = favor_visitor_car_splat if vehicle else favor_visitor_splat
+		CitizenClass.Kind.SUPERFAN:
+			delta = favor_superfan_splat
+		_:
+			delta = favor_civilian_car_splat if vehicle else favor_civilian_splat
+	add_favor(delta)
+	return delta
+
+
 ## Records the release conditions of a poop (Main relays player.pooped): the
 ## "fast/low dive" half of the style test is judged here, at drop time, not at
 ## impact — gravity gives every falling drop speed, but only a dive releases
@@ -149,8 +195,10 @@ func on_grounding_changed(grounded: bool) -> void:
 ## tourist/car breakdown and the combo, refills hunger. The high score is
 ## deliberately kept — it persists — and so is any not-yet-flushed beat (T-073:
 ## only the per-run beat bookkeeping clears; a dirty record still flushes).
+## (T-114) Favor is per-run state too — zeroed with the score.
 func reset_run() -> void:
 	score = 0
+	favor = 0
 	tourist_hits = 0
 	car_hits = 0
 	record_beaten = false

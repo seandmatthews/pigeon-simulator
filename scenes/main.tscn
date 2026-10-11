@@ -73,17 +73,18 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 8)
 unique_name_in_owner = true
 player_path = NodePath("../Player")
 
+[node name="CarSpawner" type="Node3D" parent="."]
+script = ExtResource("7_cars")
+city_path = NodePath("../City")
+player_path = NodePath("../Player")
+bread_spawner_path = NodePath("../BreadSpawner")
+
 [node name="BreadSpawner" type="Node3D" parent="."]
 script = ExtResource("3_spawner")
 city_path = NodePath("../City")
 
 [node name="TouristSpawner" type="Node3D" parent="."]
 script = ExtResource("6_tourists")
-city_path = NodePath("../City")
-player_path = NodePath("../Player")
-
-[node name="CarSpawner" type="Node3D" parent="."]
-script = ExtResource("7_cars")
 city_path = NodePath("../City")
 player_path = NodePath("../Player")
 
@@ -203,6 +204,18 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(1, 1, 1, 0.75)
+
+[node name="FavorLabel" type="Label" parent="HUD"]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 192.0
+offset_right = 500.0
+offset_bottom = 212.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(1, 1, 1, 0.75)
+text = "Favor: 0"
 
 [node name="ReturnFade" type="ColorRect" parent="HUD"]
 unique_name_in_owner = true

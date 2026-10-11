@@ -17,6 +17,12 @@ signal eaten(amount: float)
 ## spot for respawn when the crumb is eaten. -1 for hand-placed crumbs.
 var spot_index: int = -1
 
+## (T-114) The favor this crumb's theft is worth, stamped at spawn: café
+## TABLE crumbs cost the locals' favor, tailgate crumbs pay the visitors',
+## everything else is nobody's. 0 = the crumb carries no ownership — the
+## spawner only emits `crumb_favor` when this is non-zero.
+var favor_delta: int = 0
+
 var _consumed: bool = false
 var _time: float = 0.0
 
