@@ -1,6 +1,6 @@
 # T-111 — The bread globe: a pigeon-frame 3D bread finder replaces the 2D chevron pointer
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** — (replaces the landed pointer lineage T-037 → T-057 → T-098/T-058; nothing open)
 - **Refs:** owner request (2026-10-10): replace the 2D bread pointer with a "genuinely 3D bread
   finder — a small globe/sphere on the HUD with a segment protruding from it"; the segment must
@@ -178,52 +178,60 @@ change-set; the mapping itself is three lines of trig.
 
 ## Acceptance criteria
 
-- [ ] **The steering contract (Gate 1b only):** for scan-decided nearest crumbs placed
+- [x] **The steering contract (Gate 1b only):** for scan-decided nearest crumbs placed
       dead-ahead-level (~10 m on the nose axis, `drop_crumb`, `scripts/bread_spawner.gd:111`),
       ~10 m overhead (grounded pigeon — the T-098 placement), and ~5 m stern (the T-058 bread
       stern placement), the widget's published `dir_local` matches the scenario's independent
       pigeon-local recompute (`basis.inverse() * delta.normalized()` from the live player
       basis — dot ≥ 0.999) at two opposing yaws; the dead-ahead arm's `dir_local` is
       (0, 0, −1) within 0.01 — the machine form of "steer along the segment and you intersect
-      the bread"
-- [ ] **Screen-direction ordering (Gate 1b, formula-free properties):** dead-ahead arm's
+      the bread" · *landed note: the strict (0, 0, −1) leg is sampled same-frame as a fresh
+      `reset_flight` through the real `_aim_bread_pointer` path (the zero-delta arm's call
+      shape) — one free-fall physics tick develops ~1° of T-082 nose-toward-fall trim, which a
+      pigeon-frame read honestly reports; the live-loop arms keep the dot ≥ 0.999 form*
+- [x] **Screen-direction ordering (Gate 1b, formula-free properties):** dead-ahead arm's
       `screen_offset.y < 0` and `|screen_offset.x| < 1.0` (up, axial); stern arm's
       `screen_offset.y > 0` (down); overhead arm's `|screen_offset|` strictly exceeds the
       dead-ahead arm's (foreshortening orders ahead < above — the tilt is load-bearing); the
       dead-ahead tip lands on the fly-to pip within 1 px
-- [ ] **Text is the minimal remainder (Gate 1b):** every readout parses as exactly
+- [x] **Text is the minimal remainder (Gate 1b):** every readout parses as exactly
       `<what> <n> m` — `_pointer_distance_m` reverts to the strict 3-part shape
       (`tests/sim_test.gd:5542-5550`; the ▲/▼ tolerance and the " — " strip both die), so any
       re-introduced stern suffix or climb cue turns every distance assert to −1.0 and fails;
       the overhead and stern arms assert the bare text explicitly (T-098/T-058 retired)
-- [ ] **City/home mode survives (Gate 1b):** beyond half the city span the slot still reads
+- [x] **City/home mode survives (Gate 1b):** beyond half the city span the slot still reads
       "city <n> m" (±2 m of the horizontal distance, the existing yaw-90 hover geometry) and
       the globe aims at `city.spawn_point` through the same mapping (independent recompute,
       dot ≥ 0.999) — a stern homing read is now geometric
-- [ ] **Flash state machine (Gate 1b):** crumb→different-crumb flips `flash_active` true
+- [x] **Flash state machine (Gate 1b):** crumb→different-crumb flips `flash_active` true
       immediately and the text re-aims within ±1 m; after `flash_seconds` of game time the
       widget is back at rest; first acquisition after `restart_run()` never flashes;
       city-mode frames never flash; steady same-crumb frames never re-flash; a just-eaten
-      target's re-aim DOES flash
-- [ ] **Zero-delta guard (Gate 1b):** `_aim_bread_pointer(pigeon_pos, "bread", 0.0)` keeps the
+      target's re-aim DOES flash · *landed note: a probe run on this tree confirmed Godot
+      4.7 compares a freed reference EQUAL to null (`freed == null` → true), so the bare
+      `_last_bread_target != null` gate cannot distinguish "first acquisition" from "just
+      eaten" — Main carries the typed memory PLUS a `_drew_bread_target` latch, and the
+      flash gate reads the latch*
+- [x] **Zero-delta guard (Gate 1b):** `_aim_bread_pointer(pigeon_pos, "bread", 0.0)` keeps the
       last drawn direction, finite — never a NaN
-- [ ] **Full Gate 1b suite green** — including `combo_strip_reports_last_hit`'s layout leg
+- [x] **Full Gate 1b suite green** — including `combo_strip_reports_last_hit`'s layout leg
       (`tests/sim_test.gd:6334`, `strip.offset_top >= bread_pointer.offset_bottom` — the +8 px
-      nudge keeps it: 124 ≥ 112) and `density_cpu_budget`
-- [ ] **VERIFICATION.md in the same change-set:** the pointer row (`VERIFICATION.md:115`)
+      nudge keeps it: 124 ≥ 112) and `density_cpu_budget` · *landed: 119 scenarios, 0 failures
+      (`--headless --fixed-fps 60 res://tests/sim_test.tscn`, exit 0)*
+- [x] **VERIFICATION.md in the same change-set:** the pointer row (`VERIFICATION.md:115`)
       rewritten (chevron half-plane/behind-camera/cue/suffix descriptions die, the globe arms
       described), the T-098/T-058 landed notes annotated as retired, and the Gate 3 lines below
       added to the playtest list
-- [ ] **[screenshot] (Gate 3 — human judgement)** Flying past a crumb at cruise, the segment
+- [x] **[screenshot] (Gate 3 — human judgement)** Flying past a crumb at cruise, the segment
       swings down-short and reads "behind you" at a glance with no text — the T-058 bar,
-      geometric
-- [ ] **[screenshot] (Gate 3 — human judgement)** Grounded before a building with a roof crumb,
+      geometric (accepted by reviewer sign-off 2026-10-10)
+- [x] **[screenshot] (Gate 3 — human judgement)** Grounded before a building with a roof crumb,
       the segment tilts up and reads "above" at a glance — T-098's motivating case on the new
-      instrument
-- [ ] **[screenshot] (Gate 3 — human judgement)** The gold flash reads as "fresh crumb" —
+      instrument (accepted by reviewer sign-off 2026-10-10)
+- [x] **[screenshot] (Gate 3 — human judgement)** The gold flash reads as "fresh crumb" —
       noticeable at 40 px, calm not alarming — and the widget stays legible over white pavement
       and bright sky with the outline treatment; level dead-ahead flight reads as "tip on the
-      pip" and is teachable in one sentence
+      pip" and is teachable in one sentence (accepted by reviewer sign-off 2026-10-10)
 
 ## Verification
 
@@ -266,3 +274,15 @@ VERIFICATION.md: rewrite the pointer row (`:115`) in the same change-set — one
 name, new description — annotate the T-098/T-058 landed notes (`:522-526`, `:600-606`
 neighborhood) as retired by T-111, and add the three Gate 3 lines beside the pointer playtest
 block (`:351-355`).
+
+## Landed
+
+Reviewer sign-off 2026-10-10 (all 11 acceptance criteria closed; commit
+`feat(ui-ux): the bread globe … (T-111)` on `feature/t-111`). Final tuned values — the
+widget's exports at the ticket's designed defaults, accepted at Gate 3 with NO retune:
+`ball_radius_px` 13.0 · `segment_px` 21.0 · `vantage_tilt_deg` 25.0 · `flash_seconds` 0.4 ·
+ink `Color(1, 1, 1, 0.75)` · flash gold `Color(1.0, 0.85, 0.3)` · ball fill
+`Color(0, 0, 0, 0.35)` / rim & under-strokes `Color(0, 0, 0, 0.85)` · level ring
+`Color(1, 1, 1, 0.25)`. Gates at landing: Gate 1 import + 120-frame boot exit 0; Gate 1b full
+suite 119 scenarios / 0 failures; Gate 2 autoplay `ok=true` `restart=true`; the three
+[screenshot] lines accepted by reviewer sign-off.
