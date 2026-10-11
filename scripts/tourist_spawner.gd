@@ -19,10 +19,22 @@ signal tourist_splatted(tourist: Tourist)
 @export var target_count: int = 18 ## Tourists kept alive (ticket band: 15–20).
 @export var group_size_max: int = 3 ## Loose groups: 2..group_size_max tourists share one block loop.
 
+@export_group("Classes")
+@export var visitor_share: float = 0.35 ## Share of tourists seeded as black-and-gold VISITORS (T-113); civilians take the remainder.
+@export var superfan_share: float = 0.06 ## Share of tourists seeded as cardinal-and-gold HOMETOWN SUPERFANS (T-113).
+@export var finger_share: float = 0.5 ## Share of VISITORS carrying the foam finger; superfans always carry it (T-113).
+
 ## Tourist splats this run — the autoplay DONE line reports it.
 var splat_count: int = 0
 
 var _tourists: Array[Tourist] = []
+
+## The class quotas of the populate in flight (T-113): the class COUNTS are
+## the share knobs' exact integer rounding at every seed, and the seeded draws
+## in `_assign_class` pick WHO wears which uniform — same seed, same multiset.
+var _class_slots_left: int = 0
+var _visitors_left: int = 0
+var _superfans_left: int = 0
 
 
 ## Living tourists — tests and the autoplay pilot read these.
@@ -40,6 +52,7 @@ func _populate() -> void:
 	if city == null or player == null:
 		return
 	_rng.seed = city.seed_value
+	_begin_class_quota(target_count)
 	var anchor := _anchor_flat()
 	if city.block_centers.is_empty():
 		return
@@ -74,7 +87,9 @@ func _recycle_far() -> void:
 
 func _spawn_on_block(block_local: Vector3, index: int) -> void:
 	var tourist: Tourist = tourist_scene.instantiate()
-	tourist.shirt_color = Tourist.SHIRT_PALETTE[index % Tourist.SHIRT_PALETTE.size()]
+	_assign_class(tourist)
+	if tourist.citizen_class == CitizenClass.Kind.CIVILIAN:
+		tourist.shirt_color = Tourist.SHIRT_PALETTE[index % Tourist.SHIRT_PALETTE.size()]
 	tourist.pace = _rng.randf_range(0.85, 1.2)
 	var loop := _loop_for(block_local)
 	if _rng.randf() < 0.35:
@@ -86,6 +101,42 @@ func _spawn_on_block(block_local: Vector3, index: int) -> void:
 	tourist._retarget_nearest_waypoint()
 	tourist.splatted.connect(_on_tourist_splatted)
 	_tourists.append(tourist)
+
+
+## The seeded citizen-class draw (T-113): the class counts are the share
+## knobs' exact integer rounding (opened by `_begin_class_quota`), and one roll
+## off the spawner's own `_rng` stream per spawn picks WHO wears which uniform
+## — a sequential draw without replacement, so the tallies land exactly on the
+## quotas while the assignment stays seeded (same seed, same multiset). A
+## second roll picks the visitor's pairing direction (black torso + gold arms
+## or the inverse), a third the foam finger. Civilians keep the palette
+## round-robin draw. Class is fixed at populate and never re-rolled on
+## recycle: the same person keeps their uniform when teleported.
+func _assign_class(tourist: Tourist) -> void:
+	var roll: float = _rng.randf() * float(_class_slots_left)
+	if roll < float(_superfans_left):
+		tourist.citizen_class = CitizenClass.Kind.SUPERFAN
+		tourist.shirt_color = CitizenClass.SUPERFAN_CARDINAL
+		tourist.carries_finger = true
+		_superfans_left -= 1
+	elif roll < float(_superfans_left + _visitors_left):
+		tourist.citizen_class = CitizenClass.Kind.VISITOR
+		tourist.shirt_color = CitizenClass.VISITOR_BLACK \
+				if _rng.randf() < 0.5 else CitizenClass.TEAM_GOLD
+		tourist.carries_finger = _rng.randf() < finger_share
+		_visitors_left -= 1
+	else:
+		tourist.citizen_class = CitizenClass.Kind.CIVILIAN
+	_class_slots_left -= 1
+
+
+## Opens one populate's class quotas (T-113): `slots` draws will land exactly
+## roundi(slots · share) superfans and visitors, civilians the remainder.
+func _begin_class_quota(slots: int) -> void:
+	_class_slots_left = slots
+	_superfans_left = roundi(float(slots) * superfan_share)
+	_visitors_left = clampi(roundi(float(slots) * visitor_share), 0,
+			slots - _superfans_left)
 
 
 func _on_tourist_splatted(tourist: Tourist) -> void:

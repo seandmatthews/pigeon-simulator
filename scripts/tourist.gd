@@ -8,6 +8,11 @@ extends CharacterBody3D
 ## high-speed flyby of the pigeon through the buzz zone earns a flinch duck
 ## without full panic. Every splat emits `splatted` — the score event the
 ## spawner relays (T-009 scoring listens later). All tunables are @export.
+## Since T-113 the tourist wears one of three citizen classes: CIVILIAN is
+## exactly the original single-shirt look, VISITOR stacks the black-and-gold
+## invader pairing (plus the raised foam finger on a share), SUPERFAN wears
+## the head-to-toe cardinal-and-gold stack with cap and permanent mitt. The
+## panic flush stays a torso-material write; arms keep their class colors.
 
 ## Fired on every splat this tourist takes — the spawner relays it into the
 ## Game autoload's score table (T-009).
@@ -24,6 +29,7 @@ const SHIRT_PALETTE: Array[Color] = [
 ]
 const SKIN := Color(0.87, 0.68, 0.55)
 const PANIC_TINT := Color(0.92, 0.22, 0.18)
+const ARM_RAISED_ANGLE := 2.4 ## Raised-arm pitch (rad): the panic raise, and the finger carriers' permanent right-arm baseline (T-113).
 
 @export_group("Walk")
 @export var walk_speed: float = 1.3 ## Stroll speed along the loop (m/s), before the per-tourist pace factor.
@@ -53,7 +59,9 @@ var mood: Mood = Mood.WALK
 ## Global center of the block whose loop this tourist walks — tests and the
 ## recycle scan group "loose groups" by it.
 var block_center: Vector3 = Vector3.ZERO
-var shirt_color: Color = SHIRT_PALETTE[0] ## Assigned by the spawner before _ready.
+var shirt_color: Color = SHIRT_PALETTE[0] ## The calm TORSO albedo for every class — the spawner assigns it before _ready (the class draw for VISITOR/SUPERFAN, the palette round-robin for CIVILIAN).
+var citizen_class: CitizenClass.Kind = CitizenClass.Kind.CIVILIAN ## The worn uniform (T-113) — assigned by the spawner before _ready, never re-rolled on recycle.
+var carries_finger: bool = false ## Whether the raised right hand carries the gold foam finger (T-113) — the spawner draws it (`finger_share`; superfans always carry).
 var pace: float = 1.0 ## Per-tourist speed factor (0.85–1.2) so groups walk loosely.
 ## Flinches taken so far — evidence for tests and the autoplay DONE line.
 var buzz_count: int = 0
@@ -64,6 +72,7 @@ var _shouted: bool = true ## True except mid-panic — the shout fires once per 
 var _flinch_left: float = 0.0
 var _buzz_cd: float = 0.0
 var _arm_raise: float = 0.0 ## 0 = arms down, 1 = arms up; doubles as the panic tint intensity.
+var _arm_r_raise: float = 0.0 ## The right arm's own raise — finger carriers hold the raised baseline (T-113).
 var _tint_panic: bool = false ## (T-055) Panic state the shirt material last showed — false matches _ready's initial shirt_color write, so the flush is written only on a change, not every tick.
 var _phase: float = 0.0
 
@@ -71,17 +80,45 @@ var _phase: float = 0.0
 @onready var _body_mesh: MeshInstance3D = $Visual/Body
 @onready var _arm_l: MeshInstance3D = $Visual/ArmL
 @onready var _arm_r: MeshInstance3D = $Visual/ArmR
+@onready var _mitt: MeshInstance3D = $Visual/ArmR/Mitt
+@onready var _cap: MeshInstance3D = $Visual/Head/Cap
 @onready var _buzz_zone: Area3D = $BuzzZone
 
 
 func _ready() -> void:
 	# Per-tourist shirt material: the palette tint and later the panic flush,
-	# without touching the shared scene material.
+	# without touching the shared scene material. (T-113) It stays the TORSO
+	# material for every class; the special classes split the ARMS onto their
+	# own material so the two-color pairing reads — the panic flush stays a
+	# torso-only binary write and the arms keep their class colors mid-panic.
 	var mat: StandardMaterial3D = _body_mesh.mesh.surface_get_material(0).duplicate()
 	mat.albedo_color = shirt_color
 	_body_mesh.material_override = mat
-	_arm_l.material_override = mat
-	_arm_r.material_override = mat
+	match citizen_class:
+		CitizenClass.Kind.VISITOR:
+			_dress_arms(CitizenClass.TEAM_GOLD \
+					if shirt_color.is_equal_approx(CitizenClass.VISITOR_BLACK) \
+					else CitizenClass.VISITOR_BLACK)
+		CitizenClass.Kind.SUPERFAN:
+			_dress_arms(CitizenClass.TEAM_GOLD)
+			_cap.visible = true ## The gold cap tops the head-to-toe stack (research: steeler-superfan.jpg).
+		_:
+			_arm_l.material_override = mat
+			_arm_r.material_override = mat
+	if carries_finger:
+		_mitt.rotation.x = ARM_RAISED_ANGLE ## Counter-rotates the raised arm so the mitt points straight up while carried (the scene carries translation only).
+		_mitt.visible = true
+		_arm_r_raise = 1.0 ## The permanent baseline raise — the mitt rides above the head line while strolling.
+
+
+## Puts the class's arm color on both arms (T-113): a separate material from
+## the torso so the pairing — not any single albedo — is the class read.
+func _dress_arms(arm_color: Color) -> void:
+	var arm_mat: StandardMaterial3D = _body_mesh.material_override.duplicate() \
+			as StandardMaterial3D
+	arm_mat.albedo_color = arm_color
+	_arm_l.material_override = arm_mat
+	_arm_r.material_override = arm_mat
 
 
 func _physics_process(delta: float) -> void:
@@ -205,8 +242,10 @@ func _animate(delta: float) -> void:
 	else:
 		_visual.position.y = move_toward(_visual.position.y, 0.0, bob_height * delta)
 	_arm_raise = move_toward(_arm_raise, 1.0 if panicking else 0.0, arm_raise_rate * delta)
-	_arm_l.rotation.x = -_arm_raise * 2.4
-	_arm_r.rotation.x = -_arm_raise * 2.4
+	_arm_r_raise = move_toward(_arm_r_raise,
+			1.0 if panicking or carries_finger else 0.0, arm_raise_rate * delta)
+	_arm_l.rotation.x = -_arm_raise * ARM_RAISED_ANGLE
+	_arm_r.rotation.x = -_arm_r_raise * ARM_RAISED_ANGLE
 	if panicking and _panic_left < 0.8:
 		_arm_r.rotation.x += sin(_phase * 3.0) * 0.6 ## The fist shake.
 	_visual.rotation.x = _arm_raise * 0.3 ## Lean into the sprint.

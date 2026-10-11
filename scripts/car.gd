@@ -26,7 +26,6 @@ const BODY_PALETTE: Array[Color] = [
 	Color(0.72, 0.74, 0.78),
 ]
 const HONK_TINT := Color(1.0, 0.85, 0.2)
-
 @export_group("Traffic")
 @export var cruise_speed: float = 6.0 ## Lane speed (m/s), before the per-car pace factor.
 @export var corner_speed: float = 3.5 ## Speed cap while closing on a corner or still swinging onto the new leg (m/s).
@@ -50,7 +49,8 @@ var mode: Mode = Mode.TRAFFIC
 ## Global center of the block whose ring this car serves — the recycle scan
 ## groups cars by it.
 var block_center: Vector3 = Vector3.ZERO
-var body_color: Color = BODY_PALETTE[0] ## Assigned by the spawner before _ready.
+var body_color: Color = BODY_PALETTE[0] ## The calm body albedo for every class — the spawner assigns it before _ready (the class draw for VISITOR/SUPERFAN, the palette round-robin for CIVILIAN).
+var citizen_class: CitizenClass.Kind = CitizenClass.Kind.CIVILIAN ## The worn uniform (T-113) — assigned by the spawner before _ready, never re-rolled on recycle.
 var pace: float = 1.0 ## Per-car speed factor (0.9–1.15) so traffic spreads out.
 ## Honks taken so far — evidence for tests and the autoplay DONE line.
 var honk_count: int = 0
@@ -64,15 +64,39 @@ var _via_point := Vector3.ZERO
 var _has_via := false
 
 @onready var _body_mesh: MeshInstance3D = $Visual/Body
+@onready var _flag_pole: MeshInstance3D = $Visual/FlagPole
+@onready var _flag_banner: MeshInstance3D = $Visual/FlagBanner
 @onready var _front_zone: Area3D = $FrontZone
 
 
 func _ready() -> void:
 	# Per-car body material: the palette tint and later the honk flash, without
-	# touching the shared scene material.
+	# touching the shared scene material. (T-113) For the special classes it
+	# carries the full-body team paint and raises the flag meshes from the
+	# scene (hidden by default); civilians keep the palette draw, flags down.
 	var mat: StandardMaterial3D = _body_mesh.mesh.surface_get_material(0).duplicate()
 	mat.albedo_color = body_color
 	_body_mesh.material_override = mat
+	match citizen_class:
+		CitizenClass.Kind.VISITOR:
+			_show_flag(CitizenClass.VISITOR_BLACK \
+					if body_color.is_equal_approx(CitizenClass.TEAM_GOLD) \
+					else CitizenClass.TEAM_GOLD)
+		CitizenClass.Kind.SUPERFAN:
+			_show_flag(CitizenClass.TEAM_GOLD)
+		_:
+			pass ## CIVILIAN — exactly the pre-T-113 look: no flag.
+
+
+## Raises the tailgate flag (T-113) and paints the banner in the pairing
+## partner color — the scene's visual-only meshes, no new physics shapes.
+func _show_flag(banner_color: Color) -> void:
+	var banner_mat: StandardMaterial3D = _flag_banner.mesh.surface_get_material(0) \
+			.duplicate() as StandardMaterial3D
+	banner_mat.albedo_color = banner_color
+	_flag_banner.material_override = banner_mat
+	_flag_pole.visible = true
+	_flag_banner.visible = true
 
 
 func _physics_process(delta: float) -> void:

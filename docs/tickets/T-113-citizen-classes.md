@@ -1,6 +1,6 @@
 # T-113 — The invasion has a uniform: citizens split into black-and-gold VISITORS, CIVILIAN locals and a rare cardinal-and-gold HOMETOWN SUPERFAN
 
-- **Milestone:** M2 — the town's pigeon (ticket 1 of 3) · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Milestone:** M2 — the town's pigeon (ticket 1 of 3) · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-007, T-008 (the tourists and cars this splits), T-054 (the BandSpawner both spawners extend) — all done
 - **Refs:** owner-approved M2 three-ticket split (2026-10-11) — this ticket, then **T-114** (the favor
   economy) and **T-115** (the favor-max victory ending), both named below and forged after this lands ·
@@ -145,16 +145,16 @@ and the machine gates below.
 
 ## Acceptance criteria
 
-- [ ] `CitizenClass` exists as above (append-only enum + the three palette constants, one source of
+- [x] `CitizenClass` exists as above (append-only enum + the three palette constants, one source of
       truth); `Tourist` and `Car` both carry `citizen_class`, defaulting CIVILIAN, assigned by
       their spawners before `_ready`, and never re-rolled by recycle
-- [ ] *(Gate 1b)* `citizen_classes_spawn_deterministic` — a real generated `City` + both spawner
+- [x] *(Gate 1b)* `citizen_classes_spawn_deterministic` — a real generated `City` + both spawner
       rigs at shipped targets (the `_scenario_tourists_walk` pattern, `tests/sim_test.gd:4611`):
       class tallies match the share knobs within integer rounding at seeds 20260928 AND 424242
       (recomputed by the scenario's own tally, never spawner internals); a forced same-seed
       rebuild + re-populate reproduces the class multiset byte-identically; a forced recycle of
       every far node keeps every node's class (same node, same colors)
-- [ ] *(Gate 1b)* `citizen_classes_readable` — per-class machine reads on the rigs: every VISITOR
+- [x] *(Gate 1b)* `citizen_classes_readable` — per-class machine reads on the rigs: every VISITOR
       pedestrian's torso and arm material albedos differ and both ∈ {TEAM_GOLD, VISITOR_BLACK};
       every SUPERFAN is cardinal torso + gold arms + gold cap + visible mitt; every CIVILIAN wears
       ONE material from `SHIRT_PALETTE` with no prop visible; VISITOR/SUPERFAN cars wear their
@@ -163,24 +163,26 @@ and the machine gates below.
       SUPERFAN_CARDINAL each hold ≥ 0.20 Euclidean RGB from sidewalk, plaza and asphalt
       (research-computed: gold↔sidewalk 0.733, black↔asphalt 0.376; cardinal↔both grounds ≈
       0.56–0.64, computed for this ticket from the same constants)
-- [ ] *(Gate 1b)* Behavior is class-blind: at the new default mix, `tourists_walk_loose_groups`,
+- [x] *(Gate 1b)* Behavior is class-blind: at the new default mix, `tourists_walk_loose_groups`,
       `tourist_splat_panics_scores` (panic flush reaches the torso material for a class-mixed
       population), `tourist_buzz_flinch`, `cars_traffic_loops_blocks`,
       `car_splat_honk_and_continue`, `cars_recycle_around_player` and `density_cpu_budget` all
       stay green with NO scenario edits (if one needs an edit, that is a red flag to raise, not a
       gate to re-derive)
-- [ ] Full Gate 1b suite green in one headless run; VERIFICATION.md gains the two new scenario
+- [x] Full Gate 1b suite green in one headless run; VERIFICATION.md gains the two new scenario
       rows in the same change-set
-- [ ] **[screenshot] (Gate 3 — human judgement)** From a cruise pass, a group of visitors reads as
+- [x] **[screenshot] (Gate 3 — human judgement)** From a cruise pass, a group of visitors reads as
       a black-and-gold cluster against sidewalk/plaza/asphalt; a superfan is spottable in the same
-      frame but clearly the odd one out; civilians never read as visitors at speed
-- [ ] **[screenshot] (Gate 3 — human judgement)** Visitor cars read from the air as team-color
+      frame but clearly the odd one out; civilians never read as visitors at speed (accepted by
+      reviewer sign-off 2026-10-11) [screenshot]
+- [x] **[screenshot] (Gate 3 — human judgement)** Visitor cars read from the air as team-color
       bodies with an up-flying flag — a color mass in the road rows, the
       `alabama-stands.jpg`/`meadowlands-aerial.jpg` effect — without lettering or logos anywhere
-- [ ] **(Gate 3 — human judgement)** The visitors read as a goofy nuisance (foam fingers, painted
+      (accepted by reviewer sign-off 2026-10-11) [screenshot]
+- [x] **(Gate 3 — human judgement)** The visitors read as a goofy nuisance (foam fingers, painted
       cars), not a hated enemy — the locked comedic tone holds; the superfan's rarity feels right
       (rare enough to never be splatted by accident, common enough to be findable), via the share
-      knobs' defaults
+      knobs' defaults (accepted by reviewer sign-off 2026-10-11)
 
 ## Verification
 
@@ -192,6 +194,21 @@ re-run (the pilot splats whoever sits under the predicted impact regardless of c
 counts stay logical; no pilot changes) · Gate 3: the three human lines above, added to
 VERIFICATION.md's playtest list in the same change-set. Tuned values (final shares, final palette
 values if the knobs move) recorded here when the ticket lands.
+
+**Tuned values (final).**
+All knobs shipped at their proposed values: `TouristSpawner` visitor_share 0.35 · superfan_share
+0.06 · finger_share 0.5; `CarSpawner` visitor_share 0.40 · superfan_share 0.05; palette
+TEAM_GOLD (1.0, 0.80, 0.0) · VISITOR_BLACK (0.08, 0.08, 0.08) · SUPERFAN_CARDINAL
+(0.78, 0.06, 0.18) — nothing moved, so every contrast number re-measured at its research value
+(gold↔sidewalk 0.733, black↔asphalt 0.376, cardinal worst-case 0.557 across the three grounds).
+One implementation note for T-114: the class counts are the share knobs' exact integer rounding
+(spawned quotas: 18 tourists → 11/6/1, 36 cars → 20/14/2 at BOTH pinned seeds, measured by
+`citizen_classes_spawn_deterministic`), with the seeded draws picking who wears which uniform —
+plain Bernoulli draws measured 9/9/0 and 16/20/0 at seed 20260928, outside the criterion's
+integer-rounding band, which is why the quota form is the landed mechanism. The landed run
+behind this ticket: Gate 1 exit 0, Gate 1b full suite `SIM SUMMARY: 0 failure(s)` exit 0, Gate 2
+`AUTOPLAY DONE ok=true restart=true`; the three Gate 3 criteria closed by the reviewer sign-off
+(2026-10-11).
 
 ## Follow-ups (named per the owner's 2026-10-11 split — forge after this lands)
 
