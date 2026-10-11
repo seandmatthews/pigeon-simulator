@@ -45,13 +45,6 @@ const TIER_REST_COLORS: Array[Color] = [
 const TIER_PULSE_HZ: Array[float] = [0.0, 0.0, 3.0, 6.0] ## Flash rate per tier — 0 = static color.
 const TIER_PULSE_TO := Color(1.0, 0.85, 0.8) ## The bright end both pulsing tiers breathe toward.
 const POOP_READY_DIM_ALPHA := 0.25 ## (T-077) The F glyph's alpha while the poop cooldown runs — dim, but readable.
-const POINTER_CLIMB_CUE_M := 3.0 ## (T-098) Vertical delta beyond which the bread readout carries the ▲/▼ climb cue.
-## (T-058) Appended to the pointer text while the target bearing is stern-facing
-## — composed AFTER the T-098 climb cue, so a stern high crumb reads
-## "bread 12 m ▲ — turn around" and an over-run city reads "city 141 m — turn
-## around". Derived from world space (never the chevron): the text is written
-## before T-057's camera guards.
-const STERN_SUFFIX := " — turn around"
 const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds the "home again" note stays up.
 
 @export_group("Juice") ## T-013
@@ -77,17 +70,18 @@ const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds t
 ## decoupled from it (it reads the player, never the reverse).
 @onready var poop_reticle: PoopReticle = %PoopReticle
 @onready var bread_pointer: Label = %BreadPointer
+## The bread globe (T-111) — the pointer slot's pigeon-frame instrument: a
+## drawn 40 px Control that replaced the T-037 chevron (T-057 screen-space
+## rebuild, T-098 climb cue and T-058 stern suffix all retired into its one
+## geometric encoding). Main hands it the target's pigeon-local direction and
+## the target change; the globe draws and flashes.
+@onready var bread_globe: BreadGlobe = %BreadGlobe
 ## The last-hit line (T-040) — sits under the pointer slot in the left column.
 @onready var combo_strip: Label = %ComboStrip
 ## The landing-cost note (T-079) — one row under the strip in the same column:
 ## it names the combo a landing just erased, so the ×N's disappearance teaches
 ## the rule at the instant it bites.
 @onready var combo_note: Label = %ComboNote
-## The pointer's rotatable chevron (T-037): 0 = screen-up, clockwise positive
-## on screen. Since T-057 it carries the target's direction ON SCREEN —
-## where the target actually sits in the frame — not a bearing from the nose.
-## Hides with the label (it is its child).
-@onready var bread_pointer_chevron: Polygon2D = bread_pointer.get_node("Chevron")
 @onready var hunger_bar: ProgressBar = %HungerBar
 ## The "home again" note (T-087, folded from T-100) — sits under the combo
 ## strip in the left column, shown by the return beat, self-hiding.
@@ -119,6 +113,20 @@ var _return_fade_phase: float = -1.0 ## (T-087) <0 idle; 0..return_fade_seconds 
 var _home_note_phase: float = 0.0 ## (T-087, folded from T-100) Game-time seconds the note has shown; advanced only while visible.
 var _combo_note_left: float = 0.0 ## (T-079) Game-time seconds left before the landing note clears; 0 = at rest, empty.
 var _edge_hinting: bool = false ## (T-023) True while the edge hint owns the hint line — re-evaluated every _process frame, so grounding (including the guard's teleport-then-drop) self-clears it and hands the label back to the steady-state writers (`_update_hint`, and `_on_grounding_changed`'s edge write) instead of the writers fighting.
+## (T-111) The crumb the bread globe last drew — the flash memory: re-aiming
+## at a DIFFERENT instance (a valid neighbour, or the fresh pick after the
+## previous was just eaten and freed) flashes the globe; city-mode frames
+## never touch it, so returning inside the ring re-flashes only if the
+## nearest crumb actually differs. Comparisons are instance identity, and a
+## freed previous compares equal to null in Godot 4 — so the drawn latch
+## below, not a null test, carries the "first acquisition never flashes"
+## half of the contract.
+var _last_bread_target: BreadCrumb = null
+## (T-111) True once any bread-mode frame has drawn a target this run. The
+## "first acquisition from nothing never flashes" latch: false only before
+## the first bread frame and across restart_run's reset, so the eat→re-aim
+## moment (memory freed but the latch set) still counts as a change.
+var _drew_bread_target: bool = false
 
 
 func _ready() -> void:
@@ -235,21 +243,21 @@ func _pulse_score(combo: int) -> void:
 			Color.WHITE, pulse_seconds)
 
 
-## The bread pointer (T-037): one HUD slot under the hint block, two modes, no
-## minimap. Inside the city ring it aims the chevron at the nearest living
-## crumb and counts the metres down ("bread 23 m", plus the T-098 climb cue —
-## " ▲"/" ▼" when that crumb sits well above/below the pigeon); beyond half the
-## city span the ring is lost and the same slot points home instead
-## ("city 131 m", horizontal distance to city.spawn_point, never arrowed).
-## Either mode says " — turn around" when the target bearing is stern-facing
-## (T-058) — past the ring with the nose pointing away from home, or behind you
-## after flying past a crumb — the plain-language replacement for the untaught
-## ▼-means-behind convention.
-## Hidden whenever it has nothing to say. Since T-057 the chevron's
-## rotation_degrees carries the target's direction ON SCREEN — both ends
-## unprojected through the live chase camera, 0° = screen-up, clockwise
-## positive — so the chevron points where the target actually sits in the
-## frame, whatever the pigeon's nose or the camera's yaw is doing.
+## The bread pointer (T-037), on the T-111 bread globe: one HUD slot under the
+## hint block, two modes, no minimap. Inside the city ring the slot aims the
+## globe's segment at the nearest living crumb and counts the metres down
+## ("bread 23 m"); beyond half the city span the ring is lost and the same
+## slot aims home instead ("city 141 m", horizontal distance to
+## city.spawn_point). The segment carries the target's direction RELATIVE TO
+## THE PIGEON'S OWN ORIENTATION — steer along it and you intersect the bread —
+## so vertical (the T-098 climb cue's job) and stern (the T-058 suffix's job)
+## are the same geometric fact as the bearing, and the readout text is the
+## minimal remainder: "<what> <n> m", nothing else.
+## Hidden whenever it has nothing to say. The flash: when the bread branch
+## names a crumb that is a DIFFERENT instance than the one last drawn — a
+## just-eaten (freed) previous counts, first acquisition from nothing never
+## flashes, city frames never touch the memory — the globe flashes gold and
+## back over its flash_seconds of game time.
 func _update_bread_pointer() -> void:
 	var pigeon_pos := player.global_position
 	var off_centre := pigeon_pos - city.global_position
@@ -257,64 +265,43 @@ func _update_bread_pointer() -> void:
 	if off_centre.length() > city.city_span * 0.5:
 		var home := city.spawn_point
 		var flat_home := Vector2(home.x - pigeon_pos.x, home.z - pigeon_pos.z)
+		bread_globe.visible = true
 		_aim_bread_pointer(home, "city", flat_home.length())
 		return
 	var crumb := bread_spawner.nearest_crumb(pigeon_pos)
 	if crumb == null:
 		bread_pointer.visible = false
+		bread_globe.clear()
 		return
+	if crumb != _last_bread_target or not _drew_bread_target:
+		if _drew_bread_target:
+			bread_globe.flash() ## A different crumb than the one last drawn.
+		_last_bread_target = crumb
+		_drew_bread_target = true
+	bread_globe.visible = true
 	_aim_bread_pointer(crumb.global_position, "bread",
-			pigeon_pos.distance_to(crumb.global_position), true)
+			pigeon_pos.distance_to(crumb.global_position))
 
 
-## Points the shared slot at `target`: text "<what> <m> m", chevron along the
-## target's on-screen direction from the pigeon (T-057): both ends unprojected
-## through the live chase camera, 0° = screen-up (+90 over the atan2 because
-## canvas y is down). Off-camera protection: with no camera, a target behind
-## the lens (anything sterner than roughly abeam — its unprojection would be
-## mirrored garbage), or a degenerate delta (the target unprojects onto the
-## pigeon's anchor), the last chevron rotation is kept instead — never a
-## mirrored direction, never a NaN.
-## The climb cue (T-098): only the bread mode opts in — a named crumb more than
-## POINTER_CLIMB_CUE_M above/below the pigeon gets a trailing " ▲"/" ▼", so a
-## roof crumb stops reading like a blank wall it points into. City mode never
-## carries the cue: its target is always street level.
-## The stern suffix (T-058): BOTH modes — when the player's flat nose dotted
-## with the flat to-target direction is negative (target strictly behind the
-## nose; exact abeam dots ≈ 0 → no suffix, the strict > 90° half-space with no
-## epsilon), the text gains " — turn around" after any climb cue. Derived from
-## world space, deliberately not from the chevron: the text is written here
-## BEFORE the camera guards above, so the suffix survives every behind-lens or
-## degenerate-camera frame instead of freezing with the chevron.
-func _aim_bread_pointer(target: Vector3, what: String, distance: float,
-		with_climb_cue: bool = false) -> void:
+## Points the shared slot at `target`: text "<what> <m> m" — the whole readout
+## since T-111 (the T-098 ▲/▼ cue and the T-058 stern suffix are gone; the
+## globe's segment slope and down-swing ARE those reads now). The globe aims
+## through the same mapping every frame: the target's direction in the
+## pigeon's own frame — `basis.inverse() * delta.normalized()`, full basis
+## (bank included) — handed to BreadGlobe.aim(), which projects it through its
+## fixed tilted vantage. The only guard that survives from the T-057 camera
+## era is the zero-delta one: a target ON the pigeon (delta length² < 0.0001)
+## has no honest direction — normalized() would be a NaN — so the last drawn
+## direction is kept instead. The widget reads no camera: behind-lens and
+## degenerate-unprojection hazards do not exist for a pigeon-frame instrument.
+func _aim_bread_pointer(target: Vector3, what: String, distance: float) -> void:
 	bread_pointer.visible = true
-	var climb_cue := ""
-	if with_climb_cue:
-		var dy := target.y - player.global_position.y
-		if dy > POINTER_CLIMB_CUE_M:
-			climb_cue = " ▲"
-		elif dy < -POINTER_CLIMB_CUE_M:
-			climb_cue = " ▼"
-	## (T-058) Stern test in world space, convention-free: flat nose vs flat
-	## to-target. A degenerate flat target (dead overhead) normalizes to zero
-	## and dots 0 → not stern — the same no-suffix call as exact abeam.
-	var forward_flat := Vector2(-player.global_transform.basis.z.x,
-			-player.global_transform.basis.z.z).normalized()
-	var to_target_flat := Vector2(target.x - player.global_position.x,
-			target.z - player.global_position.z).normalized()
-	var stern := forward_flat.dot(to_target_flat) < 0.0
-	bread_pointer.text = "%s %d m%s%s" % [what, roundi(distance), climb_cue,
-			STERN_SUFFIX if stern else ""]
-	var camera := get_viewport().get_camera_3d()
-	if camera == null or camera.is_position_behind(target):
-		return
-	var target_s := camera.unproject_position(target)
-	var anchor_s := camera.unproject_position(player.global_position)
-	var d := target_s - anchor_s
-	if d.length_squared() < 1.0:
-		return
-	bread_pointer_chevron.rotation_degrees = rad_to_deg(atan2(d.y, d.x)) + 90.0
+	bread_globe.visible = true
+	var to_target := target - player.global_position
+	if to_target.length_squared() < 0.0001:
+		return ## Zero-delta: keep the last drawn direction — never a NaN.
+	bread_pointer.text = "%s %d m" % [what, roundi(distance)]
+	bread_globe.aim(player.global_transform.basis.inverse() * to_target.normalized())
 
 
 ## The F readiness glyph (T-077): the scoring verb fails three silent ways —
@@ -557,6 +544,9 @@ func restart_run() -> void:
 	combo_note.visible = false ## zeroes the streak but knows nothing of the HUD.
 	_combo_note_left = 0.0
 	_edge_hinting = false ## (T-023) A fresh run drops the pigeon on the corridor, well inside the radius — the next _process frame rewrites the normal hint, so no stale edge text across the reset.
+	_last_bread_target = null ## (T-111) A fresh run's first bread acquisition is flash-less: the
+	_drew_bread_target = false ## flash memory empties and any running flash dies with the globe below.
+	bread_globe.clear()
 	city.generate(city.seed_value)
 	player.reset_flight(city.to_local(city.spawn_point))
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)
