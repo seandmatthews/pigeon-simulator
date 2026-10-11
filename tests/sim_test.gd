@@ -197,6 +197,8 @@ func _run_scenarios() -> void:
 	await _scenario_car_splat_honk()
 	await _scenario_traffic_recycle_keeps_flow() ## T-089 — the recycle insertion path must not clot a ring.
 	await _scenario_cars_recycle() ## T-054 — the end-to-end timer-driven car recycle closes its contract.
+	await _scenario_citizen_classes_spawn_deterministic() ## T-113 — the class multiset is a seeded law on both rigs.
+	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
 	await _scenario_scoring_values()
 	await _scenario_high_score_persists()
 	await _scenario_highscore_save_throttled() ## T-073 — directly after the persists scenario: same unpaused tree, no live Main.
@@ -5371,6 +5373,379 @@ func _scenario_cars_recycle() -> void:
 					full, after.size(), traffic, parked, spawner.target_moving,
 					spawner.target_parked, reused, placed, min_parked_gap])
 	spawner.free()
+
+
+## --- scenarios (T-113 citizen classes) --------------------------------------
+
+
+## The scenario's own class tally — recomputed from the living nodes, never
+## from spawner internals (the T-112 determinism-law shape).
+func _class_tally(nodes: Array) -> Array[int]:
+	var tally: Array[int] = [0, 0, 0] ## CitizenClass.Kind order: CIVILIAN, VISITOR, SUPERFAN.
+	for node in nodes:
+		tally[node.citizen_class] += 1
+	return tally
+
+
+## The per-node uniform multiset as sortable strings — "byte-identical" is a
+## sorted-string compare over class + colors (+ finger for pedestrians).
+func _tourist_uniform_rows(tourists: Array[Tourist]) -> Array[String]:
+	var rows: Array[String] = []
+	for tourist in tourists:
+		rows.append("%d|%s|%s" % [tourist.citizen_class,
+				tourist.shirt_color.to_html(), tourist.carries_finger])
+	rows.sort()
+	return rows
+
+
+func _car_uniform_rows(cars: Array[Car]) -> Array[String]:
+	var rows: Array[String] = []
+	for car in cars:
+		rows.append("%d|%s" % [car.citizen_class, car.body_color.to_html()])
+	rows.sort()
+	return rows
+
+
+func _rows_equal(a: Array[String], b: Array[String]) -> bool:
+	if a.size() != b.size():
+		return false
+	for i in a.size():
+		if a[i] != b[i]:
+			return false
+	return true
+
+
+## True when the drawn count sits inside the nearest-integer band around the
+## share's expectation — "within integer rounding" (T-113 acceptance bar).
+func _within_integer_rounding(count: int, expected: float) -> bool:
+	return count >= floori(expected) and count <= ceili(expected)
+
+
+## T-113: the class multiset is a seeded law. A real generated City plus both
+## spawner rigs at the shipped targets (18 tourists · 20 traffic + 16 parked):
+## the tallies match the share knobs within integer rounding at the M1 seed
+## AND at seed 424242; a forced same-seed rebuild + re-populate reproduces the
+## uniform multisets byte-identically; and a forced recycle of the far nodes
+## keeps every node's class and colors (same node, same uniform).
+func _scenario_citizen_classes_spawn_deterministic() -> void:
+	var default_seed: int = _city.seed_value
+	_city.generate(default_seed, true) ## Force a real rebuild baseline.
+	## One static airborne anchor serves both rigs (the `tourists_walk` hover):
+	## determinism only needs the band draw identical across the rebuild, and
+	## the anchor reads the player's XZ alone.
+	await _set_up(true, _city.position + Vector3(0.0, 25.0, 0.0), Vector3.ZERO)
+	var tourist_rig := TouristSpawner.new()
+	tourist_rig.city = _city
+	tourist_rig.player = _player
+	add_child(tourist_rig)
+	var car_rig := CarSpawner.new()
+	car_rig.city = _city
+	car_rig.player = _player
+	add_child(car_rig)
+	await _wait_frames(4)
+	var tourists: Array[Tourist] = tourist_rig.living_tourists()
+	var cars: Array[Car] = car_rig.living_cars()
+	var t_tally := _class_tally(tourists)
+	var c_tally := _class_tally(cars)
+	var t_counts_ok: bool = tourists.size() == tourist_rig.target_count \
+			and _within_integer_rounding(t_tally[CitizenClass.Kind.VISITOR],
+					tourists.size() * tourist_rig.visitor_share) \
+			and _within_integer_rounding(t_tally[CitizenClass.Kind.SUPERFAN],
+					tourists.size() * tourist_rig.superfan_share) \
+			and t_tally[CitizenClass.Kind.CIVILIAN] == tourists.size() \
+					- t_tally[CitizenClass.Kind.VISITOR] - t_tally[CitizenClass.Kind.SUPERFAN]
+	var c_counts_ok: bool = cars.size() == car_rig.target_moving + car_rig.target_parked \
+			and _within_integer_rounding(c_tally[CitizenClass.Kind.VISITOR],
+					cars.size() * car_rig.visitor_share) \
+			and _within_integer_rounding(c_tally[CitizenClass.Kind.SUPERFAN],
+					cars.size() * car_rig.superfan_share) \
+			and c_tally[CitizenClass.Kind.CIVILIAN] == cars.size() \
+					- c_tally[CitizenClass.Kind.VISITOR] - c_tally[CitizenClass.Kind.SUPERFAN]
+	var t_rows := _tourist_uniform_rows(tourists)
+	var c_rows := _car_uniform_rows(cars)
+	## Forced same-seed rebuild: `regenerated` fires, both rigs re-populate.
+	_city.generate(default_seed, true)
+	await _wait_frames(4)
+	var rebuilt_tourists: Array[Tourist] = tourist_rig.living_tourists()
+	var rebuilt_cars: Array[Car] = car_rig.living_cars()
+	var deterministic: bool = _rows_equal(t_rows, _tourist_uniform_rows(rebuilt_tourists)) \
+			and _rows_equal(c_rows, _car_uniform_rows(rebuilt_cars))
+	## Forced recycle: move the pigeon beyond both recycle radii (100/80) and
+	## call each scan directly — every far node teleports, the SAME nodes, and
+	## none may lose its uniform.
+	var t_uniforms := {}
+	var t_before := {}
+	for tourist in rebuilt_tourists:
+		t_uniforms[tourist.get_instance_id()] = "%d|%s" % [tourist.citizen_class,
+				tourist.shirt_color.to_html()]
+		t_before[tourist.get_instance_id()] = tourist.global_position
+	var c_uniforms := {}
+	var c_before := {}
+	for car in rebuilt_cars:
+		c_uniforms[car.get_instance_id()] = "%d|%s" % [car.citizen_class,
+				car.body_color.to_html()]
+		c_before[car.get_instance_id()] = car.global_position
+	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
+	await _wait_frames(2)
+	tourist_rig._recycle_far()
+	car_rig._recycle_far()
+	await _wait_frames(2)
+	var after_tourists: Array[Tourist] = tourist_rig.living_tourists()
+	var after_cars: Array[Car] = car_rig.living_cars()
+	var kept_uniform := true
+	var moved_tourists := 0
+	var moved_cars := 0
+	for tourist in after_tourists:
+		kept_uniform = kept_uniform \
+				and t_uniforms.get(tourist.get_instance_id(), "?") \
+						== "%d|%s" % [tourist.citizen_class, tourist.shirt_color.to_html()]
+		if tourist.global_position.distance_to(
+				t_before.get(tourist.get_instance_id(), tourist.global_position)) > 10.0:
+			moved_tourists += 1
+	for car in after_cars:
+		kept_uniform = kept_uniform \
+				and c_uniforms.get(car.get_instance_id(), "?") \
+						== "%d|%s" % [car.citizen_class, car.body_color.to_html()]
+		if car.global_position.distance_to(
+				c_before.get(car.get_instance_id(), car.global_position)) > 10.0:
+			moved_cars += 1
+	## The foreign seed opens the same law.
+	_city.generate(424242, true)
+	await _wait_frames(4)
+	var f_tourists: Array[Tourist] = tourist_rig.living_tourists()
+	var f_cars: Array[Car] = car_rig.living_cars()
+	var f_t := _class_tally(f_tourists)
+	var f_c := _class_tally(f_cars)
+	var foreign_ok: bool = f_tourists.size() == tourist_rig.target_count \
+			and _within_integer_rounding(f_t[CitizenClass.Kind.VISITOR],
+					f_tourists.size() * tourist_rig.visitor_share) \
+			and _within_integer_rounding(f_t[CitizenClass.Kind.SUPERFAN],
+					f_tourists.size() * tourist_rig.superfan_share) \
+			and f_cars.size() == car_rig.target_moving + car_rig.target_parked \
+			and _within_integer_rounding(f_c[CitizenClass.Kind.VISITOR],
+					f_cars.size() * car_rig.visitor_share) \
+			and _within_integer_rounding(f_c[CitizenClass.Kind.SUPERFAN],
+					f_cars.size() * car_rig.superfan_share)
+	print("SIM DATA citizen_classes_spawn_deterministic: seed %d t c/v/s %d/%d/%d · c c/v/s %d/%d/%d | seed 424242 t c/v/s %d/%d/%d · c c/v/s %d/%d/%d | recycle moved t%d c%d kept=%s" % [
+			default_seed, t_tally[0], t_tally[1], t_tally[2],
+			c_tally[0], c_tally[1], c_tally[2],
+			f_t[0], f_t[1], f_t[2], f_c[0], f_c[1], f_c[2],
+			moved_tourists, moved_cars, kept_uniform])
+	_check("citizen_classes_spawn_deterministic",
+			t_counts_ok and c_counts_ok and deterministic and kept_uniform
+					and moved_tourists > 0 and moved_cars > 0 and foreign_ok,
+			"tallies_ok t=%s c=%s · deterministic=%s · recycle kept_uniform=%s moved t%d c%d · foreign_ok=%s" % [
+					t_counts_ok, c_counts_ok, deterministic, kept_uniform,
+					moved_tourists, moved_cars, foreign_ok])
+	tourist_rig.free()
+	car_rig.free()
+	_city.generate(default_seed, true) ## Leave the standing city as found.
+	await _wait_frames(2)
+
+
+## True when the mesh's material_override albedo is exactly one of the two
+## invader class colors (T-113).
+func _is_team_color(mesh: MeshInstance3D) -> bool:
+	var mat := mesh.material_override as StandardMaterial3D
+	if mat == null:
+		return false
+	return mat.albedo_color.is_equal_approx(CitizenClass.TEAM_GOLD) \
+			or mat.albedo_color.is_equal_approx(CitizenClass.VISITOR_BLACK)
+
+
+## The pairing read (T-113's load-bearing finding): torso and arm materials
+## differ — two team colors STACKED on one body, never a single garment.
+func _pairing_reads(tourist: Tourist) -> bool:
+	var torso := tourist._body_mesh.material_override as StandardMaterial3D
+	var arm := tourist._arm_l.material_override as StandardMaterial3D
+	return torso != null and arm != null and torso != arm \
+			and not torso.albedo_color.is_equal_approx(arm.albedo_color)
+
+
+## The foam finger points straight up and breaks the head line: its top edge
+## sits ≥ 0.15 m above the 1.27 m head sphere (research orientation fact 1).
+func _mitt_reads_up(tourist: Tourist) -> bool:
+	var vertical: bool = tourist._mitt.global_transform.basis.y.y >= 0.95
+	var above: bool = tourist._mitt.to_global(Vector3(0.0, 0.25, 0.0)).y >= 1.42
+	return vertical and above
+
+
+func _rgb_dist(a: Color, b: Color) -> float:
+	return Vector3(a.r - b.r, a.g - b.g, a.b - b.b).length()
+
+
+## T-113: the uniform reads. Three tourist rigs (all-visitor, all-superfan,
+## all-civilian via the share knobs) and three car rigs give per-class machine
+## reads: the invader pairing (torso ≠ arm, both ∈ {gold, black}), the
+## superfan stack (cardinal torso, gold arms, gold cap, always-carried mitt
+## pointing up past the head line), the civilian plain-clothes control (one
+## palette shirt, no props), visitor/superfan cars in class body paint with
+## the flag meshes visible and the banner top ≥ 2.2 m, and the civilian fleet
+## unflagged in BODY_PALETTE — plus the contrast leg of every class color
+## against the T-026 grounds (sidewalk, plaza, asphalt ≥ 0.20 Euclidean RGB).
+func _scenario_citizen_classes_readable() -> void:
+	await _set_up(true, _city.position + Vector3(0.0, 25.0, 0.0), Vector3.ZERO)
+	## --- VISITOR pedestrians: the two-color pairing on every tourist --------
+	var visitors_ok := true
+	var finger_seen := false
+	var rig := TouristSpawner.new()
+	rig.city = _city
+	rig.player = _player
+	rig.visitor_share = 1.0
+	rig.superfan_share = 0.0
+	add_child(rig)
+	await _wait_frames(4)
+	var visitor_tourists: Array[Tourist] = rig.living_tourists()
+	for tourist in visitor_tourists:
+		visitors_ok = visitors_ok and tourist.citizen_class == CitizenClass.Kind.VISITOR \
+				and _is_team_color(tourist._body_mesh) and _is_team_color(tourist._arm_l) \
+				and _pairing_reads(tourist)
+		if tourist.carries_finger:
+			finger_seen = true
+			visitors_ok = visitors_ok and tourist._mitt.visible and _mitt_reads_up(tourist)
+		else:
+			visitors_ok = visitors_ok and not tourist._mitt.visible \
+					and not tourist._cap.visible
+	visitors_ok = visitors_ok and finger_seen
+	rig.free()
+	## --- SUPERFAN pedestrians: the head-to-toe stack, always ----------------
+	var superfan_ok := true
+	rig = TouristSpawner.new()
+	rig.city = _city
+	rig.player = _player
+	rig.visitor_share = 0.0
+	rig.superfan_share = 1.0
+	add_child(rig)
+	await _wait_frames(4)
+	for tourist in rig.living_tourists():
+		var torso := tourist._body_mesh.material_override as StandardMaterial3D
+		var arm_l := tourist._arm_l.material_override as StandardMaterial3D
+		var arm_r := tourist._arm_r.material_override as StandardMaterial3D
+		superfan_ok = superfan_ok and tourist.citizen_class == CitizenClass.Kind.SUPERFAN \
+				and torso != null and torso.albedo_color.is_equal_approx(CitizenClass.SUPERFAN_CARDINAL) \
+				and arm_l != null and arm_l.albedo_color.is_equal_approx(CitizenClass.TEAM_GOLD) \
+				and arm_r != null and arm_r.albedo_color.is_equal_approx(CitizenClass.TEAM_GOLD) \
+				and tourist._cap.visible and tourist._mitt.visible \
+				and tourist.carries_finger and _mitt_reads_up(tourist)
+	superfan_ok = superfan_ok and rig.living_tourists().size() == rig.target_count
+	rig.free()
+	## --- CIVILIAN pedestrians: the plain-clothes control --------------------
+	var civilian_ok := true
+	rig = TouristSpawner.new()
+	rig.city = _city
+	rig.player = _player
+	rig.visitor_share = 0.0
+	rig.superfan_share = 0.0
+	add_child(rig)
+	await _wait_frames(4)
+	for tourist in rig.living_tourists():
+		var torso := tourist._body_mesh.material_override as StandardMaterial3D
+		var arm := tourist._arm_l.material_override as StandardMaterial3D
+		var in_palette := false
+		for shirt in Tourist.SHIRT_PALETTE:
+			in_palette = in_palette or (torso != null
+					and torso.albedo_color.is_equal_approx(shirt))
+		civilian_ok = civilian_ok and tourist.citizen_class == CitizenClass.Kind.CIVILIAN \
+				and in_palette and torso != null and arm != null \
+				and arm.albedo_color.is_equal_approx(torso.albedo_color) \
+				and not tourist._mitt.visible and not tourist._cap.visible
+	civilian_ok = civilian_ok and rig.living_tourists().size() == rig.target_count
+	rig.free()
+	## --- VISITOR cars: full team paint, flag up, pairing carried ------------
+	var visitor_cars_ok := true
+	var car_rig := CarSpawner.new()
+	car_rig.city = _city
+	car_rig.player = _player
+	car_rig.visitor_share = 1.0
+	car_rig.superfan_share = 0.0
+	add_child(car_rig)
+	await _wait_frames(4)
+	for car in car_rig.living_cars():
+		var body := car._body_mesh.material_override as StandardMaterial3D
+		var banner := car._flag_banner.material_override as StandardMaterial3D
+		var body_is_gold: bool = body != null \
+				and body.albedo_color.is_equal_approx(CitizenClass.TEAM_GOLD)
+		var body_is_black: bool = body != null \
+				and body.albedo_color.is_equal_approx(CitizenClass.VISITOR_BLACK)
+		visitor_cars_ok = visitor_cars_ok and car.citizen_class == CitizenClass.Kind.VISITOR \
+				and (body_is_gold or body_is_black) \
+				and car._flag_pole.visible and car._flag_banner.visible \
+				and banner != null \
+				and banner.albedo_color.is_equal_approx(
+						CitizenClass.VISITOR_BLACK if body_is_gold else CitizenClass.TEAM_GOLD) \
+				and car._flag_banner.to_global(Vector3(0.0, 0.23, 0.0)).y >= 2.2
+	visitor_cars_ok = visitor_cars_ok and car_rig.living_cars().size() \
+			== car_rig.target_moving + car_rig.target_parked
+	car_rig.free()
+	## --- SUPERFAN cars: the faithful vehicle --------------------------------
+	var superfan_cars_ok := true
+	car_rig = CarSpawner.new()
+	car_rig.city = _city
+	car_rig.player = _player
+	car_rig.visitor_share = 0.0
+	car_rig.superfan_share = 1.0
+	add_child(car_rig)
+	await _wait_frames(4)
+	for car in car_rig.living_cars():
+		var body := car._body_mesh.material_override as StandardMaterial3D
+		var banner := car._flag_banner.material_override as StandardMaterial3D
+		superfan_cars_ok = superfan_cars_ok \
+				and car.citizen_class == CitizenClass.Kind.SUPERFAN \
+				and body != null and body.albedo_color.is_equal_approx(CitizenClass.SUPERFAN_CARDINAL) \
+				and car._flag_pole.visible and car._flag_banner.visible \
+				and banner != null and banner.albedo_color.is_equal_approx(CitizenClass.TEAM_GOLD) \
+				and car._flag_banner.to_global(Vector3(0.0, 0.23, 0.0)).y >= 2.2
+	superfan_cars_ok = superfan_cars_ok and car_rig.living_cars().size() \
+			== car_rig.target_moving + car_rig.target_parked
+	car_rig.free()
+	## --- CIVILIAN cars: the unflagged palette fleet -------------------------
+	var civilian_cars_ok := true
+	car_rig = CarSpawner.new()
+	car_rig.city = _city
+	car_rig.player = _player
+	car_rig.visitor_share = 0.0
+	car_rig.superfan_share = 0.0
+	add_child(car_rig)
+	await _wait_frames(4)
+	for car in car_rig.living_cars():
+		var body := car._body_mesh.material_override as StandardMaterial3D
+		var in_palette := false
+		for paint in Car.BODY_PALETTE:
+			in_palette = in_palette or (body != null
+					and body.albedo_color.is_equal_approx(paint))
+		civilian_cars_ok = civilian_cars_ok \
+				and car.citizen_class == CitizenClass.Kind.CIVILIAN and in_palette \
+				and not car._flag_pole.visible and not car._flag_banner.visible
+	civilian_cars_ok = civilian_cars_ok and car_rig.living_cars().size() \
+			== car_rig.target_moving + car_rig.target_parked
+	car_rig.free()
+	## --- the contrast leg: every class color vs every T-026 ground ----------
+	var contrast_ok := true
+	var gold_sidewalk := 0.0
+	var black_asphalt := 0.0
+	var cardinal_worst := 100.0
+	for class_color: Color in [CitizenClass.TEAM_GOLD, CitizenClass.VISITOR_BLACK,
+			CitizenClass.SUPERFAN_CARDINAL]:
+		for ground_color: Color in [City.COLOR_SIDEWALK, City.COLOR_PLAZA,
+				City.COLOR_ASPHALT]:
+			var d := _rgb_dist(class_color, ground_color)
+			contrast_ok = contrast_ok and d >= 0.20
+			if class_color == CitizenClass.TEAM_GOLD \
+					and ground_color == City.COLOR_SIDEWALK:
+				gold_sidewalk = d
+			if class_color == CitizenClass.VISITOR_BLACK \
+					and ground_color == City.COLOR_ASPHALT:
+				black_asphalt = d
+			if class_color == CitizenClass.SUPERFAN_CARDINAL:
+				cardinal_worst = minf(cardinal_worst, d)
+	print("SIM DATA citizen_classes_readable: gold↔sidewalk %.3f black↔asphalt %.3f cardinal worst %.3f" % [
+			gold_sidewalk, black_asphalt, cardinal_worst])
+	_check("citizen_classes_readable",
+			visitors_ok and superfan_ok and civilian_ok and visitor_cars_ok
+					and superfan_cars_ok and civilian_cars_ok and contrast_ok,
+			"visitors=%s (finger_seen=%s) superfans=%s civilians=%s · cars v=%s s=%s c=%s · contrast=%s" % [
+					visitors_ok, finger_seen, superfan_ok, civilian_ok,
+					visitor_cars_ok, superfan_cars_ok, civilian_cars_ok, contrast_ok])
 
 
 ## --- scenarios (T-009 scoring & combos) -------------------------------------

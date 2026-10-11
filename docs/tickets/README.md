@@ -118,7 +118,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-110 | [Reticle live refresh: 10 Hz → 30 Hz](T-110-reticle-live-refresh-30hz.md) | visual-design | 3 | 1 | done |
 | T-111 | [The bread globe: a pigeon-frame 3D bread finder replaces the 2D chevron pointer](T-111-bread-globe.md) | ui-ux | 4 | 3 | done |
 | T-112 | [Bread belongs at the tables: reweight the crumb spread to ~90% café tabletops, roofs rare](T-112-bread-at-the-tables.md) | worldbuilding | 4 | 2 | done |
-| T-113 | [The invasion has a uniform: citizens split into black-and-gold VISITORS, CIVILIAN locals and a rare cardinal-and-gold HOMETOWN SUPERFAN](T-113-citizen-classes.md) | worldbuilding | 4 | 3 | proposed |
+| T-113 | [The invasion has a uniform: citizens split into black-and-gold VISITORS, CIVILIAN locals and a rare cardinal-and-gold HOMETOWN SUPERFAN](T-113-citizen-classes.md) | worldbuilding | 4 | 3 | done |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since

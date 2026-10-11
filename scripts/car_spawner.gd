@@ -22,6 +22,10 @@ signal car_splatted(car: Car)
 @export var target_moving: int = 20 ## Traffic cars kept looping block rings.
 @export var target_parked: int = 16 ## Cars kept parked at curbs.
 
+@export_group("Classes")
+@export var visitor_share: float = 0.40 ## Share of cars seeded in full visitor team paint with the flag up (T-113); civilians take the remainder.
+@export var superfan_share: float = 0.05 ## Share of cars seeded as cardinal SUPERFAN vehicles (T-113).
+
 @export_group("Recycle")
 @export var recycle_probe_count: int = 5 ## Evenly spaced loop fractions probed for a follow-gap-clear traffic rejoin point before the random draw (T-089).
 @export var ring_traffic_soft_cap: int = 3 ## Recycled traffic skips rings already holding this many traffic cars while any band ring is lighter (T-089).
@@ -30,6 +34,14 @@ signal car_splatted(car: Car)
 var honk_count: int = 0
 
 var _cars: Array[Car] = []
+
+## The class quotas of the populate loop in flight (T-113): the class COUNTS
+## are the share knobs' exact integer rounding at every seed, and the seeded
+## draws in `_assign_class` pick WHICH car wears which uniform — same seed,
+## same multiset. Opened per loop (traffic, parked) by `_begin_class_quota`.
+var _class_slots_left: int = 0
+var _visitors_left: int = 0
+var _superfans_left: int = 0
 
 
 func _init() -> void:
@@ -61,12 +73,14 @@ func _populate() -> void:
 	if city.block_centers.is_empty():
 		return
 	var made_moving := 0
+	_begin_class_quota(target_moving)
 	while made_moving < target_moving:
 		var block := _pick_block(anchor)
 		_spawn_traffic(block, made_moving)
 		made_moving += 1
 	var made_parked := 0
 	var attempts := 0
+	_begin_class_quota(target_parked)
 	while made_parked < target_parked and attempts < target_parked * 8:
 		attempts += 1
 		var block := _pick_block(anchor)
@@ -119,7 +133,9 @@ func _fallback_blocks(anchor: Vector2) -> Array[Vector3]:
 
 func _spawn_traffic(block_local: Vector3, index: int) -> void:
 	var car: Car = car_scene.instantiate()
-	car.body_color = Car.BODY_PALETTE[index % Car.BODY_PALETTE.size()]
+	_assign_class(car)
+	if car.citizen_class == CitizenClass.Kind.CIVILIAN:
+		car.body_color = Car.BODY_PALETTE[index % Car.BODY_PALETTE.size()]
 	car.pace = _rng.randf_range(0.9, 1.15)
 	var loop := _loop_for(block_local)
 	add_child(car)
@@ -133,11 +149,48 @@ func _spawn_traffic(block_local: Vector3, index: int) -> void:
 
 func _spawn_parked(block_local: Vector3, pos: Vector3, yaw: float, index: int) -> void:
 	var car: Car = car_scene.instantiate()
-	car.body_color = Car.BODY_PALETTE[index % Car.BODY_PALETTE.size()]
+	_assign_class(car)
+	if car.citizen_class == CitizenClass.Kind.CIVILIAN:
+		car.body_color = Car.BODY_PALETTE[index % Car.BODY_PALETTE.size()]
 	add_child(car)
 	car.park_at(pos, yaw, city.to_global(block_local))
 	car.splatted.connect(_on_car_splatted)
 	_cars.append(car)
+
+
+## The seeded citizen-class draw (T-113): the class counts are the share
+## knobs' exact integer rounding (opened by `_begin_class_quota`), and one
+## roll off the spawner's own `_rng` stream per spawn picks WHICH car wears
+## which uniform — a sequential draw without replacement, so the tallies land
+## exactly on the quotas while the assignment stays seeded (same seed, same
+## multiset). A second roll picks the visitor's paint direction (gold body →
+## black banner, black body → gold banner, drawn in `Car._ready`). Civilians
+## keep the palette round-robin draw. Class is fixed at populate and never
+## re-rolled on recycle: the same car keeps its paint when teleported.
+func _assign_class(car: Car) -> void:
+	var roll: float = _rng.randf() * float(_class_slots_left)
+	if roll < float(_superfans_left):
+		car.citizen_class = CitizenClass.Kind.SUPERFAN
+		car.body_color = CitizenClass.SUPERFAN_CARDINAL
+		_superfans_left -= 1
+	elif roll < float(_superfans_left + _visitors_left):
+		car.citizen_class = CitizenClass.Kind.VISITOR
+		car.body_color = CitizenClass.VISITOR_BLACK \
+				if _rng.randf() < 0.5 else CitizenClass.TEAM_GOLD
+		_visitors_left -= 1
+	else:
+		car.citizen_class = CitizenClass.Kind.CIVILIAN
+	_class_slots_left -= 1
+
+
+## Opens one populate loop's class quotas (T-113): `slots` draws will land
+## exactly roundi(slots · share) superfans and visitors, civilians the
+## remainder.
+func _begin_class_quota(slots: int) -> void:
+	_class_slots_left = slots
+	_superfans_left = roundi(float(slots) * superfan_share)
+	_visitors_left = clampi(roundi(float(slots) * visitor_share), 0,
+			slots - _superfans_left)
 
 
 func _on_car_splatted(car: Car) -> void:
