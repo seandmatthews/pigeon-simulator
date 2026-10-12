@@ -1,6 +1,6 @@
 # T-115 — Sufficiently hostile: the favor-max victory ending
 
-- **Milestone:** M2 — the town's pigeon (ticket 3 of 3, the payoff) · **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 5 · **Risk (1-5):** 2
+- **Milestone:** M2 — the town's pigeon (ticket 3 of 3, the payoff) · **Status:** done · **Category:** worldbuilding · **Value (1-5):** 5 · **Risk (1-5):** 2
 - **Depends on:** T-114 (the favor book and its deliberately undefined ceiling — `scripts/game.gd:154-159`, the `%FavorLabel` meter), T-010 (the GameOverScreen contract and the `restart_run()` flow this extends), T-113 (the citizen classes the economy pays out on) — all done
 - **Refs:** owner contract (2026-10-11): the play session ends when the elders' favor MAXES OUT — a VICTORY beat, not a game over — or when hunger depletes (the existing T-010 starvation ending, unchanged); the victory read is "the town is yours" warmth, comedic not triumphalist, per the tone guardrail (silly bird, goofy nuisance visitors); this ticket is the ENDING ONLY — no game-day calendar arc, no new visitor behavior, no epilogue simulation · T-114's Follow-ups section (this ticket named) · `docs/DESIGN.md` → Milestone 2
 
@@ -208,13 +208,13 @@ knob, and the machine legs below.
 
 ## Acceptance criteria
 
-- [ ] `Game.favor_max` exists as specified (the export at 100 in the Favor group), with
+- [x] `Game.favor_max` exists as specified (the export at 100 in the Favor group), with
       `favor_maxed` + `favor_maxed_emitted`; `add_favor` clamps TOP-ONLY (a −50 add from zero
       still reads −50 — the T-114 no-floor lock intact), emits the applied delta, flushes the
       T-073 dirty record on the maxing add and fires `favor_maxed` exactly once per run;
       `reset_run()` re-arms it; `splat_favor` is unchanged; the autoload stays
       presentation-free (no node/HUD reference in `game.gd`)
-- [ ] *(Gate 1b)* `favor_max_book_clamps_and_flushes` — bare autoload leg in the
+- [x] *(Gate 1b)* `favor_max_book_clamps_and_flushes` — bare autoload leg in the
       `highscore_save_throttled` window (`tests/sim_test.gd:6223`, `SIM_SAVE_PATH`
       `tests/sim_test.gd:21`): from `reset_run()`, `add_favor(-50)` reads −50 and emits delta
       −50 (no floor); staging the T-073 dirty state (`_saved_this_run` true,
@@ -224,7 +224,7 @@ knob, and the machine legs below.
       holds the final score (the victory path's flush — the hunger path's twin); further adds
       (`add_favor(10)`) clamp silently and fire NO second `favor_maxed`; `reset_run()`
       re-arms (a second climb re-fires exactly once)
-- [ ] *(Gate 1b)* `favor_max_ends_run_victory` — through the REAL main scene (the
+- [x] *(Gate 1b)* `favor_max_ends_run_victory` — through the REAL main scene (the
       instanced-Main pattern, `tests/sim_test.gd:5782-5911`), held airborne throughout:
       stage `Game.favor = Game.favor_max - Game.favor_visitor_car_splat`, force the parked
       cars all-VISITOR (`visitor_share = 1.0` + `_populate()`, the T-114 leg at
@@ -243,34 +243,37 @@ knob, and the machine legs below.
       `tests/sim_test.gd:6398-6411`) opens the screen in STARVED! register — title, dark red
       dim, no victory note, plain breakdown — proving both entries rewrite every
       mode-dependent property and both endings coexist in one Main; drain restored after
-- [ ] Full Gate 1b suite green in one headless run UNTOUCHED — no existing scenario may need
+- [x] Full Gate 1b suite green in one headless run UNTOUCHED — no existing scenario may need
       an edit (the scope note above: staged balances peak at 40 and bypass the latch, every
       pinned `add_favor` excursion is ≤ +6, worst case 40 + 6 = 46 < 100; if one trips,
       that is a red flag to raise, not a gate to re-derive); VERIFICATION.md gains the two
       new scenario rows in the same change-set
-- [ ] Gate 2 unchanged: `AUTOPLAY DONE ok=true restart=true` re-run green with no pilot
+- [x] Gate 2 unchanged: `AUTOPLAY DONE ok=true restart=true` re-run green with no pilot
       edits (the DONE line's asserts read the three mode-invariant labels)
-- [ ] The docs fold-in, same change-set: `docs/DESIGN.md` → Milestone 2 gains the status
+- [x] The docs fold-in, same change-set: `docs/DESIGN.md` → Milestone 2 gains the status
       line — **locked and delivered as the three-ticket sequence T-113 → T-114 → T-115
       (2026-10-11): the run shape is the goal run — a session ends when the elders' favor
       maxes out (victory) or hunger empties (starvation, unchanged)** — and the fork
       resolution line — **all four forks decided 2026-10-11: run shape = favor-max-or-starve
       goal run; elder depth = the anonymous class (the shared favor meter, no named elders);
       naming = Ames, colors-only; friendly fire = detractors only, no repair**
-- [ ] **[screenshot] (Gate 3 — human judgement)** The victory beat reads as "the town is
+- [x] **[screenshot] (Gate 3 — human judgement)** The victory beat reads as "the town is
       yours" warmth — comedic, not triumphalist: the gold wash, the delighted-elders line
       and the title land as a silly bird's good day, never a conquest banner; the visitors
       stay a goofy nuisance even in defeat; final copy (title, note) accepted or retuned by
-      reviewer sign-off
-- [ ] **[screenshot] (Gate 3 — human judgement)** The ending arrives readable in real play:
+      reviewer sign-off (accepted as proposed — reviewer sign-off 2026-10-11; agent grab
+      `.captures/t115_victory_screen.png`)
+- [x] **[screenshot] (Gate 3 — human judgement)** The ending arrives readable in real play:
       the run ends the moment the meter hits the ceiling (no lag, no double beat), the
       frozen world sits under the victory screen, Space/R restart into a fresh same-seed run
       and M returns to the title — and a normal starvation ending in the same session still
-      reads exactly as before, both registers never leaking into each other
-- [ ] **(Gate 3 — human judgement)** The pace holds: a focused visitor-hunting run reaches
+      reads exactly as before, both registers never leaking into each other (reviewer
+      sign-off 2026-10-11)
+- [x] **(Gate 3 — human judgement)** The pace holds: a focused visitor-hunting run reaches
       the ceiling in roughly the arithmetic's 6–8 minutes (aspirational, not a slog; not
       accidental inside one hunger bar) — if the drag is wrong, `favor_max` moves and the
-      ticket's arithmetic re-runs; the deltas do not
+      ticket's arithmetic re-runs; the deltas do not (reviewer sign-off 2026-10-11 — the
+      ceiling stands at 100, no retune)
 
 ## Verification
 
@@ -284,3 +287,12 @@ registered in `_run_scenarios`, `tests/sim_test.gd:143`) · Gate 2 autoplay re-r
 criteria unchanged — see the scope note) · Gate 3: the three human lines above, added to
 VERIFICATION.md's playtest list in the same change-set. Tuned values (final `favor_max`, the
 victory dim, the accepted copy, any retunes) recorded here when the ticket lands.
+
+**Machine runs (2026-10-11, this change-set):** Gate 1 import + 120-frame boot clean ·
+Gate 1b full suite `SIM SUMMARY: 0 failure(s)` (126 scenarios, both new ones green, no
+existing scenario edited) · Gate 2 `AUTOPLAY DONE ok=true restart=true` (pilot untouched).
+**Final tuned values (accepted by reviewer sign-off 2026-10-11, no retunes):** `favor_max`
+100, `victory_dim` `Color(0.44, 0.32, 0.06, 0.65)`, title "THE TOWN IS YOURS!", note "Not
+an un-splatted invader left in town — the park elders are delighted with their pigeon." —
+the proposed copies verbatim; agent grab `.captures/t115_victory_screen.png` shows the real
+victory register.

@@ -1,6 +1,6 @@
 # Pigeon Simulator — Game Design
 
-Last updated: 2026-10-01 (post-M1; sweep phase in flight, M2 direction proposed)
+Last updated: 2026-10-11 (M2 locked and delivered — T-113 → T-114 → T-115)
 
 ## Pitch
 
@@ -13,7 +13,7 @@ M1 — the vertical slice described below — landed 2026-09-29 (T-001..T-020, a
 gates green). Since then the project is in a polish sweep (readability, flight
 feel, performance) run as agent waves; the schedule and phase goals live in
 [`ROADMAP.md`](ROADMAP.md). The next milestone — a town-vs-visitors goal layer —
-is proposed but not yet locked; see "Milestone 2" below.
+is locked and delivered (2026-10-11); see "Milestone 2" below.
 
 ## Decisions (locked 2026-09-28)
 
@@ -103,7 +103,11 @@ Gray-box city (4+ blocks), pigeon with genuinely good flight feel, bread/hunger 
 game over, poop with splats, reacting tourists and cars, scoring with combos, and the
 title/pause/game-over flow. Placeholder art is acceptable; sound optional but nice.
 
-## Milestone 2 — the town's pigeon (proposed 2026-10-01 — not locked, not ticketed)
+## Milestone 2 — the town's pigeon (proposed 2026-10-01 — locked 2026-10-11, delivered)
+
+**Status:** locked and delivered as the three-ticket sequence T-113 → T-114 →
+T-115 (2026-10-11): the run shape is the goal run — a session ends when the
+elders' favor maxes out (victory) or hunger empties (starvation, unchanged).
 
 Direction from the 2026-10-01 design session. The open forks at the end are the
 user's to settle before anything is ticketed; leans are recorded, not decided.
@@ -172,6 +176,11 @@ Objectives & missions stay out — the calendar is the campaign.
 
 ### Open forks (user to decide)
 
+**Resolved 2026-10-11:** all four forks decided 2026-10-11: run shape =
+favor-max-or-starve goal run; elder depth = the anonymous class (the shared
+favor meter, no named elders); naming = Ames, colors-only; friendly fire =
+detractors only, no repair.
+
 1. **Run shape:** game-day arc as the run (lean — it gives the comedy a stage
    and an ending beat, and re-opens the locked "endless" decision) vs endless
    runs with town mood in the background vs mood persisting across runs.
@@ -196,5 +205,5 @@ Gamepad, settings menu, save system beyond high score, multiple districts, hazar
 - Boost: keep Shift, or double-tap flap instead?
 - Music: looping cheerful track versus ambient city only?
 
-The four M2 forks (run shape, elder depth, naming, friendly fire) live in the
-Milestone 2 section above — settle those before any M2 ticket is forged.
+The four M2 forks were decided 2026-10-11 — the resolution line sits at the
+head of Milestone 2's Open forks section above.

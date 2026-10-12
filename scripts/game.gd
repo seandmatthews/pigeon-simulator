@@ -7,7 +7,8 @@ extends Node
 ## run only mark a dirty flag, flushed at game over or quit), the Hunger
 ## clock (T-005, moved off Main) and the park elders' favor (T-114 — a
 ## per-run currency the splat handlers, the bread steals and the elder share
-## all book through). Main wires the player and the city services
+## all book through; T-115 caps it at favor_max and fires favor_maxed there,
+## the victory ending). Main wires the player and the city services
 ## into it and renders the results (HUD line, world-space popups); the autoload
 ## itself stays presentation-free so the sim harness can drive it headless.
 
@@ -20,6 +21,8 @@ signal hit_scored(points: int, multiplier: int, pos: Vector3, style: bool)
 ## moved it (negatives allowed). Main listens and renders the HUD meter; the
 ## autoload itself stays presentation-free — it only books and emits.
 signal favor_changed(favor: int, delta: int)
+
+signal favor_maxed ## (T-115) Fired once, the moment favor first reaches favor_max.
 
 @export_group("Points")
 @export var tourist_points: int = 100 ## Splatting a tourist (DESIGN table — the skill shot).
@@ -35,7 +38,8 @@ signal favor_changed(favor: int, delta: int)
 @export var style_max_height: float = 6.0 ## Poop release height (m) that counts as "low".
 @export var style_release_window: float = 3.0 ## A release only styles hits resolved within this many seconds.
 
-@export_group("Favor (T-114)")
+@export_group("Favor (T-114, T-115)")
+@export var favor_max: int = 100 ## The elders' ceiling — reaching it ends the run as a victory (the T-115 ticket carries the one-pass-harvest arithmetic).
 @export var favor_visitor_splat: int = 3 ## Splatting a VISITOR pedestrian.
 @export var favor_visitor_car_splat: int = 6 ## The jackpot — a visitor vehicle.
 @export var favor_civilian_splat: int = -1 ## Friendly fire on a local pedestrian.
@@ -72,6 +76,11 @@ var score: int = 0
 ## black-and-gold visitors and stolen visitor bread, spent on the bread they
 ## share, nicked by every local you hit or rob. Zeroed only by reset_run().
 var favor: int = 0
+
+## (T-115) True once `favor_maxed` has fired this run — the
+## `Hunger.game_over_emitted` latch pattern; `reset_run()` clears it, so a
+## fresh climb can win again.
+var favor_maxed_emitted: bool = false
 
 ## Tourists splatted this run — the game-over score screen's breakdown (T-010).
 var tourist_hits: int = 0
@@ -151,12 +160,23 @@ func add_car_hit(pos: Vector3) -> int:
 	return _register_hit(car_points, pos)
 
 
-## (T-114) Books a favor delta — negatives allowed, no floor and no cap: a
-## floor would make civilian splats free once you are broke, and the ceiling
-## is T-115's to define. Emits favor_changed; Main renders the meter.
+## (T-115) Books a favor delta — negatives allowed, NO floor (debt stays legal,
+## the T-114 lock), TOP-ONLY cap at favor_max: the balance never exceeds the
+## ceiling. Emits favor_changed with the APPLIED delta (favor_after -
+## favor_before — identical to the requested delta everywhere below the cap;
+## on the clamping add the victory screen covers the difference). The first
+## add to reach favor_max also flushes the T-073 dirty record (the run just
+## ended — the victory path pays the flush the hunger path pays in _ready's
+## hunger.game_over wiring) and fires favor_maxed exactly once per run; Main
+## listens and ends the run. The autoload stays presentation-free.
 func add_favor(delta: int) -> void:
-	favor += delta
-	favor_changed.emit(favor, delta)
+	var before := favor
+	favor = mini(favor + delta, favor_max)
+	favor_changed.emit(favor, favor - before)
+	if favor >= favor_max and not favor_maxed_emitted:
+		favor_maxed_emitted = true
+		_flush_high_score()
+		favor_maxed.emit()
 
 
 ## (T-114) The favor a splat is worth: the per-class delta table, cars
@@ -195,10 +215,12 @@ func on_grounding_changed(grounded: bool) -> void:
 ## tourist/car breakdown and the combo, refills hunger. The high score is
 ## deliberately kept — it persists — and so is any not-yet-flushed beat (T-073:
 ## only the per-run beat bookkeeping clears; a dirty record still flushes).
-## (T-114) Favor is per-run state too — zeroed with the score.
+## (T-114) Favor is per-run state too — zeroed with the score — and the
+## (T-115) victory latch re-arms with it, so a fresh run can max out again.
 func reset_run() -> void:
 	score = 0
 	favor = 0
+	favor_maxed_emitted = false
 	tourist_hits = 0
 	car_hits = 0
 	record_beaten = false
