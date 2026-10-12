@@ -93,6 +93,8 @@ var _tourist_relay: int = 0 ## tourist_splatted relays caught from the spawner u
 var _car_relay: int = 0 ## car_splatted relays caught from the spawner under test (T-008).
 var _score_events: Array[Dictionary] = [] ## hit_scored payloads caught from the Game autoload (T-009).
 var _crumb_favor_events: Array[int] = [] ## (T-114) crumb_favor relays caught from the spawner under test.
+var _favor_delta_events: Array[int] = [] ## (T-115) favor_changed deltas caught from the Game autoload.
+var _favor_maxed_fires: int = 0 ## (T-115) favor_maxed emissions caught from the Game autoload — signal counters survive inside lambdas only as members.
 var _main_game: MainGame ## The real main.tscn instance the T-010 flow scenarios share.
 var _bread_shared: Array[Dictionary] = [] ## bread_shared relays caught from the elder spawner under test (T-020).
 var _regen_relay: int = 0 ## regenerated relays caught from the city under restart (T-033) — signal counters survive inside lambdas only as members.
@@ -203,9 +205,11 @@ func _run_scenarios() -> void:
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
 	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
+	await _scenario_favor_max_ends_run_victory() ## T-115 — the ceiling ends the run as a victory through the real main scene; starvation coexists in one Main.
 	await _scenario_scoring_values()
 	await _scenario_high_score_persists()
 	await _scenario_highscore_save_throttled() ## T-073 — directly after the persists scenario: same unpaused tree, no live Main.
+	await _scenario_favor_max_book_clamps_and_flushes() ## T-115 — directly after the throttle: same bare-autoload window, the victory flush is its twin.
 	await _scenario_score_popup()
 	await _scenario_pause_freezes()
 	await _scenario_title_escape_does_not_quit() ## T-097 — Esc at the title must not hard-quit.
@@ -6253,6 +6257,68 @@ func _read_sim_high() -> int:
 	return int(cfg.get_value("score", "high", -1))
 
 
+## (T-115) The ceiling's book legs, bare autoload in the `highscore_save_throttled`
+## window (directly after it: unpaused tree, no live Main): from `reset_run()`
+## a −50 add reads −50 and emits delta −50 — the T-114 no-floor lock intact.
+## Then with the balance re-staged at 0 and the T-073 dirty state staged
+## (`_saved_this_run` true, `_high_score_dirty` true, a beaten record at 4200)
+## one `add_favor(favor_max + 25)` overshoots and leaves favor EXACTLY
+## `favor_max` (never over), emits the APPLIED delta (100, not the requested
+## 125), pays exactly ONE disk write and the file reads the final 4200 back
+## through an independent ConfigFile — the victory path's flush, the hunger
+## path's twin. A further add clamps silently and fires NO second favor_maxed
+## (and no further write — the latch owns both); and `reset_run()` re-arms: a
+## second climb re-fires exactly once, its flush a no-op while the record is
+## clean.
+func _scenario_favor_max_book_clamps_and_flushes() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SIM_SAVE_PATH))
+	Game.reset_run()
+	_favor_delta_events.clear()
+	_favor_maxed_fires = 0
+	var changed_cb := func(_favor: int, delta: int) -> void: _favor_delta_events.append(delta)
+	var maxed_cb := func() -> void: _favor_maxed_fires += 1
+	Game.favor_changed.connect(changed_cb)
+	Game.favor_maxed.connect(maxed_cb)
+	var saves_before: int = Game._save_count
+	Game.add_favor(-50)
+	var floor_ok := Game.favor == -50 \
+			and not _favor_delta_events.is_empty() \
+			and _favor_delta_events[_favor_delta_events.size() - 1] == -50
+	## Stage the T-073 dirty end-of-run state (and the balance at zero — the
+	## climb must START at 0 so `favor_max + 25` overshoots and the clamp
+	## engages; leg A's −50 debt is its own leg); the maxing add is the flush.
+	Game.favor = 0
+	Game.score = 4200
+	Game.high_score = 4200
+	Game.record_beaten = true
+	Game._saved_this_run = true
+	Game._high_score_dirty = true
+	Game.add_favor(Game.favor_max + 25)
+	var file_at_flush: int = _read_sim_high()
+	var climb_ok := Game.favor == Game.favor_max \
+			and _favor_delta_events[_favor_delta_events.size() - 1] == Game.favor_max \
+			and Game._save_count == saves_before + 1 \
+			and _favor_maxed_fires == 1 \
+			and file_at_flush == 4200
+	Game.add_favor(10)
+	var silent_ok := Game.favor == Game.favor_max and _favor_maxed_fires == 1 \
+			and Game._save_count == saves_before + 1
+	Game.reset_run() ## Re-arms the latch beside favor = 0.
+	var fires_at_rearm: int = _favor_maxed_fires
+	Game.add_favor(Game.favor_max)
+	var rearm_ok := Game.favor == Game.favor_max \
+			and _favor_maxed_fires == fires_at_rearm + 1 \
+			and Game._save_count == saves_before + 1 ## The latch flush is dirty-guarded: nothing clean to write.
+	Game.favor_changed.disconnect(changed_cb)
+	Game.favor_maxed.disconnect(maxed_cb)
+	Game.reset_run() ## Leave the autoload as the next scenario expects it.
+	_check("favor_max_book_clamps_and_flushes", floor_ok and climb_ok and silent_ok and rearm_ok,
+			"floor=%s climb=%s silent=%s rearm=%s (favor %d, saves %d→%d, maxed fires %d, file %d)" % [
+					floor_ok, climb_ok, silent_ok, rearm_ok, Game.favor,
+					saves_before, Game._save_count, _favor_maxed_fires, file_at_flush])
+
+
 ## The popup (T-009): the ticket's "+100 ×2" format at the hit position, then
 ## float up, fade out and clean itself up after its lifetime. (T-038) The
 ## static STYLE-tag format variants get their own cheap (no instancing) check
@@ -6427,6 +6493,124 @@ func _scenario_game_over_screen() -> void:
 					opened, labels_ok, frozen, esc_locked,
 					screen.score_label.text if opened else "-",
 					screen.breakdown_label.text if opened else "-"])
+
+
+## (T-115) The victory ending, end to end through the REAL main scene
+## (instanced-Main pattern, pigeon held airborne): favor staged 2 under the
+## ceiling, the parked fleet forced all-VISITOR (the T-114 rig pattern), and
+## ONE real parked visitor car driven through Main's relay — favor reads
+## EXACTLY `favor_max` (the clamp in the real chain), the tree pauses, the
+## score screen opens in the VICTORY register (title, gold dim, note, the
+## run's real splat counts plus the favor total) while hunger stands — this
+## ending is NOT starvation — and Esc stays locked; a further splat books
+## nothing past the clamp and fires no second `favor_maxed`. Coexistence: a
+## direct `hunger.game_over` emit with the victory screen up changes NOTHING
+## (first-wins); `restart_run()` unpauses, closes, zeroes and re-arms (a
+## staged sub-max add fires nothing); then favor staged LOW, the T-010
+## `drain_per_second` compression starves the run and the SAME screen opens
+## in the STARVED! register — dark red dim, no note, plain breakdown — both
+## entries having rewritten every mode-dependent property in one Main.
+func _scenario_favor_max_ends_run_victory() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	_favor_maxed_fires = 0
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(6500.0, 0.0, 6500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	var pigeon: Player = main_game.player
+	var cars: CarSpawner = main_game.get_node("CarSpawner") as CarSpawner
+	var hover: Vector3 = main_game.city.to_local(main_game.city.spawn_point) \
+			+ Vector3(0.0, 60.0, 0.0)
+	pigeon.reset_flight(hover) ## Airborne for the whole scenario — no trust, no crumbs eaten.
+	await _wait_frames(6)
+	var maxed_cb := func() -> void: _favor_maxed_fires += 1
+	Game.favor_maxed.connect(maxed_cb)
+	Game.favor = Game.favor_max - Game.favor_visitor_car_splat ## Two under the ceiling: one jackpot wins.
+	cars.visitor_share = 1.0
+	cars.superfan_share = 0.0
+	cars._populate()
+	await _wait_frames(2)
+	var first_car: Car = null
+	for car in cars.living_cars():
+		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
+			first_car = car
+			break
+	var screen: GameOverScreen = main_game.game_over_screen
+	var pause_menu: PauseMenu = main_game.get_node("PauseMenu")
+	if first_car == null:
+		_check("favor_max_ends_run_victory", false, "no parked VISITOR car after the all-visitor populate")
+		Game.favor_maxed.disconnect(maxed_cb)
+		main_game.free()
+		Game.hunger.player = null
+		Game.reset_run()
+		return
+	first_car.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The duck-typed entry the drop calls — through Main's relay.
+	pause_menu.toggle() ## Esc on a dead run must be refused.
+	var victory_ok := Game.favor == Game.favor_max \
+			and get_tree().paused and screen.is_open \
+			and screen.title_label.text == GameOverScreen.VICTORY_TITLE \
+			and screen.dim_rect.color.is_equal_approx(screen.victory_dim) \
+			and screen.victory_note.visible \
+			and screen.breakdown_label.text \
+					== "Tourists splatted: 0    Cars splatted: 1    Favor: %d" % Game.favor_max \
+			and not Game.hunger.game_over_emitted and Game.hunger.value > 0.0 \
+			and pause_menu.locked
+	## The latch is one-shot: a further splat books nothing past the clamp.
+	var second_car: Car = null
+	for car in cars.living_cars():
+		if car != first_car and car.mode == Car.Mode.PARKED \
+				and car.citizen_class == CitizenClass.Kind.VISITOR:
+			second_car = car
+			break
+	var latch_ok := second_car != null
+	if second_car != null:
+		second_car.on_splatted(Vector3(0.0, -5.0, 0.0))
+		latch_ok = latch_ok and Game.favor == Game.favor_max \
+				and _favor_maxed_fires == 1 and screen.is_open and get_tree().paused
+	## Coexistence leg 1 — starvation knocking on a won run changes nothing.
+	Game.hunger.game_over.emit()
+	var first_wins_ok := get_tree().paused and screen.is_open \
+			and screen.title_label.text == GameOverScreen.VICTORY_TITLE \
+			and screen.dim_rect.color.is_equal_approx(screen.victory_dim) \
+			and screen.victory_note.visible \
+			and screen.breakdown_label.text.contains("Favor:") \
+			and _favor_maxed_fires == 1
+	## Coexistence leg 2 — restart unpauses, closes, zeroes and re-arms.
+	main_game.restart_run()
+	var restart_ok := not get_tree().paused and not screen.is_open \
+			and not screen.visible and Game.favor == 0 \
+			and not Game.hunger.game_over_emitted
+	Game.add_favor(Game.favor_max - 1) ## A staged sub-max add fires nothing.
+	var submax_ok := Game.favor == Game.favor_max - 1 \
+			and _favor_maxed_fires == 1 and not screen.is_open and not get_tree().paused
+	## Coexistence leg 3 — the SAME Main starves into the STARVED! register.
+	Game.favor = 2 ## Staged LOW: the register rewrite must not care about the balance.
+	var drain_default: float = Game.hunger.drain_per_second
+	Game.hunger.drain_per_second = 60.0 ## Time-compressed starvation (the T-010 scenario's compression).
+	var starved := false
+	for _i in 600: ## 10 s budget.
+		await get_tree().physics_frame
+		if get_tree().paused and screen.is_open:
+			starved = true
+			break
+	var starved_ok := starved \
+			and screen.title_label.text == GameOverScreen.STARVED_TITLE \
+			and screen.dim_rect.color.is_equal_approx(GameOverScreen.STARVED_DIM) \
+			and not screen.victory_note.visible \
+			and screen.breakdown_label.text == "Tourists splatted: 0    Cars splatted: 0" \
+			and Game.hunger.game_over_emitted
+	Game.hunger.drain_per_second = drain_default ## Put the autoload's clock back.
+	var text_at_read: String = screen.title_label.text
+	Game.favor_maxed.disconnect(maxed_cb)
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	get_tree().paused = false ## Never leak a pause into later scenarios.
+	_check("favor_max_ends_run_victory",
+			victory_ok and latch_ok and first_wins_ok and restart_ok and submax_ok and starved_ok,
+			"victory=%s latch=%s first_wins=%s restart=%s submax=%s starved=%s (end title '%s', fires %d)" % [
+					victory_ok, latch_ok, first_wins_ok, restart_ok, submax_ok, starved_ok,
+					text_at_read, _favor_maxed_fires])
 
 
 ## Restart from the score screen (T-010): Main.restart_run() — the exact path

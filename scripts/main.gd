@@ -129,6 +129,7 @@ var _home_note_phase: float = 0.0 ## (T-087, folded from T-100) Game-time second
 var _combo_note_left: float = 0.0 ## (T-079) Game-time seconds left before the landing note clears; 0 = at rest, empty.
 var _favor_note_left: float = 0.0 ## (T-114) Game-time seconds left before the favor delta note clears back to the rest text; 0 = at rest.
 var _favor_tint_shown: Color = FAVOR_REST_COLOR ## (T-114) The tint last written — the T-055 write-only-on-change guard for the color half.
+var _run_ended: bool = false ## (T-115) The FIRST ending to fire owns the run — starvation and victory both latch once, so this only guards the same-frame double fire.
 var _edge_hinting: bool = false ## (T-023) True while the edge hint owns the hint line — re-evaluated every _process frame, so grounding (including the guard's teleport-then-drop) self-clears it and hands the label back to the steady-state writers (`_update_hint`, and `_on_grounding_changed`'s edge write) instead of the writers fighting.
 ## (T-111) The crumb the bread globe last drew — the flash memory: re-aiming
 ## at a DIFFERENT instance (a valid neighbour, or the fresh pick after the
@@ -162,6 +163,7 @@ func _ready() -> void:
 	Game.hunger.attach_player(player)
 	Game.hunger.changed.connect(_on_hunger_changed)
 	Game.hunger.game_over.connect(_on_game_over)
+	Game.favor_maxed.connect(_on_favor_maxed) ## (T-115) The victory ending — the ceiling's own run-ender.
 	Sfx.start_ambience() ## The looping city bed under everything (T-012).
 	pause_menu.restart_requested.connect(restart_run)
 	pause_menu.menu_requested.connect(_to_menu)
@@ -566,12 +568,33 @@ func _show_favor(favor: int, delta: int) -> void:
 ## The fail state (T-010): starvation opens the score screen — final score,
 ## the persisted high score and the tourist/car breakdown — and freezes the
 ## run (the screen owns the pause; Esc-pausing is locked out by PauseMenu).
-## The signal fires exactly once per run (T-005 latch).
+## The signal fires exactly once per run (T-005 latch). (T-115) The
+## `_run_ended` guard makes the first ending the owner: if a victory already
+## opened the screen this same frame, starvation changes nothing (and vice
+## versa in _on_favor_maxed).
 func _on_game_over() -> void:
+	if _run_ended:
+		return
+	_run_ended = true
 	pause_menu.locked = true
 	game_over_screen.open(Game.score, Game.high_score,
 			Game.tourist_hits, Game.car_hits, Game.record_beaten)
 	print("HUNGER: game over — signal fired at zero")
+
+
+## (T-115) The victory ending: the elders' favor reached `favor_max` (fired
+## exactly once per run by the autoload's own latch), so the run ends as a
+## WIN — the same screen contract as starvation, in the victory register.
+## The same `_run_ended` first-wins rule as _on_game_over guards the
+## same-frame double fire (hunger reaching zero and a splat crossing the
+## ceiling in one physics frame must not open the screen twice).
+func _on_favor_maxed() -> void:
+	if _run_ended:
+		return
+	_run_ended = true
+	pause_menu.locked = true
+	game_over_screen.open_victory(Game.score, Game.high_score,
+			Game.tourist_hits, Game.car_hits, Game.favor, Game.record_beaten)
 
 
 ## In-place fresh run (T-010): zeroes the autoload state, regenerates the SAME
@@ -606,6 +629,7 @@ func restart_run() -> void:
 	_combo_note_left = 0.0
 	_favor_note_left = 0.0 ## (T-114) …and no favor note mid-display — Game.reset_run()
 	_show_favor(Game.favor, 0) ## zeroed the balance; the row follows it, rest text and tint.
+	_run_ended = false ## (T-115) A fresh run can end again — either ending re-arms here.
 	_edge_hinting = false ## (T-023) A fresh run drops the pigeon on the corridor, well inside the radius — the next _process frame rewrites the normal hint, so no stale edge text across the reset.
 	_last_bread_target = null ## (T-111) A fresh run's first bread acquisition is flash-less: the
 	_drew_bread_target = false ## flash memory empties and any running flash dies with the globe below.

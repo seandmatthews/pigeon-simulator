@@ -320,6 +320,7 @@ custom_minimum_size = Vector2(420, 0)
 theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="GameOverScreen/Center/ScorePanel/Box"]
+unique_name_in_owner = true
 theme_override_font_sizes/font_size = 36
 text = "STARVED!"
 horizontal_alignment = 1
@@ -348,6 +349,14 @@ unique_name_in_owner = true
 theme_override_font_sizes/font_size = 18
 theme_override_colors/font_color = Color(1, 1, 1, 0.8)
 text = "Tourists splatted: 0    Cars splatted: 0"
+horizontal_alignment = 1
+
+[node name="VictoryNote" type="Label" parent="GameOverScreen/Center/ScorePanel/Box"]
+unique_name_in_owner = true
+visible = false
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(1, 1, 1, 0.8)
+text = "Not an un-splatted invader left in town — the park elders are delighted with their pigeon."
 horizontal_alignment = 1
 
 [node name="AgainButton" type="Button" parent="GameOverScreen/Center/ScorePanel/Box"]
