@@ -72,12 +72,12 @@ enum State { AIR, GROUND }
 @export var stall_nose_drop_rate: float = 1.1 ## Rad/s the nose pitches down while stalled.
 
 @export_group("Handling")
-@export var max_speed: float = 30.0
+@export var max_speed: float = 36.0 ## (T-117) The WASD ×1.2 pass raised the cap 30 → 36 — this is where "dive faster" lands.
 @export var drag: float = 0.06
 @export var max_bank_deg: float = 40.0
-@export var bank_rate: float = 3.5 ## Rad/s the body rolls toward the target bank.
-@export var full_bank_yaw_rate: float = 1.5 ## Yaw rate (rad/s) at full bank, before authority scaling.
-@export var pitch_speed: float = 2.2 ## Rad/s pitch rate, before authority scaling.
+@export var bank_rate: float = 4.2 ## Rad/s the body rolls toward the target bank. (T-117: ×1.2)
+@export var full_bank_yaw_rate: float = 1.8 ## Yaw rate (rad/s) at full bank, before authority scaling. (T-117: ×1.2)
+@export var pitch_speed: float = 2.64 ## Rad/s pitch rate, before authority scaling. (T-117: ×1.2)
 @export var min_control_authority: float = 0.35 ## Control floor at zero airspeed so stall recovery inputs still work.
 @export var pitch_auth_full_deg: float = 50.0 ## (T-083) |Body pitch| at or below which the input pitch term keeps full authority; symmetric — the falloff bites pitch-down past -50° too.
 @export var pitch_auth_zero_deg: float = 85.0 ## (T-083) |Body pitch| at or above which the input pitch term reaches zero — the attitude bound that stops held pitch-up from parking the nose at or past vertical.
@@ -112,10 +112,10 @@ var off_world_resets: int = 0
 @export var max_land_speed: float = 16.0 ## Total speed below which a floor touch settles into the waddle; faster ones skid. (T-021 raised 12 → 16: the model's own trim glide touches down at 15.3–17.2 m/s, so the bar must sit above the natural arrival.)
 @export var max_land_angle_deg: float = 30.0 ## Steepest descent angle that still counts as a gentle touchdown.
 @export var skid_settle_speed: float = 2.0 ## (T-021) Speed a rejected touch's skid must bleed under before it may still settle near rest — the touch itself was already judged (and rejected) on first contact.
-@export var walk_speed: float = 2.2 ## Waddle speed (m/s) — slow on purpose.
-@export var walk_accel: float = 10.0 ## How fast waddling reaches walk speed (m/s²).
+@export var walk_speed: float = 2.64 ## Waddle speed (m/s) — slow on purpose. (T-117: ×1.2)
+@export var walk_accel: float = 12.0 ## How fast waddling reaches walk speed (m/s²). (T-117: ×1.2)
 @export var walk_decel: float = 22.0 ## How fast waddling kills leftover landing momentum (m/s²).
-@export var waddle_turn_rate: float = 2.6 ## Rad/s turn rate while waddling.
+@export var waddle_turn_rate: float = 3.12 ## Rad/s turn rate while waddling. (T-117: ×1.2)
 @export var ground_level_rate: float = 6.0 ## Rad/s the body rights its pitch/roll while on a floor.
 
 @export_group("Pose") ## The visual pose thresholds (T-011) — when the wings read as a dive.
