@@ -122,6 +122,7 @@ Milestone 2; don't pull M2 work into sweep waves.
 | T-114 | [The favor economy: visitor splats earn the elders' favor, local blood and stolen crumbs spend it, and elder bread is bought with it](T-114-favor-economy.md) | worldbuilding | 4 | 3 | done |
 | T-115 | [Sufficiently hostile: the favor-max victory ending](T-115-favor-max-victory.md) | worldbuilding | 5 | 2 | done |
 | T-116 | [The meter names the prize: the favor row shows the ceiling and the HUD states the win](T-116-favor-meter-names-the-prize.md) | ui-ux | 4 | 1 | done |
+| T-117 | [20% more WASD: the owner responsiveness pass](T-117-wasd-20-percent.md) | flight-control | 4 | 2 | doing |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since
