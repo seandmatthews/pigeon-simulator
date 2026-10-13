@@ -69,10 +69,16 @@ Wiring lives in `.zcode/config.json` (`godot` → `http://127.0.0.1:9090/mcp`), 
 editor-side pieces in `addons/godot_mcp/` (editor plugin + the `MCPRuntimeProbe`
 autoload — the probe no-ops outside debug sessions, leave both in place).
 
-- **Shared server first.** It is shared with the cozy-arcade suite. If port 9090
-  isn't answering, start it before opening the editor:
-  `cmd //c ../cozy-arcade/tools/serve.cmd` (idempotent; refuses foreign squatters).
-  Editor bridge: `ws://127.0.0.1:9080`.
+- **Shared server first.** The server is shared with the cozy-carnival suite and
+  lives in that sibling checkout — this repo deliberately names no foreign path
+  (the suite was renamed once already). If port 9090 isn't answering, start it
+  before opening the editor:
+  `cmd //c .zcode/tools/serve-godot-mcp.cmd` (run it in the background; it
+  resolves the suite — `GODOT_MCP_REPO` env var or sibling probe — and keeps the
+  suite's identity-checked shared server. If the suite's packaged launcher dies
+  silently, as it does as of 2026-10-12, the wrapper falls back to a direct
+  `python -m` start that the suite's port checker still classifies as OURS).
+  Idempotent. Editor bridge: `ws://127.0.0.1:9080`.
 - **One editor per bridge.** Open this project's editor
   (`~/bin/Godot_v4.7.2-stable_win64.exe --path . --editor`) and preflight with
   `godot_get_server_info` before any runtime tool — if `bridge_connected` is false,
@@ -88,12 +94,24 @@ autoload — the probe no-ops outside debug sessions, leave both in place).
   down event and an up event ~120 ms apart; confirm delivery via
   `godot_input_get_stats` (`injected` count). This is how the title screen's Space
   shortcut was proven to start a run.
-- **Known defects (2026-09-17, from the cozy-arcade suite):** screenshots can wedge
+- **Gameplay input is action events, not raw keys.** The movement bindings use
+  *physical* keycodes, which synthesized `{"type":"key"}` events don't carry —
+  a raw W press moves nothing. Use `{"type":"action","action":"pitch_up"}`-style
+  events for in-game driving; raw keys only reach menus (Space works either way).
+- **Known defects (2026-09-17, from the cozy-carnival suite):** screenshots can wedge
   after game events — capture first, and restart the play session if one times out;
   `monitor_property` sampling pauses the SceneTree and drops injected input — arm it
   while idle and never interleave with input. Bridge acting up: run
-  `../cozy-arcade/tools/port-doctor.cmd`; ports are identity-checked, a SQUAT is a
+  `../cozy-carnival/tools/port-doctor.cmd`; ports are identity-checked, a SQUAT is a
   foreign process, not our server.
+- **More defects (2026-10-12 session, 3 runs / 120 injected events):** any capture
+  wedges while the SceneTree is *paused* — the game-over screen pauses the tree
+  (`game_over_screen.gd`), so death screenshots time out every time. Grab the
+  window at the OS level instead:
+  `powershell -File ../cozy-carnival/tools/window-shot.ps1 "Pigeon Simulator (DEBUG)" out.png`.
+  After the menu→main scene swap, `godot_runtime_get_game_scene_tree` and
+  `is_playing`'s scene field can serve stale data (they kept reporting
+  `menu.tscn` mid-run) — trust screenshots over them.
 
 Without the bridge (headless CI), `tests/` Gate 1b still works — the MCP path is
 for the eyes-on human-judgement gate (feel, look, sound).
