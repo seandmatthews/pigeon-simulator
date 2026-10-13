@@ -147,6 +147,10 @@ forged in order after each lands.
 
 ## Suggested build order
 
+*(Historical — the M1 sequencing note below predates the sweep and M2; every
+ticket through T-116 is done or superseded. Phase status lives in
+[`../ROADMAP.md`](../ROADMAP.md).)*
+
 T-001 (feel) and T-004 (world) are independent — run them in parallel. T-002 follows
 T-001. T-003 unlocks the ground loop that T-005 needs. T-006 unlocks the target
 tickets T-007/T-008, which unlock T-009. T-010 ties the loop together. T-011, T-012
