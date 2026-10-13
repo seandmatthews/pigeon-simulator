@@ -215,7 +215,19 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(1, 1, 1, 0.75)
-text = "Favor: 0"
+text = "Favor: 0 / 100"
+
+[node name="FavorGoal" type="Label" parent="HUD"]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 216.0
+offset_right = 500.0
+offset_bottom = 236.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(1, 1, 1, 0.6)
+text = "max the elders' favor to take the town"
 
 [node name="ReturnFade" type="ColorRect" parent="HUD"]
 unique_name_in_owner = true

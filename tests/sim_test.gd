@@ -206,6 +206,7 @@ func _run_scenarios() -> void:
 	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
 	await _scenario_favor_max_ends_run_victory() ## T-115 — the ceiling ends the run as a victory through the real main scene; starvation coexists in one Main.
+	await _scenario_favor_meter_names_the_ceiling() ## T-116 — the meter reads against the ceiling and the caption row states the win.
 	await _scenario_scoring_values()
 	await _scenario_high_score_persists()
 	await _scenario_highscore_save_throttled() ## T-073 — directly after the persists scenario: same unpaused tree, no live Main.
@@ -5809,7 +5810,7 @@ func _scenario_splat_favor_follows_citizen_class() -> void:
 					* main_game.car_spawner.visitor_share) \
 			and main_game.bread_spawner.living_crumbs().size() \
 					== main_game.bread_spawner.target_count \
-			and label.text == "Favor: 0"
+			and label.text == "Favor: %d / %d" % [Game.favor, Game.favor_max]
 	## The synthetic scoring entry stays favor-silent (the T-060 coach leg's call).
 	Game.add_tourist_hit(main_game.city.spawn_point)
 	var synthetic_silent := Game.favor == 0
@@ -5886,21 +5887,21 @@ func _scenario_splat_favor_follows_citizen_class() -> void:
 	for _i in 190: ## 2.5 s of game time at the fixed 60 Hz + margin — held airborne.
 		pigeon.reset_flight(high)
 		await get_tree().physics_frame
-	var rest_ok: bool = label.text == "Favor: %d" % Game.favor \
+	var rest_ok: bool = label.text == "Favor: %d / %d" % [Game.favor, Game.favor_max] \
 			and label.get_theme_color("font_color").is_equal_approx(rest_color)
 	Game.add_favor(6)
-	var gain_ok: bool = label.text == "Favor: %d  (+6)" % Game.favor \
+	var gain_ok: bool = label.text == "Favor: %d / %d  (+6)" % [Game.favor, Game.favor_max] \
 			and label.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_GAIN_COLOR)
 	for _i in 190: ## The expiry: back to the rest text and the rest tint.
 		pigeon.reset_flight(high)
 		await get_tree().physics_frame
-	var expired_ok: bool = label.text == "Favor: %d" % Game.favor \
+	var expired_ok: bool = label.text == "Favor: %d / %d" % [Game.favor, Game.favor_max] \
 			and label.get_theme_color("font_color").is_equal_approx(rest_color)
 	Game.add_favor(-1)
-	var loss_ok: bool = label.text == "Favor: %d  (-1)" % Game.favor \
+	var loss_ok: bool = label.text == "Favor: %d / %d  (-1)" % [Game.favor, Game.favor_max] \
 			and label.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_LOSS_COLOR)
 	main_game.restart_run()
-	var restart_ok: bool = label.text == "Favor: 0" \
+	var restart_ok: bool = label.text == "Favor: 0 / %d" % Game.favor_max \
 			and label.get_theme_color("font_color").is_equal_approx(rest_color)
 	var final_text: String = label.text ## Read before the free below.
 	main_game.free()
@@ -5913,6 +5914,62 @@ func _scenario_splat_favor_follows_citizen_class() -> void:
 					boot_ok, synthetic_silent, visitor_ok, civilian_ok, superfan_ok,
 					landing_ok, visitor_car_ok, civilian_car_ok, rest_ok, gain_ok,
 					expired_ok, loss_ok, restart_ok, final_text])
+
+
+## --- scenario (T-116 the meter names the prize) ------------------------------
+
+
+## The goal layer announces itself (T-116), through the REAL main scene (the
+## instanced-Main pattern, pigeon held airborne so no ambient crumb feed can
+## move the balance mid-read): the favor meter reads against the elders'
+## ceiling — rest "Favor: <n> / <max>", gold gain "Favor: <n> / <max>  (+6)"
+## — interpolated from `Game.favor_max` (the value-lock pins T-115's tuning
+## at 100; a silent retune FAILs the leg by design), debt still reads
+## ("Favor: -3 / <max>" — the T-114 no-floor lock, shown not hidden), and
+## restart_run() resets to "Favor: 0 / <max>". The scene-static %FavorGoal
+## caption row under the meter states the win rule with the column's outline
+## treatment at its dimmer caption fill — the scene owns the text and no code
+## writes it, so these asserts ARE the whole contract. Cleanup matches the
+## T-114 sibling: free() → Game.hunger.player = null → Game.reset_run().
+func _scenario_favor_meter_names_the_ceiling() -> void:
+	var favor_max_ok: bool = Game.favor_max == 100 ## (T-115) The tuning, locked.
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(-2500.0, 0.0, 2500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var pigeon: Player = main_game.player
+	var label: Label = main_game.favor_label
+	var goal: Label = main_game.get_node("%FavorGoal") as Label
+	var high := main_game.city.to_local(main_game.city.spawn_point) \
+			+ Vector3(0.0, 60.0, 0.0)
+	pigeon.reset_flight(high)
+	await get_tree().physics_frame
+	var rest_ok: bool = label.text == "Favor: %d / %d" % [Game.favor, Game.favor_max]
+	var goal_ok: bool = goal != null \
+			and goal.visible and goal.is_visible_in_tree() \
+			and goal.text == "max the elders' favor to take the town" \
+			and goal.offset_top >= label.offset_bottom \
+			and goal.get_theme_font_size("font_size") == 14 \
+			and goal.get_theme_constant("outline_size") == 4 \
+			and goal.get_theme_color("font_color").is_equal_approx(Color(1.0, 1.0, 1.0, 0.6)) ## Under the meter, same column, the caption fill.
+	Game.add_favor(6)
+	var gain_ok: bool = label.text == "Favor: %d / %d  (+6)" % [Game.favor, Game.favor_max]
+	Game.favor = -3 ## Staged directly — no emit — a zero add re-renders the rest form over it.
+	Game.add_favor(0)
+	var debt_ok: bool = label.text == "Favor: -3 / %d" % Game.favor_max
+	main_game.restart_run()
+	var restart_ok: bool = label.text == "Favor: 0 / %d" % Game.favor_max
+	var final_text: String = label.text ## Read before the free below.
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("favor_meter_names_the_ceiling",
+			favor_max_ok and rest_ok and goal_ok and gain_ok and debt_ok and restart_ok,
+			"max=100=%s rest=%s goal=%s gain=%s debt=%s restart=%s ('%s')" % [
+					favor_max_ok, rest_ok, goal_ok, gain_ok, debt_ok, restart_ok,
+					final_text])
 
 
 ## The elder gate (T-114), on the `_add_elder_rig` rig with favor STAGED at
@@ -7406,6 +7463,10 @@ func _scenario_title_screen_teaches_controls() -> void:
 	var actions_ok := true
 	for action: String in ["flap", "poop", "pitch_up", "pitch_down", "turn_left", "turn_right", "pause"]:
 		actions_ok = actions_ok and InputMap.has_action(action)
+	## (T-116) The footer is the game's rules line — the win rule must be on it
+	## beside the survival and splat-value clauses: "favor" and "town" both named.
+	var win_rule_ok: bool = footer != null \
+			and footer.text.contains("favor") and footer.text.contains("town")
 	## 15 px white @ 0.7, no outline — resolved through the theme stack like the
 	## T-099 recap assert; "no outline" is the absence of a local override AND a
 	## zero effective size.
@@ -7432,10 +7493,11 @@ func _scenario_title_screen_teaches_controls() -> void:
 	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
 	Game.reset_run()
 	_check("title_screen_teaches_controls",
-			placed_ok and visible_ok and text_ok and actions_ok and style_ok and hint_ok,
-			"placed=%s visible=%s text=%s actions=%s style=%s hint=%s (controls '%s' / hint '%s')" % [
+			placed_ok and visible_ok and text_ok and actions_ok and style_ok and hint_ok
+					and win_rule_ok,
+			"placed=%s visible=%s text=%s actions=%s style=%s hint=%s win_rule=%s (controls '%s' / hint '%s')" % [
 					placed_ok, visible_ok, text_ok, actions_ok, style_ok, hint_ok,
-					menu_text, hint_text])
+					win_rule_ok, menu_text, hint_text])
 
 
 ## --- scenario (T-040 HUD combo strip & hit marker) ---------------------------

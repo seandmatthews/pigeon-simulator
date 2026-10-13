@@ -74,7 +74,7 @@ offset_top = -60.0
 offset_bottom = -28.0
 theme_override_font_sizes/font_size = 15
 theme_override_colors/font_color = Color(1, 1, 1, 0.55)
-text = "eat bread to survive · splat tourists (100) and cars (30) · don't starve · Q quit"
+text = "eat bread to survive · splat tourists (100) and cars (30) · max the elders' favor to take the town · don't starve · Q quit"
 horizontal_alignment = 1
 
 [node name="ControlsLabel" type="Label" parent="."]

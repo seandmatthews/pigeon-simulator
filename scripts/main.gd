@@ -25,9 +25,9 @@ const COACH_POOP := "F poop · release ~15 m early to lead them"
 ## landing kills a live combo — game time, like the HUD pulses and the T-040
 ## strip, so it freezes with a paused or ended run.
 const COMBO_NOTE_SECONDS := 2.5
-## (T-114) How long the favor delta note ("Favor: <n>  (<+delta>)") stays up
-## beside the balance — the combo note's exact game-time machinery, so it
-## freezes with a paused or ended run too.
+## (T-114) How long the favor delta note ("Favor: <n> / <max>  (<+delta>)")
+## stays up beside the balance — the combo note's exact game-time machinery,
+## so it freezes with a paused or ended run too.
 const FAVOR_NOTE_SECONDS := 2.5
 ## (T-114) The delta note's tints: the HUD-pulse gold (main.gd's escalation
 ## flash) for gains, the hunger tier-2 red for losses, and the column's own
@@ -94,8 +94,10 @@ const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds t
 ## the rule at the instant it bites.
 @onready var combo_note: Label = %ComboNote
 ## (T-114) The favor meter — one row under the landing note in the same
-## column: the elders' favor as a signed balance, with a 2.5 s delta note
-## after every change. Rest text "Favor: <n>" (debt is shown, not hidden).
+## column: the elders' favor as a signed balance against `Game.favor_max`,
+## with a 2.5 s delta note after every change. Rest text "Favor: <n> / <max>"
+## (debt is shown, not hidden). Under it sits the scene-static %FavorGoal
+## caption (T-116) — the win rule in the meter's own row; no code writer.
 @onready var favor_label: Label = %FavorLabel
 @onready var hunger_bar: ProgressBar = %HungerBar
 ## The "home again" note (T-087, folded from T-100) — sits under the combo
@@ -536,11 +538,13 @@ func _on_hit_scored(points: int, multiplier: int, pos: Vector3, style: bool) -> 
 
 
 ## (T-114) The favor meter's driver: every `Game.favor_changed` re-writes the
-## label — rest text is the signed balance, and a non-zero delta appends the
-## note ("Favor: <n>  (<+d>)"), tints the row (gold gains, red losses) and
-## arms the 2.5 s game-time expiry that `_process` clears back to rest. Both
-## writes are guarded (the T-055 write-only-on-change rule): idle frames touch
-## nothing. The autoload books; this renders.
+## label — rest text is the signed balance against the elders' ceiling
+## (T-116: "Favor: <n> / <favor_max>", interpolated from the export so a
+## retune re-labels itself), and a non-zero delta appends the
+## note ("Favor: <n> / <favor_max>  (<+d>)"), tints the row (gold gains, red
+## losses) and arms the 2.5 s game-time expiry that `_process` clears back to
+## rest. Both writes are guarded (the T-055 write-only-on-change rule): idle
+## frames touch nothing. The autoload books; this renders.
 func _on_favor_changed(favor: int, delta: int) -> void:
 	_show_favor(favor, delta)
 	if delta != 0:
@@ -548,9 +552,10 @@ func _on_favor_changed(favor: int, delta: int) -> void:
 
 
 ## (T-114) Composes and writes the favor row — guarded text, guarded tint.
-## delta 0 is the at-rest form: plain balance, the column's scene fill.
+## delta 0 is the at-rest form: balance against the T-115 ceiling, the
+## column's scene fill. Debt still reads — the T-114 no-floor lock shown.
 func _show_favor(favor: int, delta: int) -> void:
-	var text := "Favor: %d" % favor
+	var text := "Favor: %d / %d" % [favor, Game.favor_max]
 	if delta != 0:
 		text += "  (%+d)" % delta
 	if favor_label.text != text:
