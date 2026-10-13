@@ -58,7 +58,7 @@ const BALLOON_MUSH_BAR := 244 ## Pre-fix measured 247 (fails), post-fix 240 (pas
 ## approach the flow" arm is not usable; nose travel is the monotone arm — the
 ## trim is the only air-frame rotator without input, so zero travel is the
 ## structural pre-fix signature.
-const HSO_END_ANGLE_BAR := 7.0 ## |End nose-to-flow signed angle| bound: measured 5.72 at trim_rate 0.7, bounded under the pre-fix tree's 6.95 divergence point.
+const HSO_END_ANGLE_BAR := 8.4 ## |End nose-to-flow signed angle| bound: measured 5.72 at trim_rate 0.7 pre-T-117 (bar 7.0), re-derived ×1.2 for T-117 — the ×1.2 pitch rate deepens the 8-frame entry (14.54° → 17.35°) and the 90-frame window cannot out-run the deeper residual (measured 7.59); a settle probe showed the trim still converges to the same ≈5° equilibrium by 360 frames (−7.59 @90 → −11.13 @180 → −4.82 @360), so the bar tracks the window-relative residual, not a moved equilibrium. The trim_rate 0.7 physics is untouched by T-117.
 const HSO_NOSE_TRAVEL_BAR := 2.5 ## Min nose-pitch travel (deg) toward the flow over the window: measured 4.5 at trim_rate 0.7; pre-fix measured 0.0 (the attitude freeze — the red-before signature).
 
 ## (T-081) The mush-exit bars, verbatim from the ticket: over a 240-frame
@@ -771,7 +771,9 @@ func _scenario_pitch_attitude_bounded() -> void:
 ## and the signed nose-to-flow angle stays bounded (HSO_END_ANGLE_BAR, derived
 ## from the measured runs above — the audit-flagged "< 3°" original bar was
 ## re-derived, not weakened; red-before / green-after with both measured runs
-## recorded in the ticket).
+## recorded in the ticket. T-117 re-derived the bar ×1.2 again when the faster
+## pitch rate deepened the entry the window cannot out-run — provenance on the
+## const).
 func _scenario_hands_off_glide_trims() -> void:
 	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -17.0))
 	await _wait_frames(30) ## Settle into the trim glide.
