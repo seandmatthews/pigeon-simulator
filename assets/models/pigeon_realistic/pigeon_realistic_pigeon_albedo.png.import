@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b06xij5aq5544"
-path="res://.godot/imported/pigeon_realistic_pigeon_albedo.png-08029d5350bbdcfbeb76ce658e76276c.ctex"
+path.s3tc="res://.godot/imported/pigeon_realistic_pigeon_albedo.png-08029d5350bbdcfbeb76ce658e76276c.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "5ee8a9d2a759daa0231c82d0d9c163ce"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/pigeon_realistic/pigeon_realistic_pigeon_albedo.png"
-dest_files=["res://.godot/imported/pigeon_realistic_pigeon_albedo.png-08029d5350bbdcfbeb76ce658e76276c.ctex"]
+dest_files=["res://.godot/imported/pigeon_realistic_pigeon_albedo.png-08029d5350bbdcfbeb76ce658e76276c.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
