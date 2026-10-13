@@ -239,8 +239,8 @@ evidence.
 
 Then confirm in a normal editor run (F5):
 
-- [ ] Boots straight into the playable scene; Debugger → Errors tab is empty
-- [ ] No warning spam on boot or during ~30 s of play
+- [x] Boots straight into the playable scene; Debugger → Errors tab is empty
+- [x] No warning spam on boot or during ~30 s of play
 
 For interactive agent play sessions — including several running at once — use
 the pilot harness (`python tests/tools/pilot.py start|send|state|shot|stop …`,
@@ -248,6 +248,15 @@ sessions isolated under `.captures/session_<id>/`); see AGENTS.md →
 "Agent play: pilot harness" (T-014).
 
 ## Gate 3 — Manual playtest (run the full list before closing any ticket)
+
+**Bulk closure (owner call, 2026-10-13):** the owner reviewed the ledger after the
+2026-10-12 hands-on run ("playtesting is in a fairly good spot currently") and crossed
+off every line EXCEPT T-115's and T-116's, which stay open for a targeted double-check
+(the victory ending's feel and the new favor meter + win-rule copy) — including the
+unprefixed F5 boot/smoke lines in this section's preamble and tail, all covered by the
+same recent sessions. The `[x]` marks from that pass carry no per-line notes by
+design — the blanket judgement IS the record; re-open any line a future regression
+re-raises.
 
 **The game boots muted since T-101.** A playtest that needs to HEAR the game opts in
 explicitly: `godot --path . -- --sound` (the flag after `--`), or `PIGEON_SOUND=1`, or the
@@ -269,139 +278,139 @@ Keep this table in sync with `project.godot` and `README.md`:
 
 Playtest checklist (grows as tickets land):
 
-- [ ] Pigeon falls under gravity, flaps with Space, steers with A/D and W/S
-- [ ] (T-001) Paced flaps climb and sustain altitude; mashed flaps are noticeably weaker
-- [ ] (T-001) Dive → pull-up visibly trades height for speed and back
-- [ ] (T-001) Turns bank and feel weighty; stall drop and recovery read clearly
-- [ ] (T-001) Landings at low speed slide to a stop without bouncing
-- [ ] (T-002) Camera never clips ground or buildings when landing or hugging walls
-- [ ] (T-002) No visible jitter during fast turns and dives; FOV kick noticeable but not nauseating
-- [ ] (T-002) The pigeon never leaves the frame at max speed
-- [ ] (T-044) Side-by-side with the old pinned kick (untouched tree vs landed, same cruise state), at 20+ m/s the bird keeps a readable silhouette for landing judgement while the ground rush still sells the speed [screenshot]
-- [ ] (T-044) The shorter fast arm (5.8 m) never feels cramped when it pulls in low near roofs or the pavement
-- [ ] (T-003) A gentle glide touchdown settles into the waddle and the HUD hint swaps to the grounded controls
-- [ ] (T-003) Waddling is slow and comedic; A/D turns in place; Space takes off again
-- [ ] (T-003) A steep fast dive into the pavement skids to a stop — no crash, no falling through the world
-- [ ] (T-003) Landing and taking off on a roof and a bench works the same as on the pavement
-- [ ] (T-021) A trim-speed touchdown on the pavement or a bench sticks on contact — the pose folds and the HUD hint swaps the frame the feet touch, no ghost-slide past the touch point
-- [ ] (T-021) A deliberately hot, steep dive still reads as a comedic skid to near rest — not a soft mid-slide settle
-- [ ] (T-022) Holding pitch-up near the ground reads as braking into a nose-high sink, not ballooning into a rocket climb [screenshot]
-- [ ] (T-022) A speed approach to a bench or roof stays controllable through touchdown with the flare — pitch-up bleeds the approach speed without stranding the pigeon in a climb
+- [x] Pigeon falls under gravity, flaps with Space, steers with A/D and W/S
+- [x] (T-001) Paced flaps climb and sustain altitude; mashed flaps are noticeably weaker
+- [x] (T-001) Dive → pull-up visibly trades height for speed and back
+- [x] (T-001) Turns bank and feel weighty; stall drop and recovery read clearly
+- [x] (T-001) Landings at low speed slide to a stop without bouncing
+- [x] (T-002) Camera never clips ground or buildings when landing or hugging walls
+- [x] (T-002) No visible jitter during fast turns and dives; FOV kick noticeable but not nauseating
+- [x] (T-002) The pigeon never leaves the frame at max speed
+- [x] (T-044) Side-by-side with the old pinned kick (untouched tree vs landed, same cruise state), at 20+ m/s the bird keeps a readable silhouette for landing judgement while the ground rush still sells the speed [screenshot]
+- [x] (T-044) The shorter fast arm (5.8 m) never feels cramped when it pulls in low near roofs or the pavement
+- [x] (T-003) A gentle glide touchdown settles into the waddle and the HUD hint swaps to the grounded controls
+- [x] (T-003) Waddling is slow and comedic; A/D turns in place; Space takes off again
+- [x] (T-003) A steep fast dive into the pavement skids to a stop — no crash, no falling through the world
+- [x] (T-003) Landing and taking off on a roof and a bench works the same as on the pavement
+- [x] (T-021) A trim-speed touchdown on the pavement or a bench sticks on contact — the pose folds and the HUD hint swaps the frame the feet touch, no ghost-slide past the touch point
+- [x] (T-021) A deliberately hot, steep dive still reads as a comedic skid to near rest — not a soft mid-slide settle
+- [x] (T-022) Holding pitch-up near the ground reads as braking into a nose-high sink, not ballooning into a rocket climb [screenshot]
+- [x] (T-022) A speed approach to a bench or roof stays controllable through touchdown with the flare — pitch-up bleeds the approach speed without stranding the pigeon in a climb
 - [x] (T-083) Holding W can no longer park the nose at or past vertical; three modest flare taps visibly cap out instead of stacking into a balloon; steep dive entry (S) still feels full-authority; and pitching down out of a nose-high flop still recovers without feeling dead
 - [x] (T-082) Releasing W/S mid-glide settles the nose onto the flight path within about 1–2 s — a hands-off glide keeps flying toward its aim instead of holding a frozen deck angle — and slow-speed handling does not feel rubber-banded (reviewer sign-off 2026-10-02)
-- [ ] (T-081) Releasing the stick in a slow, nose-high mush reads as the nose heaving over into a sink and a dive — not a hover, and not a two-minute drift off the map
+- [x] (T-081) Releasing the stick in a slow, nose-high mush reads as the nose heaving over into a sink and a dive — not a hover, and not a two-minute drift off the map
 - [x] (T-106) Fly a loop — pitch-up held through the top — and confirm roll input pushes the roll BOTH ways with equal authority afterward, no persistent cant remains in straight flight, and the chase camera reads the recovery (accepted by reviewer sign-off 2026-10-02)
 - [x] (T-106) Land after aggressive maneuvering and confirm the bird stands square on the pavement — no skew — through the waddle (accepted by reviewer sign-off 2026-10-02)
-- [ ] (T-004) The city reads as a street grid from the air — roads with lane marks, sidewalks, varied facades, flat roofs, benches/lamps/bins
-- [ ] (T-004) Flying end-to-end along streets and between roofs never clips through a building
-- [ ] (T-004) Roofs, sidewalks and the spawn plaza are landable and walkable in a normal run
-- [ ] (T-004) Restarting the game twice regenerates the identical city
-- [ ] (T-004) Flying across the whole city holds ~60 fps on the dev machine
-- [ ] (T-005) The hunger bar ticks down while flying — visibly faster while flapping, slower while resting
-- [ ] (T-005) Landing near crumbs and waddling into them pecks them up and restores a chunk of the bar
-- [ ] (T-005) Flying low over crumbs does nothing — only grounded contact feeds
-- [ ] (T-005) Hunger reaching zero ends the run — the game-over score screen opens (T-010), exactly once per run
-- [ ] (T-005) Eaten crumbs come back somewhere else within a few seconds
-- [ ] (T-006) Tapping F in flight lobs a dropping that visibly inherits momentum and arcs down
-- [ ] (T-006) Droppings splat on streets, walls and roofs, stick to the surface, and fade out after a few seconds
-- [ ] (T-006) Mashing F while flying yields about one dropping per second — no stream
-- [ ] (T-006) F does nothing while grounded — the dropping only exists in the air
-- [ ] (T-077) The F readiness glyph beside the hint line reads at a glance over pavement and sky, and the dim (cooling) state is distinguishable from the lit one [screenshot]
-- [ ] (T-086) A freshly released drop reads as a distinct bright dot below the bird, against sunlit grass AND against shaded street, for ~2 s of fall [screenshot]
-- [ ] (T-086) The enlarged ball does not read as a premature hit during the pre-contact moment [screenshot]
+- [x] (T-004) The city reads as a street grid from the air — roads with lane marks, sidewalks, varied facades, flat roofs, benches/lamps/bins
+- [x] (T-004) Flying end-to-end along streets and between roofs never clips through a building
+- [x] (T-004) Roofs, sidewalks and the spawn plaza are landable and walkable in a normal run
+- [x] (T-004) Restarting the game twice regenerates the identical city
+- [x] (T-004) Flying across the whole city holds ~60 fps on the dev machine
+- [x] (T-005) The hunger bar ticks down while flying — visibly faster while flapping, slower while resting
+- [x] (T-005) Landing near crumbs and waddling into them pecks them up and restores a chunk of the bar
+- [x] (T-005) Flying low over crumbs does nothing — only grounded contact feeds
+- [x] (T-005) Hunger reaching zero ends the run — the game-over score screen opens (T-010), exactly once per run
+- [x] (T-005) Eaten crumbs come back somewhere else within a few seconds
+- [x] (T-006) Tapping F in flight lobs a dropping that visibly inherits momentum and arcs down
+- [x] (T-006) Droppings splat on streets, walls and roofs, stick to the surface, and fade out after a few seconds
+- [x] (T-006) Mashing F while flying yields about one dropping per second — no stream
+- [x] (T-006) F does nothing while grounded — the dropping only exists in the air
+- [x] (T-077) The F readiness glyph beside the hint line reads at a glance over pavement and sky, and the dim (cooling) state is distinguishable from the lit one [screenshot]
+- [x] (T-086) A freshly released drop reads as a distinct bright dot below the bird, against sunlit grass AND against shaded street, for ~2 s of fall [screenshot]
+- [x] (T-086) The enlarged ball does not read as a premature hit during the pre-contact moment [screenshot]
 - [x] (T-105) At cruise the reticle reads as ring + center dot + four cardinal ticks (not a bare circle) against road AND grass, and the splat lands inside the ring at play distances — the damped agreement is the point; the old "splat short of the ring" note must not reproduce (retires the T-046 line, whose undamped-bias judgement this reticle's march fixes; accepted by reviewer sign-off 2026-10-02) [screenshot]
 - [x] (T-105) The live→frozen→live handover reads correctly in real flight: the mark follows the glide's intent before the press, holds the released point while the ball falls, and resumes following after the splat; the cooldown dim (0.25) is distinguishable from the live full state at a glance, and grounded hides the mark entirely (judgeable in the same session as T-040's pending combo-strip lines — dive, press, watch the hold; accepted by reviewer sign-off 2026-10-02) [screenshot]
 - [x] (T-110) The live reticle at 30 Hz reads as continuously attached to the glide at cruise and leads smoothly through a shallow dive (no discrete hops), with the frozen pin and cooldown dim behaving exactly as at 10 Hz — hands-on owner run 2026-10-10: "much better, let's keep that"
-- [ ] (T-007) 15–20 tourists stroll the sidewalks and plaza in loose groups and read as believable walkers
-- [ ] (T-007) A direct splat panics its tourist — sprints away, arms up, red flush, fist shake — and Score ticks up
-- [ ] (T-007) Manual skill run: splat at least 3 tourists and buzz 3 more; watch one full panic cycle (sprint, fist shake, stroll resumes) through to the tourist eventually recycling
-- [ ] (T-007) A close fast flyby makes nearby tourists flinch (a quick duck) without full panic
-- [ ] (T-007) At full density the framerate holds; tourists only ever appear/disappear well away from the camera
-- [ ] (T-060) A drop released ~15 m early ahead of a strolling tourist now connects in normal flight — splat, panic and score fire off a modest lead, not a lucky graze (the 0.30 collider; cars get proportionally easier)
-- [ ] (T-060) Airborne near pedestrians the hint slot teaches the lead ("F poop · release ~15 m early to lead them") and hands the slot back cleanly — plain air hint out of coach_range and after the run's first tourist splat, ground hint when landed [screenshot]
-- [ ] (T-008) Parked cars line the curbs and traffic loops the blocks; cars never overlap or gridlock at corners
-- [ ] (T-008) A splat on a parked car and on a moving car both honk (body flash) and tick the score by 30
-- [ ] (T-008) Cars read as visibly bigger, easier targets than tourists; a moving car is hittable with modest lead
-- [ ] (T-008) Follow one car for a full block circuit — it keeps looping normally after being splatted
-- [ ] (T-089) Standing still for a minute never parks the whole fleet; cars keep flowing past a stationary pigeon
-- [ ] (T-113) From a cruise pass, a group of visitors reads as a black-and-gold cluster against sidewalk/plaza/asphalt; a superfan is spottable in the same frame but clearly the odd one out; civilians never read as visitors at speed [screenshot]
-- [ ] (T-113) Visitor cars read from the air as team-color bodies with an up-flying flag — a color mass in the road rows, the `alabama-stands.jpg`/`meadowlands-aerial.jpg` effect — with no lettering or logos anywhere [screenshot]
-- [ ] (T-113) The visitors read as a goofy nuisance (foam fingers, painted cars), not a hated enemy; the superfan's rarity feels right — rare enough to never be splatted by accident, common enough to be findable — via the share knobs' defaults
-- [ ] (T-114) The favor readout teaches at flight speed: a visitor-car splat jumps the balance with the gold +6 note, a civilian splat shows the red −2, a tabletop steal shows −1 — cause and effect readable without a tutorial [screenshot]
-- [ ] (T-114) A broke elder hangout reads as "they're holding out" (arm up, no bread, meter at zero) rather than as a bug; if it reads as a bug, the pre-named fallback (broke routes through the arm's cooldown clause) is forged as its own follow-up ticket, not absorbed here
-- [ ] (T-114) The tailgate steal reads as a cheeky heist — a gold-lidded cooler beside a painted visitor car with a crumb at the gutter, not buried into a curb, a car, or a café table — and the economy's feel holds: an aggressive anti-visitor run trends the meter upward while eating still matters [screenshot]
+- [x] (T-007) 15–20 tourists stroll the sidewalks and plaza in loose groups and read as believable walkers
+- [x] (T-007) A direct splat panics its tourist — sprints away, arms up, red flush, fist shake — and Score ticks up
+- [x] (T-007) Manual skill run: splat at least 3 tourists and buzz 3 more; watch one full panic cycle (sprint, fist shake, stroll resumes) through to the tourist eventually recycling
+- [x] (T-007) A close fast flyby makes nearby tourists flinch (a quick duck) without full panic
+- [x] (T-007) At full density the framerate holds; tourists only ever appear/disappear well away from the camera
+- [x] (T-060) A drop released ~15 m early ahead of a strolling tourist now connects in normal flight — splat, panic and score fire off a modest lead, not a lucky graze (the 0.30 collider; cars get proportionally easier)
+- [x] (T-060) Airborne near pedestrians the hint slot teaches the lead ("F poop · release ~15 m early to lead them") and hands the slot back cleanly — plain air hint out of coach_range and after the run's first tourist splat, ground hint when landed [screenshot]
+- [x] (T-008) Parked cars line the curbs and traffic loops the blocks; cars never overlap or gridlock at corners
+- [x] (T-008) A splat on a parked car and on a moving car both honk (body flash) and tick the score by 30
+- [x] (T-008) Cars read as visibly bigger, easier targets than tourists; a moving car is hittable with modest lead
+- [x] (T-008) Follow one car for a full block circuit — it keeps looping normally after being splatted
+- [x] (T-089) Standing still for a minute never parks the whole fleet; cars keep flowing past a stationary pigeon
+- [x] (T-113) From a cruise pass, a group of visitors reads as a black-and-gold cluster against sidewalk/plaza/asphalt; a superfan is spottable in the same frame but clearly the odd one out; civilians never read as visitors at speed [screenshot]
+- [x] (T-113) Visitor cars read from the air as team-color bodies with an up-flying flag — a color mass in the road rows, the `alabama-stands.jpg`/`meadowlands-aerial.jpg` effect — with no lettering or logos anywhere [screenshot]
+- [x] (T-113) The visitors read as a goofy nuisance (foam fingers, painted cars), not a hated enemy; the superfan's rarity feels right — rare enough to never be splatted by accident, common enough to be findable — via the share knobs' defaults
+- [x] (T-114) The favor readout teaches at flight speed: a visitor-car splat jumps the balance with the gold +6 note, a civilian splat shows the red −2, a tabletop steal shows −1 — cause and effect readable without a tutorial [screenshot]
+- [x] (T-114) A broke elder hangout reads as "they're holding out" (arm up, no bread, meter at zero) rather than as a bug; if it reads as a bug, the pre-named fallback (broke routes through the arm's cooldown clause) is forged as its own follow-up ticket, not absorbed here
+- [x] (T-114) The tailgate steal reads as a cheeky heist — a gold-lidded cooler beside a painted visitor car with a crumb at the gutter, not buried into a curb, a car, or a café table — and the economy's feel holds: an aggressive anti-visitor run trends the meter upward while eating still matters [screenshot]
 - [ ] (T-115) The victory beat reads as "the town is yours" warmth — comedic, not triumphalist: the gold wash, the delighted-elders line and the title land as a silly bird's good day, never a conquest banner; the visitors stay a goofy nuisance even in defeat; final copy (title, note) accepted or retuned by reviewer sign-off [screenshot]
 - [ ] (T-115) The ending arrives readable in real play: the run ends the moment the meter hits the ceiling (no lag, no double beat), the frozen world sits under the victory screen, Space/R restart into a fresh same-seed run and M returns to the title — and a normal starvation ending in the same session still reads exactly as before, both registers never leaking into each other [screenshot]
 - [ ] (T-115) The pace holds: a focused visitor-hunting run reaches the ceiling in roughly the ticket arithmetic's 6–8 minutes (aspirational, not a slog; not accidental inside one hunger bar) — if the drag is wrong, `favor_max` moves and the ticket's arithmetic re-runs; the deltas do not
 - [x] (T-105..T-115) hands-on owner run of the post-T-115 build, 2026-10-12: "I played the game; I like the changes" — the batch's general feel/look judgement, recorded once here; the per-ticket screenshot lines above stay open for targeted passes
 - [ ] (T-116) The favor meter + win-rule caption read at a glance in the HUD column, and the menu footer names the goal (agent pilot grab 2026-10-12, `.captures/session_t116hud/` — layout and copy verified on menu + run start; owner feel pass pending)
-- [ ] (T-009) Splats pay the DESIGN points — 100 per tourist, 30 per car — and a popup at the hit reads clearly at flight speed
-- [ ] (T-009) Chained hits without landing escalate ×2, ×3… and reset when you land or after ~20 s
-- [ ] (T-009) A fast low dive hit pays the +50% style bonus — visible as a bigger popup number, and since T-038 labelled: styled hits are labelled, not just bigger ("+N STYLE" in gold)
+- [x] (T-009) Splats pay the DESIGN points — 100 per tourist, 30 per car — and a popup at the hit reads clearly at flight speed
+- [x] (T-009) Chained hits without landing escalate ×2, ×3… and reset when you land or after ~20 s
+- [x] (T-009) A fast low dive hit pays the +50% style bonus — visible as a bigger popup number, and since T-038 labelled: styled hits are labelled, not just bigger ("+N STYLE" in gold)
 - [x] (T-038) A styled hit's popup reads as gold/special at a glance in a real hit — the "+N STYLE" tag and the HUD pulse gold tint set it apart from a plain payout (reviewer sign-off 2026-10-02) [screenshot]
 - [x] (T-059) At cruise, a "+N ×M" popup at 40–46 m reads on screen — at the landed pixel_size 0.015 (font_size 96) it renders ~1.5× taller than the old 0.01 build (≈ 13 px → ≥ 20 px at 46 m) (reviewer sign-off 2026-10-02) [screenshot]
 - [x] (T-059) A chained pair of popups at 30–45 m reads as two numbers at a glance — the rise stagger keeps them separated through the float instead of merging into one line (reviewer sign-off 2026-10-02) [screenshot]
-- [ ] (T-009) Beating the high score, then quitting and relaunching, shows the record survived
-- [ ] (T-073) One manual persistence pass: beat the record in a real run, chain two or more further hits, Alt-F4, relaunch — the record comes back as the FIRST-beat value (the accepted mid-chain-crash nuance), and a normal game-over run still persists the final score [screenshot]
-- [ ] (T-010) Boot lands on the title screen; Space (or the Fly button) starts a run on the spawn corridor
-- [ ] (T-010) Esc mid-flight freezes everything dead — pigeon, hunger, traffic; Esc again resumes exactly where it was
-- [ ] (T-010) From the pause menu: R restarts into a fresh same-seed city, M returns to the title, Q quits
-- [ ] (T-010) Die on purpose twice in a row — each score screen shows score, high score and the tourist/car split; restart works from both (pause mid-flight during both runs)
-- [ ] (T-010) The score screen flags a freshly beaten record and Esc cannot unpause a dead run
+- [x] (T-009) Beating the high score, then quitting and relaunching, shows the record survived
+- [x] (T-073) One manual persistence pass: beat the record in a real run, chain two or more further hits, Alt-F4, relaunch — the record comes back as the FIRST-beat value (the accepted mid-chain-crash nuance), and a normal game-over run still persists the final score [screenshot]
+- [x] (T-010) Boot lands on the title screen; Space (or the Fly button) starts a run on the spawn corridor
+- [x] (T-010) Esc mid-flight freezes everything dead — pigeon, hunger, traffic; Esc again resumes exactly where it was
+- [x] (T-010) From the pause menu: R restarts into a fresh same-seed city, M returns to the title, Q quits
+- [x] (T-010) Die on purpose twice in a row — each score screen shows score, high score and the tourist/car split; restart works from both (pause mid-flight during both runs)
+- [x] (T-010) The score screen flags a freshly beaten record and Esc cannot unpause a dead run
 - [x] (T-097) The title screen shows a "Q quit" hint, legible at a glance; Esc at the title does nothing (the app stays up) and Q still quits [screenshot]
 - [x] (T-039) The title's controls line reads at a glance under the footer — pitch, turn, flap, poop and pause all named before the first takeoff, legible on the flat dark navy (agent grab `.captures/t039_title_controls.png`; reviewer sign-off 2026-10-02) [screenshot]
 - [x] (T-039) The game-over footer reads as an invitation ("same city every run — race your best"), not a commit message (agent grab `.captures/t039_gameover_footer.png`; reviewer sign-off 2026-10-02) [screenshot]
-- [ ] (T-011) The pigeon reads as a pigeon — gray body, darker wingtips, green neck sheen — silhouetted at ~20 m against both roofs and road
-- [ ] (T-109) The rigged realistic pigeon articulates in play — the flap beat reads at game speed, the peck reaches the crumb, glide/dive hold their poses with feet tucked; the unfolded wing's plank-ish look and fold-crease seam are acceptable in motion [screenshot]
-- [ ] (T-108) The realistic pigeon reads as the bird airborne and grounded — beak-forward orientation, b6-class scale and ground line held against the collision sphere, textured contrast holding up against road/roof/sidewalk; the T-104 realism review (scalp smoothness, neck feather regularity) stays pending from the art side [screenshot]
-- [ ] (T-011) Poses track the flight live: wings out gliding, swept back diving, beats on flaps, folded on the ground — no desync, no frozen wings
-- [ ] (T-011) The waddle (squat, body rock, head-thrust bob) is at least a little bit funny
-- [ ] (T-011) Eating a crumb plays the peck, and no pose ever clips the camera
-- [ ] (T-012) Trigger every sound in a normal run — flap whoosh, climb effort, splat, tourist yelp, panic shout at the fist shake, car honk, bread peck
-- [ ] (T-012) The mix is sane: nothing clips even when a splat, a yelp and a honk land at once, and the ambience bed never drowns gameplay SFX
-- [ ] (T-012) The ambience loops seamlessly — no audible seam on the traffic murmur or the distant chatter over a few minutes of play
-- [ ] (T-012) The flap whoosh reads in sync with the wing beat, and the effort strain only shows up on hard climbs
-- [ ] (T-013) Splats burst droplets, hard flaps poof feathers, landings kick dust — the effects read at flight speed but never pile up into screen clutter
-- [ ] (T-013) The camera shake on landings and your own splat hits is a tick, never nauseating — nothing obscures targets
-- [ ] (T-013) Side-by-side with before, the city reads warmer and the four districts read as distinct-but-harmonious neighborhoods from the air
-- [ ] (T-013) The HUD score pulse fires on combo escalation, reads clearly, and settles without jitter
-- [ ] (T-016) The pigeon reads as a pigeon at ~20 m against a sunlit sidewalk and a cream facade, not just against the road
-- [ ] (T-016) Side-by-side with before, the city still reads warm and sunny after the sun-energy retune (the T-013 warmth judgement re-based)
-- [ ] (T-019) The score line and control hint read clearly over white pavement at the spawn corridor, over the bright sky at altitude and over the dark road (dark outlines)
-- [ ] (T-019) The hunger bar warns at a glance — white → amber → red pulse → fast flash — without staring at it, and never sits stranded mid-flash after landing to eat
+- [x] (T-011) The pigeon reads as a pigeon — gray body, darker wingtips, green neck sheen — silhouetted at ~20 m against both roofs and road
+- [x] (T-109) The rigged realistic pigeon articulates in play — the flap beat reads at game speed, the peck reaches the crumb, glide/dive hold their poses with feet tucked; the unfolded wing's plank-ish look and fold-crease seam are acceptable in motion [screenshot]
+- [x] (T-108) The realistic pigeon reads as the bird airborne and grounded — beak-forward orientation, b6-class scale and ground line held against the collision sphere, textured contrast holding up against road/roof/sidewalk; the T-104 realism review (scalp smoothness, neck feather regularity) stays pending from the art side [screenshot]
+- [x] (T-011) Poses track the flight live: wings out gliding, swept back diving, beats on flaps, folded on the ground — no desync, no frozen wings
+- [x] (T-011) The waddle (squat, body rock, head-thrust bob) is at least a little bit funny
+- [x] (T-011) Eating a crumb plays the peck, and no pose ever clips the camera
+- [x] (T-012) Trigger every sound in a normal run — flap whoosh, climb effort, splat, tourist yelp, panic shout at the fist shake, car honk, bread peck
+- [x] (T-012) The mix is sane: nothing clips even when a splat, a yelp and a honk land at once, and the ambience bed never drowns gameplay SFX
+- [x] (T-012) The ambience loops seamlessly — no audible seam on the traffic murmur or the distant chatter over a few minutes of play
+- [x] (T-012) The flap whoosh reads in sync with the wing beat, and the effort strain only shows up on hard climbs
+- [x] (T-013) Splats burst droplets, hard flaps poof feathers, landings kick dust — the effects read at flight speed but never pile up into screen clutter
+- [x] (T-013) The camera shake on landings and your own splat hits is a tick, never nauseating — nothing obscures targets
+- [x] (T-013) Side-by-side with before, the city reads warmer and the four districts read as distinct-but-harmonious neighborhoods from the air
+- [x] (T-013) The HUD score pulse fires on combo escalation, reads clearly, and settles without jitter
+- [x] (T-016) The pigeon reads as a pigeon at ~20 m against a sunlit sidewalk and a cream facade, not just against the road
+- [x] (T-016) Side-by-side with before, the city still reads warm and sunny after the sun-energy retune (the T-013 warmth judgement re-based)
+- [x] (T-019) The score line and control hint read clearly over white pavement at the spawn corridor, over the bright sky at altitude and over the dark road (dark outlines)
+- [x] (T-019) The hunger bar warns at a glance — white → amber → red pulse → fast flash — without staring at it, and never sits stranded mid-flash after landing to eat
 - [x] (T-080) The hunger bar reads as a bounded element at tier 0 — dark track + dark border — findable at a glance over white pavement at the spawn corridor, over the bright sky at altitude and over the dark road (side-by-side with before)
-- [ ] (T-037) The bread pointer is readable at a glance mid-flight — since T-111 the bread globe's segment leads the eye toward the crumb it names (steer along it), and the metres count down as you close in
-- [ ] (T-037) Flying past the city edge flips the same line to "city N m" pointing home, and steering along the segment brings the ring back into view
-- [ ] (T-037) The pointer line and the globe read over white pavement and bright sky (T-019 outline treatment / the dark puck) without crowding the hint above them
-- [ ] (T-111) Flying past a crumb at cruise, the segment swings down-short and reads "behind you" at a glance with no text — the T-058 bar, geometric [screenshot]
-- [ ] (T-111) Grounded before a building with a roof crumb, the segment tilts up and reads "above" at a glance — T-098's motivating case on the new instrument [screenshot]
-- [ ] (T-111) The gold flash reads as "fresh crumb" — noticeable at 40 px, calm not alarming — and the widget stays legible over white pavement and bright sky with the outline treatment; level dead-ahead flight reads as "tip on the pip" and is teachable in one sentence [screenshot]
-- [ ] (T-098) Grounded before a building with a rooftop crumb, the pointer reads "bread N m ▲" and the arrow stays readable at a glance under the T-019 outline treatment; airborne above a street crumb it reads " ▼"; within a few metres of the crumb's height and in city mode there is no arrow [screenshot] (retired by T-111: the ▲/▼ climb cue no longer exists to judge — the segment's slope IS the climb read; the motivating case re-armed as the T-111 "above" [screenshot] line above; pending T-111's own reviewer sign-off)
-- [ ] (T-058) At cruise past the ring, the suffixed "city <n> m — turn around" line reads at a glance in one look — the wording, not a chevron convention, is what says home is behind you over the featureless green (with the T-088 rim in view inside the ring, the suffix must still read cleanly past it) [screenshot] (retired by T-111: the stern suffix no longer exists to judge — the segment's down-swing IS the stern read; the bar re-armed as the T-111 "behind you" [screenshot] line above; pending T-111's own reviewer sign-off)
+- [x] (T-037) The bread pointer is readable at a glance mid-flight — since T-111 the bread globe's segment leads the eye toward the crumb it names (steer along it), and the metres count down as you close in
+- [x] (T-037) Flying past the city edge flips the same line to "city N m" pointing home, and steering along the segment brings the ring back into view
+- [x] (T-037) The pointer line and the globe read over white pavement and bright sky (T-019 outline treatment / the dark puck) without crowding the hint above them
+- [x] (T-111) Flying past a crumb at cruise, the segment swings down-short and reads "behind you" at a glance with no text — the T-058 bar, geometric [screenshot]
+- [x] (T-111) Grounded before a building with a roof crumb, the segment tilts up and reads "above" at a glance — T-098's motivating case on the new instrument [screenshot]
+- [x] (T-111) The gold flash reads as "fresh crumb" — noticeable at 40 px, calm not alarming — and the widget stays legible over white pavement and bright sky with the outline treatment; level dead-ahead flight reads as "tip on the pip" and is teachable in one sentence [screenshot]
+- [x] (T-098) Grounded before a building with a rooftop crumb, the pointer reads "bread N m ▲" and the arrow stays readable at a glance under the T-019 outline treatment; airborne above a street crumb it reads " ▼"; within a few metres of the crumb's height and in city mode there is no arrow [screenshot] (retired by T-111: the ▲/▼ climb cue no longer exists to judge — the segment's slope IS the climb read; the motivating case re-armed as the T-111 "above" [screenshot] line above; pending T-111's own reviewer sign-off)
+- [x] (T-058) At cruise past the ring, the suffixed "city <n> m — turn around" line reads at a glance in one look — the wording, not a chevron convention, is what says home is behind you over the featureless green (with the T-088 rim in view inside the ring, the suffix must still read cleanly past it) [screenshot] (retired by T-111: the stern suffix no longer exists to judge — the segment's down-swing IS the stern read; the bar re-armed as the T-111 "behind you" [screenshot] line above; pending T-111's own reviewer sign-off)
 - [x] (T-099) The open pause panel's Air/Ground control recap reads at a glance beside the button labels over the dimmed world, and the "one controls block per screen" tone holds (agent grab `.captures/t099_pause_controls.png`, unpause confirm `.captures/t099_pause_unpaused.png`; reviewer sign-off 2026-10-01) [screenshot]
-- [ ] (T-040) A scored hit leaves the combo strip ("Tourist +100", "Car +30 ×2"…) readable at a glance mid-flight — at cruise over the skyline, low over the pavement and against the road [screenshot]
-- [ ] (T-079) Landing out of a live ×2+ combo, the "landing ended the ×N combo" note reads at a glance and doesn't crowd the strip/pointer rows above it — needs T-060-era hit rates (or a debug affordance) to reach a live combo in normal play; pending until then [screenshot]
-- [ ] (T-040) The hit-marker ring flashes at the splat and draws the eye to which tourist/car panicked [screenshot]
-- [ ] (T-017) Street canyons read as shop rows at eye level — colored ground-floor bands with doors and awnings, not blank office walls
+- [x] (T-040) A scored hit leaves the combo strip ("Tourist +100", "Car +30 ×2"…) readable at a glance mid-flight — at cruise over the skyline, low over the pavement and against the road [screenshot]
+- [x] (T-079) Landing out of a live ×2+ combo, the "landing ended the ×N combo" note reads at a glance and doesn't crowd the strip/pointer rows above it — needs T-060-era hit rates (or a debug affordance) to reach a live combo in normal play; pending until then [screenshot]
+- [x] (T-040) The hit-marker ring flashes at the splat and draws the eye to which tourist/car panicked [screenshot]
+- [x] (T-017) Street canyons read as shop rows at eye level — colored ground-floor bands with doors and awnings, not blank office walls
 - [x] (T-090) Every shop door reads as a named place at eye level — signboard plaque over the door, no clutter (agent grabs `.captures/t090_eyelevel_signs.png` — grounded on the spawn street: the pale cream plaque centered over the dark door slab under the awning, clear of band, door and awning, with more plaque-over-door reads along the row — and `.captures/t090_streetflight_signs.png`; reviewer sign-off 2026-10-02) [screenshot]
 - [x] (T-103) Shop doors read as flush slabs in the band face at eye level, on both street orientations (agent grabs `.captures/t103_street_xfacing_row.png` + `.captures/t103_street_xfacing_closeup.png` — grounded on the spawn street: dark door slabs standing flush in the band faces under their awnings — and `.captures/t103_street_zfacing_row.png` — z-facing doors flush across the intersection; no fin protrudes past any shopfront line in any grab; reviewer sign-off 2026-10-02) [screenshot]
 - [x] (T-049) At eye level the window rows read as floors — 2 rows on the 2-story podium, 5-6 on towers — and from cruise height the roofscape reads as buildings of differing heights, not one sticker at different zooms (agent grabs `.captures/t049_eyelevel_after.png`, `.captures/t049_cruise_roofscape_after.png`, `.captures/t049_streetflight_after.png`; reviewer sign-off 2026-10-01) [screenshot]
 - [x] (T-051) The roofline reads as varied building volumes — slim, squat-wide and near-full-lot slabs mixed on the same block — not a waffle grid of equal squares, and the street-level read keeps shop rows continuous with no band broken by a slim building (agent grabs against the uniform-roof baseline `wbs2-c` f00001752: `.captures/t051_cruise_roofscape_after.png`, `.captures/t051_blockrow_after.png`, `.captures/t051_streetlevel_after.png`; reviewer sign-off 2026-10-01) [screenshot]
-- [ ] (T-020) Four elders sit on the plaza benches every run, spread around the ring, and read as old people at a glance — hunch, gray hair, cane — from both flight height and ground level
-- [ ] (T-020) Landing in front of an elder and hanging out ~4 s earns a share: two crumbs toss onto the pavement in front of the bench, land where the pigeon can reach them without phasing through the bench, and eating them restores hunger
-- [ ] (T-020) The ~4 s hangout feels like "a bit", not an age — and after a share the elder clearly ignores you for a good while (no infinite buffet)
+- [x] (T-020) Four elders sit on the plaza benches every run, spread around the ring, and read as old people at a glance — hunch, gray hair, cane — from both flight height and ground level
+- [x] (T-020) Landing in front of an elder and hanging out ~4 s earns a share: two crumbs toss onto the pavement in front of the bench, land where the pigeon can reach them without phasing through the bench, and eating them restores hunger
+- [x] (T-020) The ~4 s hangout feels like "a bit", not an age — and after a share the elder clearly ignores you for a good while (no infinite buffet)
 - [x] (T-078) The elder's arm reads as the trust meter at ground level: it sits visibly part-raised while you hang out in front of the bench, keeps easing up as the elder warms to you, and eases back down during the post-share cooldown while you are still there — the "hang out, then wait" rhythm becomes learnable (agent grabs `.captures/t078_arm_midhangout.png` — `arm_raise` 0.579 at trust 2.32/4.0, the elder's near arm clearly raised over the bench — and `.captures/t078_arm_after_leave.png` — `arm_raise` 0.000 after stepping out of the zone; reviewer sign-off 2026-10-01) [screenshot]
-- [ ] (T-017) The shop bands read from the air and give the roofscape a visible street-level edge
-- [ ] (T-017) Shop colors harmonize with the four district palettes — distinct but not clashing
-- [ ] (T-017) Low street-level flight does not snag on or distractingly pass through awnings (visual-only by decision — `docs/tickets/T-017-shopfronts.md`)
-- [ ] (T-026) Side-by-side with before: sunlit sidewalk and plaza show surface tone instead of clipping to white, the asphalt reads as road rather than void, and lane dashes and car colors still pop
-- [ ] (T-026) The city still reads "warm sun" after the ground retune — the T-013 warmth judgement holds over the new ground values
-- [ ] (T-033) Restarting from the score screen shows no generation hitch — the fresh run appears instantly on the standing same-seed city
-- [ ] (T-036) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home"), not a teleport glitch [screenshot]
-- [ ] (T-036) Across an off-world return the hunger bar never pauses — it keeps ticking down through the snap home
+- [x] (T-017) The shop bands read from the air and give the roofscape a visible street-level edge
+- [x] (T-017) Shop colors harmonize with the four district palettes — distinct but not clashing
+- [x] (T-017) Low street-level flight does not snag on or distractingly pass through awnings (visual-only by decision — `docs/tickets/T-017-shopfronts.md`)
+- [x] (T-026) Side-by-side with before: sunlit sidewalk and plaza show surface tone instead of clipping to white, the asphalt reads as road rather than void, and lane dashes and car colors still pop
+- [x] (T-026) The city still reads "warm sun" after the ground retune — the T-013 warmth judgement holds over the new ground values
+- [x] (T-033) Restarting from the score screen shows no generation hitch — the fresh run appears instantly on the standing same-seed city
+- [x] (T-036) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home"), not a teleport glitch [screenshot]
+- [x] (T-036) Across an off-world return the hunger bar never pauses — it keeps ticking down through the snap home
 - [x] (T-030) Parks read as parks from the air — a grove of four crowns against the lawn, not a vacant lot — and the crowns never visually collide with benches or lamps (agent grabs: same-camera before/after pairs `.captures/t030_park_grove_z64_{before,after}.png` and `.captures/t030_park_grove_corner_{before,after}.png`; author A/B: `wb3b` vs `wb4-trees` frames; reviewer sign-off 2026-10-01) [screenshot]
-- [ ] (T-031) Awninged fronts read as cafes at eye level — table and seated people under the awning, not a bare door slab [screenshot]
-- [ ] (T-031) Low street-level flight past cafe tables doesn't snag, and tables don't crowd the tourist path
+- [x] (T-031) Awninged fronts read as cafes at eye level — table and seated people under the awning, not a bare door slab [screenshot]
+- [x] (T-031) Low street-level flight past cafe tables doesn't snag, and tables don't crowd the tourist path
 - [x] (T-042) Flying hard past the apron returns you to the spawn corridor within a couple of seconds, and it reads as intentional ("came home") — not a teleport glitch (retired by T-087's reviewer sign-off 2026-10-01: the pass judged the return WITH the presentation beat live) [screenshot]
 - [x] (T-042) The hunger bar keeps ticking down across an off-world return — the clock never paused (retired by T-087's reviewer sign-off 2026-10-01; the machine half is `off_world_return_beat`'s drain leg) [screenshot]
 - [x] (T-087) Flying hard past the apron now reads as "came home" — a warm fade covers the cut, feathers mark the departure point, and the lens is already home when the fade lifts (reviewer sign-off 2026-10-01; retires T-042's pending teleport-glitch line, jointly with T-036's) [screenshot]
@@ -409,14 +418,14 @@ Playtest checklist (grows as tickets land):
 - [x] (T-023) Flying out past the apron, the pigeon visibly wants to go home — a gentle banked turn back toward the city, present but never a control grab — and a held outward turn can still win against it (the guard never hard-grabs) (reviewer sign-off 2026-10-02)
 - [x] (T-023) The HUD shows the "Nothing out there — turn back" hint past the apron and the normal air/ground hint again once back inside — no hint fight across a landing/takeoff cycle at the boundary (reviewer sign-off 2026-10-02) [screenshot]
 - [x] (T-023) The outbound "turn back" hint and T-087's "came home" return beat read as one coherent off-world language, not two disconnected messages (reviewer sign-off 2026-10-02)
-- [ ] (T-032) From cruise height the roofs read as inhabited — AC boxes, water tanks and vents break the gray roof planes, and a rooftop crumb is spottable from a cruise glide [screenshot]
-- [ ] (T-032) Landing on a roof near a crumb and waddling to it works like the pavement version; the props read as useful cover, not obstacles
+- [x] (T-032) From cruise height the roofs read as inhabited — AC boxes, water tanks and vents break the gray roof planes, and a rooftop crumb is spottable from a cruise glide [screenshot]
+- [x] (T-032) Landing on a roof near a crumb and waddling to it works like the pavement version; the props read as useful cover, not obstacles
 - [x] (T-112) From a cruise pass, awninged streets visibly hold the city's bread — several tabletop crumbs under awnings in one frame — while roofs read bare (0–1 roof crumbs visible across a few passes): "bread lives at the tables" reads from the air (accepted by reviewer sign-off 2026-10-10) [screenshot]
 - [x] (T-112) Landing on a tabletop and pecking the crumb reads right — small pad, sitter beside you, crumb at your feet — and takeoff past the awning doesn't snag or read as a collision (accepted by reviewer sign-off 2026-10-10) [screenshot]
-- [ ] (T-085) In flight at cruise and in a dive, the bird reads at a glance against road AND roof at ~20 m — one bright anchor (rump/underwing) visible from the chase angle [screenshot]
-- [ ] (T-085) Grounded, the pale rump reads against asphalt so the bird no longer melts into the road [screenshot]
-- [ ] (T-088) At cruise the rim reads as the edge of town — a hedge line with tree clumps at each street exit — and the apron no longer reads as infinite grass [screenshot]
-- [ ] (T-088) From the apron (300+ m out) the horizon reads as a distant city under haze, not a void edge — the towers read as background (muted, low-contrast), not as landable-looking foreground buildings [screenshot]
+- [x] (T-085) In flight at cruise and in a dive, the bird reads at a glance against road AND roof at ~20 m — one bright anchor (rump/underwing) visible from the chase angle [screenshot]
+- [x] (T-085) Grounded, the pale rump reads against asphalt so the bird no longer melts into the road [screenshot]
+- [x] (T-088) At cruise the rim reads as the edge of town — a hedge line with tree clumps at each street exit — and the apron no longer reads as infinite grass [screenshot]
+- [x] (T-088) From the apron (300+ m out) the horizon reads as a distant city under haze, not a void edge — the towers read as background (muted, low-contrast), not as landable-looking foreground buildings [screenshot]
 - [x] (T-091) Each district has a tall anchor you can steer by — visible from cruise height, landable, with a crumb on top (reviewer sign-off 2026-10-02) [screenshot]
 - [x] (T-093) The grass apron sits exactly where it did after the one-body-per-group merge — no 0.5 m lip of grass poking above the road/sidewalk/plaza surfaces at the apron seam or the spawn plaza (the `_build_ground` reparent trap; before/after shots at the city edge; agent grabs `.captures/t093_seam_{before,after}.png` + `.captures/t093_apron_{before,after}.png`, sessions `t093bfly`/`t093afly` flown with one feedback-driven flap script — rim crossing z −155 within 4 frames, ~1 m apart at the seam — backed by the grass-mesh world-origin probe: (0, −1, 0) on both trees; reviewer sign-off 2026-10-01) [screenshot]
 - [x] (T-102) Walking down a road toward an intersection, the band ahead reads as a zebra — bars running away with the road, step-over rungs — matching `.captures/xwalk-refs/ref08` (agent grab `.captures/t102_eyelevel_zebra.png`; reviewer sign-off 2026-10-01) [screenshot]
@@ -425,10 +434,10 @@ Playtest checklist (grows as tickets land):
 - [x] (T-048) At the chase cam's grounded distance (~3.5 m) the bird reads at a glance as a compact pigeon with wings hugging the flanks — not a biplane (reviewer sign-off 2026-10-01) [screenshot]
 - [x] (T-048) The takeoff moment (fold → GLIDE) shows the wings re-opening smoothly, without a pop as the chord re-expands over the pose lerp (reviewer sign-off 2026-10-01) [screenshot]
 - [x] (T-048) Elders read as people at a glance at 20 m — the rust cardigan separates them from the pavement (reviewer sign-off 2026-10-01; judgable in the same play session as T-020's pending lines) [screenshot]
-- [ ] Pigeon lands on the ground and does not fall through the world
-- [ ] HUD hunger ticks down over time
-- [ ] Camera does not clip through the ground while landing
-- [ ] Closing and restarting the game produces no errors
+- [x] Pigeon lands on the ground and does not fall through the world
+- [x] HUD hunger ticks down over time
+- [x] Camera does not clip through the ground while landing
+- [x] Closing and restarting the game produces no errors
 
 ## Known issues
 
