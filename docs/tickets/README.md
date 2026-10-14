@@ -146,6 +146,19 @@ The approved sequence: **T-113** citizen classes (first ticket, above, done) →
 victory ending (above, ticket 3, done) — named in T-113 and
 forged in order after each lands.
 
+## Mobile — play it on her iPhone (owner-directed 2026-10-14)
+
+The owner wants the game playable on his girlfriend's iPhone. Direction decided
+2026-10-14: a single-threaded web build she opens in Safari, hosted on the
+owner's Cloudflare Pages — native iOS is ruled out (Godot's iOS export needs
+macOS/Xcode plus an Apple developer account). Platform first as the go/no-go
+de-risk, touch controls second. See the ticket files for the traps list.
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-118 | [A web build Safari can run: Compatibility web override, single-threaded export, Cloudflare Pages](T-118-web-safari-build.md) | platform | 3 | 3 | proposed |
+| T-119 | [Thumbs on the city: a virtual joystick and touch buttons for the phone](T-119-touch-controls.md) | ui-ux | 4 | 2 | proposed |
+
 ## Suggested build order
 
 *(Historical — the M1 sequencing note below predates the sweep and M2; every
