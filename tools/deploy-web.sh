@@ -87,13 +87,22 @@ run_root() {
 # --- preflight: DNS must resolve and match the reference vhost's IP, or Caddy
 # cannot obtain its certificate (handoff precondition). ----------------------
 dns_addrs() {
-	local name="$1"
+	local name="$1" out=""
 	if command -v dig >/dev/null 2>&1; then
-		dig +short "$name" A | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | sort -u
+		out="$(dig +short "$name" A | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | sort -u)"
 	else
-		nslookup "$name" 2>/dev/null | sed -n '/^Name:/,$p' \
-			| grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | sort -u
+		out="$(nslookup "$name" 2>/dev/null | sed -n '/^Name:/,$p' \
+			| grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | sort -u)"
 	fi
+	if [ -z "$out" ]; then
+		# the local resolver may hold a stale NXDOMAIN right after the record is
+		# added — ask a public resolver before declaring the record missing
+		out="$(nslookup "$name" 1.1.1.1 2>/dev/null | sed -n '/^Name:/,$p' \
+			| grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | sort -u)"
+		[ -n "$out" ] && log "note: local resolver had no record for $name — 1.1.1.1 did (stale negative cache)"
+	fi
+	[ -n "$out" ] && printf '%s\n' "$out"
+	true
 }
 
 check_dns() {
@@ -111,6 +120,7 @@ check_dns() {
 		fail "DNS: $DEPLOY_DOMAIN → [${games//$'\n'/ }] but $DEPLOY_DNS_REF → [${ref//$'\n'/ }] — point both names at the same public IP."
 	fi
 	[ -n "$games" ] && log "DNS OK: ${games//$'\n'/ }" || log "DNS: no record — deploying ahead of DNS by explicit override"
+	DEPLOY_RESOLVED_IP="${games%%$'\n'*}"
 }
 
 # --- build: headless Godot export (the exporter refuses to create build/web). ---
@@ -207,14 +217,17 @@ EOF
 }
 
 # --- verify: the handoff's curl pair, with a first-deploy cert grace. -------
+# When the DNS guard had to fall back to 1.1.1.1 (stale local negative cache),
+# curl here would fail the same way — so verify pins to the guard-resolved IP.
 verify() {
 	log "Verifying $PUBLIC_URL/"
-	local head try attempts="${VERIFY_ATTEMPTS:-5}"
+	local head try attempts="${VERIFY_ATTEMPTS:-5}" pin=()
+	[ -n "${DEPLOY_RESOLVED_IP:-}" ] && pin=(--resolve "$DEPLOY_DOMAIN:443:$DEPLOY_RESOLVED_IP")
 	for try in $(seq 1 "$attempts"); do
-		head="$(curl -fsSI --max-time 20 "$PUBLIC_URL/" 2>/dev/null | head -1 | tr -d '\r' || true)"
+		head="$(curl -fsSI --max-time 20 "${pin[@]}" "$PUBLIC_URL/" 2>/dev/null | head -1 | tr -d '\r' || true)"
 		if printf '%s' "$head" | grep -qE 'HTTP/.* 200'; then
-			if curl -fsS --max-time 20 "$PUBLIC_URL/" 2>/dev/null | grep -qi '<html'; then
-				log "VERIFY OK: $head, HTML body served"
+			if curl -fsS --max-time 20 "${pin[@]}" "$PUBLIC_URL/" 2>/dev/null | grep -qi '<html'; then
+				log "VERIFY OK: $head, HTML body served${DEPLOY_RESOLVED_IP:+ (pinned to $DEPLOY_RESOLVED_IP)}"
 				return 0
 			fi
 			fail "HTTP 200 but the body is not the game shell (no <html>)"
