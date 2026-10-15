@@ -27,7 +27,9 @@ seagull rivals at the tailgates, districts (campus / main-street / tailgate
 palettes), landmark bonus targets, gamepad support, settings, export builds.
 New work starts as a tone-checked pitch before anything is forged (AGENTS.md —
 the idea-talk convention); scope stays a silly game about a bird pooping on
-people.
+people. Refined, tree-grounded pitches for these and newer candidates live in
+[IDEAS.md](IDEAS.md) (2026-10-15 brainstorm; owner picks recorded in its
+decision log).
 
 ## The sweep's wave schedule (historical record)
 
