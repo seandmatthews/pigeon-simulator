@@ -406,6 +406,13 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-116) The favor meter + win-rule caption read at a glance in the HUD column, and the menu footer names the goal (agent pilot grab 2026-10-12, `.captures/session_t116hud/` — layout and copy verified on menu + run start; owner feel pass pending)
 - [x] (T-117) The bird reads as snappier on WASD — pitch, bank/yaw and the waddle respond ×1.2 — and dives meaningfully faster (the cap 30 → 36 m/s is where dive speed lands), while nothing reads twitchy or grabby (owner playtest note 2026-10-13: "make WASD do 20% more of whatever they're doing"; accepted by reviewer sign-off 2026-10-13)
 - [ ] (T-118) Desktop browser: the hosted URL loads, the title screen renders, a run starts and flies with the keyboard, and the city reads right under the Compatibility renderer — sky, shadows, city edge — with the autoloads silent in the console [screenshot]
+      · **agent evidence 2026-10-15:** the deployed build IS browser-proven —
+      byte-identical export verified locally (title renders, Fly starts a run,
+      keyboard flies, city reads right) and the hosted URL serves it: `VERIFY
+      OK: HTTP/1.1 200 OK, HTML body served` via `tools/deploy-web.sh`, valid
+      Let's Encrypt cert for games.matthews.mx. Remaining: the same clicks on
+      the HOSTED URL itself (blocked only by the eero's ≤30 min negative DNS
+      cache on the home network at deploy time) + console-autoload silence
 - [ ] (T-118) **iPhone go/no-go:** over the owner's hosting (the basement box at `games.matthews.mx/pigeon-simulator/`), the page loads in Safari, the title renders, the Fly button starts a run, the world renders at an acceptable framerate for a few minutes with no crash/reload, and the autoloads stay silent — the pass that unlocks T-119 [screenshot]
 - [ ] (T-119) **on the iPhone:** she starts a run from the hosted build, flies a loop, eats bread, lands, poops on a tourist, and pauses — with her judgement on stick comfort and button reach recorded here (tuning follow-ups — stick sensitivity, button sizes — go through new tickets, not this one) [screenshot]
 - [x] (T-009) Splats pay the DESIGN points — 100 per tourist, 30 per car — and a popup at the hit reads clearly at flight speed
