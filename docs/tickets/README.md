@@ -157,7 +157,7 @@ de-risk, touch controls second. See the ticket files for the traps list.
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-118 | [A web build Safari can run: Compatibility web override, single-threaded export, Cloudflare Pages](T-118-web-safari-build.md) | platform | 3 | 3 | done |
-| T-119 | [Thumbs on the city: a virtual joystick and touch buttons for the phone](T-119-touch-controls.md) | ui-ux | 4 | 2 | proposed |
+| T-119 | [Thumbs on the city: a virtual joystick and touch buttons for the phone](T-119-touch-controls.md) | ui-ux | 4 | 2 | done |
 
 ## Suggested build order
 

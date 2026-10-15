@@ -40,6 +40,7 @@ Main Run Args.
 | R | restart the run — from the pause menu or the score screen |
 | M | back to the title screen — from the pause menu or the score screen |
 | Q | quit the game — from the pause menu or the title screen |
+| Touch (phone only) | left on-screen stick steers — up/down pitch, left/right turn, same actions as W/S/A/D with analog strength · on-screen FLAP / POOP buttons (Space / F) · small Pause button (Esc) · shows only on touch devices; desktop preview: launch with `PIGEON_TOUCH=1` (T-119) |
 
 ## Docs
 

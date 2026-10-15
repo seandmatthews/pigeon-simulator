@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/bread_spawner.gd" id="3_spawner"]
@@ -12,6 +12,8 @@
 [ext_resource type="Script" path="res://scripts/cafe_spawner.gd" id="11_cafes"]
 [ext_resource type="PackedScene" path="res://scenes/poop_reticle.tscn" id="12_reticle"]
 [ext_resource type="Script" path="res://scripts/bread_globe.gd" id="13_globe"]
+[ext_resource type="PackedScene" path="res://scenes/touch_controls.tscn" id="14_touch"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="15_hud"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_main"]
 sky_horizon_color = Color(0.85, 0.8, 0.7, 1)
@@ -99,6 +101,7 @@ script = ExtResource("11_cafes")
 city_path = NodePath("../City")
 
 [node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("15_hud")
 
 [node name="StatsLabel" type="Label" parent="HUD"]
 unique_name_in_owner = true
@@ -238,6 +241,8 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 0.85, 0.6, 0)
+
+[node name="TouchControls" parent="." instance=ExtResource("14_touch")]
 
 [node name="PauseMenu" type="CanvasLayer" parent="."]
 layer = 10
@@ -392,3 +397,4 @@ horizontal_alignment = 1
 [connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/QuitButton" to="PauseMenu" method="_on_quit_pressed"]
 [connection signal="pressed" from="GameOverScreen/Center/ScorePanel/Box/AgainButton" to="GameOverScreen" method="_on_again_pressed"]
 [connection signal="pressed" from="GameOverScreen/Center/ScorePanel/Box/MenuButton" to="GameOverScreen" method="_on_menu_pressed"]
+[connection signal="pause_requested" from="TouchControls" to="PauseMenu" method="toggle"]

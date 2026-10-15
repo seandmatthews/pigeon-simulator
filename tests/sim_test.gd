@@ -15,6 +15,15 @@ const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 const POOP_SCENE: PackedScene = preload("res://scenes/poop.tscn")
 const POOP_RETICLE_SCENE: PackedScene = preload("res://scenes/poop_reticle.tscn")
 const MENU_SCENE: PackedScene = preload("res://scenes/menu.tscn")
+const TOUCH_SCENE: PackedScene = preload("res://scenes/touch_controls.tscn") ## (T-119) Driven with synthetic screen contacts, never by poking its methods.
+
+## (T-119) The shipped non-builtin InputMap set. The touch layer must add
+## NOTHING — `touch_layer_desktop_inert` reads the live InputMap against this
+## list so a smuggled-in action fails the gate the same night it lands.
+const GAME_ACTIONS: Array[String] = [
+	"flap", "poop", "pitch_up", "pitch_down", "turn_left", "turn_right",
+	"boost", "pause", "restart", "to_menu", "quit",
+]
 
 ## The Game autoload's high score file is redirected here for the scoring
 ## scenarios, so a sim run never touches the real record in user://.
@@ -101,6 +110,7 @@ var _regen_relay: int = 0 ## regenerated relays caught from the city under resta
 var _off_world_signal_fires: int = 0 ## `off_world_reset` emissions caught in the T-036 scenario (T-095) — same member rule as `_regen_relay`.
 var _return_signal_fires: int = 0 ## (T-087) `off_world_reset(from)` emissions caught in the return-beat scenario — same member rule.
 var _return_signal_from: Vector3 ## (T-087) The departure position carried by the last caught emission.
+var _touch_flap_events: int = 0 ## (T-119) `flapped` relays caught for the touch-button/multitouch scenarios — member so lambda handlers can count.
 
 
 func _ready() -> void:
@@ -222,6 +232,12 @@ func _run_scenarios() -> void:
 	await _scenario_combo_strip_reports_last_hit() ## T-040 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_combo_note_on_landing() ## T-079 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_pause_menu_shows_controls() ## T-099 — same T-019 window: unpaused tree, no live Main.
+	await _scenario_touch_layer_desktop_inert() ## T-119 — the desktop/headless path is byte-unchanged: hidden layer, zero safe-area offsets, no new actions.
+	await _scenario_touch_stick_drives_action_axes() ## T-119 — a synthetic screen-drag steers the pigeon through the polled axes, analog included.
+	await _scenario_touch_stick_rest_reads_exactly_zero() ## T-119 — touch end zeroes all four steering actions; the T-082 trim arm survives.
+	await _scenario_touch_buttons_fire_real_actions() ## T-119 — the Flap/Poop TouchScreenButtons fire the real actions (a drop actually falls).
+	await _scenario_touch_pause_button_toggles_real_pause() ## T-119 — the Pause button pauses through the REAL PauseMenu; the panel's Resume tap unpauses.
+	await _scenario_touch_multitouch_steer_and_flap() ## T-119 — overlapping contacts: the held stick stays live while a second finger flaps.
 	await _scenario_title_screen_teaches_controls() ## T-039 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_elder_placement_no_rng()
 	await _scenario_elder_shares_bread_after_hangout()
@@ -7424,6 +7440,382 @@ func _scenario_pause_menu_shows_controls() -> void:
 			"placed=%s hidden_at_rest=%s shown=%s air_families=%s ground_families=%s style=%s resumed=%s (air '%s' / ground '%s')" % [
 					placed_ok, hidden_at_rest, shown_ok, air_families_ok,
 					ground_families_ok, recap_style_ok, resumed_ok, air_text, ground_text])
+
+
+## --- scenarios (T-119 touch controls) ----------------------------------------
+##
+## The touch layer is driven the way a finger drives it: synthetic
+## InputEventScreenTouch / InputEventScreenDrag through the REAL input
+## pipeline (`Input.parse_input_event` + `Input.flush_buffered_events`), never
+## by poking the widget's methods. Two probed headless facts shape this block
+## (probes recorded in the ticket):
+##  1. The stub display server's window is 64×64, and the GUI drops every
+##     contact whose position falls outside it — so the touch block sizes the
+##     window to the desktop default 1280×720 first (restored after; the other
+##     scenarios keep today's exact conditions).
+##  2. On that sized headless window the pipeline delivers GUI touches and
+##     TouchScreenButton actions, but a synthetic screen touch does NOT
+##     emulate mouse — so the ordinary Pause button is driven with the
+##     synthetic mouse click a tap produces on-device through the default
+##     touch→mouse emulation (`emulate_mouse_from_touch` is true in
+##     project.godot and on iOS Safari).
+## Also probed: `Input.action_press(a, s)` strength bypasses the InputMap
+## deadzone (0.2 reads 0.2, 1.0 reads 1.0) — what the stick feeds IS what the
+## player polls, and a release reads exactly 0.0.
+
+
+## Sizes the (stub) window to the desktop default for one touch scenario and
+## returns the previous size for the restore. GUI contact routing needs a
+## window big enough to contain the widgets — see the block comment.
+func _size_window_for_touch() -> Vector2i:
+	var window := get_tree().root
+	var previous := window.size
+	window.size = Vector2i(1280, 720)
+	return previous
+
+
+func _restore_window_size(previous: Vector2i) -> void:
+	get_tree().root.size = previous
+
+
+## One finger-down contact, through the real pipeline (flushed synchronously
+## so the following reads are deterministic — no frame-timing wait).
+func _touch_press(index: int, pos: Vector2) -> void:
+	var ev := InputEventScreenTouch.new()
+	ev.index = index
+	ev.position = pos
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	Input.flush_buffered_events()
+
+
+## One finger-move contact for the stick's held finger.
+func _touch_drag(index: int, pos: Vector2) -> void:
+	var ev := InputEventScreenDrag.new()
+	ev.index = index
+	ev.position = pos
+	Input.parse_input_event(ev)
+	Input.flush_buffered_events()
+
+
+## One finger-up contact.
+func _touch_release(index: int, pos: Vector2) -> void:
+	var ev := InputEventScreenTouch.new()
+	ev.index = index
+	ev.position = pos
+	ev.pressed = false
+	Input.parse_input_event(ev)
+	Input.flush_buffered_events()
+
+
+## A left-click press+release pair — the event a tap on an ordinary Button
+## produces on-device through touch→mouse emulation.
+func _mouse_click(pos: Vector2) -> void:
+	var down := InputEventMouseButton.new()
+	down.button_index = MOUSE_BUTTON_LEFT
+	down.position = pos
+	down.pressed = true
+	Input.parse_input_event(down)
+	Input.flush_buffered_events()
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_LEFT
+	up.position = pos
+	up.pressed = false
+	Input.parse_input_event(up)
+	Input.flush_buffered_events()
+
+
+## The T-119 rest contract as one read: all four steering actions at exactly
+## 0.0 — strengths AND both axis compositions — the shape the T-082 trim arm
+## (`absf(pitch_input) < 0.01`) keys on.
+func _steering_axes_all_zero() -> bool:
+	for action: String in ["turn_left", "turn_right", "pitch_up", "pitch_down"]:
+		if Input.get_action_strength(action) != 0.0:
+			return false
+	return Input.get_axis("turn_right", "turn_left") == 0.0 \
+			and Input.get_axis("pitch_down", "pitch_up") == 0.0
+
+
+## (T-119) The desktop path stays byte-identical: with no touchscreen the
+## layer is HIDDEN and inert (a contact at the stick spot moves nothing), the
+## safe-area layout is a no-op (zero offsets on the touch SafeArea, zero
+## offset on the HUD layer, the T-087 return fade un-expanded, the StatsLabel
+## still at its scene spot), and the InputMap's non-builtin action set is
+## EXACTLY the shipped eleven — zero new actions, read live so a smuggled-in
+## action fails here.
+func _scenario_touch_layer_desktop_inert() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(4500.0, 0.0, 4500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var touch: TouchControls = main_game.get_node("TouchControls") as TouchControls
+	var hud_layer: CanvasLayer = main_game.get_node("HUD") as CanvasLayer
+	var hidden_ok: bool = not touch.visible
+	var prev_size := _size_window_for_touch()
+	var base: Control = touch.get_node("SafeArea/StickBase") as Control
+	var stick_center := base.get_global_rect().get_center()
+	_touch_press(0, stick_center)
+	_touch_drag(0, stick_center + Vector2(-60.0, 0.0))
+	await _wait_frames(2)
+	var inert_ok: bool = Input.get_axis("turn_right", "turn_left") == 0.0 \
+			and Input.get_axis("pitch_down", "pitch_up") == 0.0
+	_touch_release(0, stick_center)
+	var safe_area: Control = touch.get_node("SafeArea") as Control
+	var safe_zero: bool = safe_area.offset_left == 0.0 and safe_area.offset_top == 0.0 \
+			and safe_area.offset_right == 0.0 and safe_area.offset_bottom == 0.0 \
+			and hud_layer.offset == Vector2.ZERO
+	var fade: ColorRect = main_game.get_node("%ReturnFade") as ColorRect
+	var fade_unexpanded: bool = fade.offset_left == 0.0 and fade.offset_top == 0.0 \
+			and fade.offset_right == 0.0 and fade.offset_bottom == 0.0
+	var stats: Label = main_game.stats_label
+	var hud_intact: bool = stats.position == Vector2(16.0, 12.0) \
+			and stats.get_theme_font_size("font_size") == 22 \
+			and main_game.hunger_bar.position == Vector2(16.0, 48.0)
+	var seen: Dictionary = {}
+	for action in InputMap.get_actions():
+		if not String(action).begins_with("ui_"):
+			seen[String(action)] = true
+	var actions_ok := seen.size() == GAME_ACTIONS.size()
+	for action: String in GAME_ACTIONS:
+		actions_ok = actions_ok and seen.has(action)
+	_restore_window_size(prev_size)
+	await _wait_frames(1)
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("touch_layer_desktop_inert",
+			hidden_ok and inert_ok and safe_zero and fade_unexpanded and hud_intact
+					and actions_ok,
+			"hidden=%s inert=%s safe_zero=%s fade_unexpanded=%s hud_intact=%s actions_ok=%s (seen %d, want %d)" % [
+					hidden_ok, inert_ok, safe_zero, fade_unexpanded, hud_intact,
+					actions_ok, seen.size(), GAME_ACTIONS.size()])
+
+
+## (T-119) The stick steers through the SAME action axes the player polls: a
+## synthetic screen-drag on the joystick drives the four existing steering
+## actions with analog strength — a gentle deflection reads clearly non-zero
+## (the deadzone trap: it must not read zero), strictly weaker than full, with
+## the other axis pair exactly at rest — and the PIGEON ITSELF yaws and banks
+## on a held full-left drag and pitches up on a held full-up drag.
+func _scenario_touch_stick_drives_action_axes() -> void:
+	var prev_size := _size_window_for_touch()
+	var touch: TouchControls = TOUCH_SCENE.instantiate() as TouchControls
+	touch.force_show = true ## The sim runs where no touchscreen exists — force the layer live.
+	add_child(touch)
+	await _wait_frames(2)
+	var base: Control = touch.get_node("SafeArea/StickBase") as Control
+	var center := base.get_global_rect().get_center()
+	## Gentle (40 % radius) deflection: non-zero turn, other axis at rest.
+	_touch_press(0, center)
+	_touch_drag(0, center + Vector2(-touch.stick_radius * 0.4, 0.0))
+	var gentle_turn := Input.get_axis("turn_right", "turn_left")
+	var gentle_pitch := Input.get_axis("pitch_down", "pitch_up")
+	_touch_release(0, center + Vector2(-touch.stick_radius * 0.4, 0.0))
+	## Full deflection: full strength, same cleanliness.
+	_touch_press(0, center)
+	_touch_drag(0, center + Vector2(-touch.stick_radius, 0.0))
+	var full_turn := Input.get_axis("turn_right", "turn_left")
+	var full_turn_pitch := Input.get_axis("pitch_down", "pitch_up")
+	var analog_ok := gentle_turn > 0.05 and gentle_turn < full_turn \
+			and gentle_pitch == 0.0 and full_turn > 0.9 and full_turn_pitch == 0.0
+	## The pigeon flies the held drag: banks left and yaws like the keyboard hold.
+	await _set_up(true, Vector3(0.0, 30.0, 0.0), Vector3(17.0, 0.0, 0.0))
+	var yaw0 := _flat_yaw()
+	for _i in 60:
+		await get_tree().physics_frame
+	var banked_left := _player.transform.basis.x.y
+	var yaw_delta := absf(wrapf(_flat_yaw() - yaw0, -PI, PI))
+	_touch_release(0, center + Vector2(-touch.stick_radius, 0.0))
+	await _wait_frames(2)
+	var released_zero := _steering_axes_all_zero()
+	## Full-up stick: the nose rises through the polled pitch axis.
+	_touch_press(0, center)
+	_touch_drag(0, center + Vector2(0.0, -touch.stick_radius))
+	var full_pitch := Input.get_axis("pitch_down", "pitch_up")
+	await _set_up(true, Vector3(0.0, 30.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	var nose0 := (-_player.transform.basis.z).y
+	for _i in 40:
+		await get_tree().physics_frame
+	var nose1 := (-_player.transform.basis.z).y
+	_touch_release(0, center + Vector2(0.0, -touch.stick_radius))
+	await _wait_frames(2)
+	var rest_after := _steering_axes_all_zero()
+	_restore_window_size(prev_size)
+	await _wait_frames(1)
+	touch.free()
+	_check("touch_stick_drives_action_axes",
+			analog_ok and full_pitch > 0.9 and banked_left > 0.2 and yaw_delta > 0.3
+					and released_zero and nose1 - nose0 > 0.15 and rest_after,
+			"analog=%s full_pitch=%.2f bank=%.2f yaw=%.2f rad released_zero=%s nose rise %.2f rest=%s" % [
+					analog_ok, full_pitch, banked_left, yaw_delta, released_zero,
+					nose1 - nose0, rest_after])
+
+
+## (T-119) The stick at rest reads EXACTLY zero — the T-082 hands-off trim
+## arm (`absf(pitch_input) < 0.01`) survives the touch path: never-touched
+## reads zero; a held full-up drag then finger-up returns every steering
+## action to exactly 0.0; and the end-to-end proof — a settled cruise given an
+## 8-frame stick pitch-up and released by lifting the finger — shows the nose
+## easing back toward the flow over 90 hands-off frames at the same bar the
+## keyboard scenario (`hands_off_glide_trims`) pins.
+func _scenario_touch_stick_rest_reads_exactly_zero() -> void:
+	var prev_size := _size_window_for_touch()
+	var touch: TouchControls = TOUCH_SCENE.instantiate() as TouchControls
+	touch.force_show = true
+	add_child(touch)
+	await _wait_frames(2)
+	var base: Control = touch.get_node("SafeArea/StickBase") as Control
+	var center := base.get_global_rect().get_center()
+	var idle_zero := _steering_axes_all_zero()
+	_touch_press(0, center)
+	_touch_drag(0, center + Vector2(0.0, -touch.stick_radius))
+	await _wait_frames(2)
+	var held_pitch := Input.get_axis("pitch_down", "pitch_up")
+	_touch_release(0, center + Vector2(0.0, -touch.stick_radius))
+	await _wait_frames(1)
+	var rest_zero := _steering_axes_all_zero()
+	## The trim arm, end to end through the touch layer (the keyboard recipe).
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	await _wait_frames(30) ## Settle into the trim glide.
+	_touch_press(0, center)
+	_touch_drag(0, center + Vector2(0.0, -touch.stick_radius))
+	await _wait_frames(8) ## The same entry hold hands_off_glide_trims uses.
+	_touch_release(0, center + Vector2(0.0, -touch.stick_radius))
+	var released_to_zero := _steering_axes_all_zero()
+	var nose0_deg := rad_to_deg(asin(clampf((-_player.transform.basis.z).y, -1.0, 1.0)))
+	await _wait_frames(90) ## Hands off: every input released.
+	var nose1_deg := rad_to_deg(asin(clampf((-_player.transform.basis.z).y, -1.0, 1.0)))
+	var travel_deg := nose0_deg - nose1_deg ## Positive = the nose dropped toward the flow.
+	var finite := _player.velocity.is_finite()
+	_restore_window_size(prev_size)
+	await _wait_frames(1)
+	touch.free()
+	_check("touch_stick_rest_reads_exactly_zero",
+			idle_zero and held_pitch > 0.9 and rest_zero and released_to_zero
+					and travel_deg >= HSO_NOSE_TRAVEL_BAR and finite,
+			"idle_zero=%s held_pitch=%.2f rest_zero=%s released_to_zero=%s nose travel %.2f deg (bar >= %.1f) finite=%s" % [
+					idle_zero, held_pitch, rest_zero, released_to_zero,
+					travel_deg, HSO_NOSE_TRAVEL_BAR, finite])
+
+
+## (T-119) The Flap and Poop buttons fire the REAL actions: a synthetic screen
+## touch on the Flap TouchScreenButton produces a flapped impulse through the
+## player's own polled `_flap`, and one on Poop drops a real falling Poop
+## through the polled `_try_poop` (relayed by the harness's `pooped` listener
+## into `_dropped`). No new input path — the buttons are the actions.
+func _scenario_touch_buttons_fire_real_actions() -> void:
+	var prev_size := _size_window_for_touch()
+	var touch: TouchControls = TOUCH_SCENE.instantiate() as TouchControls
+	touch.force_show = true
+	add_child(touch)
+	await _wait_frames(2)
+	var flap_center: Vector2 = (touch.get_node("SafeArea/FlapButton") as Node2D).global_position
+	var poop_center: Vector2 = (touch.get_node("SafeArea/PoopButton") as Node2D).global_position
+	_touch_flap_events = 0
+	var flap_cb := func() -> void: _touch_flap_events += 1
+	_player.flapped.connect(flap_cb)
+	await _set_up(true, Vector3(0.0, 30.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	_touch_press(0, flap_center)
+	await _wait_frames(2)
+	_touch_release(0, flap_center)
+	await _wait_frames(2)
+	var flap_ok := _touch_flap_events == 1
+	var drops_before := _dropped.size()
+	_touch_press(1, poop_center)
+	await _wait_frames(2)
+	_touch_release(1, poop_center)
+	await _wait_frames(2)
+	var dropped := _dropped.size() - drops_before
+	var drop: Poop = _dropped[_dropped.size() - 1] if dropped > 0 else null
+	var poop_ok := dropped == 1 and drop != null and is_instance_valid(drop) \
+			and drop.linear_velocity.is_finite()
+	_player.flapped.disconnect(flap_cb)
+	_restore_window_size(prev_size)
+	await _wait_frames(1)
+	touch.free()
+	_check("touch_buttons_fire_real_actions", flap_ok and poop_ok,
+			"flap=%s (events %d), poop=%s (drops %d, finite velocity=%s)" % [
+					flap_ok, _touch_flap_events, poop_ok, dropped,
+					drop != null and drop.linear_velocity.is_finite()])
+
+
+## (T-119) The Pause button pauses through the REAL PauseMenu: a tap on the
+## ordinary Button of an instanced main scene's touch layer opens the real
+## pause overlay (tree frozen, `is_open`), and a tap on the panel's own Resume
+## button unpauses — the full touch pause loop, no keyboard involved. Driven
+## with the synthetic mouse click a tap emulates (probed: synthetic screen
+## touches do not emulate mouse headless — see the block comment).
+func _scenario_touch_pause_button_toggles_real_pause() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var prev_size := _size_window_for_touch()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(-4500.0, 0.0, -4500.0) ## Own space, clear of every other instanced Main.
+	var touch: TouchControls = main_game.get_node("TouchControls") as TouchControls
+	touch.force_show = true ## Before add_child: the layer's _ready visibility read sees it.
+	add_child(main_game)
+	await _wait_frames(4)
+	var pause_button: Button = touch.get_node("SafeArea/PauseButton") as Button
+	_mouse_click(pause_button.get_global_rect().get_center())
+	await _wait_frames(2)
+	var paused_ok: bool = get_tree().paused and main_game.pause_menu.is_open
+	var resume: Button = main_game.get_node("%ResumeButton") as Button
+	_mouse_click(resume.get_global_rect().get_center())
+	await _wait_frames(2)
+	var resumed_ok: bool = not get_tree().paused and not main_game.pause_menu.is_open
+	_restore_window_size(prev_size)
+	await _wait_frames(1)
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	get_tree().paused = false ## Never leak a pause into later scenarios.
+	_check("touch_pause_button_toggles_real_pause", paused_ok and resumed_ok,
+			"paused=%s resumed=%s (the tap's emulated click drives the real toggle)" % [
+					paused_ok, resumed_ok])
+
+
+## (T-119) Overlapping contacts steer AND flap at once: finger 0 holds a
+## full-left stick drag while finger 1 lands on Flap — the turn axis stays
+## live THROUGH the second contact, a real flap impulse fires in the same
+## window, the pigeon actually yaws under both, and lifting both fingers
+## returns the axes to exactly zero.
+func _scenario_touch_multitouch_steer_and_flap() -> void:
+	var prev_size := _size_window_for_touch()
+	var touch: TouchControls = TOUCH_SCENE.instantiate() as TouchControls
+	touch.force_show = true
+	add_child(touch)
+	await _wait_frames(2)
+	var base: Control = touch.get_node("SafeArea/StickBase") as Control
+	var stick_center := base.get_global_rect().get_center()
+	var flap_center: Vector2 = (touch.get_node("SafeArea/FlapButton") as Node2D).global_position
+	_touch_flap_events = 0
+	var flap_cb := func() -> void: _touch_flap_events += 1
+	_player.flapped.connect(flap_cb)
+	await _set_up(true, Vector3(0.0, 30.0, 0.0), Vector3(17.0, 0.0, 0.0))
+	var yaw0 := _flat_yaw()
+	_touch_press(0, stick_center)
+	_touch_drag(0, stick_center + Vector2(-touch.stick_radius, 0.0))
+	_touch_press(1, flap_center) ## Overlapping contact: the stick stays held.
+	await _wait_frames(2)
+	_touch_release(1, flap_center)
+	var steering_live := Input.get_axis("turn_right", "turn_left")
+	for _i in 40:
+		await get_tree().physics_frame
+	var yaw_delta := absf(wrapf(_flat_yaw() - yaw0, -PI, PI))
+	_touch_release(0, stick_center + Vector2(-touch.stick_radius, 0.0))
+	await _wait_frames(1)
+	var rest_after := _steering_axes_all_zero()
+	_restore_window_size(prev_size)
+	await _wait_frames(1)
+	touch.free()
+	_player.flapped.disconnect(flap_cb)
+	_check("touch_multitouch_steer_and_flap",
+			steering_live > 0.9 and _touch_flap_events >= 1 and yaw_delta > 0.3
+					and rest_after,
+			"steering_live=%.2f flaps=%d yaw=%.2f rad rest=%s" % [
+					steering_live, _touch_flap_events, yaw_delta, rest_after])
 
 
 ## --- scenario (T-039 title-screen controls line) -----------------------------
