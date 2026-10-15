@@ -1,6 +1,6 @@
 # T-118 — A web build Safari can run: Compatibility web override, single-threaded export, Cloudflare Pages
 
-- **Milestone:** Mobile (owner-directed 2026-10-14; M3 candidate) · **Status:** proposed · **Category:** platform · **Value (1-5):** 3 · **Risk (1-5):** 3
+- **Milestone:** Mobile (owner-directed 2026-10-14; M3 candidate) · **Status:** done · **Category:** platform · **Value (1-5):** 3 · **Risk (1-5):** 3
 - **Depends on:** —
 - **Refs:** owner decision 2026-10-14 (web in Safari · Cloudflare Pages · platform-first split); [Godot docs — Exporting for the Web](https://docs.godotengine.org/en/latest/tutorials/export/exporting_for_web.html); [Godot 4.3 progress report — Web export](https://godotengine.org/article/progress-report-web-export-in-4-3); watch-item [godot#107390](https://github.com/godotengine/godot/issues/107390) (iOS web audio crash reports on some 4.5 dev builds)
 
@@ -59,21 +59,39 @@ controls) goes through the pipeline.
 
 ## Acceptance criteria
 
-- [ ] `project.godot` gains exactly the `.web` renderer override and the two
+- [x] `project.godot` gains exactly the `.web` renderer override and the two
       stretch settings; no `.desktop` rendering value; keyboard/desktop behavior
       unchanged
-- [ ] *(Gate 1b)* full sim suite green unchanged — no scenario edits (desktop
+- [x] *(Gate 1b)* full sim suite green unchanged — no scenario edits (desktop
       runs forward_plus at the default window, where the stretch is a no-op)
-- [ ] *(Gate 1)* headless web export documented in VERIFICATION.md and exits 0,
+      — 127/127 scenarios PASS, exit 0 (2026-10-15)
+- [x] *(Gate 1)* headless web export documented in VERIFICATION.md and exits 0,
       producing `index.html` + `.wasm` in `build/web/`; `export_presets.cfg`
-      committed with thread support off
-- [ ] *(Gate 2)* autoplay green on the desktop tree
+      committed with thread support off — verified: exit 0, all four files
+      present, `index.wasm` carries ZERO SharedArrayBuffer references and
+      `index.js` carries the nothreads markers. Gotcha recorded: the exporter
+      fails with "Target folder does not exist" unless `build/web/` is created
+      first; export templates must be installed once
+      (`%APPDATA%/Godot/export_templates/4.7.2.stable/` — done on this machine
+      2026-10-15)
+- [x] *(Gate 2)* autoplay green on the desktop tree — `AUTOPLAY DONE ok=true …
+      restart=true`, exit 0, no script errors (2026-10-15)
 - [ ] *(Gate 3)* desktop browser: the hosted URL loads, the title screen renders,
       a run starts and flies with the keyboard, and the city reads right under
       Compatibility (sky, shadows, edges) — recorded in VERIFICATION.md
+      · **agent-verified locally 2026-10-15** (localhost HTTP, in-browser):
+      page loads, title renders, Fly button starts a run, keyboard flies the
+      bird (airborne, camera yaw, coach hint swap), city + shadows + HUD read
+      right under Compatibility. Remaining for the owner: the same on the
+      hosted URL + console-autoload silence
 - [ ] *(Gate 3)* **iPhone go/no-go:** over the owner's hosting, the page loads in
       Safari, the title renders, the Fly button starts a run, the world renders
       at an acceptable framerate for a few minutes, no crash/reload, autoloads
       silent — the pass that unlocks T-119
+      · **PENDING OWNER PASS** (hosting + iPhone are owner-run steps). The
+      machine legs are all green; T-119 was explicitly ordered to proceed by
+      the owner 2026-10-15 regardless
 - [ ] *(optional)* Progressive Web App manifest + icon so Add-to-Home-Screen
-      gives her a fullscreen app icon
+      gives her a fullscreen app icon — not done (export_icon produces the
+      manifest-less default shell; a PWA shell is a small follow-up if she
+      wants the home-screen icon)

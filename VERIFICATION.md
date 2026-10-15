@@ -247,6 +247,38 @@ the pilot harness (`python tests/tools/pilot.py start|send|state|shot|stop …`,
 sessions isolated under `.captures/session_<id>/`); see AGENTS.md →
 "Agent play: pilot harness" (T-014).
 
+## Web export (T-118 — run when touching export/platform config)
+
+The phone target is a **single-threaded web build** (`docs/tickets/T-118-web-safari-build.md`):
+`project.godot` carries the per-platform `rendering_method.web = gl_compatibility`
+override (web supports only Compatibility; desktop keeps forward_plus — no
+`.desktop` value exists), the `canvas_items`/`expand` stretch (a no-op at the
+desktop's default 1280×720, so every Gate 1b HUD read stays valid), and the
+committed `export_presets.cfg` Web preset has **Variant → Thread Support OFF** —
+the load-bearing switch: single-threaded builds avoid the SharedArrayBuffer
+requirement that breaks iOS Safari and need no COOP/COEP hosting headers.
+
+Export templates must be installed once (the editor's
+Editor → Manage Export Templates…, or the `.tpz` from godotengine.org unpacked
+into `%APPDATA%/Godot/export_templates/4.7.2.stable/`). Then:
+
+```bash
+mkdir -p build/web   # the exporter fails with "Target folder does not exist" otherwise
+godot --headless --path . --export-release "Web" build/web/index.html
+```
+
+**Pass =** exit 0 and `build/web/` contains `index.html`, `index.js`,
+`index.wasm` and `index.pck` (`build/` is gitignored — never commit it).
+Single-threaded sanity check: `grep -c SharedArrayBuffer build/web/index.wasm`
+reads 0 and `index.js` carries the `nothreads` markers — a threaded build
+would fail both and break iOS Safari.
+Re-run after any change to the `[display]`/`[rendering]` settings, the export
+preset, or before an owner hosting pass. Hosting is owner-run: Cloudflare Pages
+(`wrangler pages deploy build/web`, or direct upload — Pages serves `.wasm`
+with the right MIME type). Only build artifacts are published, never the
+source repo. Desktop-browser and iPhone passes live in the Gate 3 checklist
+below.
+
 ## Gate 3 — Manual playtest (run the full list before closing any ticket)
 
 **Bulk closure (owner call, 2026-10-13):** the owner reviewed the ledger after the
@@ -345,6 +377,8 @@ Playtest checklist (grows as tickets land):
 - [x] (T-105..T-115) hands-on owner run of the post-T-115 build, 2026-10-12: "I played the game; I like the changes" — the batch's general feel/look judgement, recorded once here; the per-ticket screenshot lines above stay open for targeted passes
 - [ ] (T-116) The favor meter + win-rule caption read at a glance in the HUD column, and the menu footer names the goal (agent pilot grab 2026-10-12, `.captures/session_t116hud/` — layout and copy verified on menu + run start; owner feel pass pending)
 - [x] (T-117) The bird reads as snappier on WASD — pitch, bank/yaw and the waddle respond ×1.2 — and dives meaningfully faster (the cap 30 → 36 m/s is where dive speed lands), while nothing reads twitchy or grabby (owner playtest note 2026-10-13: "make WASD do 20% more of whatever they're doing"; accepted by reviewer sign-off 2026-10-13)
+- [ ] (T-118) Desktop browser: the hosted URL loads, the title screen renders, a run starts and flies with the keyboard, and the city reads right under the Compatibility renderer — sky, shadows, city edge — with the autoloads silent in the console [screenshot]
+- [ ] (T-118) **iPhone go/no-go:** over the owner's Cloudflare Pages hosting, the page loads in Safari, the title renders, the Fly button starts a run, the world renders at an acceptable framerate for a few minutes with no crash/reload, and the autoloads stay silent — the pass that unlocks T-119 [screenshot]
 - [x] (T-009) Splats pay the DESIGN points — 100 per tourist, 30 per car — and a popup at the hit reads clearly at flight speed
 - [x] (T-009) Chained hits without landing escalate ×2, ×3… and reset when you land or after ~20 s
 - [x] (T-009) A fast low dive hit pays the +50% style bonus — visible as a bigger popup number, and since T-038 labelled: styled hits are labelled, not just bigger ("+N STYLE" in gold)
