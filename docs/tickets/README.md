@@ -161,6 +161,7 @@ iPhone Gate 3 passes are the owner's. See the ticket files for the traps list.
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-118 | [A web build Safari can run: Compatibility web override, single-threaded export, Cloudflare Pages](T-118-web-safari-build.md) | platform | 3 | 3 | done |
 | T-119 | [Thumbs on the city: a virtual joystick and touch buttons for the phone](T-119-touch-controls.md) | ui-ux | 4 | 2 | done |
+| T-120 | [Readable thumbs: the touch buttons need an at-a-glance treatment](T-120-readable-touch-buttons.md) | ui-ux | 2 | 1 | proposed |
 
 ## Suggested build order
 
