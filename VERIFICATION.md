@@ -279,11 +279,14 @@ Single-threaded sanity check: `grep -c SharedArrayBuffer build/web/index.wasm`
 reads 0 and `index.js` carries the `nothreads` markers — a threaded build
 would fail both and break iOS Safari.
 Re-run after any change to the `[display]`/`[rendering]` settings, the export
-preset, or before an owner hosting pass. Hosting is owner-run: Cloudflare Pages
-(`wrangler pages deploy build/web`, or direct upload — Pages serves `.wasm`
-with the right MIME type). Only build artifacts are published, never the
-source repo. Desktop-browser and iPhone passes live in the Gate 3 checklist
-below.
+preset, or before an owner hosting pass. Hosting is owner-run: the basement
+Linux box at `games.matthews.mx/pigeon-simulator/` under nginx (decided
+2026-10-15 — the original Cloudflare Pages call was shelved). Only build
+artifacts are published, never the source repo. Deploy is tar-over-ssh from
+Git Bash, with the SSH host/user/password in the owner-filled `.env.deploy`
+at the repo root — untracked by git twice over (a `.gitignore` entry plus a
+`.git/info/exclude` entry; `git check-ignore -v .env.deploy` proves it).
+Desktop-browser and iPhone passes live in the Gate 3 checklist below.
 
 ## Gate 3 — Manual playtest (run the full list before closing any ticket)
 
@@ -385,7 +388,7 @@ Playtest checklist (grows as tickets land):
 - [ ] (T-116) The favor meter + win-rule caption read at a glance in the HUD column, and the menu footer names the goal (agent pilot grab 2026-10-12, `.captures/session_t116hud/` — layout and copy verified on menu + run start; owner feel pass pending)
 - [x] (T-117) The bird reads as snappier on WASD — pitch, bank/yaw and the waddle respond ×1.2 — and dives meaningfully faster (the cap 30 → 36 m/s is where dive speed lands), while nothing reads twitchy or grabby (owner playtest note 2026-10-13: "make WASD do 20% more of whatever they're doing"; accepted by reviewer sign-off 2026-10-13)
 - [ ] (T-118) Desktop browser: the hosted URL loads, the title screen renders, a run starts and flies with the keyboard, and the city reads right under the Compatibility renderer — sky, shadows, city edge — with the autoloads silent in the console [screenshot]
-- [ ] (T-118) **iPhone go/no-go:** over the owner's Cloudflare Pages hosting, the page loads in Safari, the title renders, the Fly button starts a run, the world renders at an acceptable framerate for a few minutes with no crash/reload, and the autoloads stay silent — the pass that unlocks T-119 [screenshot]
+- [ ] (T-118) **iPhone go/no-go:** over the owner's hosting (the basement box at `games.matthews.mx/pigeon-simulator/`), the page loads in Safari, the title renders, the Fly button starts a run, the world renders at an acceptable framerate for a few minutes with no crash/reload, and the autoloads stay silent — the pass that unlocks T-119 [screenshot]
 - [ ] (T-119) **on the iPhone:** she starts a run from the hosted build, flies a loop, eats bread, lands, poops on a tourist, and pauses — with her judgement on stick comfort and button reach recorded here (tuning follow-ups — stick sensitivity, button sizes — go through new tickets, not this one) [screenshot]
 - [x] (T-009) Splats pay the DESIGN points — 100 per tourist, 30 per car — and a popup at the hit reads clearly at flight speed
 - [x] (T-009) Chained hits without landing escalate ×2, ×3… and reset when you land or after ~20 s

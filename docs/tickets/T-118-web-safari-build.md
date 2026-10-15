@@ -37,10 +37,14 @@ The change-set:
 4. **Export command documented** (into VERIFICATION.md in the same change-set):
    `~/bin/Godot_v4.7.2-stable_win64_console.exe --headless --path . --export-release "Web" build/web/index.html`
    — `build/` is already gitignored.
-5. **Hosting on the owner's Cloudflare Pages** (owner-run step: free account,
-   direct upload or `wrangler pages deploy build/web`). Pages serves `.wasm`
-   with the right MIME type. **Only build artifacts are published** — the
-   compiled game and assets, never the source repo.
+5. **Hosting on the owner's own server** (owner-run step). **Pivot 2026-10-15:
+   the owner re-targeted hosting from the Cloudflare Pages originally proposed
+   to his basement Linux box — `games.matthews.mx/pigeon-simulator/` under
+   nginx.** Deploy is tar-over-ssh (Git Bash, no rsync) with the SSH
+   host/user/password in the owner-filled `.env.deploy` at the repo root;
+   that file is untracked by git twice over (`.gitignore` + `.git/info/exclude`).
+   **Only build artifacts are published** — the compiled game and assets,
+   never the source repo.
 
 **Watch-items:** the two autoloads must stay inert in a web build
 (`MCPRuntimeProbe` no-ops outside debug sessions per AGENTS.md; `CaptureRecorder`

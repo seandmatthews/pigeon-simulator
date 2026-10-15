@@ -150,9 +150,12 @@ forged in order after each lands.
 
 The owner wants the game playable on his girlfriend's iPhone. Direction decided
 2026-10-14: a single-threaded web build she opens in Safari, hosted on the
-owner's Cloudflare Pages — native iOS is ruled out (Godot's iOS export needs
+owner's own server (re-targeted 2026-10-15 to the basement Linux box at
+`games.matthews.mx/pigeon-simulator/` under nginx; the original Cloudflare
+Pages call was shelved) — native iOS is ruled out (Godot's iOS export needs
 macOS/Xcode plus an Apple developer account). Platform first as the go/no-go
-de-risk, touch controls second. See the ticket files for the traps list.
+de-risk, touch controls second. Both tickets are done; the hosted-URL and
+iPhone Gate 3 passes are the owner's. See the ticket files for the traps list.
 
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |

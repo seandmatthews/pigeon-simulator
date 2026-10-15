@@ -33,3 +33,8 @@ addons/godot_mcp/
 # Local ZCode agent tooling (MCP wiring, workflow drafts/runs, smoke shots) —
 # per-machine, like addons/godot_mcp/; AGENTS.md documents what lives here.
 .zcode/
+
+# Deploy credentials for the basement-box web host (owner-filled .env.deploy) —
+# SSH host/user/password must never be committed. Also guarded locally by
+# .git/info/exclude, so a revert of this line still leaves the file untracked.
+.env.deploy
