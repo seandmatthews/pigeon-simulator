@@ -27,6 +27,7 @@ scenes/         .tscn files, snake_case, one gameplay entity per scene
 scripts/        .gd files, snake_case
 tests/          headless sim harness (VERIFICATION.md Gate 1b)
 assets/         art / audio / fonts; third-party credits in assets/CREDITS.md
+tools/          owner ops scripts (web deploy: tools/deploy-web.sh)
 docs/           DESIGN.md and tickets/
 ```
 

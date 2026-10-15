@@ -280,13 +280,31 @@ reads 0 and `index.js` carries the `nothreads` markers — a threaded build
 would fail both and break iOS Safari.
 Re-run after any change to the `[display]`/`[rendering]` settings, the export
 preset, or before an owner hosting pass. Hosting is owner-run: the basement
-Linux box at `games.matthews.mx/pigeon-simulator/` under nginx (decided
-2026-10-15 — the original Cloudflare Pages call was shelved). Only build
-artifacts are published, never the source repo. Deploy is tar-over-ssh from
-Git Bash, with the SSH host/user/password in the owner-filled `.env.deploy`
-at the repo root — untracked by git twice over (a `.gitignore` entry plus a
-`.git/info/exclude` entry; `git check-ignore -v .env.deploy` proves it).
-Desktop-browser and iPhone passes live in the Gate 3 checklist below.
+NixOS box — Caddy `file_server` rooted at `/srv/games`, so the game lives at
+`games.matthews.mx/pigeon-simulator/` (decided 2026-10-15; the original
+Cloudflare Pages call was shelved). Only build artifacts are published, never
+the source repo. Deploy:
+
+```bash
+tools/deploy-web.sh              # build → upload → publish → verify
+tools/deploy-web.sh --first      # one-time: apply the Caddy vhost (done 2026-10-15)
+SKIP_BUILD=1 tools/deploy-web.sh # redeploy the existing build/web
+```
+
+Credentials come from the untracked `.env.deploy` at the repo root (SSH
+host/user/key, plus the sudo password for the root steps; untracked by git
+twice over — a `.gitignore` entry plus a `.git/info/exclude` entry;
+`git check-ignore -v .env.deploy` proves it). Preconditions: the
+`games.matthews.mx` A record must resolve (same public IP as
+`jellyfin.matthews.mx`) or verification fails loudly — `DEPLOY_ALLOW_NO_DNS=1`
+stages ahead of DNS; `--first` aborts unless the /etc-vs-source NixOS diff is
+exactly the games vhost block. Gotchas recorded on the first run
+(2026-10-15): the Caddy NixOS module has **no `root` option on a virtualHost**
+— the static root belongs in `extraConfig` as `root * /srv/games`; and a bare
+`go=` directive in rsync's `--chmod` applies to directories too (strips the
+traverse bit) — the publish leg pins 755/644 explicitly so the `caddy` user
+can traverse and read. Desktop-browser and iPhone passes live in the Gate 3
+checklist below.
 
 ## Gate 3 — Manual playtest (run the full list before closing any ticket)
 
