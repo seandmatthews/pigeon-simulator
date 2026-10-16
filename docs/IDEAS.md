@@ -97,6 +97,46 @@ budget and to splat parity); **(c) buildings/props first** (the world reads
 **Size & routing:** M per phase, direct-loop per phase (presentation-only),
 each phase ending with web-build + splat-parity verification.
 
+### B-16 · Make target cars unmistakable (owner report, 2026-10-16)
+
+**Pitch:** "Sometimes a car is just yellow and its wheels are black but it's
+not a black/yellow target car." Civilian cars impersonate visitors, and the
+real markers are too small to save it.
+
+**Grounded today (the collision, confirmed):** the civilian `BODY_PALETTE`
+(`car.gd:23-27`) contains a gold `Color(0.93, 0.78, 0.25)` and a near-black
+`Color(0.22, 0.24, 0.26)` — hue-twins of the visitor's `TEAM_GOLD`
+(1.0, 0.80, 0.0) and `VISITOR_BLACK` (0.08, 0.08, 0.08). All cars share one
+near-black tire material (`car.tscn` `Mat_tire`), so "black wheels"
+discriminates nothing. A visitor's actual tells are the raised flag + banner
+(`car.gd:115-121`) and the trunk cooler — the cooler sits at bumper height and
+vanishes in traffic; the flag is a small box on a pole. From ahead, behind, or
+at distance, a gold civilian with black tires IS a false positive. T-113 chose
+the class colors from a readability table — the defect is the civilian
+palette colliding with them, not the class colors.
+
+**Fix (a) — reserve the combo** *(do regardless)*: drop the gold and
+near-black entries from the civilian palette (7 → 5 colors). Pure data, no
+class-quota logic touched. The same reservation rule gets written into B-2
+phase 1: pedestrian civilian uniforms must not collide with black-and-gold
+either.
+
+**Fix (b) — upgrade the true tell** *(pick one)*:
+- **(b1) Bigger flag** — taller pole, larger banner so it reads at distance
+  and from front/rear. *(Recommended now — S.)*
+- **(b2) Roof topper** — a taxi-style roof sign readable from all horizontal
+  angles. Natural moment for this is the B-2 car swap (the model gets rebuilt
+  anyway). S–M.
+- **(b3) Outline/ring shader** on visitor vehicles. M; risks over-triggering
+  visual noise.
+- **(b4) HUD icons over targets** — M; wait for T-120, and diegetic beats HUD
+  per the design pillars ("the city reacts").
+
+**Size & routing:** (a) S, direct-loop — presentation data change; if sim
+paint assertions pin the old palette values, updating the pinned values is
+mechanical, not a bar re-derivation. Re-check the read from the air after
+B-2's car swap. **Fork D11:** which (b).
+
 ---
 
 ## B. Flight & feel
@@ -371,9 +411,9 @@ deploy owner steps) also live here. Silence = stays parked.
 
 ## Suggested sequencing (dependency-aware, no dates)
 
-1. **Quick wins, direct-loop, any order:** B-3's Mouse1 poop binding, B-8
-   (sound), B-1a (bird polish), B-12 (if wanted). B-3's invert pitch rides
-   in with B-10's first settings entry.
+1. **Quick wins, direct-loop, any order:** B-3's Mouse1 poop binding, B-16's
+   palette fix (a) + flag bump (b1), B-8 (sound), B-1a (bird polish), B-12
+   (if wanted). B-3's invert pitch rides in with B-10's first settings entry.
 2. **B-2 phase 1 — pedestrians + cars** (biggest visual win; unlocks
    elder-stroll animation; verify web build + splat parity after).
 3. **One combined economy/feel pass (pipeline): B-6 + chosen B-7 knobs** —
@@ -394,6 +434,7 @@ item above — B-6a/b especially.
 | D2 | B-3 scope: **partially answered 2026-10-16** — invert pitch + Mouse1 poop are IN; remaining scope is the mouse (D9) | invert + Mouse1 in |
 | D9 | B-3 mouse scope: a poop-only / b mouse aim / c mouse steering | — |
 | D10 | B-15 quests: want the ambient-bounty shape? which sketches? | ban softened 2026-10-16; shape undecided |
+| D11 | B-16 true-tell upgrade: b1 bigger flag / b2 roof topper / b3 outline / b4 HUD icons / none | recommendation: b1 now, b2 at the B-2 swap |
 | D3 | B-6 easier: a impact shadow / b lead tick / c bigger sphere / d panic tune (multi) | — |
 | D4 | B-6 weighting: i flip / ii streak / iii score-only / leave as-is | — |
 | D5 | B-7 knobs: a elder stroll / c traps / d mercy floor / e calendar / f hunger (multi) | — |
