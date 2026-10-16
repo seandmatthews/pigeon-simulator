@@ -10,7 +10,9 @@ routing notes on each item.
 Every "grounded today" line was verified against the tree on 2026-10-15
 (post-T-119). The tone guardrail applies to everything below
 ([DESIGN.md](DESIGN.md) — "if a proposal starts needing dialogue trees, NPC
-schedules, or quest machinery — stop, it's gone too crazy").
+schedules, or quest machinery — stop, it's gone too crazy"), with one
+owner-softened line: quests are no longer blanket-ruled-out (2026-10-16) —
+see B-15 for the shape that keeps the machinery ban intact.
 
 ## Economy snapshot (the numbers every gameplay idea must respect)
 
@@ -99,24 +101,35 @@ each phase ending with web-build + splat-parity verification.
 
 ## B. Flight & feel
 
-### B-3 · Slightly improved controls (owner item 3) — needs the owner's "what feels off" (D2)
+### B-3 · Controls pass (owner items, concretized 2026-10-16) — D2 partially answered
 
-**Pitch:** the flight model is heavily tuned (T-081/082/083/106/117); "better"
-needs a specific complaint. Grounded gaps that could be the target:
+**Owner asks:** invert pitch up/down; "some amount of mouse control"; at
+minimum Mouse1 fires poop so a turn doesn't cost a WASD finger.
 
-- **No boost exists** — `player.gd` has none; DESIGN.md still carries the open
-  question "Boost: keep Shift, or double-tap flap instead?". B-5's updrafts are
-  a third answer: skip boost, add air sources (no new button, mobile-friendly).
-- **No perch/grab** — landing is floor-contact only (`player.gd`); grabbing a
-  ledge/sign/statue is its own idea (B-9).
-- **No aim aid** — poop inherits full velocity, no spread, pure skill
-  (`player.gd:126`); assist options live in B-6.
-- **Camera niceties** — look-behind hold, tighter ground/air pivot blend
-  (camera is already SpringArm + trauma shake + FOV kick).
+- **Mouse1 → poop** — add an `InputEventMouseButton` (button 1) onto the
+  existing `poop` action (`project.godot` binds physical F only today). S,
+  direct-loop; per AGENTS the README + VERIFICATION controls tables update in
+  the same change.
+- **Invert pitch** — a persisted `invert_pitch` setting flipping the sign of
+  `Input.get_axis("pitch_down", "pitch_up")` (three call sites in `player.gd`
+  :302/:459/:564 — flip once in a helper, not per-site). The touch joystick
+  feeds the same actions (T-119), so one flip covers mobile too. There is no
+  settings UI yet — ship it as B-10's first entry (a `user://settings.cfg` +
+  a bare checkbox row) rather than a hidden flag. S.
+- **Mouse scope — fork D9:** (a) Mouse1 = poop, nothing else — the stated
+  minimum; (b) mouse moves the aim point and poop fires toward it (design
+  together with B-6a's predicted-impact shadow if both land — the shadow
+  becomes the cursor); (c) mouse steers flight (pitch/yaw follow). (c) is the
+  big one: desktop-only flavor, meaningless on touch, and it fights the tuned
+  keyboard model (T-117) — only if the owner really wants it, pipeline.
 
-**Size & routing:** any *feel* change goes through the pipeline even when tiny
-(T-117 rule — bar re-derivations are the risk surface). **Fork D2:** owner
-names what feels off (turn/bank, landing, aim, speed range, camera, other).
+Still open from the original pitch (unchanged): no boost (DESIGN open
+question — B-5's updrafts are the elegant answer), no perch/grab (B-9),
+camera niceties (look-behind hold, ground/air pivot blend).
+
+**Size & routing:** the two concrete asks are S, direct-loop (input map + sign
+flip; no bars move). Any *feel* change beyond them goes through the pipeline
+(T-117 rule).
 
 ### B-5 · Updrafts / soaring (owner item 5) — refined
 
@@ -196,7 +209,8 @@ M2 decision — flipping it is a conscious re-decision, which is fine).
 **"Easier" options:**
 - **(a) Predicted-impact shadow** — a small ellipse on the ground where the
   poop will land. Velocity is deterministic, so this is honest aim help and a
-  big win on a touchscreen.
+  big win on a touchscreen. If D9b (mouse aim) also lands, design them
+  together — the shadow is the cursor.
 - **(b) Lead tick** — reticle nudges toward a moving target's velocity.
 - **(c) Bigger contact sphere** — e.g. 0.3 → 0.38, invisible forgiveness.
 - **(d) Panic tuning** — 4.2 → 3.6 m/s or 2.6 → 2.0 s.
@@ -242,6 +256,67 @@ states; the win stays reachable one-handed on a phone.
 
 **Size & routing:** S–M per knob, **pipeline** — bundled with B-6's picks into
 ONE economy/feel pass so bars re-derive once. **Fork D5:** a/c/d/e/f (multi).
+
+### B-14 · Traffic spawns off-screen and drives in (owner idea, 2026-10-16)
+
+**Pitch:** no more cars popping into existence mid-frame: new traffic appears
+only off-screen and drives into view, and visible spawn events get rarer
+overall.
+
+**Grounded today:** cars spawn on block ring loops and curb spots inside a
+30–70 m band around the player (`recycle_radius` 100, `car_spawner.gd:63-70`)
+— on a long street sightline (FOV 72–79°) that is on screen. There are TWO pop
+sources: initial/recycle placement, and the recycler that teleports cars back
+INTO the band once they drift past 100 m (`car_spawner.gd:125-148`) — which
+can happen in full view. Traffic is already road-aligned and moving, so an
+off-screen placement gate makes "drives into view" happen for free.
+
+**Knobs:**
+- Sightline gate on placement (populate AND recycle rejoin): reject points
+  inside the camera frustum or within a max-sightline distance.
+- Density: `target_moving` 20 → ~14, `target_parked` 16 → ~12. Tests read the
+  knob (`sim_test.gd` compares against `spawner.target_moving`), so a default
+  change is test-safe; fewer cars = fewer +6 jackpots = mild tightening —
+  tune alongside D4 so the two knobs don't fight.
+- The BandSpawner recycle-scan cadence is a third dial: slower scans = rarer
+  teleports.
+- Perf: fewer + farther cars is web-build-friendlier, not worse.
+
+**Watch:** `sim_test.gd` pins population counts in several scenarios
+(:5029, :5359, :5391) and the T-007/T-054 recycle acceptance contract
+asserts where recycled cars land — a placement gate re-derives those
+scenarios even though counts don't move. Give tests an injectable
+"spawn anywhere" escape hatch rather than weakening the gate.
+
+**Size & routing:** S–M, **pipeline** (placement-contract scenarios
+re-derive).
+
+### B-15 · Quests, pigeon-style (owner softened the guardrail, 2026-10-16)
+
+**Owner steer:** "not sure I 100% want to rule out quests." Recorded here as a
+revision of the blanket machinery ban; DESIGN.md's out-of-scope line changes
+only when a concrete pitch is signed.
+
+**The tone-check, made concrete:** what made quests scary is the MACHINERY —
+dialogue trees, a quest-log UI, NPC schedules, multi-step chains, quest-giver
+states. A pigeon-safe version keeps one shape — **ambient bounties**: a
+one-liner challenge that appears on its own (no giver, no dialogue), tracked
+in ONE HUD line, expiring on its own, paying through the existing score/favor
+economy, never chaining. Sketches (invented, silly):
+
+- "Three black-and-gold, one windshield" — splat 3 visitors inside one combo
+  window.
+- "The bench wants quiet" — buzz the superfans off a plaza bench.
+- "Lunch rush" — steal 2 table crumbs before the combo breaks.
+
+**Why this is friendlier than it sounds:** the 20 s combo window already IS an
+implicit bounty generator — bounties would mostly NAME what the systems
+already do, which is a discoverability win (the T-116 gap) more than new
+machinery.
+
+**Open (D10):** want the shape? Which sketches / owner's own? On a yes →
+forge-input sign-off on the verbatim bounty list, then pipeline if favor pays
+are involved (economy deltas), direct if score-only.
 
 ---
 
@@ -296,15 +371,17 @@ deploy owner steps) also live here. Silence = stays parked.
 
 ## Suggested sequencing (dependency-aware, no dates)
 
-1. **Quick wins, direct-loop, any order:** B-8 (sound), B-1a (bird polish),
-   B-12 (if wanted).
+1. **Quick wins, direct-loop, any order:** B-3's Mouse1 poop binding, B-8
+   (sound), B-1a (bird polish), B-12 (if wanted). B-3's invert pitch rides
+   in with B-10's first settings entry.
 2. **B-2 phase 1 — pedestrians + cars** (biggest visual win; unlocks
    elder-stroll animation; verify web build + splat parity after).
 3. **One combined economy/feel pass (pipeline): B-6 + chosen B-7 knobs** —
    single batch so the sim bars re-derive once.
 4. **B-5 updrafts (pipeline)** — then re-judge B-13's hawk with the new sky.
 5. **B-4 landmarks** (forge: Ames-flavored reference images) + **B-9 perch**.
-6. **Anytime:** B-2 phase 2 (buildings/props), B-10, B-11.
+6. **Anytime:** B-14 traffic spawn gate (pipeline), B-2 phase 2
+   (buildings/props), B-10, B-11, B-15 (after D10).
 
 Mobile note: T-120 (readable touch buttons) should land before any HUD-adding
 item above — B-6a/b especially.
@@ -314,7 +391,9 @@ item above — B-6a/b especially.
 | # | Fork | Owner pick |
 | - | ---- | ---------- |
 | D1 | B-1 direction: a polish now / b hold + re-judge / c restyle | — |
-| D2 | B-3 scope: what feels off (turn/bank, landing, aim, speed, camera, other) | — |
+| D2 | B-3 scope: **partially answered 2026-10-16** — invert pitch + Mouse1 poop are IN; remaining scope is the mouse (D9) | invert + Mouse1 in |
+| D9 | B-3 mouse scope: a poop-only / b mouse aim / c mouse steering | — |
+| D10 | B-15 quests: want the ambient-bounty shape? which sketches? | ban softened 2026-10-16; shape undecided |
 | D3 | B-6 easier: a impact shadow / b lead tick / c bigger sphere / d panic tune (multi) | — |
 | D4 | B-6 weighting: i flip / ii streak / iii score-only / leave as-is | — |
 | D5 | B-7 knobs: a elder stroll / c traps / d mercy floor / e calendar / f hunger (multi) | — |
