@@ -3,9 +3,12 @@
 Born 2026-10-15 from an owner+agent brainstorm. This doc is the feed for future
 tickets: pitches get tree-grounded and refined here first, the owner picks a
 direction per fork (decision log at the bottom), then an item graduates to
-`docs/tickets/` (next free number: **T-121**) through the usual loop — forge
-sign-off when real-world references are needed, then pipeline or direct per the
-routing notes on each item.
+`docs/tickets/` through the usual loop — forge sign-off when real-world
+references are needed, then pipeline or direct per the routing notes on each
+item. **On 2026-10-17 the owner pulled the confirmed, no-input batch out as
+tickets T-121..T-126** (the "M3 wave 1" section of
+`docs/tickets/README.md`; ROADMAP.md carries the phase). Next free number:
+**T-127**.
 
 Every "grounded today" line was verified against the tree on 2026-10-15
 (post-T-119). The tone guardrail applies to everything below
@@ -64,7 +67,7 @@ draft — out of bounds without say-so).
 **Size & routing:** (a) S–M, direct-loop (presentation-only); (c) L, forge +
 pipeline. **Fork D1:** a / b / c.
 
-### B-2 · Swap in free assets (owner item 2) — refined, needs pick D6
+### B-2 · Swap in free assets (owner item 2) — phase 1 ticketed **T-124**; buildings/props phase 2 still parked (D6 moot for now)
 
 **Pitch:** replace capsule citizens and box cars with free low-poly models;
 buildings/props follow.
@@ -97,7 +100,7 @@ budget and to splat parity); **(c) buildings/props first** (the world reads
 **Size & routing:** M per phase, direct-loop per phase (presentation-only),
 each phase ending with web-build + splat-parity verification.
 
-### B-16 · Make target cars unmistakable (owner report, 2026-10-16)
+### B-16 · Make target cars unmistakable (owner report, 2026-10-16) — ticketed **T-121**
 
 **Pitch:** "Sometimes a car is just yellow and its wheels are black but it's
 not a black/yellow target car." Civilian cars impersonate visitors, and the
@@ -137,7 +140,7 @@ paint assertions pin the old palette values, updating the pinned values is
 mechanical, not a bar re-derivation. Re-check the read from the air after
 B-2's car swap. **Fork D11:** which (b).
 
-### B-18 · Ditch the default Godot boot splash (owner idea, 2026-10-17)
+### B-18 · Ditch the default Godot boot splash (owner idea, 2026-10-17) — ticketed **T-125**
 
 **Pitch:** "get rid of the default godot logos and stuff" — every launch
 starts with the stock Godot Engine logo splash.
@@ -180,8 +183,8 @@ minimum Mouse1 fires poop so a turn doesn't cost a WASD finger.
   `Input.get_axis("pitch_down", "pitch_up")` (three call sites in `player.gd`
   :302/:459/:564 — flip once in a helper, not per-site). The touch joystick
   feeds the same actions (T-119), so one flip covers mobile too. There is no
-  settings UI yet — ship it as B-10's first entry (a `user://settings.cfg` +
-  a bare checkbox row) rather than a hidden flag. S.
+  settings UI yet — invert ships inside T-122 (settings v1)
+  rather than as a hidden flag. S.
 - **Mouse scope — fork D9:** (a) Mouse1 = poop, nothing else — the stated
   minimum; (b) mouse moves the aim point and poop fires toward it (design
   together with B-6a's predicted-impact shadow if both land — the shadow
@@ -388,7 +391,7 @@ are involved (economy deltas), direct if score-only.
 
 ## D. Meta & platform
 
-### B-8 · Sound & music pass (agent addition)
+### B-8 · Sound & music pass (agent addition) — sfx pass ticketed **T-123**; music deliberately left out
 
 **Grounded today:** 7 sfx + 2 ambience loops on SFX/Ambience buses; boots
 muted by policy; **no music at all**; no in-game mute toggle; win (favor max)
@@ -401,7 +404,7 @@ music loop; in-game volume/mute (overlaps B-10).
 **Size & routing:** S–M, direct-loop. Free audio packs exist (same
 research/sources pass as B-2); `CREDITS.md` per import.
 
-### B-10 · Settings menu v1 (owner in, 2026-10-17: "we will probably need one eventually")
+### B-10 · Settings menu v1 (owner in, 2026-10-17: "we will probably need one eventually") — ticketed **T-122**
 
 A pause menu already exists (`PauseMenu` in `main.tscn` — Restart/Menu/Quit),
 so v1 is one **Settings** entry there plus one on the title screen
@@ -456,7 +459,7 @@ could outrank the touch joystick on the girlfriend's iPhone in Safari (iOS
 **Size & routing:** M, **pipeline** (input-path feel; the owner controller
 pass is the mandatory Gate 3).
 
-### B-19 · Quit does nothing on the web (owner report, 2026-10-17)
+### B-19 · Quit does nothing on the web (owner report, 2026-10-17) — ticketed **T-126**
 
 **Pitch:** in a browser, the Quit button just… doesn't. The tab stays open.
 Web pages can't close themselves — `get_tree().quit()` is a silent no-op on
@@ -508,18 +511,23 @@ deploy owner steps) also live here. Silence = stays parked.
 
 ## Suggested sequencing (dependency-aware, no dates)
 
-1. **Quick wins, direct-loop, any order:** B-3's Mouse1 poop binding, B-16's
-   palette fix (a) + flag bump (b1), B-10 settings v1 (invert pitch + volume
-   — owner in, 2026-10-17), B-18 splash swap, B-19 web-quit gate, B-8
-   (sound), B-1a (bird polish), B-12 (if wanted).
-2. **B-2 phase 1 — pedestrians + cars** (biggest visual win; unlocks
-   elder-stroll animation; verify web build + splat parity after).
-3. **One combined economy/feel pass (pipeline): B-6 + chosen B-7 knobs** —
+**Ticketed 2026-10-17 as M3 wave 1 (T-121..T-126):** the palette fix +
+flag bump (T-121) → the model swap (T-124, which implements T-121's rules on
+the new models); settings v1 (T-122), the sound pass (T-123), the splash
+swap (T-125) and the web quit gate (T-126) are independent. Live in
+`docs/tickets/README.md`.
+
+Still pitched here, in the order they'd run once their forks are picked:
+
+1. **Mouse1 poop binding (B-3)** — waiting on D9 (mouse scope); invert pitch
+   already rides in T-122.
+2. **One combined economy/feel pass (pipeline): B-6 + chosen B-7 knobs** —
    single batch so the sim bars re-derive once.
-4. **B-5 updrafts (pipeline)** — then re-judge B-13's hawk with the new sky.
-5. **B-4 landmarks** (forge: Ames-flavored reference images) + **B-9 perch**.
-6. **Anytime:** B-14 traffic spawn gate (pipeline), B-17 controller support
-   (pipeline), B-2 phase 2 (buildings/props), B-10, B-11, B-15 (after D10).
+3. **B-5 updrafts (pipeline)** — then re-judge B-13's hawk with the new sky.
+4. **B-4 landmarks** (forge: Ames-flavored reference images) + **B-9 perch**.
+5. **Anytime:** B-14 traffic spawn gate (pipeline), B-17 controller support
+   (pipeline), B-1a bird polish, B-2 phase 2 (buildings/props), B-8's music
+   question, B-11, B-12, B-15 (after D10).
 
 Mobile note: T-120 (readable touch buttons) should land before any HUD-adding
 item above — B-6a/b especially.
@@ -529,10 +537,10 @@ item above — B-6a/b especially.
 | # | Fork | Owner pick |
 | - | ---- | ---------- |
 | D1 | B-1 direction: a polish now / b hold + re-judge / c restyle | — |
-| D2 | B-3 scope: **partially answered 2026-10-16** — invert pitch + Mouse1 poop are IN; remaining scope is the mouse (D9) | invert + Mouse1 in |
+| D2 | B-3 scope: **partially answered 2026-10-16** — invert pitch + Mouse1 poop are IN; remaining scope is the mouse (D9) | invert → T-122; Mouse1 unscheduled |
 | D9 | B-3 mouse scope: a poop-only / b mouse aim / c mouse steering | — |
 | D10 | B-15 quests: want the ambient-bounty shape? which sketches? | ban softened 2026-10-16; shape undecided |
-| D11 | B-16 true-tell upgrade: b1 bigger flag / b2 roof topper / b3 outline / b4 HUD icons / none | recommendation: b1 now, b2 at the B-2 swap |
+| D11 | B-16 true-tell upgrade: b1 bigger flag / b2 roof topper / b3 outline / b4 HUD icons / none | b1 in T-121; b2 rides T-124 |
 | D3 | B-6 easier: a impact shadow / b lead tick / c bigger sphere / d panic tune (multi) | — |
 | D4 | B-6 weighting: i flip / ii streak / iii score-only / leave as-is | — |
 | D5 | B-7 knobs: a elder stroll / c traps / d mercy floor / e calendar / f hunger (multi) | — |

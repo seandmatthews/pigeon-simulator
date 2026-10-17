@@ -13,23 +13,28 @@ everything since then shipped.
 | M1 — vertical slice | One stretch of city where the whole loop works and feels good | T-001..T-020 done, gates green | done 2026-09-29 |
 | Sweep — readability, feel, perf (waves W1–W8) | Make the slice legible and pleasant: the bird readable against the city, every scored moment visible, flight well-behaved at its edges, boot scene affordable | Every W1–W8 ticket merged or flagged; backlog re-audited | done 2026-10-01 — chain complete, every wave ticket landed (record below) |
 | M2 — the town's pigeon | Goal layer: the invasion gets a uniform and the sandbox gets a win — citizen classes, the favor economy, the favor-max victory, and the HUD that names the prize | All four forks decided (2026-10-11); the forged sequence landed with gates green | done 2026-10-11/12 — T-113 96d09fe, T-114 6b51dc4, T-115 112f8e9, T-116 bfe31fb |
-| M3 — next | open | open | open — no direction chosen yet |
+| M3 — improvement wave 1 | Six owner-confirmed quick wins from the 2026-10-15/17 brainstorm ([IDEAS.md](IDEAS.md)): target-car readability, settings v1 (invert pitch + volume), the sound pass, the human/car model swap, the boot-splash swap, the web quit gate | all six tickets done, gates green | proposed — T-121..T-126 |
 
-## Where we are (2026-10-13)
+## Where we are (2026-10-17)
 
-The tracker is empty: T-001..T-116 are all done or superseded. Open
-human-judgement lines: T-115's and T-116's Gate 3 passes only
-([VERIFICATION.md](../VERIFICATION.md) → Gate 3; the rest of the ledger was
-bulk-closed by the owner 2026-10-13).
+M2 and the mobile phase are done: T-113..T-116 (the goal layer) and
+T-118/T-119 (hosted web build + touch controls — the owner's iPhone pass
+closed their Gate 3 lines). Open work: T-120 (readable touch buttons) and
+M3 wave 1, T-121..T-126 — six confirmed, no-further-input ideas folded out
+of the brainstorm into tickets (target-car readability, settings v1, the
+sound pass, the human/car model swap, the boot-splash swap, the web quit
+gate).
 
-Parked candidates from the M2 sketch, none committed to: the hawk hazard,
-seagull rivals at the tailgates, districts (campus / main-street / tailgate
-palettes), landmark bonus targets, gamepad support, settings, export builds.
-New work starts as a tone-checked pitch before anything is forged (AGENTS.md —
-the idea-talk convention); scope stays a silly game about a bird pooping on
-people. Refined, tree-grounded pitches for these and newer candidates live in
-[IDEAS.md](IDEAS.md) (2026-10-15 brainstorm; owner picks recorded in its
-decision log).
+Everything else from the brainstorm stays pitched in
+[IDEAS.md](IDEAS.md) behind its open decision-log forks: updrafts (B-5),
+perch (B-9), the difficulty/points rebalance (B-6/B-7), quests-lite (B-15),
+the traffic spawn gate (B-14), gamepad support (B-17), the pigeon-look pass
+(B-1), buildings/props swap (B-2 phase 2), the hawk hazard and seagull
+rivals (still on DESIGN's out-of-scope list — re-opening is an explicit
+owner call), districts, landmark targets, and export builds. New work starts
+as a tone-checked pitch before anything is forged (AGENTS.md — the
+idea-talk convention); scope stays a silly game about a bird pooping on
+people.
 
 ## The sweep's wave schedule (historical record)
 

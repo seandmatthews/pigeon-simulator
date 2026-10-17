@@ -5,12 +5,11 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 
 ## Current phase
 
-**Sweep polish, waves W1–W8** — readability, flight feel and performance over
-the M1 slice. Schedule, phase goals and exit criteria:
-[`docs/ROADMAP.md`](../ROADMAP.md). M2 (the town-vs-visitors goal layer) is
-approved as a three-ticket sequence (2026-10-11) and its first ticket,
-T-113, is proposed below — see [`DESIGN.md`](../DESIGN.md) →
-Milestone 2; don't pull M2 work into sweep waves.
+**M3 wave 1 — the owner's improvement batch (2026-10-17)** — six confirmed,
+no-further-input ideas folded out of the brainstorm
+([`../IDEAS.md`](../IDEAS.md)) as T-121..T-126 below; T-120 (readable touch
+buttons) stays open from the mobile phase. Phase goals and exit criteria:
+[`../ROADMAP.md`](../ROADMAP.md).
 
 ## Milestone 1 — vertical slice
 
@@ -162,6 +161,23 @@ iPhone Gate 3 passes are the owner's. See the ticket files for the traps list.
 | T-118 | [A web build Safari can run: Compatibility web override, single-threaded export, Cloudflare Pages](T-118-web-safari-build.md) | platform | 3 | 3 | done |
 | T-119 | [Thumbs on the city: a virtual joystick and touch buttons for the phone](T-119-touch-controls.md) | ui-ux | 4 | 2 | done |
 | T-120 | [Readable thumbs: the touch buttons need an at-a-glance treatment](T-120-readable-touch-buttons.md) | ui-ux | 2 | 1 | proposed |
+
+## M3 wave 1 — the owner's improvement batch (2026-10-17)
+
+Six confirmed, no-further-input ideas folded out of the 2026-10-15/17
+brainstorm ([`../IDEAS.md`](../IDEAS.md) — every remaining item there stays
+pitched behind its open decision-log forks). Suggested order: T-121 → T-124
+(the swap implements T-121's rules on the new models); T-122, T-123, T-125
+and T-126 are independent.
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-121 | [Unmistakable targets: reserve black-and-gold for the visitors, grow the flag](T-121-unmistakable-targets.md) | visual-design | 4 | 1 | proposed |
+| T-122 | [Settings v1: invert pitch + volume on the pause menu](T-122-settings-v1.md) | ui-ux | 3 | 2 | proposed |
+| T-123 | [Sound pass: coos, splat variety, and endings that aren't silent](T-123-sound-pass.md) | audio | 4 | 1 | proposed |
+| T-124 | [People and cars: swap in Quaternius pedestrians and Kenney cars](T-124-people-and-cars.md) | visual-design | 5 | 3 | proposed |
+| T-125 | [Ditch the Godot boot splash](T-125-boot-splash.md) | visual-design | 2 | 1 | proposed |
+| T-126 | [Hide Quit on the web (a browser tab can't close itself)](T-126-web-quit.md) | platform | 2 | 1 | proposed |
 
 ## Suggested build order
 
