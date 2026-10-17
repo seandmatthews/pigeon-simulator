@@ -137,6 +137,32 @@ paint assertions pin the old palette values, updating the pinned values is
 mechanical, not a bar re-derivation. Re-check the read from the air after
 B-2's car swap. **Fork D11:** which (b).
 
+### B-18 · Ditch the default Godot boot splash (owner idea, 2026-10-17)
+
+**Pitch:** "get rid of the default godot logos and stuff" — every launch
+starts with the stock Godot Engine logo splash.
+
+**Grounded today:** no `boot_splash` section exists in `project.godot`, so
+Godot's default logo splash shows on desktop AND on the web build's load. The
+project icon is already custom (`icon.svg` is a pigeon-on-sky rounded square —
+keep it, maybe promote its art).
+
+**Options:**
+- **(a) Plain-color splash** — `application/boot_splash` with
+  `show_image=false` + a sunny-sky background color. Two lines, done.
+- **(b) Custom splash image** — the icon.svg pigeon art (or a title-card
+  frame from the menu) as the splash image, same bg color. Slightly more.
+- **(c) Web-only extra** — the export's loading screen is template HTML; a
+  branded shell (pigeon mark + progress bar on the same sky color) finishes
+  the job for the hosted build. Pairs with the games.matthews.mx page.
+
+**Note:** removing the splash breaks no rules — Godot's MIT license doesn't
+require the logo; a credit line in `assets/CREDITS.md` is plenty.
+
+**Size & routing:** S (a or b), direct-loop; (c) S extra, verify against the
+web build. **Pick: a, b, or a+c in the ticket — no fork needed unless the
+owner wants (b)'s art commissioned.**
+
 ---
 
 ## B. Flight & feel
@@ -461,8 +487,8 @@ deploy owner steps) also live here. Silence = stays parked.
 
 1. **Quick wins, direct-loop, any order:** B-3's Mouse1 poop binding, B-16's
    palette fix (a) + flag bump (b1), B-10 settings v1 (invert pitch + volume
-   — owner in, 2026-10-17), B-8 (sound), B-1a (bird polish), B-12 (if
-   wanted).
+   — owner in, 2026-10-17), B-18 splash swap, B-8 (sound), B-1a (bird
+   polish), B-12 (if wanted).
 2. **B-2 phase 1 — pedestrians + cars** (biggest visual win; unlocks
    elder-stroll animation; verify web build + splat parity after).
 3. **One combined economy/feel pass (pipeline): B-6 + chosen B-7 knobs** —
