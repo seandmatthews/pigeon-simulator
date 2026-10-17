@@ -22,6 +22,11 @@ var is_open: bool = false
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
+	## (T-122) The settings panel exists only in the full main.tscn scene —
+	## bare script rigs (the sim harness builds one) carry no panel.
+	var panel := get_node_or_null("%SettingsPanel")
+	if panel != null:
+		panel.closed.connect(_close_settings)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -52,6 +57,23 @@ func toggle() -> void:
 		var resume := get_node_or_null("%ResumeButton") as Button
 		if resume != null:
 			resume.grab_focus()
+	else:
+		_close_settings() ## (T-122) Closing the menu closes the panel with it.
+
+
+## (T-122) The settings panel — the button shows it, its `closed` signal and
+## a menu close hide it. Nothing else here touches Game directly; the panel
+## owns the write-through. All lookups are bare-rig tolerant (see _ready).
+func _on_settings_pressed() -> void:
+	var panel := get_node_or_null("%SettingsPanel")
+	if panel != null:
+		panel.visible = true
+
+
+func _close_settings() -> void:
+	var panel := get_node_or_null("%SettingsPanel")
+	if panel != null:
+		panel.visible = false
 
 
 ## Closes the overlay and unpauses without emitting anything — used by

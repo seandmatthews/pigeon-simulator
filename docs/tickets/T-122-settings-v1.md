@@ -1,6 +1,6 @@
 # T-122 — Settings v1: invert pitch + volume on the pause menu
 
-- **Milestone:** M3 wave 1 (owner batch, from IDEAS.md B-10; carries B-3's invert-pitch ask) · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 2
+- **Milestone:** M3 wave 1 (owner batch, from IDEAS.md B-10; carries B-3's invert-pitch ask) · **Status:** done 2026-10-17 · **Category:** ui-ux · **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** —
 - **Refs:** owner in 2026-10-17 (*"I feel like we will probably need one
   eventually"*). The pause menu already exists — `PauseMenu` in `main.tscn`
@@ -33,14 +33,19 @@ beyond the sign helper re-routes to the pipeline (2026-10-13 rule).
 
 ## Acceptance criteria
 
-- [ ] *(Gate 1b)* scenario: boot with a pre-seeded `user://settings.cfg`
+- [x] *(Gate 1b)* scenario: boot with a pre-seeded `user://settings.cfg`
       (invert on) → pitch input drives the nose inverted; the config
       round-trips (save → load → same values) and volumes land on the buses
-      at boot
-- [ ] *(Gate 1b)* default path untouched: with no config file, every
+      at boot — `settings_persist_and_invert` (nose raises off / lowers on
+      the SAME held key; SFX at linear_to_db(0.5); stored unmute unmuting
+      Master)
+- [x] *(Gate 1b)* default path untouched: with no config file, every
       existing scenario passes unmodified (invert off = today's controls
-      exactly)
-- [ ] *(Gate 2)* autoplay green
+      exactly — full suite 0 failures)
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true`, restart=true)
 - [ ] *(Gate 3)* owner toggles invert and volume, plays a run, confirms the
       feel flipped the way they asked and the setting survives a restart —
       recorded here
+      *(PENDING owner pass — the machine legs are green. Settings lives on
+      the pause menu AND the title screen; inversion covers keyboard and the
+      touch stick alike.)*

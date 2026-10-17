@@ -15,7 +15,17 @@ func _ready() -> void:
 	## session shows it here (T-009 persistence made visible).
 	high_score_label.text = "High score: %d" % Game.high_score \
 			if Game.high_score > 0 else "No high score yet — go be a menace"
+	%SettingsPanel.closed.connect(_close_settings) ## (T-122)
 	%FlyButton.grab_focus()
+
+
+## (T-122) The title screen hosts the same settings panel as the pause menu.
+func _on_settings_pressed() -> void:
+	%SettingsPanel.visible = true
+
+
+func _close_settings() -> void:
+	%SettingsPanel.visible = false
 
 
 func _unhandled_input(event: InputEvent) -> void:

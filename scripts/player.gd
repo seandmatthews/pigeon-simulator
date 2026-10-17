@@ -456,7 +456,7 @@ func _steer(delta: float) -> void:
 	if absf(new_roll) > 0.01:
 		# Yaw follows the bank: pigeon-like, not tank-like.
 		rotate_y((new_roll / max_bank) * full_bank_yaw_rate * authority * delta)
-	var pitch_input := Input.get_axis("pitch_down", "pitch_up")
+	var pitch_input := Game.pitch_axis() ## (T-122) Invert-pitch flows through the one helper.
 	# (T-083, adopting T-062) Bound the attitude at the input: the pitch term
 	# fades to zero across the band from `pitch_auth_full_deg` to
 	# `pitch_auth_zero_deg` of |body pitch| — the same nose-sine read the sim's
@@ -561,7 +561,7 @@ func _apply_flight_forces(delta: float, grounded: bool) -> void:
 	# (no mid-flight airbrake — the flare only ever fires while descending),
 	# dives sit below `flare_max_sink` (the speed tool keeps its speed), and the
 	# grounded skid keeps its own friction.
-	var pitch_input := Input.get_axis("pitch_down", "pitch_up")
+	var pitch_input := Game.pitch_axis() ## (T-122) The flare gate reads the inverted axis too.
 	if not grounded and pitch_input > 0.0 \
 			and velocity.y < 0.0 and velocity.y > -flare_max_sink:
 		var bleed := 1.0 - flare_drag * pitch_input * delta

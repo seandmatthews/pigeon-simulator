@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/bread_spawner.gd" id="3_spawner"]
@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://scripts/bread_globe.gd" id="13_globe"]
 [ext_resource type="PackedScene" path="res://scenes/touch_controls.tscn" id="14_touch"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="15_hud"]
+[ext_resource type="PackedScene" path="res://scenes/settings_panel.tscn" id="16_settings"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_main"]
 sky_horizon_color = Color(0.85, 0.8, 0.7, 1)
@@ -288,6 +289,11 @@ text = "Restart (R)"
 theme_override_font_sizes/font_size = 18
 text = "Menu (M)"
 
+[node name="SettingsButton" type="Button" parent="PauseMenu/Center/PausePanel/Box"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 18
+text = "Settings"
+
 [node name="QuitButton" type="Button" parent="PauseMenu/Center/PausePanel/Box"]
 theme_override_font_sizes/font_size = 18
 text = "Quit (Q)"
@@ -309,6 +315,21 @@ theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(1, 1, 1, 0.75)
 text = "Ground: W/S waddle · A/D turn · Space flap off · walk into crumbs to eat"
 horizontal_alignment = 1
+
+[node name="SettingsPanel" parent="PauseMenu" instance=ExtResource("16_settings")]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -140.0
+offset_top = -150.0
+offset_right = 140.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="GameOverScreen" type="CanvasLayer" parent="."]
 layer = 20
@@ -394,6 +415,7 @@ horizontal_alignment = 1
 [connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/ResumeButton" to="PauseMenu" method="toggle"]
 [connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/RestartButton" to="PauseMenu" method="_request_restart"]
 [connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/MenuButton" to="PauseMenu" method="_on_menu_pressed"]
+[connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/SettingsButton" to="PauseMenu" method="_on_settings_pressed"]
 [connection signal="pressed" from="PauseMenu/Center/PausePanel/Box/QuitButton" to="PauseMenu" method="_on_quit_pressed"]
 [connection signal="pressed" from="GameOverScreen/Center/ScorePanel/Box/AgainButton" to="GameOverScreen" method="_on_again_pressed"]
 [connection signal="pressed" from="GameOverScreen/Center/ScorePanel/Box/MenuButton" to="GameOverScreen" method="_on_menu_pressed"]

@@ -53,6 +53,26 @@ signal favor_maxed ## (T-115) Fired once, the moment favor first reaches favor_m
 ## touch the real record.
 var save_path: String = "user://highscore.cfg"
 
+## (T-122) Where settings persist — same redirect rules as `save_path`.
+var settings_path: String = "user://settings.cfg"
+
+## (T-122) Invert pitch: `pitch_axis()` negates the action axis, so the W/S
+## pair (and the T-119 stick, which feeds the same actions) swap meaning in
+## flight. Default false = today's controls exactly. The grounded waddle is
+## deliberately NOT inverted — it is forward/back, not pitch.
+var invert_pitch: bool = false
+
+## (T-122) Live bus volumes, 0..1 linear. Defaults are no change from the
+## shipped default_bus_layout dB — a stored value only lands when a file exists.
+var volume_master: float = 1.0
+var volume_sfx: float = 1.0
+var volume_ambience: float = 1.0
+
+## (T-122) The settings' own Master mute. The T-101 boot policy seeds it at
+## boot; a saved settings file overrides — a stored unmute IS the standing
+## opt-in. With no file this never leaves the boot value.
+var settings_muted: bool = true
+
 ## Play sessions launched by tests/tools/pilot.py set PIGEON_NO_PERSIST=1 so N
 ## concurrent agent-driven runs never fight over (or wipe) the real record.
 var _persistence_enabled: bool = OS.get_environment("PIGEON_NO_PERSIST") != "1"
@@ -124,12 +144,68 @@ var _release_age: float = 999.0 ## Seconds since the last poop release; starts s
 
 
 func _ready() -> void:
-	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), boot_muted(OS.get_cmdline_user_args()))
+	settings_muted = boot_muted(OS.get_cmdline_user_args())
+	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), settings_muted)
 	hunger = Hunger.new()
 	hunger.name = "Hunger"
 	add_child(hunger)
 	hunger.game_over.connect(_flush_high_score) ## (T-073) Starvation flushes the run's dirty beats.
 	load_high_score()
+	load_settings() ## (T-122) A saved file overrides the boot policy; no file changes nothing.
+
+
+## (T-122) The pitch axis every flight consumer reads: the raw action axis
+## times the invert sign. One helper so keyboard and the touch joystick invert
+## together; the grounded waddle deliberately keeps its own raw axis.
+func pitch_axis() -> float:
+	var axis := Input.get_axis("pitch_down", "pitch_up")
+	return -axis if invert_pitch else axis
+
+
+## (T-122) Pushes every stored volume + the mute onto the audio buses — boot
+## (via load_settings) and the settings panel's write-through both land here.
+func apply_audio_settings() -> void:
+	_apply_bus_volume("Master", volume_master)
+	_apply_bus_volume("SFX", volume_sfx)
+	_apply_bus_volume("Ambience", volume_ambience)
+	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), settings_muted)
+
+
+func _apply_bus_volume(bus_name: String, linear: float) -> void:
+	var idx := AudioServer.get_bus_index(bus_name)
+	if idx >= 0:
+		AudioServer.set_bus_volume_db(idx, linear_to_db(clampf(linear, 0.0, 1.0)))
+
+
+## (T-122) Reads settings_path into the live settings and applies them. A
+## missing file is an early-out — the boot-time state stands untouched, so a
+## settings-less launch behaves byte-identically to the pre-T-122 game.
+func load_settings() -> void:
+	if not _persistence_enabled:
+		return
+	var cfg := ConfigFile.new()
+	if cfg.load(settings_path) != OK:
+		return
+	invert_pitch = bool(cfg.get_value("controls", "invert_pitch", false))
+	volume_master = clampf(float(cfg.get_value("audio", "master", 1.0)), 0.0, 1.0)
+	volume_sfx = clampf(float(cfg.get_value("audio", "sfx", 1.0)), 0.0, 1.0)
+	volume_ambience = clampf(float(cfg.get_value("audio", "ambience", 1.0)), 0.0, 1.0)
+	settings_muted = bool(cfg.get_value("audio", "muted", true))
+	apply_audio_settings()
+
+
+## (T-122) Write-through for the settings panel — every control change saves
+## immediately, so a crash keeps the player's choices.
+func save_settings() -> void:
+	if not _persistence_enabled:
+		return
+	var cfg := ConfigFile.new()
+	cfg.set_value("controls", "invert_pitch", invert_pitch)
+	cfg.set_value("audio", "master", volume_master)
+	cfg.set_value("audio", "sfx", volume_sfx)
+	cfg.set_value("audio", "ambience", volume_ambience)
+	cfg.set_value("audio", "muted", settings_muted)
+	cfg.save(settings_path)
 
 
 func _physics_process(delta: float) -> void:

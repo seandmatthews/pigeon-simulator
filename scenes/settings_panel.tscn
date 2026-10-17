@@ -1,0 +1,75 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/settings_panel.gd" id="1_settings"]
+
+[node name="SettingsPanel" type="PanelContainer"]
+custom_minimum_size = Vector2(280, 0)
+script = ExtResource("1_settings")
+
+[node name="Box" type="VBoxContainer" parent="."]
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Box"]
+theme_override_font_sizes/font_size = 24
+text = "SETTINGS"
+horizontal_alignment = 1
+
+[node name="InvertPitch" type="CheckBox" parent="Box"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 16
+text = "Invert pitch (W/S)"
+
+[node name="MasterRow" type="HBoxContainer" parent="Box"]
+theme_override_constants/separation = 10
+
+[node name="Label" type="Label" parent="Box/MasterRow"]
+custom_minimum_size = Vector2(90, 0)
+theme_override_font_sizes/font_size = 16
+text = "Master"
+
+[node name="MasterSlider" type="HSlider" parent="Box/MasterRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="SfxRow" type="HBoxContainer" parent="Box"]
+theme_override_constants/separation = 10
+
+[node name="Label" type="Label" parent="Box/SfxRow"]
+custom_minimum_size = Vector2(90, 0)
+theme_override_font_sizes/font_size = 16
+text = "Sound"
+
+[node name="SfxSlider" type="HSlider" parent="Box/SfxRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="AmbienceRow" type="HBoxContainer" parent="Box"]
+theme_override_constants/separation = 10
+
+[node name="Label" type="Label" parent="Box/AmbienceRow"]
+custom_minimum_size = Vector2(90, 0)
+theme_override_font_sizes/font_size = 16
+text = "Ambience"
+
+[node name="AmbienceSlider" type="HSlider" parent="Box/AmbienceRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="MuteCheck" type="CheckBox" parent="Box"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 16
+text = "Muted"
+
+[node name="SettingsBackButton" type="Button" parent="Box"]
+unique_name_in_owner = true
+theme_override_font_sizes/font_size = 16
+text = "Back"

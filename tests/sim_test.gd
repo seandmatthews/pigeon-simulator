@@ -28,6 +28,7 @@ const GAME_ACTIONS: Array[String] = [
 ## The Game autoload's high score file is redirected here for the scoring
 ## scenarios, so a sim run never touches the real record in user://.
 const SIM_SAVE_PATH := "user://sim_highscore.cfg"
+const SIM_SETTINGS_PATH := "user://sim_settings.cfg" ## (T-122) Same isolation rule as the high score.
 
 ## (T-015) Forward-speed ceiling four paced ground flaps may pump. Measured
 ## 25.04 m/s under the tapered flap (fixed-fps sim); the old fixed 45° flap
@@ -118,6 +119,7 @@ func _ready() -> void:
 	## scenarios score real hits through it, and none of them may ever touch
 	## the player's actual record in user://highscore.cfg.
 	Game.save_path = SIM_SAVE_PATH
+	Game.settings_path = SIM_SETTINGS_PATH ## (T-122) Settings never touch the real file either.
 	_build_world()
 	_player = PLAYER_SCENE.instantiate()
 	add_child(_player)
@@ -269,6 +271,7 @@ func _run_scenarios() -> void:
 	await _scenario_audio_peck()
 	await _scenario_audio_hit_sounds()
 	await _scenario_ambience_bed()
+	await _scenario_settings_persist_and_invert() ## T-122 — after the audio block: it touches the buses and restores them.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -5813,6 +5816,87 @@ func _scenario_civilian_palette_reserved() -> void:
 			size_ok and reserved_ok and flag_ok and banner_top >= 2.2,
 			"palette_n=%d worst_gold=%.3f worst_black=%.3f flag=%s banner_top=%.2f" % [
 					palette.size(), worst_gold, worst_black, flag_ok, banner_top])
+
+
+## The T-122 settings, pinned at the Game seam plus an end-to-end nose flip
+## through the REAL player: with NO settings file load_settings() early-outs
+## (boot mute stands, identity controls); pitch_axis() reads the raw axis and
+## NEGATES with invert_pitch; the live pigeon's nose answers the SAME held
+## key in OPPOSITE vertical directions across the toggle — the
+## convention-free proof the helper feeds every flight consumer; a save
+## round-trips through an independent ConfigFile read and load_settings()
+## restores it onto the live state AND the buses. Every touched bus and the
+## boot mute are restored before returning.
+func _scenario_settings_persist_and_invert() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	Game.settings_path = SIM_SETTINGS_PATH
+	if FileAccess.file_exists(SIM_SETTINGS_PATH):
+		DirAccess.remove_absolute(SIM_SETTINGS_PATH)
+	## Leg 1 — no file: identity. load_settings() early-outs, nothing applies.
+	Game.invert_pitch = false
+	Game.load_settings()
+	var axis_rest := Game.pitch_axis()
+	Input.action_press("pitch_up")
+	await _wait_frames(2)
+	var axis_raw := Game.pitch_axis()
+	Input.action_release("pitch_up")
+	## Leg 2 — the end-to-end sign flip through the real player.
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -16.0), 0.0)
+	var nose0 := -_player.transform.basis.z.y
+	for _i in 20:
+		Input.action_press("pitch_up")
+		await _wait_frames(1)
+	Input.action_release("pitch_up")
+	var nose_off := -_player.transform.basis.z.y
+	var raises := nose_off > nose0 + 0.05
+	Game.invert_pitch = true
+	Input.action_press("pitch_up")
+	await _wait_frames(2)
+	var axis_inv := Game.pitch_axis()
+	Input.action_release("pitch_up")
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -16.0), 0.0)
+	var nose1 := -_player.transform.basis.z.y
+	for _i in 20:
+		Input.action_press("pitch_up")
+		await _wait_frames(1)
+	Input.action_release("pitch_up")
+	var nose_on := -_player.transform.basis.z.y
+	var lowers := nose_on < nose1 - 0.05
+	Game.invert_pitch = false
+	## Leg 3 — persistence round-trip + bus application + restore.
+	Game.invert_pitch = true
+	Game.volume_sfx = 0.5
+	Game.settings_muted = false
+	Game.save_settings()
+	var check := ConfigFile.new()
+	var round_trip := check.load(SIM_SETTINGS_PATH) == OK \
+			and bool(check.get_value("controls", "invert_pitch", true)) \
+			and is_equal_approx(float(check.get_value("audio", "sfx", 1.0)), 0.5) \
+			and not bool(check.get_value("audio", "muted", true))
+	Game.invert_pitch = false
+	Game.volume_sfx = 1.0
+	Game.settings_muted = true
+	Game.load_settings() ## The boot path: restore from disk.
+	var restored := Game.invert_pitch and is_equal_approx(Game.volume_sfx, 0.5) \
+			and not Game.settings_muted \
+			and not AudioServer.is_bus_mute(AudioServer.get_bus_index("Master"))
+	var bus_ok := is_equal_approx(
+			AudioServer.get_bus_volume_db(AudioServer.get_bus_index("SFX")),
+			linear_to_db(0.5))
+	## Restore the harness audio state exactly (boot-muted, stock dB).
+	Game.volume_master = 1.0
+	Game.volume_sfx = 1.0
+	Game.volume_ambience = 1.0
+	Game.settings_muted = true
+	Game.apply_audio_settings()
+	DirAccess.remove_absolute(SIM_SETTINGS_PATH)
+	_check("settings_persist_and_invert",
+			axis_rest == 0.0 and axis_raw > 0.9 and axis_inv < -0.9 \
+					and raises and lowers and round_trip and restored and bus_ok,
+			"rest=%.2f raw=%.2f inv=%.2f raises=%s lowers=%s roundtrip=%s restored=%s bus=%s" % [
+					axis_rest, axis_raw, axis_inv, raises, lowers, round_trip,
+					restored, bus_ok])
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------
