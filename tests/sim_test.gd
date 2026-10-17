@@ -215,6 +215,7 @@ func _run_scenarios() -> void:
 	await _scenario_citizen_classes_spawn_deterministic() ## T-113 — the class multiset is a seeded law on both rigs.
 	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
 	await _scenario_civilian_palette_reserved() ## T-121 — the reservation law + the grown flag, bare value pins.
+	await _scenario_people_and_cars_swapped() ## T-124 — the Quaternius/Kenney visual swap pinned at the pack seam.
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
 	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
@@ -5819,6 +5820,130 @@ func _scenario_civilian_palette_reserved() -> void:
 			size_ok and reserved_ok and flag_ok and banner_top >= 2.2,
 			"palette_n=%d worst_gold=%.3f worst_black=%.3f flag=%s banner_top=%.2f" % [
 					palette.size(), worst_gold, worst_black, flag_ok, banner_top])
+
+
+## T-124: the people-and-cars swap pinned at the pack seam. Every pedestrian
+## and car VISUAL mesh is a generated derivative of the imported CC0 packs
+## (Quaternius Universal Base Character for people, Kenney Car Kit for the
+## sedan) stamped with its source pack, pose clip and license; the imported
+## scenes instantiate MESH-ONLY (the animation import is off, so the banned
+## death clips do not exist in the packed game at all); the walk figure poses
+## at the Idle clip frame and the elder at the Sitting_Idle clip (the seated
+## read); the physics shapes are byte-identical (the parity contract); and
+## every tintable part carries a surface material for the per-class
+## overrides to duplicate. A revert to primitive visuals, a pack swap, or an
+## animation-import regression fails here.
+func _scenario_people_and_cars_swapped() -> void:
+	var tourist_scene := load("res://scenes/tourist.tscn") as PackedScene
+	var elder_scene := load("res://scenes/elder.tscn") as PackedScene
+	var car_scene := load("res://scenes/car.tscn") as PackedScene
+	var scenes_ok := tourist_scene != null and elder_scene != null and car_scene != null
+
+	## Pedestrian parts: Quaternius-derived, walk/sit pose clips, materials.
+	var people_ok := scenes_ok
+	var tourist := tourist_scene.instantiate() as Node3D
+	for part_path in ["Visual/Body", "Visual/Head", "Visual/ArmL", "Visual/ArmR",
+			"Visual/Legs"]:
+		var mi := tourist.get_node_or_null(part_path) as MeshInstance3D
+		people_ok = people_ok and _is_pack_mesh(mi,
+				"quaternius-universal-base-characters", "Rig|Idle")
+	var torso_mat: Material = (tourist.get_node("Visual/Body") as MeshInstance3D) \
+			.mesh.surface_get_material(0)
+	var arm_mat: Material = (tourist.get_node("Visual/ArmL") as MeshInstance3D) \
+			.mesh.surface_get_material(0)
+	people_ok = people_ok and torso_mat is StandardMaterial3D \
+			and arm_mat is StandardMaterial3D ## The _ready() override duplication source.
+	tourist.free()
+	var elder := elder_scene.instantiate() as Node3D
+	for part_path in ["Visual/Torso", "Visual/Head", "Visual/ArmNear", "Visual/ArmFar",
+			"Visual/Legs"]:
+		var mi := elder.get_node_or_null(part_path) as MeshInstance3D
+		people_ok = people_ok and _is_pack_mesh(mi,
+				"quaternius-universal-base-characters", "Rig|Sitting_Idle")
+	elder.free()
+
+	## Car parts: Kenney-derived paint/glass/trim/lights + one shared wheel.
+	var car := car_scene.instantiate() as Node3D
+	var car_ok := true
+	for part_path in ["Visual/Body", "Visual/Glass", "Visual/Trim", "Visual/Lights"]:
+		var mi := car.get_node_or_null(part_path) as MeshInstance3D
+		car_ok = car_ok and _is_pack_mesh(mi, "kenney-car-kit", "")
+	for wheel_path in ["Visual/WheelFL", "Visual/WheelFR", "Visual/WheelRL", "Visual/WheelRR"]:
+		var mi := car.get_node_or_null(wheel_path) as MeshInstance3D
+		car_ok = car_ok and _is_pack_mesh(mi, "kenney-car-kit", "")
+	var wheel_mesh: Mesh = (car.get_node("Visual/WheelFL") as MeshInstance3D).mesh
+	car_ok = car_ok and wheel_mesh != null \
+			and wheel_mesh == (car.get_node("Visual/WheelRR") as MeshInstance3D).mesh
+	var paint_mesh: Mesh = (car.get_node("Visual/Body") as MeshInstance3D).mesh
+	car_ok = car_ok and paint_mesh != null \
+			and paint_mesh.surface_get_material(0) is StandardMaterial3D
+	car.free()
+
+	## The imported packs: present, instantiable, MESH-ONLY.
+	var packs_ok := true
+	var base := load("res://assets/third-party/quaternius/base_character.glb") as PackedScene
+	packs_ok = packs_ok and base != null
+	if base != null:
+		var base_inst := base.instantiate()
+		packs_ok = packs_ok and base_inst.find_children("*", "AnimationPlayer", true, false) \
+				.is_empty() ## animation/import=false — NO clips ship (death clips banned).
+		packs_ok = packs_ok and not base_inst.find_children("*", "Skeleton3D", true, false) \
+				.is_empty() ## The rig itself still imports (re-bake source).
+		base_inst.free()
+	var sedan := load("res://assets/third-party/kenney/carkit/sedan.glb") as PackedScene
+	packs_ok = packs_ok and sedan != null
+	if sedan != null:
+		var sedan_inst := sedan.instantiate()
+		packs_ok = packs_ok and sedan_inst.find_children("*", "MeshInstance3D", true, false) \
+				.size() == 5 ## body + four wheels.
+		sedan_inst.free()
+
+	## Physics parity: the shapes are the contract, byte-identical.
+	var tourist_shape := (tourist_scene.instantiate() as Node3D)
+	var capsule := (tourist_shape.get_node("Shape") as CollisionShape3D).shape \
+			as CapsuleShape3D
+	var capsule_ok := capsule != null and is_equal_approx(capsule.radius, 0.25) \
+			and is_equal_approx(capsule.height, 1.1) \
+			and is_equal_approx((tourist_shape.get_node("Shape") as CollisionShape3D) \
+					.position.y, 0.55)
+	tourist_shape.free()
+	var car_node := car_scene.instantiate() as Node3D
+	var box := (car_node.get_node("Shape") as CollisionShape3D).shape as BoxShape3D
+	var car_shape_ok := box != null and box.size.is_equal_approx(Vector3(1.9, 1.45, 4.4)) \
+			and is_equal_approx((car_node.get_node("Shape") as CollisionShape3D) \
+					.position.y, 0.725)
+	car_node.free()
+
+	## The banned clips are referenced nowhere in the swap's scenes or scripts.
+	var death_ok := true
+	for text_path in ["res://scenes/tourist.tscn", "res://scenes/elder.tscn",
+			"res://scenes/car.tscn", "res://scripts/tourist.gd", "res://scripts/elder.gd",
+			"res://scripts/car.gd", "res://scripts/tourist_spawner.gd",
+			"res://scripts/car_spawner.gd", "res://scripts/elder_spawner.gd"]:
+		var f := FileAccess.open(text_path, FileAccess.READ)
+		death_ok = death_ok and f != null \
+				and not f.get_as_text().to_lower().contains("death")
+
+	_check("people_and_cars_swapped",
+			scenes_ok and people_ok and car_ok and packs_ok and capsule_ok
+					and car_shape_ok and death_ok,
+			"scenes=%s people=%s car=%s packs(mesh-only)=%s capsule=%s box=%s no_death=%s" % [
+					scenes_ok, people_ok, car_ok, packs_ok, capsule_ok, car_shape_ok,
+					death_ok])
+
+
+## True when the node is a MeshInstance3D whose mesh is a generated derivative
+## of `pack` (resource_path under assets/generated/, metadata stamped at bake)
+## posed at `clip` ("" skips the clip check — static kit meshes).
+func _is_pack_mesh(mi: MeshInstance3D, pack: String, clip: String) -> bool:
+	if mi == null or mi.mesh == null:
+		return false
+	var mesh := mi.mesh
+	if not str(mesh.resource_path).begins_with("res://assets/generated/models/"):
+		return false
+	return mesh.get_meta("source_pack", "") == pack \
+			and mesh.get_meta("license", "") == "CC0" \
+			and (clip == "" or str(mesh.get_meta("pose_clip", "")) == clip)
 
 
 ## The T-122 settings, pinned at the Game seam plus an end-to-end nose flip

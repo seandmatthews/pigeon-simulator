@@ -1,31 +1,15 @@
-[gd_scene load_steps=12 format=3]
-
+[gd_scene load_steps=9 format=3]
 [ext_resource type="Script" path="res://scripts/tourist.gd" id="1_tourist"]
+[ext_resource type="ArrayMesh" path="res://assets/generated/models/people/walk_torso.res" id="2_torso"]
+[ext_resource type="ArrayMesh" path="res://assets/generated/models/people/walk_head.res" id="3_head"]
+[ext_resource type="ArrayMesh" path="res://assets/generated/models/people/walk_arm_l.res" id="4_arm_l"]
+[ext_resource type="ArrayMesh" path="res://assets/generated/models/people/walk_arm_r.res" id="5_arm_r"]
+[ext_resource type="ArrayMesh" path="res://assets/generated/models/people/walk_legs.res" id="6_legs"]
+
 
 [sub_resource type="CapsuleShape3D" id="Shape_body"]
 radius = 0.25
 height = 1.1
-
-[sub_resource type="StandardMaterial3D" id="Mat_shirt"]
-albedo_color = Color(0.86, 0.3, 0.28, 1)
-roughness = 0.9
-
-[sub_resource type="CapsuleMesh" id="Mesh_body"]
-material = SubResource("Mat_shirt")
-radius = 0.22
-height = 0.95
-
-[sub_resource type="StandardMaterial3D" id="Mat_skin"]
-albedo_color = Color(0.87, 0.68, 0.55, 1)
-roughness = 0.9
-
-[sub_resource type="SphereMesh" id="Mesh_head"]
-material = SubResource("Mat_skin")
-radius = 0.15
-height = 0.3
-
-[sub_resource type="BoxMesh" id="Mesh_arm"]
-size = Vector3(0.09, 0.42, 0.09)
 
 [sub_resource type="StandardMaterial3D" id="Mat_gold"]
 albedo_color = Color(1, 0.8, 0, 1)
@@ -42,6 +26,8 @@ size = Vector3(0.32, 0.11, 0.32)
 [sub_resource type="SphereShape3D" id="Shape_buzz"]
 radius = 2.6
 
+
+
 [node name="Tourist" type="CharacterBody3D"]
 collision_layer = 4
 collision_mask = 1
@@ -54,30 +40,33 @@ shape = SubResource("Shape_body")
 [node name="Visual" type="Node3D" parent="."]
 
 [node name="Body" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
-mesh = SubResource("Mesh_body")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.798, 0.053)
+mesh = ExtResource("2_torso")
 
 [node name="Head" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.12, 0)
-mesh = SubResource("Mesh_head")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.101, 0.004)
+mesh = ExtResource("3_head")
 
 [node name="Cap" type="MeshInstance3D" parent="Visual/Head"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
 visible = false
 mesh = SubResource("Mesh_cap")
 
 [node name="ArmL" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0.78, 0)
-mesh = SubResource("Mesh_arm")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.141, 0.727, 0.183)
+mesh = ExtResource("4_arm_l")
 
 [node name="ArmR" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.78, 0)
-mesh = SubResource("Mesh_arm")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0.735, 0.206)
+mesh = ExtResource("5_arm_r")
 
 [node name="Mitt" type="MeshInstance3D" parent="Visual/ArmR"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.44, 0.21)
 visible = false
 mesh = SubResource("Mesh_finger")
+
+[node name="Legs" type="MeshInstance3D" parent="Visual"]
+mesh = ExtResource("6_legs")
 
 [node name="BuzzZone" type="Area3D" parent="."]
 collision_layer = 0

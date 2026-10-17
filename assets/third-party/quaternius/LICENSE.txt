@@ -1,0 +1,14 @@
+Quaternius — Universal Base Characters
+=======================================
+
+Source pack: Universal Base Characters Kit by Quaternius
+Product page: https://quaternius.itch.io/universal-base-characters
+Author site: https://quaternius.com/
+
+License (from the author's product page, quoted 2026-10-17):
+  "Free to use in personal, educational and commercial projects. (CC0 License)"
+
+File in this repo: base_character.glb — the single-file rigged character with
+the Universal Animation Library clips embedded, as distributed for the kit
+(fetched via the author's poly.pizza hosting; the mirror labels the upload
+CC-BY 3.0, the upstream kit license above is CC0 — credited anyway).

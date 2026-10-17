@@ -1,35 +1,14 @@
-[gd_scene load_steps=18 format=3]
-
+[gd_scene load_steps=13 format=3]
 [ext_resource type="Script" path="res://scripts/car.gd" id="1_car"]
+[ext_resource type="ArrayMesh" path="res://assets/generated/models/cars/car_paint.res" id="2_paint"]
+[ext_resource type="ArrayMesh" path="res://assets/generated/models/cars/car_glass.res" id="3_glass"]
+[ext_resource type="ArrayMesh" path="res://assets/generated/models/cars/car_trim.res" id="4_trim"]
+[ext_resource type="ArrayMesh" path="res://assets/generated/models/cars/car_lights.res" id="5_lights"]
+[ext_resource type="ArrayMesh" path="res://assets/generated/models/cars/car_wheel.res" id="6_wheel"]
+
 
 [sub_resource type="BoxShape3D" id="Shape_body"]
 size = Vector3(1.9, 1.45, 4.4)
-
-[sub_resource type="StandardMaterial3D" id="Mat_body"]
-albedo_color = Color(0.85, 0.25, 0.22, 1)
-metallic = 0.3
-roughness = 0.5
-
-[sub_resource type="BoxMesh" id="Mesh_body"]
-material = SubResource("Mat_body")
-size = Vector3(1.9, 0.65, 4.4)
-
-[sub_resource type="StandardMaterial3D" id="Mat_cabin"]
-albedo_color = Color(0.2, 0.25, 0.32, 1)
-metallic = 0.4
-roughness = 0.3
-
-[sub_resource type="BoxMesh" id="Mesh_cabin"]
-material = SubResource("Mat_cabin")
-size = Vector3(1.7, 0.5, 2.2)
-
-[sub_resource type="StandardMaterial3D" id="Mat_tire"]
-albedo_color = Color(0.12, 0.12, 0.13, 1)
-roughness = 0.95
-
-[sub_resource type="BoxMesh" id="Mesh_wheel"]
-material = SubResource("Mat_tire")
-size = Vector3(0.25, 0.5, 0.55)
 
 [sub_resource type="StandardMaterial3D" id="Mat_pole"]
 albedo_color = Color(0.2, 0.2, 0.22, 1)
@@ -66,6 +45,8 @@ roughness = 0.9
 material = SubResource("Mat_cooler_lid")
 size = Vector3(0.42, 0.06, 0.6)
 
+
+
 [node name="Car" type="CharacterBody3D"]
 collision_layer = 8
 collision_mask = 1
@@ -78,41 +59,45 @@ shape = SubResource("Shape_body")
 [node name="Visual" type="Node3D" parent="."]
 
 [node name="Body" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, 0)
-mesh = SubResource("Mesh_body")
+mesh = ExtResource("2_paint")
 
-[node name="Cabin" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0.3)
-mesh = SubResource("Mesh_cabin")
+[node name="Glass" type="MeshInstance3D" parent="Visual"]
+mesh = ExtResource("3_glass")
+
+[node name="Trim" type="MeshInstance3D" parent="Visual"]
+mesh = ExtResource("4_trim")
+
+[node name="Lights" type="MeshInstance3D" parent="Visual"]
+mesh = ExtResource("5_lights")
 
 [node name="FlagPole" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, 1.4, 0.9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, 1.73, 0.8)
 visible = false
 mesh = SubResource("Mesh_flag_pole")
 
 [node name="FlagBanner" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, 2.3, 0.9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, 2.63, 0.8)
 visible = false
 mesh = SubResource("Mesh_flag_banner")
 
 [node name="WheelFL" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.25, -1.45)
-mesh = SubResource("Mesh_wheel")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.38, 0.38, -1.139)
+mesh = ExtResource("6_wheel")
 
 [node name="WheelFR" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.25, -1.45)
-mesh = SubResource("Mesh_wheel")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.38, 0.38, -1.139)
+mesh = ExtResource("6_wheel")
 
 [node name="WheelRL" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.25, 1.45)
-mesh = SubResource("Mesh_wheel")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.38, 0.38, 1.139)
+mesh = ExtResource("6_wheel")
 
 [node name="WheelRR" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.25, 1.45)
-mesh = SubResource("Mesh_wheel")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.38, 0.38, 1.139)
+mesh = ExtResource("6_wheel")
 
 [node name="Cooler" type="Node3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 0.975, 1.75)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 1.05, 1.7)
 visible = false
 
 [node name="Body" type="MeshInstance3D" parent="Visual/Cooler"]
