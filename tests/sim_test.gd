@@ -274,6 +274,7 @@ func _run_scenarios() -> void:
 	await _scenario_settings_persist_and_invert() ## T-122 — after the audio block: it touches the buses and restores them.
 	await _scenario_sfx_coos_and_stingers() ## T-123 — the new voice: coos, the smug parity, and both stingers.
 	await _scenario_boot_splash_pinned() ## T-125 — no Godot logo, splash = the title navy.
+	await _scenario_web_quit_gated() ## T-126 — both branches of the quit seam through the real scenes.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -5986,6 +5987,72 @@ func _scenario_boot_splash_pinned() -> void:
 			not show_image and bg.is_equal_approx(Color(0.16, 0.22, 0.33)) \
 					and bg.is_equal_approx(menu_bg),
 			"bg=%s show_image=%s menu_bg=%s" % [bg, show_image, menu_bg])
+
+
+## T-126's quit seam, both branches through the REAL scenes. Desktop branch
+## (override OFF = shipped default): the title footer names Q and the pause
+## menu's Quit button is visible. Web branch (override ON): the footer drops
+## the hint, the Quit button hides, and a fed quit ACTION is ignored at the
+## title AND inside an open pause menu — the harness surviving both feeds is
+## the proof (an ungated desktop quit would kill it). The override is restored.
+func _scenario_web_quit_gated() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	## --- Desktop branch: every affordance present. --------------------------
+	Game.web_override = 0
+	var menu_desktop: Control = (load("res://scenes/menu.tscn") as PackedScene).instantiate()
+	add_child(menu_desktop)
+	await _wait_frames(2)
+	var desktop_footer_ok: bool = (menu_desktop.get_node("Footer") as Label).text.contains("Q quit")
+	menu_desktop.free()
+	var main_desktop: MainGame = MAIN_SCENE.instantiate()
+	main_desktop.position = Vector3(5500.0, 0.0, 5500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_desktop)
+	await _wait_frames(4)
+	var desktop_button: Button = main_desktop.pause_menu \
+			.get_node_or_null("Center/PausePanel/Box/QuitButton")
+	var desktop_button_ok: bool = desktop_button != null and desktop_button.visible
+	main_desktop.free()
+	get_tree().paused = false
+	Game.hunger.player = null
+	Game.reset_run()
+	## --- Web branch: the affordances vanish, the action is ignored. ---------
+	Game.web_override = 1
+	var menu_web: Control = (load("res://scenes/menu.tscn") as PackedScene).instantiate()
+	add_child(menu_web)
+	await _wait_frames(2)
+	var web_footer_ok: bool = not (menu_web.get_node("Footer") as Label).text.contains("Q quit")
+	var quit_ev := InputEventAction.new()
+	quit_ev.action = "quit"
+	quit_ev.pressed = true
+	menu_web._unhandled_input(quit_ev) ## Gated: the harness must survive this line.
+	await _wait_frames(2)
+	var web_menu_alive: bool = is_instance_valid(menu_web)
+	menu_web.free()
+	var main_web: MainGame = MAIN_SCENE.instantiate()
+	main_web.position = Vector3(6500.0, 0.0, 6500.0)
+	add_child(main_web)
+	await _wait_frames(4)
+	var web_button: Button = main_web.pause_menu \
+			.get_node_or_null("Center/PausePanel/Box/QuitButton")
+	var web_button_ok: bool = web_button != null and not web_button.visible
+	var quit_fires := 0
+	main_web.pause_menu.quit_requested.connect(func() -> void: quit_fires += 1)
+	main_web.pause_menu.toggle() ## Opens the menu + pauses the tree.
+	main_web.pause_menu._unhandled_input(quit_ev) ## Gated: no relay.
+	var web_action_ok: bool = quit_fires == 0 and get_tree().paused
+	main_web.pause_menu.toggle() ## Close + unpause.
+	main_web.free()
+	get_tree().paused = false
+	Game.hunger.player = null
+	Game.reset_run()
+	Game.web_override = -1 ## Restore: ask the OS again.
+	_check("web_quit_gated",
+			desktop_footer_ok and desktop_button_ok and web_footer_ok \
+					and web_menu_alive and web_button_ok and web_action_ok,
+			"desk_footer=%s desk_button=%s web_footer=%s web_alive=%s web_button=%s web_action=%s" % [
+					desktop_footer_ok, desktop_button_ok, web_footer_ok,
+					web_menu_alive, web_button_ok, web_action_ok])
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------

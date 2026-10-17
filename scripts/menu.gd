@@ -16,7 +16,17 @@ func _ready() -> void:
 	high_score_label.text = "High score: %d" % Game.high_score \
 			if Game.high_score > 0 else "No high score yet — go be a menace"
 	%SettingsPanel.closed.connect(_close_settings) ## (T-122)
+	## (T-126) The Q hint is a desktop affordance — strip it on the web.
+	if Game.is_web():
+		$Footer.text = $Footer.text.replace(" · Q quit", "")
 	%FlyButton.grab_focus()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("flap"):
+		_start_run()
+	elif event.is_action_pressed("quit") and not Game.is_web(): ## (T-126) Gated on web.
+		get_tree().quit()
 
 
 ## (T-122) The title screen hosts the same settings panel as the pause menu.
@@ -26,13 +36,6 @@ func _on_settings_pressed() -> void:
 
 func _close_settings() -> void:
 	%SettingsPanel.visible = false
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("flap"):
-		_start_run()
-	elif event.is_action_pressed("quit"):
-		get_tree().quit()
 
 
 ## The one way into the game — shared by the Space shortcut and the button.

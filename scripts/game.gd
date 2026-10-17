@@ -73,6 +73,18 @@ var volume_ambience: float = 1.0
 ## opt-in. With no file this never leaves the boot value.
 var settings_muted: bool = true
 
+## (T-126) The web seam: every quit affordance gates on `is_web()` — a browser
+## tab cannot close itself, so the desktop quit paths are silent no-ops on the
+## web build and the buttons simply must not exist there. Sim scenarios pin
+## BOTH branches through `web_override` (−1 = ask the OS; 0/1 force).
+var web_override: int = -1
+
+
+func is_web() -> bool:
+	if web_override >= 0:
+		return web_override == 1
+	return OS.has_feature("web")
+
 ## Play sessions launched by tests/tools/pilot.py set PIGEON_NO_PERSIST=1 so N
 ## concurrent agent-driven runs never fight over (or wipe) the real record.
 var _persistence_enabled: bool = OS.get_environment("PIGEON_NO_PERSIST") != "1"

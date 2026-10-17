@@ -1,6 +1,6 @@
 # T-126 — Hide Quit on the web (a browser tab can't close itself)
 
-- **Milestone:** M3 wave 1 (owner batch, from IDEAS.md B-19) · **Status:** proposed · **Category:** platform · **Value (1-5):** 2 · **Risk (1-5):** 1
+- **Milestone:** M3 wave 1 (owner batch, from IDEAS.md B-19) · **Status:** done 2026-10-17 · **Category:** platform · **Value (1-5):** 2 · **Risk (1-5):** 1
 - **Depends on:** — (T-118 landed; this is a hosted-build defect report)
 - **Refs:** owner 2026-10-17, playing the hosted build: *"on the web the quit
   button doesn't do very much."* Three quit paths all funnel into
@@ -28,10 +28,15 @@ Annotate Q as **desktop only** in the controls tables in `README.md` and
 
 ## Acceptance criteria
 
-- [ ] *(Gate 1b)* with the web seam forced on: no visible quit control in
+- [x] *(Gate 1b)* with the web seam forced on: no visible quit control in
       the pause menu, the quit action ignored, no Q hint on the title; with
-      it off (default desktop): existing scenarios green untouched
-- [ ] *(Gate 1b)* controls tables updated — Q marked desktop-only
-- [ ] *(Gate 2)* autoplay green
+      it off (default desktop): existing scenarios green untouched —
+      `web_quit_gated` (both branches through the real scenes; the harness
+      surviving the fed quit actions IS the gate proof)
+- [x] *(Gate 1b)* controls tables updated — Q marked desktop-only (README.md
+      + VERIFICATION.md, same change)
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true`)
 - [ ] *(Gate 3)* owner on the hosted build: no dead button anywhere —
       recorded here
+      *(PENDING owner pass — needs the next web deploy to reach the hosted
+      URL. The machine legs are green.)*

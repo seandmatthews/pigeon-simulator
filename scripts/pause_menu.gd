@@ -27,6 +27,11 @@ func _ready() -> void:
 	var panel := get_node_or_null("%SettingsPanel")
 	if panel != null:
 		panel.closed.connect(_close_settings)
+	## (T-126) No quit affordance on the web — a browser tab cannot close
+	## itself, so the button would be a dead control.
+	var quit_button := get_node_or_null("Center/PausePanel/Box/QuitButton")
+	if quit_button != null and Game.is_web():
+		quit_button.visible = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -40,7 +45,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_request_restart()
 	elif event.is_action_pressed("to_menu"):
 		menu_requested.emit()
-	elif event.is_action_pressed("quit"):
+	elif event.is_action_pressed("quit") and not Game.is_web(): ## (T-126) Gated on web.
 		quit_requested.emit()
 
 
