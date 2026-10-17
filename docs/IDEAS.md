@@ -456,6 +456,29 @@ could outrank the touch joystick on the girlfriend's iPhone in Safari (iOS
 **Size & routing:** M, **pipeline** (input-path feel; the owner controller
 pass is the mandatory Gate 3).
 
+### B-19 · Quit does nothing on the web (owner report, 2026-10-17)
+
+**Pitch:** in a browser, the Quit button just… doesn't. The tab stays open.
+Web pages can't close themselves — `get_tree().quit()` is a silent no-op on
+the web build.
+
+**Grounded today:** three quit paths, all funneling into
+`get_tree().quit()`: the pause menu (Q key + button, `pause_menu.gd:38,74`
+→ `main.gd:655`) and the title screen (Q key, `menu.gd:24-25`, with a "Q
+quits" hint).
+
+**Fix (recommended):** gate on `OS.has_feature("web")` — hide the pause
+menu's Quit button, ignore the `quit` action, and drop the Q hint from the
+title screen footer. Desktop keeps everything. (Trying `window.close()` via
+JavaScriptBridge is unreliable — browsers only allow it for script-opened
+windows; don't.)
+
+**Watch:** the controls tables in README + VERIFICATION list Q — annotate
+"desktop only" in the same change.
+
+**Size & routing:** S, direct-loop. Natural companion to B-18's web polish,
+separate ticket per the one-ticket rule.
+
 ### B-11 · Post-victory moment (agent addition)
 
 **Grounded today:** reaching favor 100 just ends the run (`main.gd:596`).
@@ -487,8 +510,8 @@ deploy owner steps) also live here. Silence = stays parked.
 
 1. **Quick wins, direct-loop, any order:** B-3's Mouse1 poop binding, B-16's
    palette fix (a) + flag bump (b1), B-10 settings v1 (invert pitch + volume
-   — owner in, 2026-10-17), B-18 splash swap, B-8 (sound), B-1a (bird
-   polish), B-12 (if wanted).
+   — owner in, 2026-10-17), B-18 splash swap, B-19 web-quit gate, B-8
+   (sound), B-1a (bird polish), B-12 (if wanted).
 2. **B-2 phase 1 — pedestrians + cars** (biggest visual win; unlocks
    elder-stroll animation; verify web build + splat parity after).
 3. **One combined economy/feel pass (pipeline): B-6 + chosen B-7 knobs** —
