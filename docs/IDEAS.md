@@ -375,12 +375,22 @@ music loop; in-game volume/mute (overlaps B-10).
 **Size & routing:** S–M, direct-loop. Free audio packs exist (same
 research/sources pass as B-2); `CREDITS.md` per import.
 
-### B-10 · Settings menu (ROADMAP parked candidate)
+### B-10 · Settings menu v1 (owner in, 2026-10-17: "we will probably need one eventually")
 
-Volume sliders (the buses already exist), camera sensitivity/distance,
-`invert_pitch` (B-3's ride-along), persisted to `user://settings.cfg`. The
-game has no settings UI today — this is the sliver B-3's invert depends on.
-Mostly direct-loop; S–M. Gamepad support split out into B-17.
+A pause menu already exists (`PauseMenu` in `main.tscn` — Restart/Menu/Quit),
+so v1 is one **Settings** entry there plus one on the title screen
+(`menu.tscn`), opening a small panel:
+
+- **Invert pitch** — the toggle B-3 depends on (sign flip in one helper,
+  covers touch joystick too).
+- **Volume** — Master/SFX/Ambience sliders (the buses already exist) + a mute
+  toggle. Note the boot-muted policy stays: settings are opt-in changes on
+  top of it.
+
+Persisted to `user://settings.cfg`, loaded at boot. Deliberately nothing else
+— camera sensitivity/distance etc. wait for a real need, or they arrive with
+B-17's controller pass if sticks demand it. Mostly direct-loop; S–M. Gamepad
+support split out into B-17.
 
 ### B-17 · Xbox controller support (owner ask, 2026-10-17)
 
@@ -450,8 +460,9 @@ deploy owner steps) also live here. Silence = stays parked.
 ## Suggested sequencing (dependency-aware, no dates)
 
 1. **Quick wins, direct-loop, any order:** B-3's Mouse1 poop binding, B-16's
-   palette fix (a) + flag bump (b1), B-8 (sound), B-1a (bird polish), B-12
-   (if wanted). B-3's invert pitch rides in with B-10's first settings entry.
+   palette fix (a) + flag bump (b1), B-10 settings v1 (invert pitch + volume
+   — owner in, 2026-10-17), B-8 (sound), B-1a (bird polish), B-12 (if
+   wanted).
 2. **B-2 phase 1 — pedestrians + cars** (biggest visual win; unlocks
    elder-stroll animation; verify web build + splat parity after).
 3. **One combined economy/feel pass (pipeline): B-6 + chosen B-7 knobs** —
