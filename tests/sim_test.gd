@@ -273,6 +273,7 @@ func _run_scenarios() -> void:
 	await _scenario_ambience_bed()
 	await _scenario_settings_persist_and_invert() ## T-122 — after the audio block: it touches the buses and restores them.
 	await _scenario_sfx_coos_and_stingers() ## T-123 — the new voice: coos, the smug parity, and both stingers.
+	await _scenario_boot_splash_pinned() ## T-125 — no Godot logo, splash = the title navy.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -5970,6 +5971,21 @@ func _scenario_sfx_coos_and_stingers() -> void:
 			"idle=%s waddle=%s no_smug=%s smug_once=%s win=%s lose=%s (counts=%s)" % [
 					idle_ok, waddle_ok, no_smug, smug_once, win_ok, lose_ok,
 					Sfx.played_counts])
+
+
+## T-125's boot-splash swap, pinned as project settings: the splash shows NO
+## image (the Godot logo is gone) and its background is exactly the title
+## screen's navy — a silent revert to the engine defaults fails here.
+func _scenario_boot_splash_pinned() -> void:
+	var bg: Color = ProjectSettings.get_setting("application/boot_splash/bg_color")
+	var show_image: bool = ProjectSettings.get_setting("application/boot_splash/show_image")
+	var menu: Control = (load("res://scenes/menu.tscn") as PackedScene).instantiate()
+	var menu_bg: Color = menu.get_node("Background").color
+	menu.free()
+	_check("boot_splash_pinned",
+			not show_image and bg.is_equal_approx(Color(0.16, 0.22, 0.33)) \
+					and bg.is_equal_approx(menu_bg),
+			"bg=%s show_image=%s menu_bg=%s" % [bg, show_image, menu_bg])
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------

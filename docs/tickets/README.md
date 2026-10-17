@@ -176,7 +176,7 @@ and T-126 are independent.
 | T-122 | [Settings v1: invert pitch + volume on the pause menu](T-122-settings-v1.md) | ui-ux | 3 | 2 | done (Gate 3 pending) |
 | T-123 | [Sound pass: coos, splat variety, and endings that aren't silent](T-123-sound-pass.md) | audio | 4 | 1 | done (Gate 3 pending) |
 | T-124 | [People and cars: swap in Quaternius pedestrians and Kenney cars](T-124-people-and-cars.md) | visual-design | 5 | 3 | proposed |
-| T-125 | [Ditch the Godot boot splash](T-125-boot-splash.md) | visual-design | 2 | 1 | proposed |
+| T-125 | [Ditch the Godot boot splash](T-125-boot-splash.md) | visual-design | 2 | 1 | done (Gate 3 pending) |
 | T-126 | [Hide Quit on the web (a browser tab can't close itself)](T-126-web-quit.md) | platform | 2 | 1 | proposed |
 
 ## Suggested build order
