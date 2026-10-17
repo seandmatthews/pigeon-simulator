@@ -1,6 +1,6 @@
 # T-121 — Unmistakable targets: reserve black-and-gold for the visitors, grow the flag
 
-- **Milestone:** M3 wave 1 (owner batch, from IDEAS.md B-16) · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 1
+- **Milestone:** M3 wave 1 (owner batch, from IDEAS.md B-16) · **Status:** done 2026-10-17 · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 1
 - **Depends on:** —
 - **Refs:** owner report 2026-10-16: *"Sometimes a car is just yellow and its
   wheels are black but it's not a black/yellow target car."*
@@ -36,13 +36,18 @@ from the air after T-124's model swap.
 
 ## Acceptance criteria
 
-- [ ] *(Gate 1b)* a scenario pins the civilian palette contents (the 5
+- [x] *(Gate 1b)* a scenario pins the civilian palette contents (the 5
       remaining colors, gold/near-black absent) and the flag mesh sizes, so a
-      silent revert fails
-- [ ] *(Gate 1b)* across the seeded-spawn scenarios no civilian car wears a
+      silent revert fails — `civilian_palette_reserved` (measured worst
+      0.61 vs TEAM_GOLD / 0.68 vs VISITOR_BLACK, banner top 2.75 m)
+- [x] *(Gate 1b)* across the seeded-spawn scenarios no civilian car wears a
       TEAM_GOLD-hue or VISITOR_BLACK-hue body; class quotas unchanged
-      (T-113 scenarios green untouched)
-- [ ] *(Gate 2)* autoplay green
+      (T-113 scenarios green untouched — full suite 0 failures)
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true`, restart=true,
+      136 fps)
 - [ ] *(Gate 3)* aerial grabs from typical flight heights: gold civilians
       with dark tires no longer occur, visitor flags read at distance —
       before/after screenshots recorded here
+      *(PENDING owner pass — the machine legs are green; the look needs
+      human eyes. The autoplay screenshots in `.godot/autoplay/` show the
+      new flags in traffic as a starting point.)*

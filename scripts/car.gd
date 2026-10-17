@@ -20,10 +20,14 @@ signal splatted(car: Car)
 ## PARKED sits at the curb · TRAFFIC loops its block ring.
 enum Mode { PARKED, TRAFFIC }
 
+## Civilian body paints only — the visitors' team hues are RESERVED (T-121):
+## TEAM_GOLD gold and VISITOR_BLACK near-black both read as the jackpot target
+## from the air, so this palette may never carry either hue. The sim pins the
+## law (`civilian_palette_reserved`); the spawner's round-robin draw adapts to
+## the palette length on its own.
 const BODY_PALETTE: Array[Color] = [
-	Color(0.85, 0.25, 0.22), Color(0.24, 0.45, 0.78), Color(0.93, 0.78, 0.25),
-	Color(0.92, 0.92, 0.90), Color(0.22, 0.24, 0.26), Color(0.35, 0.62, 0.38),
-	Color(0.72, 0.74, 0.78),
+	Color(0.85, 0.25, 0.22), Color(0.24, 0.45, 0.78), Color(0.92, 0.92, 0.90),
+	Color(0.35, 0.62, 0.38), Color(0.72, 0.74, 0.78),
 ]
 const HONK_TINT := Color(1.0, 0.85, 0.2)
 @export_group("Traffic")

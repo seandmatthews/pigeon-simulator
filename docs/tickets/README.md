@@ -172,7 +172,7 @@ and T-126 are independent.
 
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
-| T-121 | [Unmistakable targets: reserve black-and-gold for the visitors, grow the flag](T-121-unmistakable-targets.md) | visual-design | 4 | 1 | proposed |
+| T-121 | [Unmistakable targets: reserve black-and-gold for the visitors, grow the flag](T-121-unmistakable-targets.md) | visual-design | 4 | 1 | done (Gate 3 pending) |
 | T-122 | [Settings v1: invert pitch + volume on the pause menu](T-122-settings-v1.md) | ui-ux | 3 | 2 | proposed |
 | T-123 | [Sound pass: coos, splat variety, and endings that aren't silent](T-123-sound-pass.md) | audio | 4 | 1 | proposed |
 | T-124 | [People and cars: swap in Quaternius pedestrians and Kenney cars](T-124-people-and-cars.md) | visual-design | 5 | 3 | proposed |

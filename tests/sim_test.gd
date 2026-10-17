@@ -212,6 +212,7 @@ func _run_scenarios() -> void:
 	await _scenario_cars_recycle() ## T-054 — the end-to-end timer-driven car recycle closes its contract.
 	await _scenario_citizen_classes_spawn_deterministic() ## T-113 — the class multiset is a seeded law on both rigs.
 	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
+	await _scenario_civilian_palette_reserved() ## T-121 — the reservation law + the grown flag, bare value pins.
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
 	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
@@ -5780,6 +5781,38 @@ func _scenario_citizen_classes_readable() -> void:
 			"visitors=%s (finger_seen=%s) superfans=%s civilians=%s · cars v=%s s=%s c=%s · contrast=%s" % [
 					visitors_ok, finger_seen, superfan_ok, civilian_ok,
 					visitor_cars_ok, superfan_cars_ok, civilian_cars_ok, contrast_ok])
+
+
+## The T-121 reservation law, pinned bare: the civilian BODY_PALETTE carries
+## NO team hue — exactly 5 entries, every one ≥ 0.20 Euclidean RGB from BOTH
+## TEAM_GOLD and VISITOR_BLACK (the citizen_classes_readable contrast leg's
+## own bar) — and the scene keeps the grown tell: pole 0.06×0.9×0.06, banner
+## 0.62×0.9×0.03, flags hidden at rest, banner top 2.75 m (≥ the T-113 2.2 m
+## read line). A palette revert (the old gold or near-black sneaking back) or
+## a shrunken flag fails here.
+func _scenario_civilian_palette_reserved() -> void:
+	var palette := Car.BODY_PALETTE
+	var size_ok := palette.size() == 5
+	var worst_gold := 10.0
+	var worst_black := 10.0
+	for body: Color in palette:
+		worst_gold = minf(worst_gold, _rgb_dist(body, CitizenClass.TEAM_GOLD))
+		worst_black = minf(worst_black, _rgb_dist(body, CitizenClass.VISITOR_BLACK))
+	var reserved_ok := worst_gold >= 0.20 and worst_black >= 0.20
+	var car: Car = (load("res://scenes/car.tscn") as PackedScene).instantiate() as Car
+	var pole: MeshInstance3D = car.get_node("Visual/FlagPole")
+	var banner: MeshInstance3D = car.get_node("Visual/FlagBanner")
+	var pole_mesh: BoxMesh = pole.mesh
+	var banner_mesh: BoxMesh = banner.mesh
+	var flag_ok := not pole.visible and not banner.visible \
+			and pole_mesh.size.is_equal_approx(Vector3(0.06, 0.9, 0.06)) \
+			and banner_mesh.size.is_equal_approx(Vector3(0.62, 0.9, 0.03))
+	var banner_top := banner.position.y + banner_mesh.size.y * 0.5
+	car.free()
+	_check("civilian_palette_reserved",
+			size_ok and reserved_ok and flag_ok and banner_top >= 2.2,
+			"palette_n=%d worst_gold=%.3f worst_black=%.3f flag=%s banner_top=%.2f" % [
+					palette.size(), worst_gold, worst_black, flag_ok, banner_top])
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------
