@@ -151,6 +151,8 @@ func on_splatted(impact_velocity: Vector3) -> void:
 	_shouted = false ## The indignant shout waits for the fist shake (T-012).
 	splatted.emit(self)
 	Sfx.play_at("yelp", global_position) ## The hit itself earns a yelp (T-012).
+	if Game.tourist_hits % 2 == 0: ## (T-123) Every other splat earns the pigeon a smug coo.
+		Sfx.play("coo_smug")
 
 
 ## Teleport-recycle onto a new loop (spawner, T-007): the same node, a new

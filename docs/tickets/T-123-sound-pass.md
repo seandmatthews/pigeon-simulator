@@ -1,6 +1,6 @@
 # T-123 — Sound pass: coos, splat variety, and endings that aren't silent
 
-- **Milestone:** M3 wave 1 (owner batch, from IDEAS.md B-8) · **Status:** proposed · **Category:** audio · **Value (1-5):** 4 · **Risk (1-5):** 1
+- **Milestone:** M3 wave 1 (owner batch, from IDEAS.md B-8) · **Status:** done 2026-10-17 · **Category:** audio · **Value (1-5):** 4 · **Risk (1-5):** 1
 - **Depends on:** —
 - **Refs:** `scripts/sfx.gd` pool architecture (6 non-positional + 12
   positional players, pitch jitter, `unit_size = 10`); existing palette:
@@ -21,19 +21,33 @@ buses, no music:
 3. **Endings** — a win stinger on `favor_maxed` and a lose sting on
    starvation, each firing exactly once per run.
 
-Source CC0 audio; verify the license per file and record every import in
-`assets/CREDITS.md`. The mute-by-default boot policy and the
-`--audio-driver Dummy` autoplay path are untouched.
+Source: the spec said CC0 recordings, but the landed implementation went one
+better on license cleanliness — the seven NEW sounds (3 coos, 2 splat
+variants, 2 stingers) are **synthesized in-house** by `tools/gen_sfx.py`
+(sines + shaped noise, committed and re-runnable), recorded in
+`assets/CREDITS.md` as the project's own work. The yelp/honk variants reuse
+the existing CC0 recordings at shifted base pitches through the variant
+cycler. The mute-by-default boot policy and the `--audio-driver Dummy`
+autoplay path are untouched.
 
 **Route note:** presentation-only → direct-loop eligible.
 
 ## Acceptance criteria
 
-- [ ] *(Gate 1b)* extend the sfx-count scenarios: a splat (any variant)
+- [x] *(Gate 1b)* extend the sfx-count scenarios: a splat (any variant)
       plays on first contact; the win and lose stingers fire exactly once per
       ending — logical counts under `--audio-driver Dummy`
-- [ ] *(Gate 1b)* variant randomization does not perturb determinism
-      (seeded, or confined to presentation)
-- [ ] *(Gate 2)* autoplay green
+      (`sfx_coos_and_stingers`: idle + waddle coos on cadence, smug coo on
+      the 2nd-splat parity exactly, stinger_win then stinger_lose exactly
+      once each through one real Main across both registers)
+- [x] *(Gate 1b)* variant randomization does not perturb determinism
+      (seeded, or confined to presentation — the variant cycler is a plain
+      per-group counter, and `played_counts` records the REQUESTED name)
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true`; the DONE line
+      reports the new voice live: coo_waddle:2, stinger_lose:1)
 - [ ] *(Gate 3)* owner listen pass (`--sound`): coos charm, repeated splats
       stop grating, the endings land — recorded here
+      *(PENDING owner pass — the machine legs are green. NOTE: the coos and
+      stingers are synthesized placeholders by design; if the ear disagrees,
+      swap CC0 recordings into `assets/generated/` 1:1 — the wiring does not
+      change.)*

@@ -272,6 +272,7 @@ func _run_scenarios() -> void:
 	await _scenario_audio_hit_sounds()
 	await _scenario_ambience_bed()
 	await _scenario_settings_persist_and_invert() ## T-122 — after the audio block: it touches the buses and restores them.
+	await _scenario_sfx_coos_and_stingers() ## T-123 — the new voice: coos, the smug parity, and both stingers.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -5897,6 +5898,78 @@ func _scenario_settings_persist_and_invert() -> void:
 			"rest=%.2f raw=%.2f inv=%.2f raises=%s lowers=%s roundtrip=%s restored=%s bus=%s" % [
 					axis_rest, axis_raw, axis_inv, raises, lowers, round_trip,
 					restored, bus_ok])
+
+
+## T-123's additions, driven end to end: the grounded pigeon coos on the idle
+## cadence and chats faster while waddling; the SECOND splat (and only that
+## parity) earns the smug coo; and each ending — victory then starvation
+## through ONE real Main, the favor scenario's coexistence pattern — plays its
+## stinger exactly once, audible even though the screen pauses the tree the
+## same frame (the always-on ending voice). Restores the hunger knob, the
+## staged Main and the run state.
+func _scenario_sfx_coos_and_stingers() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	Sfx.reset_counts()
+	## Leg A — idle coo: grounded, hands off, past the idle cadence.
+	await _set_up(false, Vector3(0.0, 0.1, 0.0), Vector3.ZERO, 0.0)
+	for _i in 600: ## 10 s of fixed frames — coo_idle_interval 9.0 fires once.
+		await get_tree().physics_frame
+	var idle_ok := int(Sfx.played_counts.get("coo_idle", 0)) >= 1 \
+			and not Sfx.played_counts.has("coo_waddle")
+	## Leg B — waddle coo: the clock just reset, so walking reaches ITS
+	## cadence (6.0) before the idle one can re-arm.
+	Input.action_press("pitch_up") ## The waddle-forward key.
+	for _i in 400:
+		await get_tree().physics_frame
+	Input.action_release("pitch_up")
+	var waddle_ok := int(Sfx.played_counts.get("coo_waddle", 0)) >= 1
+	## Leg C — the smug coo rides tourist-splat parity (2nd, 4th, …).
+	var tourist: Tourist = (load("res://scenes/tourist.tscn") as PackedScene) \
+			.instantiate() as Tourist
+	add_child(tourist)
+	await _wait_frames(2)
+	Game.tourist_hits = 1
+	tourist.on_splatted(Vector3(0.0, 0.0, -3.0))
+	var no_smug := not Sfx.played_counts.has("coo_smug")
+	Game.tourist_hits = 2
+	tourist.on_splatted(Vector3(0.0, 0.0, -3.0))
+	var smug_once := int(Sfx.played_counts.get("coo_smug", 0)) == 1
+	tourist.free()
+	Game.reset_run() ## Zeroes the staged tourist_hits before the ending legs.
+	## Leg D — the stingers, one real Main, both registers.
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(4500.0, 0.0, 4500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	Sfx.reset_counts()
+	Game.favor = Game.favor_max - 1
+	Game.add_favor(1) ## The real ceiling crossing — Main ends the run as a win.
+	var win_ok := int(Sfx.played_counts.get("stinger_win", 0)) == 1 \
+			and not Sfx.played_counts.has("stinger_lose") \
+			and main_game.game_over_screen.is_open
+	main_game.restart_run() ## Re-arms both endings (the favor scenario's path).
+	Sfx.reset_counts()
+	var saved_drain: float = Game.hunger.drain_per_second
+	Game.hunger.drain_per_second = 60.0
+	var starved := false
+	for _i in 300:
+		await get_tree().physics_frame
+		if main_game.game_over_screen.is_open:
+			starved = true
+			break
+	var lose_ok := starved and int(Sfx.played_counts.get("stinger_lose", 0)) == 1 \
+			and not Sfx.played_counts.has("stinger_win")
+	Game.hunger.drain_per_second = saved_drain
+	main_game.free()
+	get_tree().paused = false ## The starved screen paused the tree — the harness flies on unpaused.
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("sfx_coos_and_stingers",
+			idle_ok and waddle_ok and no_smug and smug_once and win_ok and lose_ok,
+			"idle=%s waddle=%s no_smug=%s smug_once=%s win=%s lose=%s (counts=%s)" % [
+					idle_ok, waddle_ok, no_smug, smug_once, win_ok, lose_ok,
+					Sfx.played_counts])
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------

@@ -49,6 +49,71 @@ const SOUNDS: Dictionary = {
 		"volume_db": -4.0,
 		"pitch_jitter": 0.2,
 	},
+
+	## --- T-123 additions -----------------------------------------------------
+	## The pigeon's voice (in-house synthesis — assets/generated/, see
+	## CREDITS.md): soft coos while grounded, a smug one after every other
+	## splat, and the two ending stingers through `play_ending()`.
+	"coo_idle": {
+		"stream": preload("res://assets/generated/coo_idle.wav"),
+		"volume_db": -6.0,
+		"pitch_jitter": 0.06,
+	},
+	"coo_waddle": {
+		"stream": preload("res://assets/generated/coo_waddle.wav"),
+		"volume_db": -7.0,
+		"pitch_jitter": 0.06,
+	},
+	"coo_smug": {
+		"stream": preload("res://assets/generated/coo_smug.wav"),
+		"volume_db": -5.0,
+		"pitch_jitter": 0.05,
+	},
+	"splat_2": {
+		"stream": preload("res://assets/generated/splat_2.wav"),
+		"volume_db": -3.0,
+		"pitch_jitter": 0.08,
+	},
+	"splat_3": {
+		"stream": preload("res://assets/generated/splat_3.wav"),
+		"volume_db": -4.0,
+		"pitch_jitter": 0.08,
+	},
+	## The yelp/honk variants ride the SAME CC0 recordings at a shifted base
+	## pitch — the group cycler (VARIANT_GROUPS) is what kills the
+	## same-sample read, not new files.
+	"yelp_2": {
+		"stream": preload("res://assets/third-party/opengameart/tourist_yelp.ogg"),
+		"volume_db": -3.0,
+		"pitch_jitter": 0.15,
+		"pitch": 0.88,
+	},
+	"honk_2": {
+		"stream": preload("res://assets/third-party/opengameart/car_horn.ogg"),
+		"volume_db": -3.0,
+		"pitch_jitter": 0.06,
+		"pitch": 0.9,
+	},
+	"stinger_win": {
+		"stream": preload("res://assets/generated/stinger_win.wav"),
+		"volume_db": -5.0,
+		"pitch_jitter": 0.0,
+	},
+	"stinger_lose": {
+		"stream": preload("res://assets/generated/stinger_lose.wav"),
+		"volume_db": -5.0,
+		"pitch_jitter": 0.0,
+	},
+}
+
+## Variant groups (T-123): playing a group name cycles its members round-robin
+## so repeated hits stop reading as one sample. The cycler is a plain counter —
+## deterministic, no RNG — and `played_counts` records the REQUESTED name, so
+## the sim's per-event counts (and the autoplay DONE line) stay exact.
+const VARIANT_GROUPS: Dictionary = {
+	"splat": ["splat", "splat_2", "splat_3"],
+	"yelp": ["yelp", "yelp_2"],
+	"honk": ["honk", "honk_2"],
 }
 
 ## The city bed (T-012): traffic murmur + distant chatter, looping forever on
@@ -83,6 +148,7 @@ var _pool_3d: Array[AudioStreamPlayer3D] = []
 var _ambience_players: Array[AudioStreamPlayer] = []
 var _next_2d: int = 0
 var _next_3d: int = 0
+var _variant_next: Dictionary = {} ## (T-123) Per-group round-robin counters.
 
 
 func _ready() -> void:
@@ -111,9 +177,10 @@ func _ready() -> void:
 		_ambience_players.append(player)
 
 
-## Plays a sound everywhere-equal (the pigeon's own flap/effort/peck).
+## Plays a sound everywhere-equal (the pigeon's own flap/effort/peck). A
+## variant-group name cycles its members (T-123).
 func play(sound_name: String) -> void:
-	var sound: Dictionary = SOUNDS.get(sound_name, {})
+	var sound: Dictionary = SOUNDS.get(_resolve_variant(sound_name), {})
 	if sound.is_empty():
 		push_warning("Sfx: unknown sound '%s'" % sound_name)
 		return
@@ -124,9 +191,10 @@ func play(sound_name: String) -> void:
 
 
 ## Plays a sound at a world position (splats, yelps, honks — attenuates with
-## distance and pans with the chase camera).
+## distance and pans with the chase camera). A variant-group name cycles its
+## members (T-123).
 func play_at(sound_name: String, pos: Vector3) -> void:
-	var sound: Dictionary = SOUNDS.get(sound_name, {})
+	var sound: Dictionary = SOUNDS.get(_resolve_variant(sound_name), {})
 	if sound.is_empty():
 		push_warning("Sfx: unknown sound '%s'" % sound_name)
 		return
@@ -134,6 +202,25 @@ func play_at(sound_name: String, pos: Vector3) -> void:
 	_next_3d = (_next_3d + 1) % _pool_3d.size()
 	p.global_position = pos
 	_play_on(p, sound)
+	_count(sound_name)
+
+
+## (T-123) Plays an ending stinger through a transient always-on voice: the
+## score screen pauses the tree the same frame it opens, and the bed contract
+## (ambience pauses with the tree) must not swallow the sting. Frees itself.
+func play_ending(sound_name: String) -> void:
+	var sound: Dictionary = SOUNDS.get(sound_name, {})
+	if sound.is_empty():
+		push_warning("Sfx: unknown sound '%s'" % sound_name)
+		return
+	var p := AudioStreamPlayer.new()
+	p.bus = &"SFX"
+	p.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(p)
+	p.stream = sound.stream
+	p.volume_db = sound.volume_db
+	p.finished.connect(p.queue_free)
+	p.play()
 	_count(sound_name)
 
 
@@ -176,8 +263,19 @@ func _play_on(player, sound: Dictionary) -> void:
 	player.stream = sound.stream
 	player.volume_db = sound.volume_db
 	var jitter: float = sound.get("pitch_jitter", 0.0)
-	player.pitch_scale = 1.0 + randf_range(-jitter, jitter)
+	player.pitch_scale = sound.get("pitch", 1.0) * (1.0 + randf_range(-jitter, jitter))
 	player.play()
+
+
+## (T-123) The variant-group round-robin: group name → member name; plain
+## names pass through untouched.
+func _resolve_variant(sound_name: String) -> String:
+	var group: Array = VARIANT_GROUPS.get(sound_name, [])
+	if group.is_empty():
+		return sound_name
+	var idx := int(_variant_next.get(sound_name, 0))
+	_variant_next[sound_name] = (idx + 1) % group.size()
+	return group[idx]
 
 
 func _count(sound_name: String) -> void:

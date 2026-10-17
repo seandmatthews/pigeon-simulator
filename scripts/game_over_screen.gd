@@ -66,6 +66,7 @@ func _open(score: int, high_score: int, tourist_hits: int, car_hits: int,
 	is_open = true
 	visible = true
 	get_tree().paused = true
+	Sfx.play_ending("stinger_win" if victory else "stinger_lose") ## (T-123) The ending finally sounds.
 	score_label.text = "Score: %d" % score
 	high_label.text = "High score: %d" % high_score
 	title_label.text = VICTORY_TITLE if victory else STARVED_TITLE

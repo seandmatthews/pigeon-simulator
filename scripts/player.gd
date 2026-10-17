@@ -294,6 +294,12 @@ func _poof_feathers() -> void:
 			global_position + global_transform.basis.y * 0.2)
 
 
+## (T-123) The grounded voice — cadence knobs for the idle and waddle coos.
+@export var coo_idle_interval: float = 9.0 ## Seconds between grounded idle coos.
+@export var coo_waddle_interval: float = 6.0 ## Seconds between coos while waddling.
+var _coo_clock: float = 0.0
+
+
 ## Grounded locomotion: W/S shuffles along the body axis, A/D turns in place.
 func _waddle(delta: float) -> void:
 	stalled = false
@@ -302,6 +308,13 @@ func _waddle(delta: float) -> void:
 	var walk_input := Input.get_axis("pitch_down", "pitch_up")
 	var turn_input := Input.get_axis("turn_right", "turn_left")
 	rotate_y(turn_input * waddle_turn_rate * delta)
+	## (T-123) A soft coo now and then — chattier while walking. The raw axis
+	## reads the waddle, not pitch (inversion is a flight notion).
+	_coo_clock += delta
+	var waddling := absf(walk_input) > 0.01
+	if _coo_clock >= (coo_waddle_interval if waddling else coo_idle_interval):
+		_coo_clock = 0.0
+		Sfx.play("coo_waddle" if waddling else "coo_idle")
 	var fwd := -transform.basis.z
 	fwd.y = 0.0
 	fwd = fwd.normalized()

@@ -18,3 +18,19 @@ row) — CC0 permits modification, no attribution required, given anyway.
 | assets/third-party/opengameart/traffic_murmur_loop.ogg | "High traffic road sounds" ("gatve Varniu") by IgnasD — https://opengameart.org/content/high-traffic-road-sounds (made into a seamless 60 s loop with a 3 s head-tail crossfade, RMS-normalized) | CC0 |
 | assets/third-party/opengameart/distant_chatter_loop.ogg | "Crowd Shouting/Speaking Ambience" (crowd_shouting) by StarNinjas — https://opengameart.org/content/crowd-shoutingspeaking-ambience (made into a seamless 27 s loop with a 2.5 s head-tail crossfade, RMS-normalized) | CC0 |
 | assets/third-party/kenney/bread_peck.ogg | "Impact Sounds" (impactSoft_medium_000) by Kenney — https://kenney.nl/assets/impact-sounds (pitched up ~25%, trimmed, peak-normalized) | CC0 |
+
+## Generated in-house (T-123)
+
+Synthesized from scratch by `tools/gen_sfx.py` (sines + shaped noise, no
+recordings involved) — these are the project's own work, no license
+restrictions at all.
+
+| Asset | What |
+| ----- | ---- |
+| assets/generated/coo_idle.wav | Grounded idle coo (two soft hoots) |
+| assets/generated/coo_waddle.wav | Waddling coo (single hoot) |
+| assets/generated/coo_smug.wav | Post-splat smug coo (rising three hoots) |
+| assets/generated/splat_2.wav | Splat variant (wet, low thump) |
+| assets/generated/splat_3.wav | Splat variant (sharp, bright) |
+| assets/generated/stinger_win.wav | Victory stinger (major arpeggio) |
+| assets/generated/stinger_lose.wav | Starvation sting (descending minor) |
