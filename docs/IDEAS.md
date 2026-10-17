@@ -375,12 +375,50 @@ music loop; in-game volume/mute (overlaps B-10).
 **Size & routing:** S–M, direct-loop. Free audio packs exist (same
 research/sources pass as B-2); `CREDITS.md` per import.
 
-### B-10 · Settings + gamepad (ROADMAP parked candidate)
+### B-10 · Settings menu (ROADMAP parked candidate)
 
-Volume sliders (the buses already exist), camera sensitivity/distance, invert
-Y, persisted to config. Gamepad via the input map — which per AGENTS means the
-controls tables in README + VERIFICATION update in the same change. Mostly
-direct-loop; S–M.
+Volume sliders (the buses already exist), camera sensitivity/distance,
+`invert_pitch` (B-3's ride-along), persisted to `user://settings.cfg`. The
+game has no settings UI today — this is the sliver B-3's invert depends on.
+Mostly direct-loop; S–M. Gamepad support split out into B-17.
+
+### B-17 · Xbox controller support (owner ask, 2026-10-17)
+
+**Pitch:** Godot treats Xbox pads as the generic joypad standard, and every
+gameplay action already exists by name — this ticket adds joypad events to the
+existing `project.godot` actions and makes menus pad-navigable. Bonus
+synergy: it's the same joypad system on the web build, so a paired controller
+could outrank the touch joystick on the girlfriend's iPhone in Safari (iOS
+16.4+ exposes the Gamepad API — worth verifying early).
+
+**Mapping (proposal — veto in chat):**
+
+| Input | Action |
+| ----- | ------ |
+| Left stick | pitch (Y) + turn (X) — 1:1 with WASD, analog |
+| A | flap — and menu confirm / title-screen start |
+| RT | poop (X as alternate) |
+| Start / Menu | pause (B = back) |
+| rumble (optional) | splat + landing thud |
+
+**Grounded notes:**
+- The actions are read two ways: buttons (`flap`, `poop`) and
+  `Input.get_axis` (pitch, turn — `player.gd:302/459/564`). A stick feeds
+  ANALOG strength where the keyboard always gives ±1.0 — half deflection
+  trims pitch/turn rates in live play. Sim bars stay untouched (the harness
+  injects actions at full strength), but the feel pass is real.
+- Deadzones: the actions sit at Godot's default 0.5 — too heavy for sticks;
+  drop to ~0.25 per action.
+- Menus need Control focus + dpad/stick navigation: pad-start on the title
+  screen, pause-menu traversal.
+- Per AGENTS: the controls tables in README + VERIFICATION update in the same
+  change, plus a new Gate 3 line — "owner plays a run on a controller" (and
+  an iPhone-Safari line if the web path matters).
+- No boost exists (B-3), and the camera is auto-chase, so the right stick
+  stays free.
+
+**Size & routing:** M, **pipeline** (input-path feel; the owner controller
+pass is the mandatory Gate 3).
 
 ### B-11 · Post-victory moment (agent addition)
 
@@ -420,8 +458,8 @@ deploy owner steps) also live here. Silence = stays parked.
    single batch so the sim bars re-derive once.
 4. **B-5 updrafts (pipeline)** — then re-judge B-13's hawk with the new sky.
 5. **B-4 landmarks** (forge: Ames-flavored reference images) + **B-9 perch**.
-6. **Anytime:** B-14 traffic spawn gate (pipeline), B-2 phase 2
-   (buildings/props), B-10, B-11, B-15 (after D10).
+6. **Anytime:** B-14 traffic spawn gate (pipeline), B-17 controller support
+   (pipeline), B-2 phase 2 (buildings/props), B-10, B-11, B-15 (after D10).
 
 Mobile note: T-120 (readable touch buttons) should land before any HUD-adding
 item above — B-6a/b especially.
