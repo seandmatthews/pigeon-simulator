@@ -72,6 +72,42 @@ const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds t
 @export_group("Coach") ## T-060: the poop lead coach.
 @export var coach_range: float = 30.0 ## Flat metres at which a tourist ahead of the nose makes the lead worth teaching (a 4 m drop travels ~16 m at cruise, so the lesson must fire well before the tourist is under the beak).
 
+@export_group("Boot") ## (T-129) The stepped city boot: the world comes up in slices the engine can render between, instead of one synchronous burst before the first frame.
+## Stepped boot ON by default — the shipped game path. Instanced-Main rigs (the
+## sim harness, the autoplay pilot) are detected as rigs (their parent is not
+## the tree root, where change_scene_to_file mounts the game scene) and keep
+## the synchronous boot regardless, so every existing scenario boots
+## byte-as-today without touching them.
+@export var stepped_boot: bool = true
+## One paint frame between boot phases (the whole point — the engine renders
+## between the slices). Exposed so a rig CAN force the sync-per-phase behavior
+## without editing the boot code.
+@export var boot_paint_frames: int = 1
+
+@export_group("Web warm-up diet") ## (T-129, leg 3) Feature-tagged web-only overrides — experiments, each kept only if its trace delta proves it. No desktop setting moves: the diet applies only when the game runs on the web build (via the T-126 `Game.is_web()` seam) AND boots stepped.
+@export var web_diet_enabled: bool = true ## Master switch for the web-only overrides below.
+@export var web_shadow_atlas_size: int = 2048 ## Directional shadow atlas halved from the engine default 4096 — cheaper first-shadow compile and fill on the Compatibility renderer.
+@export var web_max_physics_steps: int = 3 ## Caps catch-up ticks per stalled frame (engine default 8): a shader-compile stall repays its physics debt over more, shorter frames instead of compounding into a slideshow. At a sustained ≥ 20 fps this never dilates game time (3 × 20 = 60).
+
+## (T-129) One entry per finished boot phase: {name: String, ms: int} — the
+## machine-readable record behind the ms-per-phase trace line. The boot prints
+## one `BOOT phase=<name> ms=<n>` line per phase and a `BOOT total` line at the
+## end, on desktop AND web builds (the web numbers ride the browser console).
+var boot_trace: Array[Dictionary] = []
+
+## (T-129, leg 3) What the last web diet actually applied, e.g.
+## {"shadow_atlas": 2048, "msaa": 0, "max_physics_steps": 3} — empty when the
+## diet did not run (desktop, or disabled). The machine read for the harness:
+## this engine build's RenderingServer exposes the atlas SETTER only, so the
+## recorded value (plus its `BOOT web_diet:` line) is the shadow half's channel;
+## msaa and the steps cap are read live off the engine.
+var web_diet_applied: Dictionary = {}
+
+## (T-129) Emitted after the LAST boot phase and the player handoff — the web
+## export shell listens (via `JavaScriptBridge`) and only then fades the
+## branded loader out over the live game.
+signal boot_finished
+
 @onready var stats_label: Label = %StatsLabel
 @onready var hint_label: Label = %HintLabel
 ## The F readiness glyph (T-077) — sits beside the hint line it qualifies.
@@ -115,6 +151,9 @@ const HOME_NOTE_SECONDS := 2.5 ## (T-087, folded from T-100) Game-time seconds t
 @onready var tourist_spawner: TouristSpawner = $TouristSpawner
 @onready var car_spawner: CarSpawner = $CarSpawner
 @onready var elder_spawner: ElderSpawner = $ElderSpawner
+## (T-129) The cafe furniture service joins the boot staging (it used to
+## self-populate in its own _ready like the rest).
+@onready var cafe_spawner: CafeSpawner = $CafeSpawner
 
 var _combo_shown: int = 0 ## The multiplier the HUD last displayed — escalations past it pulse.
 var _stats_cache: String = "" ## (T-055) The stats line last pushed to the label — the string is recomposed every frame but assigned only when score, combo or the rounded hunger percent actually moved.
@@ -172,17 +211,109 @@ func _ready() -> void:
 	pause_menu.quit_requested.connect(_quit)
 	game_over_screen.restart_requested.connect(restart_run)
 	game_over_screen.menu_requested.connect(_to_menu)
-	## Spawn on the road corridor by the plaza (T-004): a short drop onto the
-	## asphalt, in the one corridor the generator guarantees is clear of
-	## buildings at every height. to_local: spawn_point is global, reset_flight
-	## positions locally — identical while Main sits at the origin, correct
-	## wherever the scene is instanced (the sim harness moves it far away).
-	## (T-042, adopting T-036) The same point feeds the off-world guard: hand
-	## the player that corridor in its own local space — the same point the
-	## opening drop starts from — so flying past the apron walks the fall back
-	## here. Player has no City reference, so only Main can compute this. It
-	## never goes stale in M1 — restart_run() always keeps the same seed, so
-	## spawn_point (and with it the guard's target) is identical across restarts.
+	## (T-129) The boot: main.tscn's City holds its generate and its spawners
+	## hold their first populate (staged_boot/hold_generate in the scene file),
+	## so THIS decides when the world comes up — one synchronous burst on the
+	## rig path, ordered slices on the game path (see `_boot_is_stepped`).
+	if _boot_is_stepped():
+		_boot_stepped()
+		return
+	_boot_sync()
+
+
+## (T-129) The rig tell: `change_scene_to_file` mounts the game scene directly
+## under the tree root; every instanced-Main rig (sim harness scenarios, the
+## autoplay pilot) parents its Main to its own driver node instead. The export
+## flag stays the game-facing switch — this check is what keeps the harness's
+## sync-flag defaults green untouched.
+func _boot_is_stepped() -> bool:
+	return stepped_boot and get_parent() == get_tree().root
+
+
+## (T-129) The synchronous boot — the rig path, byte-as-today: the whole
+## `city.generate()` burst and every spawner populate land inside _ready
+## (scene child order, cars ahead of bread — the tailgate-crumb handover),
+## exactly where City._ready and every spawner _ready performed them before
+## T-129 held them. The one `BOOT` line keeps the trace contract on this path.
+func _boot_sync() -> void:
+	var t0 := Time.get_ticks_msec()
+	city.generate()
+	_populate_staged_spawners()
+	var ms := Time.get_ticks_msec() - t0
+	boot_trace.append({"name": "sync_boot", "ms": ms})
+	print("BOOT phase=sync_boot ms=%d" % ms)
+	_finish_boot()
+
+
+## (T-129) The stepped boot — the game path: the world comes up in slices the
+## engine renders between (ground/slabs → buildings → visuals → spawners in
+## batches, cars first — the tailgate-crumb handover — then tourists, bread,
+## elders, cafes), the pigeon held frozen mid-scene until the world stands
+## under it. Every phase prints its ms and records `boot_trace`; the final
+## paint hands a first WARM frame to the player before the boot ends.
+func _boot_stepped() -> void:
+	var t0 := Time.get_ticks_msec()
+	_apply_web_diet() ## (T-129, leg 3) Web-only overrides, before any phase runs.
+	player.process_mode = Node.PROCESS_MODE_DISABLED ## The pigeon hangs frozen while the world builds under it.
+	_boot_run_phase("city_ground", func() -> void: city.generate_step_ground())
+	await _boot_paint()
+	_boot_run_phase("city_blocks", city.generate_step_blocks)
+	await _boot_paint()
+	_boot_run_phase("city_visuals", city.generate_step_finish)
+	await _boot_paint()
+	## Spawner batches — cars first (their populate anchors the tailgate crumbs
+	## the bread batch's survivor pass must find — the load-bearing order from
+	## bread_spawner.gd's T-114 note), then tourists, bread, elders, cafes.
+	_boot_run_phase("spawn_cars", car_spawner.populate)
+	await _boot_paint()
+	_boot_run_phase("spawn_tourists", tourist_spawner.populate)
+	await _boot_paint()
+	_boot_run_phase("spawn_bread", bread_spawner.populate)
+	await _boot_paint()
+	_boot_run_phase("spawn_elders", elder_spawner.populate)
+	await _boot_paint()
+	_boot_run_phase("spawn_cafes", cafe_spawner.populate)
+	await _boot_paint() ## The first warm frame: a fully built world on screen.
+	_finish_boot()
+	player.process_mode = Node.PROCESS_MODE_INHERIT ## The world stands under it — the pigeon flies.
+	print("BOOT phase=total ms=%d phases=%d" % [
+			Time.get_ticks_msec() - t0, boot_trace.size()])
+	boot_finished.emit()
+	_signal_web_ready() ## (T-129, leg 2) The web shell fades its loader from here.
+
+
+## (T-129) One boot phase: run it, record and print its ms — the trace line the
+## ticket's knob decisions read, emitted on desktop AND web builds alike.
+func _boot_run_phase(phase_name: String, phase: Callable) -> void:
+	var t0 := Time.get_ticks_msec()
+	phase.call()
+	var ms := Time.get_ticks_msec() - t0
+	boot_trace.append({"name": phase_name, "ms": ms})
+	print("BOOT phase=%s ms=%d" % [phase_name, ms])
+
+
+## (T-129) Let the engine paint one full frame between phases — the whole
+## point of the stepped boot.
+func _boot_paint() -> void:
+	for _i in boot_paint_frames:
+		await get_tree().process_frame
+
+
+## (T-129) The staged spawners' first populate, in main.tscn child order on the
+## sync path (cars ahead of bread — the tailgate-crumb handover). Each first
+## populate wires its `regenerated` listener, so restarts re-seed exactly as
+## always.
+func _populate_staged_spawners() -> void:
+	car_spawner.populate()
+	bread_spawner.populate()
+	tourist_spawner.populate()
+	elder_spawner.populate()
+	cafe_spawner.populate()
+
+
+## The city-dependent tail every boot path ends with — the spawn-corridor wiring
+## from _ready's last lines, byte-as-today (T-042/T-023's never-stale notes).
+func _finish_boot() -> void:
 	player.respawn_point = city.to_local(city.spawn_point)
 	## (T-023) The edge nudge's home: the span is symmetric about the City
 	## origin and the apron (the ground collider is exactly `city_span +
@@ -194,6 +325,35 @@ func _ready() -> void:
 	player.home_radius = city.city_span * 0.5 + city.ground_extra
 	player.reset_flight(player.respawn_point)
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)
+
+
+## (T-129, leg 3) The web-only warm-up diet: smaller directional shadow atlas,
+## MSAA off, and a lower per-frame physics catch-up cap — experiments against
+## the first-draw stall, gated on the T-126 `Game.is_web()` seam so no desktop
+## setting ever moves. Applied only on the stepped (game) boot, before any
+## phase runs.
+func _apply_web_diet() -> void:
+	if not web_diet_enabled or not Game.is_web():
+		return
+	RenderingServer.directional_shadow_atlas_set_size(web_shadow_atlas_size, true)
+	get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+	Engine.max_physics_steps_per_frame = web_max_physics_steps
+	web_diet_applied = {
+		"shadow_atlas": web_shadow_atlas_size,
+		"msaa": get_viewport().msaa_3d,
+		"max_physics_steps": Engine.max_physics_steps_per_frame,
+	}
+	print("BOOT web_diet: shadow_atlas=%d msaa=off max_physics_steps=%d" % [
+			web_shadow_atlas_size, web_max_physics_steps])
+
+
+## (T-129, leg 2) Tell the web export shell the game is warm: the loader holds
+## until THIS lands — after the last boot phase and a first warm frame — then
+## fades out over the live game. Desktop builds never reach the bridge.
+func _signal_web_ready() -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("window.pigeonReady && window.pigeonReady();", true)
 
 
 func _process(delta: float) -> void:

@@ -222,6 +222,14 @@ const LANDMARK_FIGURE_TOP := 4.95 ## Figure's highest point above the slab top (
 @export var block_size: float = 22.0 ## Full block footprint including the sidewalk ring (m).
 @export var road_width: float = 10.0 ## Street width between blocks (m).
 @export var ground_extra: float = 250.0 ## Grass apron beyond the city edge on each side (m).
+## (T-129) Hold the boot build for Main's stepped boot: when true (main.tscn
+## only), `_ready` does NOT generate — main.gd drives the same build as ordered
+## slices the engine can render between (`generate_step_ground` →
+## `generate_step_blocks` → `generate_step_finish`), or synchronously in
+## Main._ready on the instanced-Main rig path. Standalone city rigs (city.tscn,
+## every harness rig) keep the default false and self-generate exactly as
+## always.
+@export var hold_generate: bool = false
 
 @export_group("Guarantees")
 ## report() flags a city whose streets are narrower than this as unflyable.
@@ -387,6 +395,8 @@ var _plaza_center := Vector3.ZERO
 
 
 func _ready() -> void:
+	if hold_generate: ## (T-129) main.tscn's stepped boot drives the build itself.
+		return
 	generate()
 
 
@@ -402,10 +412,27 @@ func _ready() -> void:
 ## re-seed fresh nodes off it. `force_rebuild = true` opts out — the sim
 ## harness's determinism scenarios use it so "a real rebuild reproduces X"
 ## keeps proving a real rebuild.
+##
+## (T-129) The body is exactly the three `generate_step_*` slices run
+## back-to-back, so the synchronous path and the stepped boot perform the
+## identical work in the identical order — the layout RNG streams and the
+## fingerprint cannot tell the two paths apart (`stepped_boot_pins` proves it).
 func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
+	if generate_step_ground(new_seed, force_rebuild):
+		generate_step_blocks()
+		generate_step_finish()
+
+
+## (T-129) Stepped boot, slice 1 of 3 — "ground/slabs": state reset, shared
+## meshes, the ground apron, the skyline ring, roads, rim and crosswalk paint.
+## Returns true when more slices remain; false means the T-033 same-seed fast
+## path already emitted `regenerated` and skipped the build (the stepped boot
+## never hits this — it only runs on a cold city — but the honest answer keeps
+## `generate()` a plain composition of the slices).
+func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = false) -> bool:
 	if fingerprint != 0 and new_seed == seed_value and not force_rebuild:
 		regenerated.emit()
-		return
+		return false
 	seed_value = new_seed
 	build_count += 1
 	_clear()
@@ -441,10 +468,26 @@ func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
 	_build_roads()
 	_build_rim() ## T-088 commit 1 — the city-edge rim, visual-only.
 	_build_crossings() ## T-069 — intersection paint, visual-only.
+	return true
+
+
+## (T-129) Stepped boot, slice 2 of 3 — "buildings": the per-block loop (slabs,
+## buildings, props, plaza, parks, anchors) plus the cafe spots derived from the
+## finished building records. Must run after `generate_step_ground`, before
+## `generate_step_finish`.
+func generate_step_blocks() -> void:
+	var plaza_i := int(roundf((blocks_per_side - 1) * 0.5))
 	for bx in blocks_per_side:
 		for bz in blocks_per_side:
 			_build_block(bx, bz, bx == plaza_i and bz == plaza_i)
 	_build_cafe_spots() ## T-031 — after the block loop, from the buildings[] records.
+
+
+## (T-129) Stepped boot, slice 3 of 3 — "visuals": the queued MultiMesh
+## instances become nodes, then the spawn point, the layout fingerprint, the
+## guarantees report and the `regenerated` emission close the build exactly as
+## the synchronous `generate()` always has.
+func generate_step_finish() -> void:
 	_spawn_visuals()
 	## Spawn on the road centerline next to the plaza, facing along the street:
 	## roads are the one corridor guaranteed clear of buildings at every

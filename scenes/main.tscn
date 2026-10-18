@@ -68,6 +68,7 @@ shadow_enabled = true
 environment = SubResource("Env_main")
 
 [node name="City" parent="." instance=ExtResource("5_city")]
+hold_generate = true
 
 [node name="Player" parent="." instance=ExtResource("4_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 8)
@@ -81,25 +82,30 @@ script = ExtResource("7_cars")
 city_path = NodePath("../City")
 player_path = NodePath("../Player")
 bread_spawner_path = NodePath("../BreadSpawner")
+staged_boot = true
 
 [node name="BreadSpawner" type="Node3D" parent="."]
 script = ExtResource("3_spawner")
 city_path = NodePath("../City")
+staged_boot = true
 
 [node name="TouristSpawner" type="Node3D" parent="."]
 script = ExtResource("6_tourists")
 city_path = NodePath("../City")
 player_path = NodePath("../Player")
+staged_boot = true
 
 [node name="ElderSpawner" type="Node3D" parent="."]
 script = ExtResource("10_elders")
 city_path = NodePath("../City")
 player_path = NodePath("../Player")
 bread_spawner_path = NodePath("../BreadSpawner")
+staged_boot = true
 
 [node name="CafeSpawner" type="Node3D" parent="."]
 script = ExtResource("11_cafes")
 city_path = NodePath("../City")
+staged_boot = true
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("15_hud")

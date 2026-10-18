@@ -19,6 +19,9 @@ signal bread_shared(elder: Elder, crumbs: int)
 @export var city_path: NodePath
 @export var player_path: NodePath
 @export var bread_spawner_path: NodePath
+## (T-129) Staged boot — see BandSpawner.staged_boot: main.tscn's boot calls
+## `populate()` explicitly; bare rigs keep the default false and self-populate.
+@export var staged_boot: bool = false
 
 ## The city to sit in, the pigeon to host and the bread service to toss with —
 ## Main wires the paths; the sim harness assigns directly.
@@ -42,7 +45,17 @@ func _ready() -> void:
 	if city == null:
 		push_warning("ElderSpawner needs a City — no elders will spawn.")
 		return
+	if staged_boot: ## (T-129) main.gd's boot stages the first populate itself.
+		return
 	city.regenerated.connect(_populate)
+	_populate()
+
+
+## (T-129) The boot's explicit staging entry — the BandSpawner.populate() twin:
+## idempotent `regenerated` wiring plus the re-seat, safe to call any time.
+func populate() -> void:
+	if not city.regenerated.is_connected(_populate):
+		city.regenerated.connect(_populate)
 	_populate()
 
 

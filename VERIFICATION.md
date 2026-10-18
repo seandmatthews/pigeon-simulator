@@ -189,6 +189,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | touch_pause_button_toggles_real_pause | the ordinary Pause button pauses through the REAL PauseMenu of an instanced main scene: the tap's emulated click (driven headless as the synthetic mouse click the tap produces on-device) opens the real overlay — tree frozen, `is_open` — and a tap on the panel's own Resume button unpauses; the full touch pause loop, no keyboard involved | T-119 |
 | touch_multitouch_steer_and_flap | overlapping synthetic contacts steer + flap at once: finger 0 holds a full-left stick drag while finger 1 lands on Flap — the turn axis stays live (> 0.9) THROUGH the second contact, a real flap impulse fires in the same window, the pigeon yaws > 0.3 rad under both, and lifting both fingers returns every axis to exactly zero | T-119 |
 | gamepad_actions_bound | the T-127 mapping pinned live, event-for-event: stick axes 0/1 on `turn_left/right`/`pitch_up/down` at deadzone 0.25 (button actions keep 0.5), A (b0) on `flap`, RT (axis 5) + X (b2) on `poop`, Start (b6) on `pause` — all joypad events on device −1, `restart`/`to_menu`/`quit`/`boost` carrying NO joypad events (the mapping invents nothing), `ui_accept`/`ui_cancel` carrying A/B beside their re-declared engine-default keys (Enter/KP-Enter/Space, Escape), `ui_up`/`ui_down` keeping the engine-default dpad + left-stick traversal, and the action set still EXACTLY the shipped eleven (the T-119 pin, re-read here); behaviorally, a synthetic `InputEventJoypadMotion` through `Input.parse_input_event` drives the REAL axes — 0.2 reads exactly 0.0 (under the deadzone), a gentle 0.3 deflection reads non-zero (the discriminating probe: reads 0.0 at the old 0.5 default), full deflection > 0.9, A/RT/X/Start read strength 1.0 on `flap`/`poop`/`pause` — and the pigeon itself flies the held stick (40 frames stick-up raise the nose > 0.15, 60 frames stick-left bank > 0.2 and yaw > 0.3 rad), every axis back to exactly 0.0 on release; the REAL PauseMenu opens on pad Start (Resume takes focus), resumes via pad A on the focused button, moves focus on the dpad, and backs out on B; the title stays inert to a synthetic `InputEventAction` and to non-Start joypad buttons (the T-097 gate, joypad edition — a live pad Start would change the harness's own scene, so that leg is Gate 3's) | T-127 |
+| stepped_boot_pins | the T-129 stepped boot pinned at four seams: the city slices callable IN ORDER on a bare rig (`generate_step_ground` → `generate_step_blocks` → `generate_step_finish`) reproduce the synchronous build byte-for-byte — fingerprint equal to both a sync twin and the standing harness city, `bread_spots`/`bread_spot_kinds`/`last_report`/`spawn_point` equal — and the T-033 fast path rides the ground slice (second call on a standing build returns false with `build_count` untouched); the defaults pin read off a bare `main.tscn` instantiate: `stepped_boot` true (the game default), `boot_paint_frames` 1, the diet exports at their tuned values (2048 / 3), `City.hold_generate` and all five spawners' `staged_boot` set by the scene file itself; the MOUNT decides the path — a Main added as a direct child of the tree root (the `change_scene_to_file` spot) boots STEPPED (`boot_trace` exactly the ordered 8 phases city_ground → city_blocks → city_visuals → spawn_cars → spawn_tourists → spawn_bread → spawn_elders → spawn_cafes, every ms ≥ 0, `boot_finished` fired, the pin-city fingerprint, tourists/bread/cars populated, a forced foreign-seed rebuild re-seeding them through the newly wired `regenerated` — restarts keep working — and the pigeon unfrozen, grounded on the corridor within 2 m), while the harness's ordinary instanced-Main pattern boots SYNC (exactly one `sync_boot` trace entry) — the defaults that keep every existing scenario green untouched; and the web warm-up diet, both branches through the T-126 `Game.web_override` seam: a stepped game boot on the desktop branch moves nothing (msaa and the steps cap read live off the engine, exactly as captured), the forced-web branch halves the directional shadow atlas (pinned through the diet's applied record — this engine build exposes only the setter), kills MSAA and caps `Engine.max_physics_steps_per_frame` (read live), all restored after | T-129 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -298,8 +299,32 @@ godot --headless --path . --export-release "Web" build/web/index.html
 Single-threaded sanity check: `grep -c SharedArrayBuffer build/web/index.wasm`
 reads 0 and `index.js` carries the `nothreads` markers — a threaded build
 would fail both and break iOS Safari.
+
+**Custom web shell (T-129):** the preset's `html/custom_html_shell` points at
+[`tools/web-shell/index.html`](tools/web-shell/index.html) — the branded
+loader (boot-splash navy, the gold pigeon mark, the wordmark and a rotating
+tone-safe tip line) that replaces the stock page. The exporter still generates
+`index.js`/`index.wasm`/`index.pck` and substitutes the `$GODOT_*` placeholders
+in the custom page; the four-artifact pass above is unchanged. The loader
+holds through the pck/wasm download AND the engine start AND the first warm-up
+frames (the slideshow happens behind it), and the game drives it over
+`JavaScriptBridge` (two-sided contract): `window.pigeonReady()` fades it out —
+the menu calls it once the title has painted its first warm frames, and
+Main calls it again at its stepped boot's `boot_finished`, fading the loader
+over the live world — and `window.pigeonLoading()` brings it back on the title
+screen's Fly handoff, covering the city warm-up. The ms-per-phase boot trace
+(`BOOT phase=<name> ms=<n>` lines, plus the `BOOT web_diet:` line) is readable
+in the browser console on desktop AND web builds. Verified live in a real
+browser on the release export (2026-10-18): the branded loader renders and
+rotates tips, holds past engine start, fades over the title via the menu's
+signal (`loader-faded` transition observed), a Fly-started run boots with the
+web diet applied (`BOOT web_diet: shadow_atlas=2048 msaa=off
+max_physics_steps=3`) and the full per-phase trace printed, and the loader
+ends hidden over the live world (screenshot-backed).
+
 Re-run after any change to the `[display]`/`[rendering]` settings, the export
-preset, or before an owner hosting pass. Hosting is owner-run: the basement
+preset, `tools/web-shell/index.html`, or before an owner hosting pass. Hosting
+is owner-run: the basement
 NixOS box — Caddy `file_server` rooted at `/srv/games`, so the game lives at
 `games.matthews.mx/pigeon-simulator/` (decided 2026-10-15; the original
 Cloudflare Pages call was shelved). Only build artifacts are published, never
@@ -547,6 +572,7 @@ Playtest checklist (grows as tickets land):
 - [x] (T-124) The Kenney cars read as city cars in traffic and at curbs; visitor flags/banners re-land prominent on the new bodies, the tailgate cooler sits on the trunk deck, and a splat/honk on the new paint reads correctly (accepted by reviewer sign-off 2026-10-17)
 - [x] (T-124) The seated elders read as grandparents on the plaza benches at pigeon eye level and the city still feels pigeon-coherent — real people and cars, same pigeon-town joke (accepted by reviewer sign-off 2026-10-17; the pilot plaza session's seated-elder frames are the reference)
 - [x] (T-127) **On the controller:** the owner plays a run ON THE PAD — steering feels right at full and half stick deflection (analog trimming reads as intended), the title starts on A/Start, the pause menu navigates (dpad/stick focus, A confirm, B back), and nothing double-fires (no double flap on A, no double pause on Start/B) (accepted by reviewer sign-off 2026-10-18; the machine side is `gamepad_actions_bound` (Gate 1b), which backs the navigation and no-double-fire arms; the iPhone-Safari pad check still rides the next hosted deploy if the hardware is at hand). No rumble in v1 — follow-up ticket if the owner wants it
+- [ ] (T-129) **Owner on the hosted build:** the Fly press answers instantly (the title's "warming up the city" beat), the branded loader covers the city warm-up, and the world fades in already playable — the judge line for the whole T-129 boot (pending; rides the owner's next hosted deploy per the T-126 pattern — the machine arms live in the `stepped_boot_pins` Gate 1b row and the web-export section's browser-verified pass above)
 
 ## Known issues
 

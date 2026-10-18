@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>Pigeon Simulator</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: white;
+	background-color: #293854; /* The T-125 boot-splash navy — the loader never flashes black. */
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+/* (T-129) The branded loader. It covers the pck/wasm download AND the engine
+   start AND the game's first warm-up frames (the slideshow happens behind it),
+   and only `window.pigeonReady()` — fired by the game via JavaScriptBridge
+   after the last boot phase and a first warm frame — fades it out over the
+   live game. */
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: #293854;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+	opacity: 1;
+	transition: opacity 0.8s ease-out;
+}
+
+#status.pigeon-ready {
+	opacity: 0;
+	pointer-events: none;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+	appearance: none;
+	-webkit-appearance: none;
+}
+
+#status-progress::-webkit-progress-bar {
+	background-color: #1c2940;
+	border-radius: 4px;
+}
+
+#status-progress::-webkit-progress-value {
+	background-color: #f2e89c; /* The title screen's subtitle gold. */
+	border-radius: 4px;
+}
+
+#status-progress::-moz-progress-bar {
+	background-color: #f2e89c;
+	border-radius: 4px;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+
+/* The loader brand block: mark, wordmark, sub-line, tip. */
+#loader-brand {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.6rem;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	text-align: center;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+#loader-mark {
+	width: 96px;
+	height: 72px;
+}
+
+#loader-title {
+	font-size: 1.7rem;
+	letter-spacing: 0.12em;
+	font-weight: bold;
+}
+
+#loader-sub {
+	font-size: 1rem;
+	color: #f2e89c;
+}
+
+#loader-tip {
+	font-size: 0.95rem;
+	color: rgba(255, 255, 255, 0.75);
+	font-style: italic;
+	min-height: 1.4em;
+	transition: opacity 0.3s ease;
+}
+		</style>
+$GODOT_HEAD_INCLUDE
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<div id="loader-brand">
+				<!-- The pigeon mark: a stylized bronze pigeon, nose-right, on the navy. -->
+				<svg id="loader-mark" viewBox="0 0 96 72" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A pigeon">
+					<g fill="#f2e89c">
+						<ellipse cx="46" cy="44" rx="26" ry="16"/>
+						<circle cx="68" cy="28" r="9"/>
+						<polygon points="76,26 90,29 76,32"/>
+						<circle cx="70" cy="26" r="1.6" fill="#293854"/>
+						<polygon points="24,40 4,30 10,44 4,58"/>
+						<path d="M34 58 L34 66 L40 58 Z"/>
+						<path d="M52 59 L52 67 L58 59 Z"/>
+						<path d="M28 36 Q44 26 60 36 L56 42 Q44 34 32 42 Z" fill="#e0cf7a"/>
+					</g>
+				</svg>
+				<div id="loader-title">PIGEON SIMULATOR</div>
+				<div id="loader-sub">warming up the city…</div>
+				<div id="loader-tip"></div>
+			</div>
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<script src="$GODOT_URL"></script>
+		<script>
+const GODOT_CONFIG = $GODOT_CONFIG;
+const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+	const loaderTip = document.getElementById('loader-tip');
+
+	/* (T-129) The rotating tone-safe tip line. The ticket's two lead; the rest
+	   keep the voice — a pigeon's town, nobody's enemy. */
+	const TIPS = [
+		'bread, quick',
+		'the black-and-gold pay favor',
+		'the elders remember a polite pigeon',
+		'mind the edge of town',
+		'same city every run — race your best',
+	];
+	let tipIndex = 0;
+	let tipsRunning = null;
+
+	function showNextTip() {
+		loaderTip.textContent = TIPS[tipIndex % TIPS.length];
+		tipIndex += 1;
+	}
+
+	function startTips() {
+		if (tipsRunning === null) {
+			showNextTip();
+			tipsRunning = setInterval(showNextTip, 2200);
+		}
+	}
+
+	function stopTips() {
+		if (tipsRunning !== null) {
+			clearInterval(tipsRunning);
+			tipsRunning = null;
+		}
+	}
+
+	/* (T-129) The two-sided readiness contract. The game calls these via
+	   JavaScriptBridge:
+	   - window.pigeonReady()   — the running scene is warm (the title after
+	     boot; the world after a run's stepped boot): fade the loader out OVER
+	     the live game. The slideshow happens behind it, not in the player's
+	     face.
+	   - window.pigeonLoading() — a run handoff started (the title's Fly press):
+	     bring the loader back so the city warm-up is covered too.
+	   The overlay is never removed — hidden is opacity 0 + click-through, so
+	   the two calls can alternate freely and a fast cache can never race a
+	   removal. */
+	window.pigeonReady = function () {
+		stopTips();
+		statusOverlay.classList.add('pigeon-ready');
+	};
+
+	window.pigeonLoading = function () {
+		statusOverlay.classList.remove('pigeon-ready');
+		startTips();
+	};
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			/* (T-129) The engine is UP — but "up" is not "warm". The loader
+			   stays (tips rotating) until window.pigeonReady() fires from the
+			   game; only the download progress bar yields the stage. */
+			statusProgress.style.display = 'none';
+			startTips();
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		stopTips();
+		setStatusMode('notice');
+		initializing = false; /* A failed boot must never fade away silently. */
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			// There's a chance that installing the service worker would fix the issue
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				// Reload if there was no error.
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			// Display the message as usual
+			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max = total;
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+	</body>
+</html>

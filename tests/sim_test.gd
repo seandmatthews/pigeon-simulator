@@ -112,6 +112,7 @@ var _off_world_signal_fires: int = 0 ## `off_world_reset` emissions caught in th
 var _return_signal_fires: int = 0 ## (T-087) `off_world_reset(from)` emissions caught in the return-beat scenario — same member rule.
 var _return_signal_from: Vector3 ## (T-087) The departure position carried by the last caught emission.
 var _touch_flap_events: int = 0 ## (T-119) `flapped` relays caught for the touch-button/multitouch scenarios — member so lambda handlers can count.
+var _boot_finished_fires: int = 0 ## (T-129) `boot_finished` emissions caught from the stepped-boot Main — same member rule as `_regen_relay`.
 
 
 func _ready() -> void:
@@ -278,6 +279,7 @@ func _run_scenarios() -> void:
 	await _scenario_sfx_coos_and_stingers() ## T-123 — the new voice: coos, the smug parity, and both stingers.
 	await _scenario_boot_splash_pinned() ## T-125 — no Godot logo, splash = the title navy.
 	await _scenario_web_quit_gated() ## T-126 — both branches of the quit seam through the real scenes.
+	await _scenario_stepped_boot_pins() ## T-129 — the stepped city boot: ordered slices, ms trace, the sync rig defaults, the web diet.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -6333,6 +6335,182 @@ func _scenario_web_quit_gated() -> void:
 			"desk_footer=%s desk_button=%s web_footer=%s web_alive=%s web_button=%s web_action=%s" % [
 					desktop_footer_ok, desktop_button_ok, web_footer_ok,
 					web_menu_alive, web_button_ok, web_action_ok])
+
+
+## T-129's stepped city boot, pinned at four seams:
+## 1. The city slices are callable IN ORDER on a bare rig and reproduce the
+##    synchronous build byte-for-byte (fingerprint, bread spots, report) — the
+##    stepped boot provably does the identical work in the identical order.
+## 2. The flags default right: the export flag defaults stepped (the game path),
+##    main.tscn carries hold_generate/staged_boot, and the diet exports ship
+##    their tuned values.
+## 3. A Main mounted the game way (direct child of the tree root, the
+##    change_scene_to_file spot) boots STEPPED: boot_trace holds the exact
+##    phase order with an ms each, boot_finished fires, the city is the pin
+##    city, every staged spawner is populated AND `regenerated`-wired (a forced
+##    rebuild re-seeds it — restarts keep working), and the pigeon is grounded
+##    on the corridor with physics back. A Main mounted the rig way (the
+##    harness's ordinary instanced pattern) boots SYNC — exactly one
+##    sync_boot trace entry — the defaults that keep every existing scenario
+##    green untouched.
+## 4. The web warm-up diet (leg 3): on the forced-web branch a stepped Main
+##    halves the directional shadow atlas, kills MSAA and caps physics
+##    catch-up; on the desktop branch nothing moves. All restored.
+func _scenario_stepped_boot_pins() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	## --- Leg 1: the city slices, in order, byte-identical to sync. ----------
+	var twin_sync: City = CITY_SCENE.instantiate() as City
+	twin_sync.position = Vector3(7500.0, 0.0, 0.0)
+	add_child(twin_sync) ## hold_generate defaults false — self-generates, the sync reference.
+	var twin_step: City = CITY_SCENE.instantiate() as City
+	twin_step.position = Vector3(7500.0, 0.0, 7500.0)
+	twin_step.hold_generate = true
+	add_child(twin_step)
+	var cold := true
+	cold = twin_step.generate_step_ground() ## True: a cold city has more slices.
+	twin_step.generate_step_blocks()
+	twin_step.generate_step_finish()
+	var slices_ok: bool = cold \
+			and twin_step.fingerprint == twin_sync.fingerprint \
+			and twin_step.fingerprint == _city.fingerprint \
+			and twin_step.bread_spots == twin_sync.bread_spots \
+			and twin_step.bread_spot_kinds == twin_sync.bread_spot_kinds \
+			and twin_step.last_report == twin_sync.last_report \
+			and twin_step.to_local(twin_step.spawn_point) \
+					== twin_sync.to_local(twin_sync.spawn_point)
+	## The T-033 fast path rides the same slice: a second ground call on the
+	## standing build skips the rebuild and reports false (no more slices).
+	var rebuilt_before: int = twin_step.build_count
+	var more := twin_step.generate_step_ground()
+	var fast_path_ok: bool = not more and twin_step.build_count == rebuilt_before
+	twin_sync.free()
+	twin_step.free()
+	## --- Leg 2: the flag/scene defaults. ------------------------------------
+	## Read off a bare instantiate (never in the tree): the scene file's stored
+	## overrides ARE applied by instantiate(), so this pins main.tscn itself —
+	## a revert of hold_generate/staged_boot fails here.
+	var defaults: MainGame = MAIN_SCENE.instantiate()
+	var defaults_ok: bool = defaults.stepped_boot and defaults.boot_paint_frames == 1 \
+			and defaults.web_diet_enabled and defaults.web_shadow_atlas_size == 2048 \
+			and defaults.web_max_physics_steps == 3 \
+			and defaults.get_node("City").hold_generate \
+			and defaults.get_node("CarSpawner").staged_boot \
+			and defaults.get_node("BreadSpawner").staged_boot \
+			and defaults.get_node("TouristSpawner").staged_boot \
+			and defaults.get_node("ElderSpawner").staged_boot \
+			and defaults.get_node("CafeSpawner").staged_boot
+	defaults.free()
+	## --- Leg 3: the game-path Main boots stepped; the rig-path Main syncs. --
+	_boot_finished_fires = 0
+	var stepped: MainGame = MAIN_SCENE.instantiate()
+	stepped.position = Vector3(-7500.0, 0.0, -7500.0) ## Own space, clear of every other world.
+	get_tree().root.add_child(stepped) ## THE game mount — direct child of the tree root.
+	stepped.boot_finished.connect(func() -> void: _boot_finished_fires += 1)
+	var booted := false
+	for _i in 900: ## 15 s budget — the stepped boot is ~10 frames; a hang fails loudly.
+		await get_tree().physics_frame
+		if _boot_finished_fires > 0:
+			booted = true
+			break
+	var want_phases: Array[String] = [
+		"city_ground", "city_blocks", "city_visuals",
+		"spawn_cars", "spawn_tourists", "spawn_bread", "spawn_elders", "spawn_cafes",
+	]
+	var names_ok: bool = booted and stepped.boot_trace.size() == want_phases.size()
+	var trace := ""
+	if names_ok:
+		for i in want_phases.size():
+			var entry: Dictionary = stepped.boot_trace[i]
+			names_ok = names_ok and String(entry.name) == want_phases[i] \
+					and int(entry.ms) >= 0
+			trace += "%s=%d " % [entry.name, entry.ms]
+	var stepped_city_ok: bool = booted and stepped.city.fingerprint == _city.fingerprint \
+			and stepped.tourist_spawner.living_tourists().size() \
+					== stepped.tourist_spawner.target_count \
+			and stepped.bread_spawner.living_crumbs().size() \
+					== stepped.bread_spawner.target_count \
+			and not stepped.car_spawner.living_cars().is_empty()
+	## The staged spawners are regenerated-wired: a forced rebuild must re-seed
+	## them — restarts keep working on the stepped path.
+	var tourists_before: int = stepped.tourist_spawner.living_tourists().size()
+	stepped.city.generate(424242, true) ## Foreign seed, forced — a real rebuild.
+	await _wait_frames(2)
+	var reseed_ok: bool = stepped.city.fingerprint != _city.fingerprint \
+			and stepped.tourist_spawner.living_tourists().size() == tourists_before \
+			and not stepped.car_spawner.living_cars().is_empty()
+	## The corridor is seed-independent (pure grid math), so the pigeon grounds
+	## on the foreign city's own corridor.
+	stepped.player.reset_flight(stepped.city.to_local(stepped.city.spawn_point))
+	var grounded := false
+	for _i in 240: ## 4 s budget — the short spawn drop plus settle.
+		await get_tree().physics_frame
+		if stepped.player.is_grounded:
+			grounded = true
+			break
+	var handoff_ok: bool = grounded \
+			and stepped.player.process_mode == Node.PROCESS_MODE_INHERIT \
+			and stepped.player.global_position.distance_to(stepped.city.spawn_point) < 2.0
+	stepped.free()
+	Game.hunger.player = null
+	Game.reset_run()
+	## The rig mount — the harness's ordinary instanced pattern — boots SYNC.
+	var rig: MainGame = MAIN_SCENE.instantiate()
+	rig.position = Vector3(-7500.0, 0.0, 7500.0)
+	add_child(rig)
+	await _wait_frames(4)
+	var sync_rig_ok: bool = rig.boot_trace.size() == 1 \
+			and String(rig.boot_trace[0].name) == "sync_boot" \
+			and int(rig.boot_trace[0].ms) >= 0 \
+			and rig.city.fingerprint == _city.fingerprint \
+			and rig.tourist_spawner.living_tourists().size() \
+					== rig.tourist_spawner.target_count
+	rig.free()
+	Game.hunger.player = null
+	Game.reset_run()
+	## --- Leg 4: the web warm-up diet, both branches. ------------------------
+	## The engine build exposes the directional-shadow atlas SETTER only, so the
+	## shadow half is pinned through the diet's applied-record and its BOOT
+	## line; msaa and the steps cap are read live off the engine.
+	var desktop_msaa: int = get_viewport().msaa_3d
+	var desktop_steps: int = Engine.max_physics_steps_per_frame
+	Game.web_override = 0 ## Desktop branch: a stepped game boot must move NOTHING.
+	var diet_off: MainGame = MAIN_SCENE.instantiate()
+	diet_off.position = Vector3(0.0, 0.0, -7500.0)
+	get_tree().root.add_child(diet_off)
+	await _wait_frames(60) ## The diet decision lands in the first stepped frame.
+	var diet_off_ok: bool = get_viewport().msaa_3d == desktop_msaa \
+			and Engine.max_physics_steps_per_frame == desktop_steps \
+			and diet_off.web_diet_applied.is_empty()
+	diet_off.free()
+	Game.hunger.player = null
+	Game.reset_run()
+	Game.web_override = 1 ## Web branch: the diet applies, before the first phase.
+	var diet_on: MainGame = MAIN_SCENE.instantiate()
+	diet_on.position = Vector3(7500.0, 0.0, -7500.0)
+	get_tree().root.add_child(diet_on)
+	await _wait_frames(60)
+	var diet_on_ok: bool = get_viewport().msaa_3d == Viewport.MSAA_DISABLED \
+			and Engine.max_physics_steps_per_frame == diet_on.web_max_physics_steps \
+			and diet_on.web_diet_applied == {
+					"shadow_atlas": diet_on.web_shadow_atlas_size,
+					"msaa": Viewport.MSAA_DISABLED,
+					"max_physics_steps": diet_on.web_max_physics_steps}
+	diet_on.free()
+	Game.hunger.player = null
+	Game.reset_run()
+	Game.web_override = -1 ## Restore: ask the OS again.
+	## Restore the diet leg's machine state exactly.
+	get_viewport().msaa_3d = desktop_msaa
+	Engine.max_physics_steps_per_frame = desktop_steps
+	_check("stepped_boot_pins",
+			slices_ok and fast_path_ok and defaults_ok and names_ok \
+					and stepped_city_ok and reseed_ok and handoff_ok \
+					and sync_rig_ok and diet_off_ok and diet_on_ok,
+			"slices=%s fast_path=%s defaults=%s phases=%s city=%s reseed=%s handoff=%s sync_rig=%s diet_off=%s diet_on=%s [%s]" % [
+					slices_ok, fast_path_ok, defaults_ok, booted and names_ok,
+					stepped_city_ok, reseed_ok, handoff_ok, sync_rig_ok,
+					diet_off_ok, diet_on_ok, trace.strip_edges()])
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------
