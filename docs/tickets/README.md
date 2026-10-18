@@ -7,7 +7,8 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 
 **M3 waves 1–2 — owner-directed batches from the brainstorm**
 ([`../IDEAS.md`](../IDEAS.md)) — wave 1 (T-121..T-126) landed 2026-10-17/18;
-wave 2 (T-127..T-128, controller + traffic spawn gate) is running. T-120
+wave 2 (T-127..T-128, controller + traffic spawn gate) landed 2026-10-18.
+T-120
 (readable touch buttons) stays open from the mobile phase. Phase goals and
 exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 
@@ -188,7 +189,7 @@ Everything else in the ideas doc stays pitched behind its decision-log forks.
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-127 | [Xbox controller: sticks and pads drive the existing actions](T-127-xbox-controller.md) | ui-ux | 4 | 2 | done |
-| T-128 | [Traffic spawns off-screen and drives in](T-128-traffic-spawns-offscreen.md) | worldbuilding | 3 | 2 | proposed |
+| T-128 | [Traffic spawns off-screen and drives in](T-128-traffic-spawns-offscreen.md) | worldbuilding | 3 | 2 | done |
 
 ## Suggested build order
 

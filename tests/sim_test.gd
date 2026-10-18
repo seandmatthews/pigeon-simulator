@@ -212,6 +212,7 @@ func _run_scenarios() -> void:
 	await _scenario_car_splat_honk()
 	await _scenario_traffic_recycle_keeps_flow() ## T-089 — the recycle insertion path must not clot a ring.
 	await _scenario_cars_recycle() ## T-054 — the end-to-end timer-driven car recycle closes its contract.
+	await _scenario_traffic_spawns_offscreen() ## T-128 — the sightline gate: traffic enters by driving.
 	await _scenario_citizen_classes_spawn_deterministic() ## T-113 — the class multiset is a seeded law on both rigs.
 	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
 	await _scenario_civilian_palette_reserved() ## T-121 — the reservation law + the grown flag, bare value pins.
@@ -5348,10 +5349,11 @@ func _scenario_traffic_recycle_keeps_flow() -> void:
 ## rejoin-insertion half): teleporting the player beyond the car
 ## `recycle_radius` (100 m) lets the scan `_physics_process` fire
 ## `_recycle_far` for real and recycle the SAME car nodes into the spawn band
-## around the new anchor — no respawn churn, the fleet still 20 traffic + 16
-## parked, every car inside the radius of the new anchor or on a 30–70 m band
-## block, and the curb exclusivity (`_spot_taken`'s 4.5 m rule) surviving the
-## whole recycle — no double-booked parking spot.
+## around the new anchor — no respawn churn, the fleet still 14 traffic + 12
+## parked (the T-128 knobs; pre-T-128 20 + 16 — the export-derived pin
+## re-derived with the density change), every car inside the radius of the new
+## anchor or on a 30–70 m band block, and the curb exclusivity (`_spot_taken`'s
+## 4.5 m rule) surviving the whole recycle — no double-booked parking spot.
 func _scenario_cars_recycle() -> void:
 	## The pigeon grounds on the plaza first (the anchor pin `cars_traffic`
 	## uses — since T-029 at PLAZA_DROP_OFFSET, clear of the landmark plinth):
@@ -5418,6 +5420,156 @@ func _scenario_cars_recycle() -> void:
 	spawner.free()
 
 
+## --- scenarios (T-128 the sightline gate) -----------------------------------
+
+
+## The harness's own read of the chase camera's flat view direction — the SAME
+## live damped rig basis the spawner's gate reads, captured independently (the
+## no-self-test rule: never through the spawner's `_view_dir_flat`).
+func _test_view_dir() -> Vector2:
+	for child in _player.get_children():
+		if child is ChaseCamera:
+			var fwd := -(child as Node3D).global_transform.basis.z
+			var flat := Vector2(fwd.x, fwd.z)
+			if flat.length() > 0.1:
+				return flat.normalized()
+	return Vector2(0.0, -1.0)
+
+
+## The scenario's independent sightline-window test (T-128): true when `pos`
+## sits within `spawner.spawn_sightline_max` (flat) of `anchor` AND inside the
+## `spawner.spawn_avoid_cone_deg` half-angle cone around `view` — the exact
+## window the gate must keep cars out of, recomputed from the knobs.
+func _window_inside(pos: Vector3, anchor: Vector2, view: Vector2,
+		spawner: CarSpawner) -> bool:
+	var offset := Vector2(pos.x - anchor.x, pos.z - anchor.y)
+	if offset.length() >= spawner.spawn_sightline_max:
+		return false
+	return offset.normalized().dot(view) > cos(deg_to_rad(spawner.spawn_avoid_cone_deg))
+
+
+## T-128: the sightline gate on car placement — cars only ever enter view by
+## driving. Gate ON: seeding at the pinned plaza anchor leaves ZERO cars
+## inside the sightline window (within `spawn_sightline_max` 80 m of the
+## player AND inside the chase camera's horizontal `spawn_avoid_cone_deg` 55°
+## half-angle cone), and a forced `_recycle_far` (pigeon teleported ~120 m
+## west, the T-054 recipe — close enough that band blocks remain) re-lands
+## every recycled car OUTSIDE the window with the fleet count holding at
+## 14 + 12 on the same instance ids. Gate OFF (the `sightline_gate_enabled`
+## escape hatch): the same recipe provably stages the OLD way — cars seed and
+## recycle INSIDE the window the gate would have rejected.
+## Red-before (recorded in the ticket): with the gate stubbed to always-pass
+## (the pre-T-128 placement), the gate leg read cars inside the window at both
+## the seed and the recycle and failed every gate arm; green-after reads 0
+## and 0 — exact measured numbers in the ticket's verification note.
+func _scenario_traffic_spawns_offscreen() -> void:
+	## --- Leg A: the gate ON. ---
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	add_child(spawner)
+	await _wait_frames(4)
+	var anchor_a := Vector2(_player.global_position.x, _player.global_position.z)
+	var view_a := _test_view_dir()
+	var seeded_inside := 0
+	var ids: Array[int] = []
+	var before := {}
+	for car in spawner.living_cars():
+		ids.append(car.get_instance_id())
+		before[car.get_instance_id()] = car.global_position
+		if _window_inside(car.global_position, anchor_a, view_a, spawner):
+			seeded_inside += 1
+	## The T-054 recipe: ~120 m west — beyond `recycle_radius` 100 so every
+	## car is genuinely far, close enough that band blocks remain in reach.
+	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
+	await _wait_frames(2)
+	var anchor_b := Vector2(_player.global_position.x, _player.global_position.z)
+	var view_b := _test_view_dir()
+	spawner._recycle_far() ## Forced scan — the live basis above is the one it reads.
+	await _wait_frames(2)
+	var recycled := 0
+	var recycled_inside := 0
+	var ids_kept := true
+	var traffic := 0
+	var parked := 0
+	for car in spawner.living_cars():
+		ids_kept = ids_kept and ids.has(car.get_instance_id())
+		if car.mode == Car.Mode.TRAFFIC:
+			traffic += 1
+		else:
+			parked += 1
+		if car.global_position.distance_to(
+				before.get(car.get_instance_id(), car.global_position)) > 10.0:
+			recycled += 1
+			if _window_inside(car.global_position, anchor_b, view_b, spawner):
+				recycled_inside += 1
+	var counts_a := traffic == spawner.target_moving and parked == spawner.target_parked
+	var knob_moving := spawner.target_moving
+	var knob_parked := spawner.target_parked
+	var knob_cone := spawner.spawn_avoid_cone_deg
+	var knob_max := spawner.spawn_sightline_max
+	spawner.free()
+	## --- Leg B: the gate-OFF escape hatch stages the old way. ---
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var hatch := CarSpawner.new()
+	hatch.city = _city
+	hatch.player = _player
+	hatch.sightline_gate_enabled = false
+	add_child(hatch)
+	await _wait_frames(4)
+	var anchor_c := Vector2(_player.global_position.x, _player.global_position.z)
+	var view_c := _test_view_dir()
+	var hatch_seeded_inside := 0
+	var hatch_ids: Array[int] = []
+	var hatch_before := {}
+	for car in hatch.living_cars():
+		hatch_ids.append(car.get_instance_id())
+		hatch_before[car.get_instance_id()] = car.global_position
+		if _window_inside(car.global_position, anchor_c, view_c, hatch):
+			hatch_seeded_inside += 1
+	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
+	await _wait_frames(2)
+	var anchor_d := Vector2(_player.global_position.x, _player.global_position.z)
+	var view_d := _test_view_dir()
+	hatch._recycle_far()
+	await _wait_frames(2)
+	var hatch_recycled := 0
+	var hatch_recycled_inside := 0
+	var hatch_ids_kept := true
+	var hatch_traffic := 0
+	var hatch_parked := 0
+	for car in hatch.living_cars():
+		hatch_ids_kept = hatch_ids_kept and hatch_ids.has(car.get_instance_id())
+		if car.mode == Car.Mode.TRAFFIC:
+			hatch_traffic += 1
+		else:
+			hatch_parked += 1
+		if car.global_position.distance_to(
+				hatch_before.get(car.get_instance_id(), car.global_position)) > 10.0:
+			hatch_recycled += 1
+			if _window_inside(car.global_position, anchor_d, view_d, hatch):
+				hatch_recycled_inside += 1
+	var counts_b := hatch_traffic == hatch.target_moving \
+			and hatch_parked == hatch.target_parked
+	print("SIM DATA traffic_spawns_offscreen: gate seeded_inside=%d recycled=%d inside=%d counts=%s · hatch seeded_inside=%d recycled=%d inside=%d counts=%s (knobs %d+%d, cone %.0f° @ %.0f m)" % [
+			seeded_inside, recycled, recycled_inside, counts_a,
+			hatch_seeded_inside, hatch_recycled, hatch_recycled_inside, counts_b,
+			knob_moving, knob_parked, knob_cone, knob_max])
+	_check("traffic_spawns_offscreen",
+			seeded_inside == 0 and recycled > 0 and recycled_inside == 0
+					and ids_kept and counts_a
+					and hatch_seeded_inside > 0 and hatch_recycled > 0
+					and hatch_recycled_inside > 0 and hatch_ids_kept and counts_b,
+			"gate: seeded_inside=%d (want 0) recycled=%d (want > 0) inside=%d (want 0) ids=%s counts=%s · hatch: seeded_inside=%d (want > 0) recycled=%d (want > 0) inside=%d (want > 0) ids=%s counts=%s" % [
+					seeded_inside, recycled, recycled_inside, ids_kept, counts_a,
+					hatch_seeded_inside, hatch_recycled, hatch_recycled_inside,
+					hatch_ids_kept, counts_b])
+	hatch.free()
+
+
 ## --- scenarios (T-113 citizen classes) --------------------------------------
 
 
@@ -5465,11 +5617,13 @@ func _within_integer_rounding(count: int, expected: float) -> bool:
 
 
 ## T-113: the class multiset is a seeded law. A real generated City plus both
-## spawner rigs at the shipped targets (18 tourists · 20 traffic + 16 parked):
-## the tallies match the share knobs within integer rounding at the M1 seed
-## AND at seed 424242; a forced same-seed rebuild + re-populate reproduces the
-## uniform multisets byte-identically; and a forced recycle of the far nodes
-## keeps every node's class and colors (same node, same uniform).
+## spawner rigs at the shipped targets (18 tourists · 14 traffic + 12 parked —
+## the T-128 knobs; pre-T-128 20 + 16, red-before the old tree failed the new
+## count by construction): the tallies match the share knobs within integer
+## rounding at the M1 seed AND at seed 424242; a forced same-seed rebuild +
+## re-populate reproduces the uniform multisets byte-identically; and a forced
+## recycle of the far nodes keeps every node's class and colors (same node,
+## same uniform).
 func _scenario_citizen_classes_spawn_deterministic() -> void:
 	var default_seed: int = _city.seed_value
 	_city.generate(default_seed, true) ## Force a real rebuild baseline.
@@ -6186,9 +6340,10 @@ func _scenario_web_quit_gated() -> void:
 
 ## The favor book pays through the REAL chain (T-114), through the real main
 ## scene (the instanced-Main pattern, its own corner). Boot leg pins the main
-## scene's spread at the T-114 law: the 6 parked-visitor tailgate crumbs are
-## hand-placed, the spawned budget holds at 34 → 31 TABLE / 2 GROUND / 1 ROOF,
-## 40 living crumbs total (the `restart_resets` contract intact). The splat
+## scene's spread at the T-114 law: the 5 parked-visitor tailgate crumbs are
+## hand-placed (the T-128 knobs — pre-T-128 6), the spawned budget holds at
+## 35 → 32 TABLE / 2 GROUND / 1 ROOF (pre-T-128 34 → 31 / 2 / 1), 40 living
+## crumbs total (the `restart_resets` contract intact). The splat
 ## legs force each share knob to a single-class rig (the
 ## `citizen_classes_readable` pattern) and re-populate, then drive the relay
 ## at a REAL living node — visitor, civilian and superfan tourists, then
@@ -6221,7 +6376,7 @@ func _scenario_splat_favor_follows_citizen_class() -> void:
 	for crumb in main_game.bread_spawner.living_crumbs():
 		if crumb.spot_index < 0 and crumb.favor_delta == Game.favor_steal_visitor:
 			tailgates += 1
-	var boot_ok: bool = tally[City.BreadKind.TABLE] == 31 \
+	var boot_ok: bool = tally[City.BreadKind.TABLE] == 32 \
 			and tally[City.BreadKind.GROUND] == 2 and tally[City.BreadKind.ROOF] == 1 \
 			and tailgates == roundi(main_game.car_spawner.target_parked
 					* main_game.car_spawner.visitor_share) \
@@ -9286,7 +9441,9 @@ const DENSITY_BUDGET_MS_PER_100_FRAMES := 750.0
 
 
 ## Full-density CPU budget (T-018): the REAL main scene — city, 18 tourists,
-## 36 cars, bread, pigeon — must keep the calibrated headless CPU cost per
+## 26 cars (the T-128 fleet knobs; red-before 36 cars — the pin re-derived
+## with the density change, and fewer + farther cars is web-friendlier, not
+## worse), bread, pigeon — must keep the calibrated headless CPU cost per
 ## physics frame. Headless renders nothing, so this gates the CPU half of the
 ## frame (scripts + physics + scene); draw calls and primitives stay with
 ## Gate 2's autoplay DONE line and Gate 3's human pass (VERIFICATION.md).
