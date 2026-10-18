@@ -40,6 +40,9 @@ const TROUSERS := Color(0.42, 0.38, 0.36)
 
 @export_group("Wiring")
 @export var city_path: NodePath
+## (T-129) Staged boot — see BandSpawner.staged_boot: main.tscn's boot calls
+## `populate()` explicitly; bare rigs keep the default false and self-populate.
+@export var staged_boot: bool = false
 
 ## The city to seat — Main wires the path; the sim harness assigns directly.
 var city: City
@@ -75,7 +78,17 @@ func _ready() -> void:
 	if city == null:
 		push_warning("CafeSpawner needs a City — no cafe furniture will spawn.")
 		return
+	if staged_boot: ## (T-129) main.gd's boot stages the first populate itself.
+		return
 	city.regenerated.connect(_populate)
+	_populate()
+
+
+## (T-129) The boot's explicit staging entry — the BandSpawner.populate() twin:
+## idempotent `regenerated` wiring plus the re-seat, safe to call any time.
+func populate() -> void:
+	if not city.regenerated.is_connected(_populate):
+		city.regenerated.connect(_populate)
 	_populate()
 
 

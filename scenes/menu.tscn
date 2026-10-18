@@ -123,5 +123,18 @@ theme_override_colors/font_color = Color(1, 1, 1, 0.7)
 text = "W/S pitch · A/D turn · Space flap · F poop · Esc pause · pad: stick steer · A flap · RT poop · Start pause"
 horizontal_alignment = 1
 
+[node name="WarmupNote" type="Label" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 440.0
+offset_bottom = 476.0
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(1, 0.92, 0.6, 1)
+text = "warming up the city…"
+horizontal_alignment = 1
+
 [connection signal="pressed" from="FlyButton" to="." method="_start_run"]
 [connection signal="pressed" from="SettingsButton" to="." method="_on_settings_pressed"]

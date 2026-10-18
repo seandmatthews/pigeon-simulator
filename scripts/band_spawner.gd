@@ -23,6 +23,14 @@ extends Node3D
 @export var city_path: NodePath
 @export var player_path: NodePath
 
+## (T-129) Staged boot: when true (main.tscn only), `_ready` resolves the wiring
+## but does NOT connect `regenerated` or populate — main.gd's boot calls
+## `populate()` explicitly (its own batch order on the stepped path, scene child
+## order on the sync rig path), and that first populate wires `regenerated` so
+## restarts re-seed exactly as always. Standalone spawner rigs keep the default
+## false and self-populate exactly as always.
+@export var staged_boot: bool = false
+
 ## The city to walk and the pigeon to orbit — Main wires the paths; the sim
 ## harness assigns both directly.
 var city: City
@@ -40,7 +48,18 @@ func _ready() -> void:
 	if city == null or player == null:
 		push_warning("BandSpawner needs a City and a Player — nothing will spawn.")
 		return
+	if staged_boot: ## (T-129) main.gd's boot stages the first populate itself.
+		return
 	city.regenerated.connect(_populate)
+	_populate()
+
+
+## (T-129) The boot's explicit staging entry: wires `regenerated` (idempotent —
+## restarts keep working) and re-seeds the whole population now. Safe to call
+## again at any time; `regenerated` flows keep their ordinary meaning.
+func populate() -> void:
+	if city != null and not city.regenerated.is_connected(_populate):
+		city.regenerated.connect(_populate)
 	_populate()
 
 

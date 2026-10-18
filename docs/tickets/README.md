@@ -191,7 +191,7 @@ pitched behind its decision-log forks.
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-127 | [Xbox controller: sticks and pads drive the existing actions](T-127-xbox-controller.md) | ui-ux | 4 | 2 | done (Gate 3 pending) |
 | T-128 | [Traffic spawns off-screen and drives in](T-128-traffic-spawns-offscreen.md) | worldbuilding | 3 | 2 | done (Gate 3 pending) |
-| T-129 | [Web boot paints instead of stalling: sliced city boot + a loading screen that waits for warm](T-129-web-boot-paints.md) | platform | 4 | 3 | proposed |
+| T-129 | [Web boot paints instead of stalling: sliced city boot + a loading screen that waits for warm](T-129-web-boot-paints.md) | platform | 4 | 3 | done (Gate 3 pending) |
 
 ## Suggested build order
 

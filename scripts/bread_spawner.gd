@@ -40,6 +40,9 @@ const TERMINAL_CLASS := City.BreadKind.ROOF
 
 @export var city_path: NodePath
 @export var crumb_scene: PackedScene = preload("res://scenes/bread_crumb.tscn")
+## (T-129) Staged boot — see BandSpawner.staged_boot: main.tscn's boot calls
+## `populate()` explicitly; bare rigs keep the default false and self-populate.
+@export var staged_boot: bool = false
 @export var target_count: int = 40 ## Crumbs kept alive across the whole city.
 @export var respawn_interval: float = 5.0 ## Seconds between top-up ticks that replace eaten crumbs.
 ## Share of the spawned budget that lands on cafe tabletops (T-112) — the
@@ -68,7 +71,17 @@ func _ready() -> void:
 	if city == null:
 		push_warning("BreadSpawner has no City — no crumbs will spawn.")
 		return
+	if staged_boot: ## (T-129) main.gd's boot stages the first populate itself.
+		return
 	city.regenerated.connect(_populate)
+	_populate()
+
+
+## (T-129) The boot's explicit staging entry — the BandSpawner.populate() twin:
+## idempotent `regenerated` wiring plus the re-seed, safe to call any time.
+func populate() -> void:
+	if not city.regenerated.is_connected(_populate):
+		city.regenerated.connect(_populate)
 	_populate()
 
 
