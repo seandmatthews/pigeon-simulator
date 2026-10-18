@@ -7,8 +7,8 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 
 **M3 waves 1–2 — owner-directed batches from the brainstorm**
 ([`../IDEAS.md`](../IDEAS.md)) — wave 1 (T-121..T-126) landed 2026-10-17/18;
-wave 2 (T-127..T-129, controller + traffic spawn gate + web boot) is
-running. T-120
+wave 2 (T-127..T-129): the controller and the traffic spawn gate landed
+2026-10-18, the web-boot ticket is running. T-120
 (readable touch buttons) stays open from the mobile phase. Phase goals and
 exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 
@@ -190,8 +190,8 @@ pitched behind its decision-log forks.
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-127 | [Xbox controller: sticks and pads drive the existing actions](T-127-xbox-controller.md) | ui-ux | 4 | 2 | done (Gate 3 pending) |
-| T-128 | [Traffic spawns off-screen and drives in](T-128-traffic-spawns-offscreen.md) | worldbuilding | 3 | 2 | doing (pipeline) |
-| T-129 | [Web boot paints instead of stalling: sliced city boot + a loading screen that waits for warm](T-129-web-boot-paints.md) | platform | 4 | 3 | proposed (queued behind T-128) |
+| T-128 | [Traffic spawns off-screen and drives in](T-128-traffic-spawns-offscreen.md) | worldbuilding | 3 | 2 | done (Gate 3 pending) |
+| T-129 | [Web boot paints instead of stalling: sliced city boot + a loading screen that waits for warm](T-129-web-boot-paints.md) | platform | 4 | 3 | proposed |
 
 ## Suggested build order
 
