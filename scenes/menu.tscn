@@ -35,7 +35,7 @@ offset_top = 280.0
 offset_bottom = 320.0
 theme_override_font_sizes/font_size = 26
 theme_override_colors/font_color = Color(1, 0.92, 0.6, 1)
-text = "press Space to fly"
+text = "press Space to fly — or A / Start on a controller"
 horizontal_alignment = 1
 
 [node name="HighScoreLabel" type="Label" parent="."]
@@ -120,7 +120,7 @@ offset_top = -26.0
 offset_bottom = -4.0
 theme_override_font_sizes/font_size = 15
 theme_override_colors/font_color = Color(1, 1, 1, 0.7)
-text = "W/S pitch · A/D turn · Space flap · F poop · Esc pause"
+text = "W/S pitch · A/D turn · Space flap · F poop · Esc pause · pad: stick steer · A flap · RT poop · Start pause"
 horizontal_alignment = 1
 
 [connection signal="pressed" from="FlyButton" to="." method="_start_run"]

@@ -242,6 +242,7 @@ func _run_scenarios() -> void:
 	await _scenario_touch_buttons_fire_real_actions() ## T-119 — the Flap/Poop TouchScreenButtons fire the real actions (a drop actually falls).
 	await _scenario_touch_pause_button_toggles_real_pause() ## T-119 — the Pause button pauses through the REAL PauseMenu; the panel's Resume tap unpauses.
 	await _scenario_touch_multitouch_steer_and_flap() ## T-119 — overlapping contacts: the held stick stays live while a second finger flaps.
+	await _scenario_gamepad_actions_bound() ## T-127 — the pad rides the existing actions: mapping pinned in the InputMap, deadzone 0.25 on the stick four, a synthetic JoypadMotion drives the real pitch axis, and the menus take the pad.
 	await _scenario_title_screen_teaches_controls() ## T-039 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_elder_placement_no_rng()
 	await _scenario_elder_shares_bread_after_hangout()
@@ -8216,6 +8217,245 @@ func _scenario_touch_multitouch_steer_and_flap() -> void:
 					steering_live, _touch_flap_events, yaw_delta, rest_after])
 
 
+## --- scenario (T-127 Xbox controller) ---------------------------------------
+
+
+## One joypad button event through the real pipeline (flushed synchronously,
+## the T-119 touch-feed pattern — no frame boundary, so no polling node sees a
+## stray press between helper calls).
+func _pad_button(button: JoyButton, is_pressed: bool) -> void:
+	var ev := InputEventJoypadButton.new()
+	ev.device = 0
+	ev.button_index = button
+	ev.pressed = is_pressed
+	Input.parse_input_event(ev)
+	Input.flush_buffered_events()
+
+
+## One joypad axis sample through the real pipeline — axis events are
+## ABSOLUTE, so value 0.0 is the release.
+func _pad_axis(axis: JoyAxis, value: float) -> void:
+	var ev := InputEventJoypadMotion.new()
+	ev.device = 0
+	ev.axis = axis
+	ev.axis_value = value
+	Input.parse_input_event(ev)
+	Input.flush_buffered_events()
+
+
+## (T-127) Compact tags for an action's InputMap events — "b<idx>" joypad
+## buttons, "m<axis>@<±v>" joypad motions, "k<keycode>" / "p<physical>" keys —
+## so the gamepad scenario can pin the shipped mapping event-for-event.
+func _pad_event_tags(action: String) -> PackedStringArray:
+	var tags: PackedStringArray = []
+	for ev: InputEvent in InputMap.action_get_events(action):
+		var pad_btn := ev as InputEventJoypadButton
+		if pad_btn != null:
+			tags.append("b%d" % pad_btn.button_index)
+		var pad_motion := ev as InputEventJoypadMotion
+		if pad_motion != null:
+			tags.append("m%d@%+.1f" % [pad_motion.axis, pad_motion.axis_value])
+		var key := ev as InputEventKey
+		if key != null:
+			tags.append("k%d" % key.keycode if key.keycode != 0 else "p%d" % key.physical_keycode)
+	return tags
+
+
+## (T-127) The Xbox pad rides the EXISTING actions, pinned live: the mapping's
+## joypad events sit on exactly the actions it names (stick axes 0/1 on the
+## four steering actions, A on flap, RT + X on poop, Start on pause; restart/
+## to_menu/quit/boost carry NO joypad events — the mapping invents nothing),
+## every joypad event on device -1, the stick four at deadzone 0.25 while the
+## button actions keep 0.5, ui_accept/ui_cancel carry A/B BESIDE their
+## engine-default keys (Enter/KP-Enter/Space, Escape), and ui_up/down keep the
+## engine-default dpad + left-stick traversal — with the action set still
+## EXACTLY the shipped eleven. Behavior: a synthetic InputEventJoypadMotion
+## through Input.parse_input_event drives the REAL axes — below-deadzone
+## (0.2) reads exactly 0.0, a gentle 0.3 deflection reads non-zero (impossible
+## at the old 0.5 default — the discriminating probe), full deflection ~1.0,
+## and the pigeon itself flies the held stick (nose rises, banks and yaws),
+## every axis back to exactly 0.0 on release. Menus: the REAL PauseMenu opens
+## on Start, resumes via pad A on the focused Resume button, traverses focus
+## on the dpad, and backs out on B; the title keeps a synthetic InputEventAction
+## and non-Start joypad buttons inert (the T-097 gate, joypad edition — a live
+## pad Start is never fed here, it would change the harness's own scene; that
+## leg is Gate 3's).
+func _scenario_gamepad_actions_bound() -> void:
+	var expected := {
+		"flap": ["b0"],
+		"poop": ["m5@+1.0", "b2"],
+		"pitch_up": ["m1@-1.0"],
+		"pitch_down": ["m1@+1.0"],
+		"turn_left": ["m0@-1.0"],
+		"turn_right": ["m0@+1.0"],
+		"pause": ["b6"],
+	}
+	var mapping_ok := true
+	var detail_rows: PackedStringArray = []
+	for action: String in expected:
+		var pad_tags: PackedStringArray = []
+		for tag: String in _pad_event_tags(action):
+			if tag.begins_with("b") or tag.begins_with("m"):
+				pad_tags.append(tag)
+		var want: Array = expected[action]
+		var has_all := true
+		for tag: String in want:
+			has_all = has_all and pad_tags.has(tag)
+		mapping_ok = mapping_ok and has_all and pad_tags.size() == want.size()
+		detail_rows.append("%s=[%s]" % [action, ",".join(pad_tags)])
+	var unmapped_ok := true
+	for action: String in ["restart", "to_menu", "quit", "boost"]:
+		for tag: String in _pad_event_tags(action):
+			unmapped_ok = unmapped_ok and not tag.begins_with("b") \
+					and not tag.begins_with("m")
+	var devices_ok := true
+	for action: String in InputMap.get_actions():
+		for ev: InputEvent in InputMap.action_get_events(action):
+			if (ev is InputEventJoypadButton or ev is InputEventJoypadMotion) \
+					and ev.device != -1:
+				devices_ok = false
+	var dz_ok := true
+	for action: String in ["pitch_up", "pitch_down", "turn_left", "turn_right"]:
+		dz_ok = dz_ok and InputMap.action_get_deadzone(action) == 0.25
+	for action: String in ["flap", "poop", "pause"]:
+		dz_ok = dz_ok and InputMap.action_get_deadzone(action) == 0.5
+	var ui_ok := true
+	for probe: Array in [
+		["ui_accept", ["b0", "k4194309", "k4194310", "k32"]],
+		["ui_cancel", ["b1", "k4194305"]],
+		["ui_up", ["b11", "m1@-1.0"]],
+		["ui_down", ["b12", "m1@+1.0"]],
+	]:
+		var tags := _pad_event_tags(probe[0])
+		for tag: String in probe[1]:
+			ui_ok = ui_ok and tags.has(tag)
+	var seen: Dictionary = {}
+	for action in InputMap.get_actions():
+		if not String(action).begins_with("ui_"):
+			seen[String(action)] = true
+	var actions_ok := seen.size() == GAME_ACTIONS.size()
+	for action: String in GAME_ACTIONS:
+		actions_ok = actions_ok and seen.has(action)
+	## Behavioral: the stick feeds the REAL axes through the deadzone. The
+	## button actions' strengths ride the same pipeline (press, read, release
+	## with no frame in between — nothing polling sees it).
+	_pad_axis(JOY_AXIS_LEFT_Y, -0.2)
+	var under_dz := Input.get_axis("pitch_down", "pitch_up") == 0.0
+	_pad_axis(JOY_AXIS_LEFT_Y, -0.3) ## Stick up = pitch_up, 1:1 with W.
+	var gentle_pitch := Input.get_axis("pitch_down", "pitch_up")
+	_pad_axis(JOY_AXIS_LEFT_Y, -1.0)
+	var full_pitch := Input.get_axis("pitch_down", "pitch_up")
+	_pad_axis(JOY_AXIS_LEFT_Y, 0.0)
+	_pad_axis(JOY_AXIS_LEFT_X, -1.0)
+	var full_turn := Input.get_axis("turn_right", "turn_left")
+	_pad_axis(JOY_AXIS_LEFT_X, 0.0)
+	_pad_button(JOY_BUTTON_A, true)
+	var flap_strength := Input.get_action_strength("flap")
+	_pad_button(JOY_BUTTON_A, false)
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	var rt_strength := Input.get_action_strength("poop")
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	_pad_button(JOY_BUTTON_X, true)
+	var x_strength := Input.get_action_strength("poop")
+	_pad_button(JOY_BUTTON_X, false)
+	_pad_button(JOY_BUTTON_START, true)
+	var start_strength := Input.get_action_strength("pause")
+	_pad_button(JOY_BUTTON_START, false)
+	var strengths_ok := under_dz and gentle_pitch > 0.01 and gentle_pitch < full_pitch \
+			and full_pitch > 0.9 and full_turn > 0.9 and flap_strength == 1.0 \
+			and rt_strength == 1.0 and x_strength == 1.0 and start_strength == 1.0
+	## The pigeon flies the held stick — nose up on stick-up, bank + yaw on
+	## stick-left, every axis exactly 0.0 again on release (the T-082 trim arm
+	## survives the pad exactly as the touch stick proved it).
+	await _set_up(true, Vector3(0.0, 30.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	var nose0 := (-_player.transform.basis.z).y
+	_pad_axis(JOY_AXIS_LEFT_Y, -1.0)
+	for _i in 40:
+		await get_tree().physics_frame
+	var nose1 := (-_player.transform.basis.z).y
+	_pad_axis(JOY_AXIS_LEFT_Y, 0.0)
+	await _wait_frames(2)
+	await _set_up(true, Vector3(0.0, 30.0, 0.0), Vector3(17.0, 0.0, 0.0))
+	var yaw0 := _flat_yaw()
+	_pad_axis(JOY_AXIS_LEFT_X, -1.0)
+	for _i in 60:
+		await get_tree().physics_frame
+	var banked_left := _player.transform.basis.x.y
+	var yaw_delta := absf(wrapf(_flat_yaw() - yaw0, -PI, PI))
+	_pad_axis(JOY_AXIS_LEFT_X, 0.0)
+	await _wait_frames(2)
+	var rest_after := _steering_axes_all_zero()
+	var flight_ok := nose1 - nose0 > 0.15 and banked_left > 0.2 and yaw_delta > 0.3 \
+			and rest_after
+	## The pause menu, pad-driven, through the REAL main scene: Start opens
+	## (Resume takes focus), A on the focused button resumes, Start re-opens,
+	## the dpad moves focus, B backs out. Then the title's joypad gate
+	## (T-097 edition): a synthetic InputEventAction and a joypad button that
+	## is NOT Start both stay inert at the title.
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(4500.0, 0.0, -4500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var pause_menu: PauseMenu = main_game.get_node("PauseMenu")
+	var resume: Button = main_game.get_node("%ResumeButton")
+	var restart: Button = main_game.get_node("PauseMenu/Center/PausePanel/Box/RestartButton")
+	_pad_button(JOY_BUTTON_START, true)
+	_pad_button(JOY_BUTTON_START, false)
+	await _wait_frames(2)
+	var open_focus: Control = get_viewport().gui_get_focus_owner()
+	var start_opens := get_tree().paused and pause_menu.is_open and open_focus == resume
+	_pad_button(JOY_BUTTON_A, true)
+	_pad_button(JOY_BUTTON_A, false)
+	await _wait_frames(2)
+	var a_resumes := not get_tree().paused and not pause_menu.is_open
+	_pad_button(JOY_BUTTON_START, true)
+	_pad_button(JOY_BUTTON_START, false)
+	await _wait_frames(2)
+	_pad_button(JOY_BUTTON_DPAD_DOWN, true)
+	_pad_button(JOY_BUTTON_DPAD_DOWN, false)
+	await _wait_frames(2)
+	var moved_focus: Control = get_viewport().gui_get_focus_owner()
+	var dpad_traverses := get_tree().paused and moved_focus == restart
+	_pad_button(JOY_BUTTON_B, true)
+	_pad_button(JOY_BUTTON_B, false)
+	await _wait_frames(2)
+	var settings: Control = main_game.get_node("%SettingsPanel")
+	var b_backs: bool = not get_tree().paused and not pause_menu.is_open \
+			and not settings.visible
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	get_tree().paused = false ## Never leak a pause into later scenarios.
+	## The title's joypad gate (T-097 edition): a synthetic InputEventAction and
+	## a joypad button that is NOT Start both stay inert at the title.
+	var menu: Control = MENU_SCENE.instantiate()
+	add_child(menu)
+	await _wait_frames(2)
+	var esc_action := InputEventAction.new()
+	esc_action.action = "pause"
+	esc_action.pressed = true
+	menu._unhandled_input(esc_action)
+	_pad_button(JOY_BUTTON_DPAD_UP, true)
+	await _wait_frames(5)
+	_pad_button(JOY_BUTTON_DPAD_UP, false)
+	var title_gated := is_instance_valid(menu) and not get_tree().paused
+	menu.free()
+	_check("gamepad_actions_bound",
+			mapping_ok and unmapped_ok and devices_ok and dz_ok and ui_ok
+					and actions_ok and strengths_ok and flight_ok
+					and start_opens and a_resumes and dpad_traverses and b_backs
+					and title_gated,
+			"mapping=%s unmapped=%s devices=%s dz=%s ui=%s actions=%s (%d seen) strengths=%s (under_dz=%s gentle=%.3f full_pitch=%.2f full_turn=%.2f flap=%s rt=%s x=%s start=%s) flight=%s (nose %.2f->%.2f bank=%.2f yaw=%.2f rest=%s) pad_menu=%s/%s/%s/%s title_gated=%s [%s]" % [
+					mapping_ok, unmapped_ok, devices_ok, dz_ok, ui_ok, actions_ok,
+					seen.size(), strengths_ok, under_dz, gentle_pitch, full_pitch,
+					full_turn, flap_strength, rt_strength, x_strength, start_strength,
+					flight_ok, nose0, nose1, banked_left, yaw_delta, rest_after,
+					start_opens, a_resumes, dpad_traverses, b_backs, title_gated,
+					", ".join(detail_rows)])
+
+
 ## --- scenario (T-039 title-screen controls line) -----------------------------
 
 
@@ -8252,6 +8492,10 @@ func _scenario_title_screen_teaches_controls() -> void:
 			text_ok = text_ok and controls.text.contains(taught)
 		for keycap: String in ["W/S", "A/D", "Space", "F", "Esc"]:
 			text_ok = text_ok and controls.text.contains(keycap)
+		## (T-127) The pad family rides the same line: stick steer, A flap,
+		## RT poop, Start pause.
+		for padcap: String in ["pad", "stick steer", "A flap", "RT poop", "Start pause"]:
+			text_ok = text_ok and controls.text.contains(padcap)
 	var actions_ok := true
 	for action: String in ["flap", "poop", "pitch_up", "pitch_down", "turn_left", "turn_right", "pause"]:
 		actions_ok = actions_ok and InputMap.has_action(action)
