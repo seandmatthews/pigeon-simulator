@@ -5,11 +5,11 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 
 ## Current phase
 
-**M3 wave 1 — the owner's improvement batch (2026-10-17)** — six confirmed,
-no-further-input ideas folded out of the brainstorm
-([`../IDEAS.md`](../IDEAS.md)) as T-121..T-126 below; T-120 (readable touch
-buttons) stays open from the mobile phase. Phase goals and exit criteria:
-[`../ROADMAP.md`](../ROADMAP.md).
+**M3 waves 1–2 — owner-directed batches from the brainstorm**
+([`../IDEAS.md`](../IDEAS.md)) — wave 1 (T-121..T-126) landed 2026-10-17/18;
+wave 2 (T-127..T-128, controller + traffic spawn gate) is running. T-120
+(readable touch buttons) stays open from the mobile phase. Phase goals and
+exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 
 ## Milestone 1 — vertical slice
 
@@ -178,6 +178,17 @@ and T-126 are independent.
 | T-124 | [People and cars: swap in Quaternius pedestrians and Kenney cars](T-124-people-and-cars.md) | visual-design | 5 | 3 | done 2026-10-17 |
 | T-125 | [Ditch the Godot boot splash](T-125-boot-splash.md) | visual-design | 2 | 1 | done (Gate 3 pending) |
 | T-126 | [Hide Quit on the web (a browser tab can't close itself)](T-126-web-quit.md) | platform | 2 | 1 | done (Gate 3 pending) |
+
+## M3 wave 2 — owner picks from the ideas doc (2026-10-18)
+
+Two fork-free pitches pulled out of [`../IDEAS.md`](../IDEAS.md) and run
+serially through the pipeline (shared sim_test/VERIFICATION surfaces).
+Everything else in the ideas doc stays pitched behind its decision-log forks.
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-127 | [Xbox controller: sticks and pads drive the existing actions](T-127-xbox-controller.md) | ui-ux | 4 | 2 | proposed |
+| T-128 | [Traffic spawns off-screen and drives in](T-128-traffic-spawns-offscreen.md) | worldbuilding | 3 | 2 | proposed |
 
 ## Suggested build order
 

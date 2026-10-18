@@ -326,7 +326,7 @@ states; the win stays reachable one-handed on a phone.
 **Size & routing:** S–M per knob, **pipeline** — bundled with B-6's picks into
 ONE economy/feel pass so bars re-derive once. **Fork D5:** a/c/d/e/f (multi).
 
-### B-14 · Traffic spawns off-screen and drives in (owner idea, 2026-10-16)
+### B-14 · Traffic spawns off-screen and drives in (owner idea, 2026-10-16) — ticketed **T-128**, running wave 2
 
 **Pitch:** no more cars popping into existence mid-frame: new traffic appears
 only off-screen and drives into view, and visible spawn events get rarer
@@ -421,7 +421,7 @@ Persisted to `user://settings.cfg`, loaded at boot. Deliberately nothing else
 B-17's controller pass if sticks demand it. Mostly direct-loop; S–M. Gamepad
 support split out into B-17.
 
-### B-17 · Xbox controller support (owner ask, 2026-10-17)
+### B-17 · Xbox controller support (owner ask, 2026-10-17) — ticketed **T-127**, running wave 2
 
 **Pitch:** Godot treats Xbox pads as the generic joypad standard, and every
 gameplay action already exists by name — this ticket adds joypad events to the
@@ -525,8 +525,7 @@ Still pitched here, in the order they'd run once their forks are picked:
    single batch so the sim bars re-derive once.
 3. **B-5 updrafts (pipeline)** — then re-judge B-13's hawk with the new sky.
 4. **B-4 landmarks** (forge: Ames-flavored reference images) + **B-9 perch**.
-5. **Anytime:** B-14 traffic spawn gate (pipeline), B-17 controller support
-   (pipeline), B-1a bird polish, B-2 phase 2 (buildings/props), B-8's music
+5. **Anytime:** B-1a bird polish, B-2 phase 2 (buildings/props), B-8's music
    question, B-11, B-12, B-15 (after D10).
 
 Mobile note: T-120 (readable touch buttons) should land before any HUD-adding
