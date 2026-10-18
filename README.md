@@ -41,6 +41,7 @@ Main Run Args.
 | M | back to the title screen — from the pause menu or the score screen |
 | Q | quit the game — from the pause menu or the title screen · desktop only (hidden on the web build — a browser tab cannot close itself, T-126) |
 | Touch (phone only) | left on-screen stick steers — up/down pitch, left/right turn, same actions as W/S/A/D with analog strength · on-screen FLAP / POOP buttons (Space / F) · small Pause button (Esc) · shows only on touch devices; desktop preview: launch with `PIGEON_TOUCH=1` (T-119) |
+| Xbox controller | left stick steers — up/down pitch, left/right turn, the W/S/A/D actions with analog strength (half-deflection trims the rate) · **A** flap — starts a run from the title screen, presses the focused menu button, flies again on the score screen · **RT** (or **X**) poop · **Start** pause / resume — opens a run from the title too · **B** backs out of the pause menu · D-pad or left stick moves menu focus (T-127). Restart / M / Q / Shift stay keyboard-side; no rumble in v1 |
 
 ## Docs
 

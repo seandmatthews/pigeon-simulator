@@ -41,6 +41,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not is_open:
 		return
+	if event.is_action_pressed("ui_cancel"):
+		## (T-127) Pad B backs out of the open menu. Keyboard Esc never reaches
+		## this branch — it is the `pause` action, handled (and consumed) above.
+		toggle()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("restart"):
 		_request_restart()
 	elif event.is_action_pressed("to_menu"):

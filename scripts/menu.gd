@@ -25,6 +25,10 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("flap"):
 		_start_run()
+	elif event is InputEventJoypadButton and event.is_action_pressed("pause"):
+		## (T-127) Pad Start is the Fly button. The joypad gate keeps the
+		## keyboard's Esc (the same `pause` action) inert here — T-097.
+		_start_run()
 	elif event.is_action_pressed("quit") and not Game.is_web(): ## (T-126) Gated on web.
 		get_tree().quit()
 

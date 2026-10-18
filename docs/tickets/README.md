@@ -187,7 +187,7 @@ Everything else in the ideas doc stays pitched behind its decision-log forks.
 
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
-| T-127 | [Xbox controller: sticks and pads drive the existing actions](T-127-xbox-controller.md) | ui-ux | 4 | 2 | proposed |
+| T-127 | [Xbox controller: sticks and pads drive the existing actions](T-127-xbox-controller.md) | ui-ux | 4 | 2 | done |
 | T-128 | [Traffic spawns off-screen and drives in](T-128-traffic-spawns-offscreen.md) | worldbuilding | 3 | 2 | proposed |
 
 ## Suggested build order
