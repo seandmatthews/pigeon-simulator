@@ -202,7 +202,7 @@ owner-directed ticket; runs through the pipeline per T-119's route note.
 
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
-| T-130 | [Thumbs first: a bigger Fly button and real distance from Poop](T-130-bigger-fly-button.md) | ui-ux | 2 | 1 | proposed |
+| T-130 | [Thumbs first: a bigger Fly button and real distance from Poop](T-130-bigger-fly-button.md) | ui-ux | 2 | 1 | done |
 
 ## Suggested build order
 

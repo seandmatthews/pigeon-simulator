@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/touch_controls.gd" id="1_touch"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_flap"]
-radius = 52.0
+radius = 68.0
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_poop"]
 radius = 52.0

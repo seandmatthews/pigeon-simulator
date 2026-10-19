@@ -244,6 +244,7 @@ func _run_scenarios() -> void:
 	await _scenario_touch_buttons_fire_real_actions() ## T-119 — the Flap/Poop TouchScreenButtons fire the real actions (a drop actually falls).
 	await _scenario_touch_pause_button_toggles_real_pause() ## T-119 — the Pause button pauses through the REAL PauseMenu; the panel's Resume tap unpauses.
 	await _scenario_touch_multitouch_steer_and_flap() ## T-119 — overlapping contacts: the held stick stays live while a second finger flaps.
+	await _scenario_touch_button_layout_pins_tuned_values() ## T-130 — the owner's thumb ergonomics pinned: Flap r 68 / Poop r 52 read live off the shapes, gap 30, and the Poop offset exactly the layout math — a silent revert of either constant fails.
 	await _scenario_gamepad_actions_bound() ## T-127 — the pad rides the existing actions: mapping pinned in the InputMap, deadzone 0.25 on the stick four, a synthetic JoypadMotion drives the real pitch axis, and the menus take the pad.
 	await _scenario_title_screen_teaches_controls() ## T-039 — same T-019 window: unpaused tree, no live Main.
 	await _scenario_elder_placement_no_rng()
@@ -8548,6 +8549,37 @@ func _scenario_touch_multitouch_steer_and_flap() -> void:
 					and rest_after,
 			"steering_live=%.2f flaps=%d yaw=%.2f rad rest=%s" % [
 					steering_live, _touch_flap_events, yaw_delta, rest_after])
+
+
+## (T-130) The owner-dictated thumb ergonomics, pinned the T-019 way — the
+## tuned values read back from the LIVE layer so a silent revert of either
+## constant fails the same night: the Flap shape's radius is 68 canvas px
+## (up from 52 — a full thumb-pad target), Poop's stays 52, `button_gap` is
+## 30 (up from 18), and the Poop center sits EXACTLY `flap_center +
+## (-(flap_r + gap + poop_r), -gap)` from the layout math — asserted against
+## the pinned literals (68/30/52), never against the live constants, so
+## reverting the .tscn radius or the script gap trips this check.
+func _scenario_touch_button_layout_pins_tuned_values() -> void:
+	var prev_size := _size_window_for_touch()
+	var touch: TouchControls = TOUCH_SCENE.instantiate() as TouchControls
+	touch.force_show = true
+	add_child(touch)
+	await _wait_frames(2) ## Layout settled (same window the family runs at).
+	var flap_radius: float = (touch.flap_button.shape as CircleShape2D).radius
+	var poop_radius: float = (touch.poop_button.shape as CircleShape2D).radius
+	var gap: float = touch.button_gap
+	var flap_center: Vector2 = (touch.get_node("SafeArea/FlapButton") as Node2D).global_position
+	var poop_center: Vector2 = (touch.get_node("SafeArea/PoopButton") as Node2D).global_position
+	var expected_offset := Vector2(-(68.0 + 30.0 + 52.0), -30.0)
+	var offset_ok: bool = poop_center - flap_center == expected_offset
+	_restore_window_size(prev_size)
+	await _wait_frames(1)
+	touch.free()
+	_check("touch_button_layout_pins_tuned_values",
+			flap_radius == 68.0 and poop_radius == 52.0 and gap == 30.0 and offset_ok,
+			"flap_r=%.1f (want 68) poop_r=%.1f (want 52) gap=%.1f (want 30) poop_offset=%s (want exactly %s)" % [
+					flap_radius, poop_radius, gap,
+					poop_center - flap_center, expected_offset])
 
 
 ## --- scenario (T-127 Xbox controller) ---------------------------------------
