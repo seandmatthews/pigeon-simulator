@@ -193,6 +193,17 @@ pitched behind its decision-log forks.
 | T-128 | [Traffic spawns off-screen and drives in](T-128-traffic-spawns-offscreen.md) | worldbuilding | 3 | 2 | done (Gate 3 pending) |
 | T-129 | [Web boot paints instead of stalling: sliced city boot + a loading screen that waits for warm](T-129-web-boot-paints.md) | platform | 4 | 3 | done (Gate 3 pending) |
 
+## Mobile follow-up — owner feedback (2026-10-19)
+
+Second hands-on pass on the hosted phone build, verbatim: "the fly button is
+too small, and the poop button is too close to it." Size/spacing moves are
+deliberately out of T-120's legibility scope, so this is its own
+owner-directed ticket; runs through the pipeline per T-119's route note.
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-130 | [Thumbs first: a bigger Fly button and real distance from Poop](T-130-bigger-fly-button.md) | ui-ux | 2 | 1 | proposed |
+
 ## Suggested build order
 
 *(Historical — the M1 sequencing note below predates the sweep and M2; every
