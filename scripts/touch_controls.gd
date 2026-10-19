@@ -33,7 +33,7 @@ signal pause_requested
 @export var edge_margin: float = 28.0 ## Distance (canvas px) every widget keeps from its safe-area edge.
 @export var stick_radius: float = 62.0 ## Stick deflection (canvas px, from base center) that reads full strength.
 @export var stick_touch_deadzone: float = 0.18 ## Fraction of `stick_radius` treated as finger jitter — handled INSIDE the stick so the actions rest at exactly 0. Output past the deadzone is rescaled to the full 0..1 strength band (see Tuned values, T-119).
-@export var button_gap: float = 18.0 ## Gap (canvas px) between the Flap and Poop buttons' rings.
+@export var button_gap: float = 30.0 ## Gap (canvas px) between the Flap and Poop buttons' rings. 18 → 30 (T-130): the owner's second hands-on pass — two rings, not one blob.
 
 @export_group("Debug")
 @export var force_show: bool = false ## Show the layer without a touchscreen (editor/sim debugging; `PIGEON_TOUCH=1` also enables touch-from-mouse).
