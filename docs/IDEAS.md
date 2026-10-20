@@ -236,6 +236,35 @@ grab state.
 **Size & routing:** M, **pipeline** (new player states + collision masks).
 Synergy: B-4 landmarks (statue perching), B-5 (arrive via updraft).
 
+### B-20 · Slower bird, bigger city (owner idea, 2026-10-20)
+
+**Pitch:** fly slower, on purpose. Two wins from one dial: **ease of use** —
+the ground doesn't rush past, aiming a poop and lining up a perch stop both get
+forgiving — and **scale** — a slower bird makes the same city feel bigger, a
+place to cross and explore rather than a plaza you outrun in two seconds.
+Especially friendly to the touch build (T-119), where fine stick work is
+hardest.
+
+**Grounded today:** speed is not one knob — it's a coupled set in
+`player.gd`: `flap_impulse` 13 m/s (paces cruise), `glide_speed` 17 (the
+max-lift pace the lift model keys off via `forward_speed / glide_speed`),
+`max_speed` 36 cap, `stall_speed` 5. Note the tension: T-117 (2026-10-13) was
+the owner-dictated ×1.2 pass that *raised* the cap 30 → 36 and scaled the turn
+rates — this idea turns the same dial the other way, with more phone play
+since as the new evidence. Turn/pitch rates (`bank_rate`, `full_bank_yaw_rate`,
+`pitch_speed`) are separate exports, so slowing forward speed while leaving
+turn rates alone buys both goals at once: tighter circles AND a longer-feeling
+city.
+
+**Forks:** (a) cap-only — dives stay fast, cruise slows; (b) scale the speed
+quartet down together, turn rates untouched; (c) full ×0.8 pass including turn
+rates. If cruising then feels sluggish, B-5's updrafts are the designed
+counterweight.
+
+**Size & routing:** S–M, **pipeline** (T-117 rule — feel bars re-derive:
+`hands_off_glide_trims`, cruise/touchdown bands). Gate 1b additions: re-locked
+cruise speed + a turn-circle check.
+
 ---
 
 ## C. Gameplay & economy
