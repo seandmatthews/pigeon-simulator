@@ -7,9 +7,9 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 
 **M3 waves 1–2 — owner-directed batches from the brainstorm**
 ([`../IDEAS.md`](../IDEAS.md)) — wave 1 (T-121..T-126) landed 2026-10-17/18;
-wave 2 (T-127..T-129): the controller and the traffic spawn gate landed
-2026-10-18, the web-boot ticket is running. T-120
-(readable touch buttons) stays open from the mobile phase. Phase goals and
+wave 2 (T-127..T-129) landed 2026-10-18/19; T-130 (bigger Fly button, real
+poop distance) followed 2026-10-20. T-120 (readable touch buttons) stays
+open from the mobile phase. Phase goals and
 exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 
 ## Milestone 1 — vertical slice

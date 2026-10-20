@@ -2,9 +2,8 @@
 
 Phase-level plan: what phase the project is in, what that phase is for, and what
 comes after. This is the repo-visible source of truth for the schedule and phase
-goals. Refreshed 2026-10-13 — the previous version (git history, 8f6f4d8) was
-frozen at the 2026-10-01 "mayhem-first" steer and still showed M2 as proposed;
-everything since then shipped.
+goals. Refreshed 2026-10-20 — the previous version (git history, fda67dc)
+still showed M3 wave 2 as running; waves 1–2 and T-130 have shipped since.
 
 ## Phase overview
 
@@ -13,28 +12,30 @@ everything since then shipped.
 | M1 — vertical slice | One stretch of city where the whole loop works and feels good | T-001..T-020 done, gates green | done 2026-09-29 |
 | Sweep — readability, feel, perf (waves W1–W8) | Make the slice legible and pleasant: the bird readable against the city, every scored moment visible, flight well-behaved at its edges, boot scene affordable | Every W1–W8 ticket merged or flagged; backlog re-audited | done 2026-10-01 — chain complete, every wave ticket landed (record below) |
 | M2 — the town's pigeon | Goal layer: the invasion gets a uniform and the sandbox gets a win — citizen classes, the favor economy, the favor-max victory, and the HUD that names the prize | All four forks decided (2026-10-11); the forged sequence landed with gates green | done 2026-10-11/12 — T-113 96d09fe, T-114 6b51dc4, T-115 112f8e9, T-116 bfe31fb |
-| M3 — improvement waves | Owner-directed batches from the 2026-10-15/17 brainstorm ([IDEAS.md](IDEAS.md)): wave 1 = target-car readability, settings v1, the sound pass, the human/car model swap, the boot splash, the web quit gate (T-121..T-126); wave 2 = the Xbox controller, the off-screen traffic spawn gate, and the web boot that paints (T-127..T-129) | every wave's tickets done with gates green, owner Gate 3 passes recorded | wave 1 done 2026-10-18 (Gate 3 pending per ticket) · wave 2 running |
+| M3 — improvement waves | Owner-directed batches from the 2026-10-15/17 brainstorm ([IDEAS.md](IDEAS.md)): wave 1 = target-car readability, settings v1, the sound pass, the human/car model swap, the boot splash, the web quit gate (T-121..T-126); wave 2 = the Xbox controller, the off-screen traffic spawn gate, and the web boot that paints (T-127..T-129); follow-up = the bigger Fly button + real poop distance from the owner's second phone pass (T-130) | every wave's tickets done with gates green, owner Gate 3 passes recorded | waves 1–2 done 2026-10-18/19 · T-130 done 2026-10-20 (b095567, hosted build current) · owner Gate 3 passes pending per ticket |
 
-## Where we are (2026-10-17)
+## Where we are (2026-10-20)
 
-M2 and the mobile phase are done: T-113..T-116 (the goal layer) and
-T-118/T-119 (hosted web build + touch controls — the owner's iPhone pass
-closed their Gate 3 lines). Open work: T-120 (readable touch buttons) and
-M3 wave 1, T-121..T-126 — six confirmed, no-further-input ideas folded out
-of the brainstorm into tickets (target-car readability, settings v1, the
-sound pass, the human/car model swap, the boot-splash swap, the web quit
-gate).
+M3 waves 1 and 2 are done: T-121..T-126 (target-car readability, settings v1,
+the sound pass, the human/car model swap, the boot-splash swap, the web quit
+gate) landed 2026-10-17/18, and T-127..T-129 (the Xbox controller, the
+off-screen traffic spawn gate, the web boot that paints) landed 2026-10-18/19.
+T-130 (bigger Fly button + real poop distance, from the owner's second phone
+pass) followed on 2026-10-20, and the hosted build at games.matthews.mx is
+current with it. Still open: T-120 (readable touch buttons — the only
+proposed ticket), owner Gate 3 playtest passes for the wave tickets, and the
+GitHub Actions deploy button's repo secrets (deploys stay manual until those
+land).
 
 Everything else from the brainstorm stays pitched in
 [IDEAS.md](IDEAS.md) behind its open decision-log forks: updrafts (B-5),
 perch (B-9), the difficulty/points rebalance (B-6/B-7), quests-lite (B-15),
-the traffic spawn gate (B-14), gamepad support (B-17), the pigeon-look pass
-(B-1), buildings/props swap (B-2 phase 2), the hawk hazard and seagull
-rivals (still on DESIGN's out-of-scope list — re-opening is an explicit
-owner call), districts, landmark targets, and export builds. New work starts
-as a tone-checked pitch before anything is forged (AGENTS.md — the
-idea-talk convention); scope stays a silly game about a bird pooping on
-people.
+the fly-slower/scale dial (B-20), the pigeon-look pass (B-1), buildings/props
+swap (B-2 phase 2), the hawk hazard and seagull rivals (still on DESIGN's
+out-of-scope list — re-opening is an explicit owner call), districts,
+landmark targets, and export builds. New work starts as a tone-checked pitch
+before anything is forged (AGENTS.md — the idea-talk convention); scope stays
+a silly game about a bird pooping on people.
 
 ## The sweep's wave schedule (historical record)
 
