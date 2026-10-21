@@ -16,6 +16,12 @@ survive, and earn points by pooping on tourists and their cars.
 > city so scores stay comparable.
 > The roadmap lives in [`docs/tickets/`](docs/tickets/README.md).
 
+## Play online
+
+You can play the latest build in your browser at
+**https://games.matthews.mx/pigeon-simulator/** — no install, works on desktop
+and phones (phones get the touch stick and buttons).
+
 ## Run it
 
 1. Get Godot 4.7 (the exact binary used for this project: `~/bin/Godot_v4.7.2-stable_win64.exe`).
