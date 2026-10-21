@@ -204,6 +204,18 @@ owner-directed ticket; runs through the pipeline per T-119's route note.
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-130 | [Thumbs first: a bigger Fly button and real distance from Poop](T-130-bigger-fly-button.md) | ui-ux | 2 | 1 | done |
 
+## Web boot follow-up — double loading screen (2026-10-20)
+
+A friend's hosted-web report: "2 identical loading screens happening in close
+proximity." Code-read confirmed — T-129's Fly press paints the title's
+"warming up the city" note AND fades the shell's identical loader (same navy,
+same words) in over it one frame later. Presentation-only; direct loop per
+the T-116 precedent.
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-131 | [One warming screen: the web handoff lets the shell's loader do the talking](T-131-web-double-loading.md) | platform | 2 | 1 | done (Gate 3 pending) |
+
 ## Suggested build order
 
 *(Historical — the M1 sequencing note below predates the sweep and M2; every

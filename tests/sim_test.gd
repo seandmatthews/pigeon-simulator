@@ -281,6 +281,7 @@ func _run_scenarios() -> void:
 	await _scenario_boot_splash_pinned() ## T-125 — no Godot logo, splash = the title navy.
 	await _scenario_web_quit_gated() ## T-126 — both branches of the quit seam through the real scenes.
 	await _scenario_stepped_boot_pins() ## T-129 — the stepped city boot: ordered slices, ms trace, the sync rig defaults, the web diet.
+	await _scenario_web_handoff_single_screen() ## T-131 — the web handoff shows ONE warming screen: the shell covers it, the note stands down.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -6512,6 +6513,45 @@ func _scenario_stepped_boot_pins() -> void:
 					slices_ok, fast_path_ok, defaults_ok, booted and names_ok,
 					stepped_city_ok, reseed_ok, handoff_ok, sync_rig_ok,
 					diet_off_ok, diet_on_ok, trace.strip_edges()])
+
+
+## (T-131) The web handoff must answer the Fly press with exactly ONE warming
+## screen. The branch decision lives behind `_web_loader_covers_handoff()` so
+## the harness can pin both branches through the T-126 seam without driving
+## `_start_run` itself — that ends in `change_scene_to_file` and would swap
+## the harness's own scene (the T-097 never-feed-flap rule), so the
+## on-screen single-screen judgement is the hosted-web Gate 3. Legs, on the
+## REAL menu scene: the forced-web branch covers the handoff with the export
+## shell's loader, desktop does not (its one-frame WarmupNote is the feedback
+## there); and the WarmupNote exists and stays hidden AT REST on BOTH
+## branches — a note shown outside the desktop handoff (the double-screen
+## bug's shape) fails here.
+func _scenario_web_handoff_single_screen() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	var desktop_covers := false
+	var web_covers := false
+	var desktop_note_hidden := false
+	var web_note_hidden := false
+	for override in [0, 1]:
+		Game.web_override = override
+		var menu: Control = (load("res://scenes/menu.tscn") as PackedScene).instantiate()
+		add_child(menu)
+		var note: Label = menu.get_node("%WarmupNote") as Label
+		var covers: bool = menu._web_loader_covers_handoff()
+		if override == 0:
+			desktop_covers = covers
+			desktop_note_hidden = note != null and not note.visible
+		else:
+			web_covers = covers
+			web_note_hidden = note != null and not note.visible
+		menu.free()
+	Game.web_override = -1 ## Restore: ask the OS again.
+	_check("web_handoff_single_screen",
+			not desktop_covers and desktop_note_hidden \
+					and web_covers and web_note_hidden,
+			"desktop: covers=%s (want false) note_rest_hidden=%s | web: covers=%s (want true) note_rest_hidden=%s" % [
+					desktop_covers, desktop_note_hidden,
+					web_covers, web_note_hidden])
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------
