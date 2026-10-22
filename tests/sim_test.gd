@@ -31,10 +31,12 @@ const SIM_SAVE_PATH := "user://sim_highscore.cfg"
 const SIM_SETTINGS_PATH := "user://sim_settings.cfg" ## (T-122) Same isolation rule as the high score.
 
 ## (T-015) Forward-speed ceiling four paced ground flaps may pump. Measured
-## 25.04 m/s under the tapered flap (fixed-fps sim); the old fixed 45° flap
-## reached 28.7 m/s at THREE flaps and rode the 30 cap at four, so 26.0 both
-## passes the new model with margin and fails the old one.
-const FLAP_PUMP_CEIL := 26.0
+## 16.89 m/s under the tapered flap on the pre-T-133 tree (fixed-fps sim; the
+## T-015-era tree measured 25.04 — later flap passes lowered it). T-133 re-locked
+## the ceiling for the ×0.8 quartet: the new pace measures 13.15 m/s, so 15.0
+## passes with margin and fails the pre-T-133 tree (16.89 — the revert probe's
+## re-locked-value failure) and the old fixed 45° flap, which rode the cap.
+const FLAP_PUMP_CEIL := 15.0
 
 ## (T-083) The pitch attitude bound: `pitch_auth_zero_deg` — |body pitch| may
 ## never cross this under held pitch-up input. The balloon-outcome bars below
@@ -46,8 +48,16 @@ const FLAP_PUMP_CEIL := 26.0
 ## rotation well below the naive 2.2 rad/s × 50 frames ≈ 105°); the
 ## scenario's red-before comes from the balloon bars.
 const PITCH_BOUND_DEG := 85.0
-const BALLOON_VY_BAR := 8.7 ## Pre-fix measured 8.85 (fails), post-fix 8.48 (passes).
-const BALLOON_MUSH_BAR := 244 ## Pre-fix measured 247 (fails), post-fix 240 (passes).
+## (T-083, re-derived ×0.8 for T-133) The balloon bars. Original provenance: the
+## PRE-FIX tree's measured run — peak climb vy 8.85 m/s and post-release mush
+## 247/300 frames before the falloff, 8.48 and 240 after it (pre-T-133 pace).
+## T-133 re-derived from the new pace's measured runs: the settled cruise is
+## 13.6 m/s, so the same hold balloons to peak vy 5.54 and mushes 217/300
+## (the shallower post-release sink mushes longer). 6.5 / 230 keep every
+## documented red run red — the pre-fix 8.85 and 247 both still fail — while
+## tightening the margin around the new pace's own numbers.
+const BALLOON_VY_BAR := 6.5 ## Pre-fix measured 8.85 (fails); post-fix 8.48 at the old pace, 5.54 at the T-133 pace.
+const BALLOON_MUSH_BAR := 230 ## Pre-fix measured 247 (fails); post-fix 240 at the old pace, 217 at the T-133 pace.
 
 ## (T-082) The hands-off trim scenario's re-derived bars. The originally drafted
 ## "< 3 deg at 90 frames" end bar was flagged by the backlog audit as
@@ -68,7 +78,7 @@ const BALLOON_MUSH_BAR := 244 ## Pre-fix measured 247 (fails), post-fix 240 (pas
 ## approach the flow" arm is not usable; nose travel is the monotone arm — the
 ## trim is the only air-frame rotator without input, so zero travel is the
 ## structural pre-fix signature.
-const HSO_END_ANGLE_BAR := 8.4 ## |End nose-to-flow signed angle| bound: measured 5.72 at trim_rate 0.7 pre-T-117 (bar 7.0), re-derived ×1.2 for T-117 — the ×1.2 pitch rate deepens the 8-frame entry (14.54° → 17.35°) and the 90-frame window cannot out-run the deeper residual (measured 7.59); a settle probe showed the trim still converges to the same ≈5° equilibrium by 360 frames (−7.59 @90 → −11.13 @180 → −4.82 @360), so the bar tracks the window-relative residual, not a moved equilibrium. The trim_rate 0.7 physics is untouched by T-117.
+const HSO_END_ANGLE_BAR := 10.5 ## |End nose-to-flow signed angle| bound: measured 5.72 at trim_rate 0.7 pre-T-117 (bar 7.0), re-derived ×1.2 for T-117 (measured 7.59; the settle probe held: −7.59 @90 → −11.13 @180 → −4.82 @360 — the same ≈5° equilibrium). T-133 re-derived ×0.8: the slower cruise bleeds deeper in the window and recovers slower, so the 90-frame residual deepens (measured 9.70; probe −9.70 @90 → −10.81 @180 → −2.98 @360 — the trim STILL converges past the flow by 360 frames, equilibrium ≈3°, trim_rate untouched) and the bar tracks the window-relative residual, not a moved equilibrium. The T-082 freeze red-before rides the travel arm below (a frozen nose travels 0.0).
 const HSO_NOSE_TRAVEL_BAR := 2.5 ## Min nose-pitch travel (deg) toward the flow over the window: measured 4.5 at trim_rate 0.7; pre-fix measured 0.0 (the attitude freeze — the red-before signature).
 
 ## (T-081) The mush-exit bars, verbatim from the ticket: over a 240-frame
@@ -163,6 +173,8 @@ func _run_scenarios() -> void:
 	await _scenario_lift()
 	await _scenario_energy_exchange()
 	await _scenario_banking()
+	await _scenario_flight_speed_quartet_locked() ## T-133 — the ×0.8 quartet, the satellite bands and the untouched rates, value-locked.
+	await _scenario_turn_circle_shrinks() ## T-133 — the same hand draws a ≈×0.8 smaller circle at the slower pace.
 	await _scenario_stall()
 	await _scenario_landing_slide()
 	await _scenario_chase_camera()
@@ -171,6 +183,7 @@ func _run_scenarios() -> void:
 	await _scenario_bench_landing()
 	await _scenario_hard_landing()
 	await _scenario_trim_glide_lands_clean()
+	await _scenario_natural_glide_touch_dust() ## T-133 — the developed glide touch still dusts and settles under the (kept) land bar.
 	await _scenario_flare_sheds_speed_low() ## T-022 — pitch-up low brakes into a nose-high sink instead of ballooning.
 	await _scenario_pitch_attitude_bounded() ## T-083 — held pitch-up caps out near vertical instead of stacking past it.
 	await _scenario_hands_off_glide_trims() ## T-082 — a released pitch input trims the nose onto the velocity vector instead of freezing it.
@@ -411,7 +424,7 @@ func _scenario_flap_speed_envelope() -> void:
 	_dbg("envelope pump: y=%.2f pump_fwd=%.2f speed=%.2f" % [
 			pump_y, pump_speed, _player.velocity.length()])
 	# Leg 2 — one fully-rested flap at cruise, measured from a settled glide.
-	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -13.6)) ## (T-133) cruise start re-locked to the ×0.8 trim.
 	await _wait_frames(30)
 	var fwd0 := _player.forward_speed
 	var vy0 := _player.velocity.y
@@ -426,6 +439,8 @@ func _scenario_flap_speed_envelope() -> void:
 			fwd0, fwd1, fwd2, vy0, vy1, vy2])
 	var fwd_gain := maxf(fwd1, fwd2) - fwd0
 	var vy_gain := vy1 - vy0
+	print("SIM DATA flap_speed_envelope: pump %.2f m/s at y %.2f, cruise tap fwd %+.2f vy %+.2f" % [
+			pump_speed, pump_y, fwd_gain, vy_gain]) ## (T-133) pace-proportional re-derivation evidence
 	_check("flap_speed_envelope",
 			pump_speed < FLAP_PUMP_CEIL and pump_y > 1.0 and fwd_gain < 2.0 and vy_gain > 4.0
 					and finite,
@@ -455,6 +470,8 @@ func _scenario_sustained_flap_ceiling() -> void:
 	var finite := _player.velocity.is_finite()
 	_dbg("sustained: peak_fwd=%.2f end speed=%.2f end y=%.2f" % [
 			peak_fwd, _player.velocity.length(), _player.position.y])
+	print("SIM DATA sustained_flap_ceiling: peak %.2f m/s fwd (ceil %.1f), end speed %.2f, end y %.2f" % [
+			peak_fwd, FLAP_PUMP_CEIL, _player.velocity.length(), _player.position.y]) ## (T-133) re-derivation evidence
 	_check("sustained_flap_ceiling", peak_fwd < FLAP_PUMP_CEIL and finite,
 			"12 paced flaps peaked %.2f m/s fwd (ceil %.1f), finite=%s" % [
 					peak_fwd, FLAP_PUMP_CEIL, finite])
@@ -514,6 +531,80 @@ func _scenario_banking() -> void:
 	_dbg("banked: fwd (%.2f, %.2f, %.2f), right wing y %.2f" % [fwd.x, fwd.y, fwd.z, right_wing])
 	_check("banked_left_turn", fwd.x < -0.3 and right_wing > 0.05,
 			"forward (%.2f, %.2f, %.2f), right wing y %.2f" % [fwd.x, fwd.y, fwd.z, right_wing])
+
+
+## (T-133) Value lock for the slower-bird pass: the coupled speed quartet
+## (×0.8 of the T-117 pace), every re-derived satellite band from the ticket
+## table, and the three turn/pitch rate exports the tine deliberately left
+## alone — all pinned as literals so a silent retune fails the same night.
+## The behavioral arm re-locks CRUISE at the new pace: a glide settled 120
+## frames (2 s) from the trim-imposed start must cruise at `glide_speed`
+## (measured 13.35; band 13.0–14.0 — the pre-T-133 tree, still converging up
+## toward its ~17 trim at the read, measures 14.51 and fails — the revert
+## probe's re-locked-value failure).
+func _scenario_flight_speed_quartet_locked() -> void:
+	var exports_ok: bool = _player.flap_impulse == 10.4 \
+			and _player.glide_speed == 13.6 \
+			and _player.max_speed == 28.8 \
+			and _player.stall_speed == 4.0 \
+			and _player.flap_push_taper == 8.0 \
+			and _player.max_land_speed == 16.0 \
+			and _player.dive_pose_min_speed == 7.2 \
+			and _player.flare_max_sink == 6.4 \
+			and _player.dust_impact_min == 1.2 \
+			and _player.effort_climb_speed == 1.6
+	var rates_ok: bool = _player.bank_rate == 4.2 \
+			and _player.full_bank_yaw_rate == 1.8 \
+			and _player.pitch_speed == 2.64
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -13.6))
+	await _wait_frames(120) ## Settle onto the trim cruise (each pace's own).
+	var cruise := _player.forward_speed
+	var finite := _player.velocity.is_finite()
+	print("SIM DATA flight_speed_quartet_locked: settled cruise fwd %.2f m/s" % cruise)
+	_check("flight_speed_quartet_locked",
+			exports_ok and rates_ok and cruise > 13.0 and cruise < 14.0 and finite,
+			"quartet+satellites ok=%s, rates ok=%s, settled cruise %.2f m/s (band 13.0-14.0), finite=%s" % [
+					exports_ok, rates_ok, cruise, finite])
+
+
+## (T-133) The turn-circle proof: radius ≈ speed ÷ yaw-rate — the quartet
+## scaled the speeds ×0.8 while the bank/yaw machinery stayed byte-unchanged
+## (the rate pins live in `flight_speed_quartet_locked`), so the same held turn
+## must ride a ≈×0.8 smaller circle at the same hand. From a settled cruise
+## glide (120-frame settle onto each pace's own trim), 90 frames (1.5 s) of
+## full turn_left: the measured radius (horizontal path length ÷ swept heading,
+## entry transient included — identical both paces) must sit inside a ×0.8 band
+## of the pre-T-133 measurement — BOTH bounds, so a no-op (ratio 1.0) and a
+## collapse (quarter radius) fail the same night. Pre-T-133 measured 12.35 m
+## (path 22.8 m, swept 1.84 rad) on the unmodified tree; the ×0.8 tree measures
+## 9.95 m — ratio 0.806. The revert probe re-measures ≈12.35 and fails the
+## upper bound; the sanity arm demands a real swept heading so a broken turn
+## cannot vacuously green the ratio.
+const TURN_RADIUS_PRE_T133 := 12.35
+
+func _scenario_turn_circle_shrinks() -> void:
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -13.6))
+	await _wait_frames(120) ## Settle onto the trim cruise.
+	var yaw0 := _flat_yaw()
+	var prev: Vector3 = _player.global_position
+	var path := 0.0
+	Input.action_press("turn_left")
+	for _i in 90:
+		await get_tree().physics_frame
+		var p := _player.global_position
+		path += Vector2(p.x - prev.x, p.z - prev.z).length()
+		prev = p
+	Input.action_release("turn_left")
+	var swept := absf(angle_difference(_flat_yaw(), yaw0))
+	var radius := path / swept if swept > 0.001 else INF
+	var finite := _player.velocity.is_finite()
+	print("SIM DATA turn_circle_shrinks: radius %.2f m (path %.1f m, swept %.2f rad, end speed %.2f)" % [
+			radius, path, swept, _player.velocity.length()])
+	_check("turn_circle_shrinks",
+			radius <= TURN_RADIUS_PRE_T133 * 0.87 and radius >= TURN_RADIUS_PRE_T133 * 0.72
+					and swept > 1.0 and finite,
+			"radius %.2f m (pre-T-133 %.2f m; band ×0.72–×0.87), swept %.2f rad (bar > 1.0), finite=%s" % [
+					radius, TURN_RADIUS_PRE_T133, swept, finite])
 
 
 ## Too slow: lift collapses — the stall leg must sink far harder than a glide leg
@@ -699,15 +790,25 @@ func _scenario_hard_landing() -> void:
 ## contact frame: the pigeon ends GROUNDED having spent zero airborne
 ## floor-contact frames above the skid bar — the old model ghost-slid ~3 m in
 ## AIR past the touch because the settle bar sat under the glide's own arrival
-## speed. Started low (~1.5–2 m) so the touch arrives ≈ 15.3 m/s: higher starts
-## bleed less and can exceed the 16 m/s settle bar (SIM_DEBUG prints the touch).
+## speed. Started low (~1.5–2 m) so the touch stays under the 16 m/s settle
+## bar — T-133 re-locked the start to the ×0.8 trim and the touch arrives
+## ≈ 13.2 m/s (was ≈ 15.3 at the ×1.0 pace); higher starts bleed less and can
+## exceed the bar (the SIM DATA line prints the touch).
 func _scenario_trim_glide_lands_clean() -> void:
-	await _set_up(true, Vector3(0.0, 1.8, 0.0), Vector3(0.0, 0.0, -17.0))
+	await _clear_dust_puffs() ## (T-133) stale-puff hygiene — the count must read THIS landing only.
+	await _set_up(true, Vector3(0.0, 1.8, 0.0), Vector3(0.0, 0.0, -13.6)) ## (T-133) the natural trim-speed glide is now the ×0.8 pace.
 	var air_floor_frames: int = 0
 	var first_air_floor_speed := 0.0 ## Speed of the first AIR frame on the floor — the touch, if the settle missed it.
 	var settle_speed := 0.0 ## Speed at the grounding frame — with a contact-frame settle this IS the touch speed.
+	var last_air_speed := 0.0 ## The last airborne total speed — one frame above the judged touch (T-133).
+	var last_descending_vy := 0.0 ## The last airborne descending vy — the sink the dust gate reads (T-133).
+	var dust_before: int = _count_effects("dust_puff.tscn") ## (T-133) the natural glide touch must still puff dust.
 	for _i in 300:
 		await get_tree().physics_frame
+		if not _player.is_grounded:
+			last_air_speed = _player.velocity.length()
+			if _player.velocity.y < 0.0:
+				last_descending_vy = _player.velocity.y
 		if _player.is_on_floor() and not _player.is_grounded:
 			if first_air_floor_speed <= 0.0:
 				first_air_floor_speed = _player.velocity.length()
@@ -716,14 +817,52 @@ func _scenario_trim_glide_lands_clean() -> void:
 		if _player.is_grounded:
 			settle_speed = _player.velocity.length()
 			break
+	var dust_puffed := _count_effects("dust_puff.tscn") == dust_before + 1
 	var finite := _player.velocity.is_finite() and _player.position.is_finite()
 	_dbg("trim glide: touch %.2f m/s, %d air floor frames, grounded=%s, settled at %.2f m/s" % [
 			first_air_floor_speed, air_floor_frames, _player.is_grounded, settle_speed])
-	print("SIM DATA trim_glide_lands_clean: arrival %.2f m/s, %d air floor frames, settled %.2f m/s" % [first_air_floor_speed, air_floor_frames, settle_speed]) ## (T-081) margin evidence
+	print("SIM DATA trim_glide_lands_clean: arrival %.2f m/s (sink %.2f m/s), %d air floor frames, settled %.2f m/s, dust %s" % [
+			last_air_speed, last_descending_vy, air_floor_frames, settle_speed, dust_puffed]) ## (T-081, T-133) margin evidence
 	_check("trim_glide_lands_clean", _player.is_grounded and air_floor_frames == 0 and finite,
 			"grounded=%s, %d airborne floor frames above %.1f m/s (first AIR-floor speed %.2f, settled at %.2f m/s, finite=%s)" % [
 					_player.is_grounded, air_floor_frames, _player.skid_settle_speed,
 					first_air_floor_speed, settle_speed, finite])
+
+
+## (T-133) The dust trap, as a landing: a DEVELOPED natural glide — the full
+## trim descent with its settled sink, not leg 1's short hop whose sink never
+## finishes developing — must (a) arrive under `max_land_speed` and settle into
+## the waddle, (b) touch with a sink at or above `dust_impact_min`
+## (export-relative: keeping the old 1.5 gate over the ×0.8 sink fails exactly
+## here — the trap the ticket names), and (c) actually puff the dust. The bars
+## are export-relative so a silent gate raise or a re-scaled quartet without
+## the gate re-derivation both fail the same night.
+func _scenario_natural_glide_touch_dust() -> void:
+	await _clear_dust_puffs() ## (T-133) stale-puff hygiene — the count must read THIS landing only.
+	var dust_before: int = _count_effects("dust_puff.tscn")
+	await _set_up(true, Vector3(0.0, 6.0, 0.0), Vector3(0.0, 0.0, -13.6))
+	var touch_speed := 0.0 ## The last airborne total speed — one frame above the judged touch.
+	var touch_sink := 0.0 ## The last airborne descending vy — the sink the dust gate reads.
+	var grounded_at := -1
+	for _i in 1800:
+		await get_tree().physics_frame
+		if not _player.is_grounded:
+			touch_speed = _player.velocity.length()
+			if _player.velocity.y < 0.0:
+				touch_sink = _player.velocity.y
+		if _player.is_grounded:
+			grounded_at = _i
+			break
+	var dust_puffed := _count_effects("dust_puff.tscn") == dust_before + 1
+	var settled := _player.is_grounded and touch_speed < _player.max_land_speed
+	var finite := _player.velocity.is_finite() and _player.position.is_finite()
+	print("SIM DATA natural_glide_touch_dust: arrival %.2f m/s (sink %.2f m/s, gate %.2f), grounded at frame %d, dust %s" % [
+			touch_speed, touch_sink, _player.dust_impact_min, grounded_at, dust_puffed]) ## (T-133) trap evidence
+	_check("natural_glide_touch_dust",
+			settled and -touch_sink >= _player.dust_impact_min and dust_puffed and finite,
+			"settled=%s (arrival %.2f vs max_land_speed %.2f), sink %.2f m/s (bar >= dust_impact_min %.2f), dust=%s, finite=%s" % [
+					settled, touch_speed, _player.max_land_speed, touch_sink,
+					_player.dust_impact_min, dust_puffed, finite])
 
 
 ## (T-022) Holding pitch-up low sheds speed into a nose-high sink instead of
@@ -732,7 +871,7 @@ func _scenario_trim_glide_lands_clean() -> void:
 ## the same input traded the whole glide speed into a rocket climb (the ticket
 ## measured ~+10 m of balloon on this very input).
 func _scenario_flare_sheds_speed_low() -> void:
-	await _set_up(true, Vector3(0.0, 6.0, 0.0), Vector3(0.0, 0.0, -15.0))
+	await _set_up(true, Vector3(0.0, 6.0, 0.0), Vector3(0.0, 0.0, -13.6)) ## (T-133) settled ~13.6 m/s trim glide.
 	await _wait_frames(30) ## Settle into the trim glide.
 	var y0 := _player.position.y
 	var s0 := _player.velocity.length()
@@ -742,8 +881,14 @@ func _scenario_flare_sheds_speed_low() -> void:
 	var finite := _player.velocity.is_finite()
 	_dbg("flare: y %.2f -> %.2f, speed %.2f -> %.2f, end vy %.2f" % [
 			y0, y1, s0, s1, _player.velocity.y])
+	print("SIM DATA flare_sheds_speed_low: settled %.2f -> ended %.2f m/s, height %+.2f m over the hold" % [
+			s0, s1, y1 - y0]) ## (T-133) pace-proportional re-derivation evidence
+	## (T-133) Bars re-derived ×0.8 from the new pace's measured run (settled
+	## 13.13 → ended 9.14, +1.83 m; the old pace measured 14.56 → 10.44, +1.26):
+	## the end bar 9.8 keeps the red-before — a flare-less tree keeps its speed
+	## (≥ settled > 9.8) and the pre-T-133 tree flares to ~10.4 > 9.8.
 	_check("flare_sheds_speed_low",
-			s0 > 13.0 and y1 - y0 < 2.5 and s1 < 11.0 and finite,
+			s0 > 10.5 and y1 - y0 < 2.5 and s1 < 9.8 and finite,
 			"settled speed %.2f m/s, height %+.2f m over the hold, ended %.2f m/s (finite=%s)" % [
 					s0, y1 - y0, s1, finite])
 
@@ -760,7 +905,7 @@ func _scenario_flare_sheds_speed_low() -> void:
 ## a 5 s window) stay under bars taken from the pre-fix tree's measured run —
 ## red-before / green-after, both measured runs recorded in the ticket.
 func _scenario_pitch_attitude_bounded() -> void:
-	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -13.6)) ## (T-133) cruise start re-locked to the ×0.8 trim.
 	await _wait_frames(30) ## Settle into the trim glide.
 	var max_pitch_deg := 0.0
 	var peak_vy := -INF
@@ -783,6 +928,8 @@ func _scenario_pitch_attitude_bounded() -> void:
 	var finite := _player.velocity.is_finite()
 	_dbg("pitch bound: max |pitch| %.1f deg, peak vy %.2f m/s, mush %d/300 frames" % [
 			max_pitch_deg, peak_vy, mush_frames])
+	print("SIM DATA pitch_attitude_bounded: max |pitch| %.1f deg, peak vy %.2f m/s, mush %d/300 frames" % [
+			max_pitch_deg, peak_vy, mush_frames]) ## (T-133) pace-proportional re-derivation evidence
 	_check("pitch_attitude_bounded",
 			max_pitch_deg <= PITCH_BOUND_DEG and peak_vy < BALLOON_VY_BAR
 					and mush_frames < BALLOON_MUSH_BAR and finite,
@@ -806,7 +953,7 @@ func _scenario_pitch_attitude_bounded() -> void:
 ## pitch rate deepened the entry the window cannot out-run — provenance on the
 ## const).
 func _scenario_hands_off_glide_trims() -> void:
-	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -13.6)) ## (T-133) cruise start re-locked to the ×0.8 trim.
 	await _wait_frames(30) ## Settle into the trim glide.
 	await _hold("pitch_up", 8)
 	var nose0_deg := rad_to_deg(asin(clampf((-_player.transform.basis.z).y, -1.0, 1.0)))
@@ -841,7 +988,7 @@ func _scenario_hands_off_glide_trims() -> void:
 ## the lift-deficiency cut on the aligner is what lets the sink develop.
 ## Red-before / green-after with both measured runs recorded in the ticket.
 func _scenario_hands_off_mush_exits() -> void:
-	await _set_up(true, Vector3(0.0, 30.0, 0.0), Vector3(0.0, 0.0, -6.6))
+	await _set_up(true, Vector3(0.0, 30.0, 0.0), Vector3(0.0, 0.0, -5.3)) ## (T-133) ×0.8 of 6.6 — the same lift fraction (~0.39) at the new glide_speed.
 	_player.rotate_object_local(Vector3.RIGHT, 0.29) ## Nose up — the mush attitude.
 	var y0 := _player.position.y
 	var min_vy := 0.0
@@ -943,7 +1090,7 @@ func _scenario_stall_falls_develops() -> void:
 ## (bookkept) leaves that bird standing skewed; the measured controller eats
 ## the cant in flight and Fix 3 levels whatever the skid leaves.
 func _scenario_loop_over_top_roll_recovers() -> void:
-	await _set_up(true, Vector3(0.0, 25.0, 0.0), Vector3(0.0, 0.0, -17.0))
+	await _set_up(true, Vector3(0.0, 25.0, 0.0), Vector3(0.0, 0.0, -13.6)) ## (T-133) cruise start re-locked to the ×0.8 trim; the flow-kick fraction impulse/speed is pace-invariant.
 	await _wait_frames(30) ## Settle into the trim glide (the flap_speed_envelope leg-2 recipe).
 	await _hold("turn_left", 15) ## Seed the asymmetry a real loop entry has.
 	var entry_fwd := -_player.transform.basis.z
@@ -1036,7 +1183,7 @@ func _scenario_loop_over_top_roll_recovers() -> void:
 	## flight and Fix 3 levels whatever the skid leaves.
 	var replay_roll := deg_to_rad(_player.max_bank_deg)
 	_player.reset_flight(Vector3(0.0, 2.5, 0.0), 0.0) ## Low start: the canted trim glide sinks only ~1.5 m/s, so a high start glides past the test slab's -100 edge and the T-042 guard's upright reset vacuously greens the stand read (measured).
-	_player.velocity = Vector3(0.0, 0.0, -17.0) ## Cruise along the (still level-projected) nose.
+	_player.velocity = Vector3(0.0, 0.0, -13.6) ## Cruise along the (still level-projected) nose. (T-133: the ×0.8 trim.)
 	_player.rotate_object_local(Vector3.BACK, replay_roll)
 	await _wait_frames(2)
 	for _i in 1200:
@@ -1228,7 +1375,8 @@ func _scenario_city_street_flyover() -> void:
 	var max_drift := 0.0
 	var finite := true
 	var crossed := false
-	for i in 1500:
+	var frames_used := -1 ## (T-133) crossing-time evidence for the re-derived budget.
+	for i in 2000: ## (T-133) budget re-derived ×0.8: the crossing measured 869 frames pre-T-133 (budget 1500) and 1060 at the new pace — 2000 keeps ~1.9× margin without licensing a crawl.
 		await get_tree().physics_frame
 		if i % 24 == 0 and _player.position.y < 28.0:
 			await _tap("flap") ## T-015: taps pace the climb toward the band; the crossing itself rides a glide flaps can no longer throttle past ~25.
@@ -1237,7 +1385,10 @@ func _scenario_city_street_flyover() -> void:
 		finite = finite and _player.velocity.is_finite() and _player.position.is_finite()
 		if _player.position.z >= z_end:
 			crossed = true
+			frames_used = i
 			break
+	print("SIM DATA city_street_flyover: crossed=%s in %d frames, min y %.1f, max drift %.1f m" % [
+			crossed, frames_used, min_y, max_drift]) ## (T-133) budget re-derivation evidence
 	_check("city_street_flyover", crossed and min_y > 5.0 and max_drift < 6.0 and finite,
 			"crossed=%s, min y %.1f, max drift %.1f m, finite=%s" % [crossed, min_y, max_drift, finite])
 
@@ -4164,7 +4315,8 @@ func _scenario_city_plaza_landmark() -> void:
 	var max_drift := 0.0
 	var finite := true
 	var crossed := false
-	for i in 1500:
+	var landmark_frames_used := -1 ## (T-133) crossing-time evidence for the re-derived budget.
+	for i in 2000: ## (T-133) budget re-derived ×0.8: measured 873 pre-T-133 (budget 1500), 1059 at the new pace.
 		await get_tree().physics_frame
 		if i % 24 == 0 and _player.position.y < 28.0:
 			await _tap("flap") ## The flyover cadence — pace the climb, ride the glide across.
@@ -4173,7 +4325,10 @@ func _scenario_city_plaza_landmark() -> void:
 		finite = finite and _player.velocity.is_finite() and _player.position.is_finite()
 		if _player.position.x >= x_end:
 			crossed = true
+			landmark_frames_used = i
 			break
+	print("SIM DATA city_plaza_landmark flyover: crossed=%s in %d frames, min y %.1f, max drift %.1f m" % [
+			crossed, landmark_frames_used, min_y, max_drift]) ## (T-133) budget re-derivation evidence
 	var flyover_ok: bool = crossed and min_y > 20.0 and max_drift < 6.0 and finite
 	## --- landing: the plinth cap is a perch (the bench-landing template) ------
 	await _set_up(true, _city.to_global(Vector3(plaza.x, cap_top + 0.5, plaza.z)), Vector3.ZERO)
@@ -9371,6 +9526,19 @@ func _count_effects(scene_suffix: String) -> int:
 	return count
 
 
+## (T-133) Harness hygiene for dust-counting scenarios: a puff from an EARLIER
+## scenario's landing can still be alive (0.75 s lifetime) when this scenario
+## samples its `before` count, and that stale puff dying mid-window turns the
+## before/after compare into a false negative (measured: both T-133 landings
+## dusted while the compare read false). Queue-free the stale puffs and let a
+## frame pass before sampling.
+func _clear_dust_puffs() -> void:
+	for node in get_tree().get_nodes_in_group("juice_effects"):
+		if is_instance_valid(node) and (node as Node).scene_file_path.ends_with("dust_puff.tscn"):
+			node.queue_free()
+	await _wait_frames(2)
+
+
 ## A real lobbed splat fires a one-shot droplet burst at the hit point, facing
 ## along the surface, and cleans itself up once the payload has burnt out.
 func _scenario_juice_splat_burst() -> void:
@@ -9433,9 +9601,23 @@ func _scenario_juice_dust_puff() -> void:
 ## A touchdown shakes the camera — a tick, never full-blown — and the trauma
 ## decays back to dead still.
 func _scenario_juice_landing_shake() -> void:
-	await _set_up(true, Vector3(0.0, 3.6, 4.0), Vector3(0.0, -3.0, -9.0))
-	await _await_grounded(150)
 	var cam: ChaseCamera = _player.chase_camera
+	## (T-133) Two robustness pins for the drop. The old (0, −3, −9) recipe
+	## arrived at asin(5.2/10.3) ≈ 30.3° — ON the 30° `max_land_angle_deg`
+	## settle bar — so invisible cross-scenario float state decided whether the
+	## touch settled (full impact recorded, trauma ~0.32) or was rejected into
+	## the skid path (gutted impact, trauma 0.11, a 5-frame decay window the
+	## lens check can out-live). −12 m/s forward re-derives the arrival to
+	## ~24° / ~13 m/s: an unambiguous settle, trauma ~0.37 — still mid-band
+	## against the never-full 0.5 bar. And the shake pattern rides the camera's
+	## GLOBAL `_shake_clock`, which accumulates across every scenario in the
+	## run — the check window samples a fixed-seed patch of the noise field at
+	## whatever phase the whole prior run left (adding scenarios ahead of this
+	## one moved the phase and failed `moved` with a healthy shake). Pin the
+	## phase at the drop; the assertion bars themselves are untouched.
+	cam._shake_clock = 0.0
+	await _set_up(true, Vector3(0.0, 3.6, 4.0), Vector3(0.0, -3.0, -12.0))
+	await _await_grounded(150)
 	var kicked := cam.trauma > 0.1 and cam.trauma <= 0.5 ## Felt, but cozy — never full trauma.
 	var moved := cam.shake_offset.length() > 0.0005
 	for _i in 10:

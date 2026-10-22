@@ -56,23 +56,23 @@ signal off_world_reset(from: Vector3)
 enum State { AIR, GROUND }
 
 @export_group("Flap")
-@export var flap_impulse: float = 13.0 ## Up+forward impulse of a fully rested flap (m/s).
+@export var flap_impulse: float = 10.4 ## Up+forward impulse of a fully rested flap (m/s). (T-133: ×0.8 of 13.0 — the coupled speed quartet; paces the slower cruise.)
 @export var flap_interval: float = 0.35 ## Seconds since the last flap for full strength; faster flaps are weaker.
 @export var flap_min_fraction: float = 0.25 ## Impulse fraction when mash-spamming with no rest.
 @export var flap_cooldown: float = 0.12 ## Hard floor between two flaps.
-@export var flap_push_taper: float = 10.0 ## (T-015) m/s band over which the airborne flap's forward shove fades: full 45° shove at glide_speed - taper, pure lift at glide_speed — flaps climb and pace, dives add speed. Tune-safe: values ≤ 0 degrade to the old fixed 45° flap.
+@export var flap_push_taper: float = 8.0 ## (T-015) m/s band over which the airborne flap's forward shove fades: full 45° shove at glide_speed - taper, pure lift at glide_speed — flaps climb and pace, dives add speed. Tune-safe: values ≤ 0 degrade to the old fixed 45° flap. (T-133: ×0.8 of 10.0 — the band ends at `glide_speed`, so it scales with the quartet or the shove-fade zone swallows sub-glide flight.)
 @export var flap_sustained_fade: float = 0.5 ## (T-043) Fraction of the flap impulse removed at full taper blend, so sustained flapping converges below the dive cap instead of at it. Tune 0.35–0.6 in playtest; 0 keeps the old full-power flap. Ground takeoffs and stall-recovery flaps (blend == 0) keep full power by construction.
 
 @export_group("Lift & stall")
 @export var gravity: float = 12.0
-@export var glide_speed: float = 17.0 ## Forward speed at which lift is maximal.
+@export var glide_speed: float = 13.6 ## Forward speed at which lift is maximal. (T-133: ×0.8 of 17.0 — the lift model keys off `forward_speed / glide_speed`, so scaling the quartet keeps mush onset and align authority proportionally intact.)
 @export var min_gravity_fraction: float = 0.2 ## Gravity fraction left at full lift (never fully cancels).
-@export var stall_speed: float = 5.0 ## Below this airspeed lift collapses and the nose drops.
+@export var stall_speed: float = 4.0 ## Below this airspeed lift collapses and the nose drops. (T-133: ×0.8 of 5.0 — the stall margin stays proportional.)
 @export var stall_gravity_scale: float = 1.7 ## Gravity multiplier while stalled.
 @export var stall_nose_drop_rate: float = 1.1 ## Rad/s the nose pitches down while stalled.
 
 @export_group("Handling")
-@export var max_speed: float = 36.0 ## (T-117) The WASD ×1.2 pass raised the cap 30 → 36 — this is where "dive faster" lands.
+@export var max_speed: float = 28.8 ## (T-117) The WASD ×1.2 pass raised the cap 30 → 36. (T-133: ×0.8 → 28.8 — tames the dive and keeps it the speed tool.)
 @export var drag: float = 0.06
 @export var max_bank_deg: float = 40.0
 @export var bank_rate: float = 4.2 ## Rad/s the body rolls toward the target bank. (T-117: ×1.2)
@@ -88,7 +88,7 @@ enum State { AIR, GROUND }
 
 @export_group("Flare") ## T-022: pitch-up in a shallow descent sheds airspeed into a nose-high sink instead of trading it all into a climb.
 @export var flare_drag: float = 0.8 ## Extra 1/s drag on the horizontal velocity while flaring, scaled by pitch input (tune 0.5–0.8; 0.8 tuned — see T-022).
-@export var flare_max_sink: float = 8.0 ## Lower edge of the flare band (m/s): sinks steeper than this are dives — the speed tool — and keep their speed.
+@export var flare_max_sink: float = 6.4 ## Lower edge of the flare band (m/s): sinks steeper than this are dives — the speed tool — and keep their speed. (T-133: ×0.8 of 8.0 — the shallower-sinking bird shifts the dive-vs-flare edge down with it.)
 
 @export_group("Bounds") ## T-042: the off-world guard — under the world there is no floor and no fail state but starvation.
 @export var off_world_y: float = -5.0 ## The guard line (m). Unreachable over real terrain — the lowest walkable surface is the ground slab top at y = 0 — so only the void past the apron ever dips below it.
@@ -109,7 +109,7 @@ var respawn_point: Vector3 = Vector3.ZERO
 var off_world_resets: int = 0
 
 @export_group("Landing & waddle")
-@export var max_land_speed: float = 16.0 ## Total speed below which a floor touch settles into the waddle; faster ones skid. (T-021 raised 12 → 16: the model's own trim glide touches down at 15.3–17.2 m/s, so the bar must sit above the natural arrival.)
+@export var max_land_speed: float = 16.0 ## Total speed below which a floor touch settles into the waddle; faster ones skid. (T-021 raised 12 → 16: the model's own trim glide touches down at 15.3–17.2 m/s, so the bar must sit above the natural arrival. T-133 re-measured at the ×0.8 pace — the trim glide now arrives ~12–14 m/s — and KEPT 16: the bar sits further above the natural arrival, so landings are more forgiving.)
 @export var max_land_angle_deg: float = 30.0 ## Steepest descent angle that still counts as a gentle touchdown.
 @export var skid_settle_speed: float = 2.0 ## (T-021) Speed a rejected touch's skid must bleed under before it may still settle near rest — the touch itself was already judged (and rejected) on first contact.
 @export var walk_speed: float = 2.64 ## Waddle speed (m/s) — slow on purpose. (T-117: ×1.2)
@@ -120,7 +120,7 @@ var off_world_resets: int = 0
 
 @export_group("Pose") ## The visual pose thresholds (T-011) — when the wings read as a dive.
 @export var dive_pose_nose: float = -0.35 ## Nose-pitch sine below which the wings sweep into the dive pose (~20° down).
-@export var dive_pose_min_speed: float = 9.0 ## Forward speed (m/s) the dive pose demands — slow mushes stay glide.
+@export var dive_pose_min_speed: float = 7.2 ## Forward speed (m/s) the dive pose demands — slow mushes stay glide. (T-133: ×0.8 of 9.0 — maneuvers that showed the dive pose keep showing it.)
 
 @export_group("Poop")
 @export var poop_scene: PackedScene = preload("res://scenes/poop.tscn") ## Projectile the poop action spawns.
@@ -128,14 +128,14 @@ var off_world_resets: int = 0
 @export var poop_drop_offset: float = 0.3 ## Spawn distance below the body (m).
 
 @export_group("Audio") ## T-012: the sounds ride the state machine's own events.
-@export var effort_climb_speed: float = 2.0 ## Upward speed (m/s) the pigeon must ALREADY be climbing at for a flap to also play the strained wing-beat effort sound (the impulse itself would flatter every flap).
+@export var effort_climb_speed: float = 1.6 ## Upward speed (m/s) the pigeon must ALREADY be climbing at for a flap to also play the strained wing-beat effort sound (the impulse itself would flatter every flap). (T-133: ×0.8 of 2.0 — climbs at the slower pace are shallower.)
 
 @export_group("Juice") ## T-013: the one-shots ride the same state events.
 @export var feather_scene: PackedScene = preload("res://scenes/feather_poof.tscn") ## Feathers poof off a hard flap.
 @export var dust_scene: PackedScene = preload("res://scenes/dust_puff.tscn") ## Dust kicks up on a touchdown.
 @export var feather_flap_fraction: float = 0.85 ## Rested fraction a flap needs before it poofs feathers.
 @export var feather_min_interval: float = 0.9 ## Hard floor between feather poofs — paced flapping never featherscreens.
-@export var dust_impact_min: float = 1.5 ## Downward speed (m/s) a touchdown needs to kick up dust — just under the flight model's natural glide-touchdown sink (~1.8), so every real landing puffs.
+@export var dust_impact_min: float = 1.2 ## Downward speed (m/s) a touchdown needs to kick up dust. (T-133: ×0.8 of 1.5 — the ticket's named trap: the ×0.8 sinks measure 1.72 on the developed trim glide (was ~1.8) and 1.23 on the short hop, so the predicted ~1.44 developed sink grazed the old 1.5 and the hop sat under it either way; 1.2 keeps every landing that dusted before dusting and widens the hop in.)
 @export var land_shake: float = 0.45 ## Camera-shake fraction of a max-speed touchdown (the camera scales it by impact).
 
 var forward_speed: float
