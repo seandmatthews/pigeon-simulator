@@ -238,7 +238,7 @@ dial, so its bars re-derive).
 
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
-| T-133 | [Slower bird, bigger city: the speed quartet ×0.8, turn rates untouched](T-133-slower-bird.md) | flight-control | 3 | 2 | proposed |
+| T-133 | [Slower bird, bigger city: the speed quartet ×0.8, turn rates untouched](T-133-slower-bird.md) | flight-control | 3 | 2 | done |
 
 ## Suggested build order
 
