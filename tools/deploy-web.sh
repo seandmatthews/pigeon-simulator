@@ -230,7 +230,8 @@ verify() {
 				log "VERIFY OK: $head, HTML body served${DEPLOY_RESOLVED_IP:+ (pinned to $DEPLOY_RESOLVED_IP)}"
 				return 0
 			fi
-			fail "HTTP 200 but the body is not the game shell (no <html>)"
+			log "HTTP 200 but the body lacked <html> (attempt $try/$attempts) — a shell read can race the publish; retrying"
+		fi
 		fi
 		if [ "$try" -eq 1 ]; then
 			log "not 200 yet (${head:-no response}) — nudging caddy (first-ever cert issuance can lag)"
