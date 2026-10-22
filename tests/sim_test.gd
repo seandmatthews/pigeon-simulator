@@ -282,6 +282,7 @@ func _run_scenarios() -> void:
 	await _scenario_web_quit_gated() ## T-126 — both branches of the quit seam through the real scenes.
 	await _scenario_stepped_boot_pins() ## T-129 — the stepped city boot: ordered slices, ms trace, the sync rig defaults, the web diet.
 	await _scenario_web_handoff_single_screen() ## T-131 — the web handoff shows ONE warming screen: the shell covers it, the note stands down.
+	await _scenario_pilot_time_scale() ## T-132 — the pilot's --time-scale slows the world, not the frames; flagless boots stay 1.0.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -6552,6 +6553,81 @@ func _scenario_web_handoff_single_screen() -> void:
 			"desktop: covers=%s (want false) note_rest_hidden=%s | web: covers=%s (want true) note_rest_hidden=%s" % [
 					desktop_covers, desktop_note_hidden,
 					web_covers, web_note_hidden])
+
+
+## --- scenario (T-132 agent slow-mo) ------------------------------------------
+
+
+## (T-132) The pilot's `--time-scale` opt-in must slow the WORLD, not the
+## frames — and must be unable to touch a normal launch. Legs: the flagless
+## boot this very process ran stands at 1.0 (every gate runs that path); the
+## parse seam's truth table through the REAL Game autoload (the user arg beats
+## the PIGEON_TIME_SCALE env; absent/garbage/NaN/out-of-range/below-floor all
+## resolve 1.0, so a mistyped flag never silently means something); the
+## applier half driven directly — a parsed 0.1 actually LANDS on
+## Engine.time_scale and an empty-args call restores 1.0 (a wiring revert —
+## _ready never calling the applier, or the applier hard-setting 1.0 — fails
+## here, not just the table); and the rate contract measured the way the game
+## lives it — the SAME 60 physics frames accumulated from the harness node's
+## own delta run 1.0 game-second at scale 1.0 and ≈0.1 at 0.1 (the
+## 2026-10-22 binary probe: the tick rate never changes, every delta scales —
+## under the suite's --fixed-fps and in real time alike). Engine.time_scale is
+## restored and the restore re-pinned, so no later scenario inherits a slow
+## world.
+func _scenario_pilot_time_scale() -> void:
+	var default_boot_ok: bool = Engine.time_scale == 1.0
+	var saved_env := OS.get_environment("PIGEON_TIME_SCALE")
+	var parse_ok := true
+	var parse_detail := ""
+	var table := {
+		[PackedStringArray(), ""]: 1.0,
+		[PackedStringArray(["--time-scale=0.1"]), ""]: 0.1,
+		[PackedStringArray(["--time-scale=0.02"]), ""]: 0.02,
+		[PackedStringArray(["--time-scale=1.0"]), ""]: 1.0,
+		[PackedStringArray(["--time-scale=2.5"]), ""]: 1.0,
+		[PackedStringArray(["--time-scale=0"]), ""]: 1.0,
+		[PackedStringArray(["--time-scale=0.005"]), ""]: 1.0,
+		[PackedStringArray(["--time-scale=-3"]), ""]: 1.0,
+		[PackedStringArray(["--time-scale=abc"]), ""]: 1.0,
+		[PackedStringArray(["--time-scale=nan"]), ""]: 1.0,
+		[PackedStringArray(), "0.1"]: 0.1,
+		[PackedStringArray(["--time-scale=0.02"]), "0.1"]: 0.02,
+	}
+	for case in table:
+		var want: float = table[case]
+		OS.set_environment("PIGEON_TIME_SCALE", case[1])
+		var got: float = Game.pilot_time_scale(case[0])
+		if not is_equal_approx(got, want):
+			parse_ok = false
+			parse_detail += " [args=%s env='%s' got=%s want=%s]" % [case[0], case[1], got, want]
+	OS.set_environment("PIGEON_TIME_SCALE", saved_env)
+	Game.apply_pilot_time_scale(PackedStringArray(["--time-scale=0.1"]))
+	var applied_ok: bool = is_equal_approx(Engine.time_scale, 0.1)
+	Game.apply_pilot_time_scale(PackedStringArray())
+	var unapplied_ok: bool = Engine.time_scale == 1.0
+	var scaled: float = await _accumulate_game_time(0.1)
+	var normal: float = await _accumulate_game_time(1.0)
+	var restore_ok: bool = Engine.time_scale == 1.0
+	var rate_ok: bool = is_equal_approx(normal, 1.0) and scaled > 0.05 and scaled < 0.2
+	_check("pilot_time_scale_flag",
+			default_boot_ok and parse_ok and applied_ok and unapplied_ok \
+					and rate_ok and restore_ok,
+			"default_boot=%s parse=[%s] applied=%s unapplied=%s rate=%s (scaled=%.4fs normal=%.4fs over the same 60 physics frames) restore=%s" % [
+					default_boot_ok, parse_detail, applied_ok, unapplied_ok,
+					rate_ok, scaled, normal, restore_ok])
+
+
+## Accumulates the physics delta the harness node itself receives over 60
+## physics frames at the given Engine.time_scale, restoring 1.0 after — the
+## game-time that frame budget holds, whatever the pacing.
+func _accumulate_game_time(scale: float) -> float:
+	Engine.time_scale = scale
+	var acc := 0.0
+	for _i in 60:
+		await get_tree().physics_frame
+		acc += get_physics_process_delta_time()
+	Engine.time_scale = 1.0
+	return acc
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------

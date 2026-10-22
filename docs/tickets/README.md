@@ -226,7 +226,7 @@ debug tooling; direct-loop eligible per the T-116 precedent.
 
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
-| T-132 | [Slow-mo for agent play: a pilot `--time-scale` flag that slows the world, not the frames](T-132-agent-time-scale.md) | tooling | 3 | 1 | proposed |
+| T-132 | [Slow-mo for agent play: a pilot `--time-scale` flag that slows the world, not the frames](T-132-agent-time-scale.md) | tooling | 3 | 1 | done (Gate 3 pending) |
 
 ## Suggested build order
 

@@ -12,6 +12,7 @@ never wrecks the real record or the ears of the person at the keyboard.
 Usage:
   pilot.py start  --session <id> [--scene res://scenes/menu.tscn]
                   [--images 0.2|off] [--sound] [--persist] [--pos X,Y] [--size WxH]
+                  [--time-scale 0.1]
   pilot.py send   --session <id> '{"action":"flap","frames":7}'
   pilot.py state  --session <id> [--tail 1]
   pilot.py events --session <id> [--tail 20]
@@ -187,6 +188,8 @@ def cmd_start(a):
     if a.size:
         argv += ["--resolution", a.size]
     argv += [a.scene, "--", f"--pilot-session={sid}"]
+    if a.time_scale is not None:  # T-132: agent slow-mo — the game clamps to [0.01, 1.0]
+        argv += [f"--time-scale={a.time_scale}"]
 
     log = (d / "godot.log").open("wb")
     proc = subprocess.Popen(argv, cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT,
@@ -213,7 +216,8 @@ def cmd_start(a):
     print(f"  dir     {d}")
     print(f"  log     {d / 'godot.log'}")
     print(f"  images  {'off' if a.images == 'off' else a.images + 's interval'}"
-          f"  sound {'on' if a.sound else 'muted'}  persistence {'on' if a.persist else 'off'}")
+          f"  sound {'on' if a.sound else 'muted'}  persistence {'on' if a.persist else 'off'}"
+          + (f"  time-scale {a.time_scale}" if a.time_scale is not None else ""))
     print("  drive   python tests/tools/pilot.py send --session "
           f"{sid} '{{\"action\":\"flap\",\"frames\":7}}'")
     print(f"  stop    python tests/tools/pilot.py stop --session {sid}")
@@ -352,6 +356,10 @@ def main():
     s.add_argument("--images", default="0.2", help="seconds between frame PNGs, or 'off'")
     s.add_argument("--sound", action="store_true", help="don't mute audio")
     s.add_argument("--persist", action="store_true", help="allow user:// high-score writes")
+    s.add_argument("--time-scale", type=float, default=None,
+                   help="slow the whole simulation (Engine.time_scale), 0.01..1.0 — "
+                        "frames keep painting, the flight model per game-second is "
+                        "unchanged; default off")
     s.add_argument("--pos", help="window position X,Y (default: cascade)")
     s.add_argument("--size", help="window size, e.g. 1280x720")
     s.set_defaults(fn=cmd_start)

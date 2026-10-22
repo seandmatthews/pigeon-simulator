@@ -101,6 +101,33 @@ func boot_muted(user_args: PackedStringArray) -> bool:
 		return false
 	return not user_args.has("--sound")
 
+## Agent slow-mo (T-132): the pilot's `--time-scale=<v>` user arg (or the
+## PIGEON_TIME_SCALE env, which the arg beats) scales the whole simulation
+## through Engine.time_scale — every process/physics delta, Timer and Tween
+## runs time_scale×, so the world advances that fraction of realtime while
+## frames keep painting at full rate (2026-10-22 binary probe: the ~60/s tick
+## rate never changes, every delta scales). Slow-mo only: anything absent,
+## unparseable, NaN or outside [0.01, 1.0] resolves 1.0 — a mistyped flag must
+## never silently mean something other than no flag. Applied once in _ready;
+## flagless launches (and every gate) are byte-unaffected.
+func pilot_time_scale(user_args: PackedStringArray) -> float:
+	var raw := OS.get_environment("PIGEON_TIME_SCALE")
+	for arg in user_args:
+		if arg.begins_with("--time-scale="):
+			raw = arg.get_slice("=", 1)
+	if raw.is_empty():
+		return 1.0
+	var value := raw.to_float()
+	if is_nan(value) or value < 0.01 or value > 1.0:
+		return 1.0
+	return value
+
+## (T-132) The applier half of the seam — _ready wires this to the real user
+## args; the sim harness drives it directly to pin that the parsed value lands
+## on Engine.time_scale (a wiring revert fails that leg, not just the table).
+func apply_pilot_time_scale(user_args: PackedStringArray) -> void:
+	Engine.time_scale = pilot_time_scale(user_args)
+
 ## Points this run so far — zeroed only by reset_run().
 var score: int = 0
 
@@ -158,6 +185,7 @@ var _release_age: float = 999.0 ## Seconds since the last poop release; starts s
 func _ready() -> void:
 	settings_muted = boot_muted(OS.get_cmdline_user_args())
 	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), settings_muted)
+	apply_pilot_time_scale(OS.get_cmdline_user_args()) ## (T-132) agent slow-mo opt-in; flagless boots stay 1.0.
 	hunger = Hunger.new()
 	hunger.name = "Hunger"
 	add_child(hunger)

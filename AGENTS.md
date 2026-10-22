@@ -145,6 +145,19 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
   off|N`; they run 10–20 MB/s per session, so `clean` once reviewed). The title
   screen to run transition is `{"key":"Space"}` — real key events reach menus,
   action commands (`flap`, `poop`, …) only reach gameplay.
+- **`--time-scale 0.1` slows the world, not the frames (T-132).** Sets
+  `Engine.time_scale` (clamped to [0.01, 1.0], default off): every delta,
+  timer and tween runs scaled, so your seconds-per-decision latency buys 10×
+  the game time at 0.1× — line up dives instead of recovering from them. The
+  flight model per game-second is unchanged. Three slow-mo realities the
+  dogfood paid for: the PNG stream timer is a *scaled* Timer (a "0.5 s" stream
+  delivers every 0.5 game-seconds — 5 wall-s at 0.1×; game-time sampling
+  density is unchanged, and `shot` is an instant unscaled eye); command
+  `frames` are wall ticks, so at 0.1× a `{"frames":600}` hold takes 10 wall-s
+  and a fat queue of steering holds executes minutes of stale geometry — pace
+  one batch at a time; and the hunger clock runs on game time, so a session at
+  0.1× has ~60 wall-min per run before starvation. Working presets: 0.1 for
+  precision maneuvers, 0.02 for near-turn-based staging.
 - **Command files are consumed-and-deleted** by the game oldest-first; queue
   several in one file by passing multiple JSON lines. `state`'s `scene` field
   drives `wait` (`Menu`, `Main`).
