@@ -216,6 +216,18 @@ the T-116 precedent.
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-131 | [One warming screen: the web handoff lets the shell's loader do the talking](T-131-web-double-loading.md) | platform | 2 | 1 | done (Gate 3 pending) |
 
+## Agent play tooling — owner ask (2026-10-22)
+
+Agent decision latency vs. realtime game speed is the bottleneck on precision
+agent play (lining up dives, staging screenshots). Fix: a pilot opt-in
+`--time-scale` flag — slow the simulation via `Engine.time_scale`, never the
+render, default 1.0 so every launch path and gate is untouched. Default-off
+debug tooling; direct-loop eligible per the T-116 precedent.
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-132 | [Slow-mo for agent play: a pilot `--time-scale` flag that slows the world, not the frames](T-132-agent-time-scale.md) | tooling | 3 | 1 | proposed |
+
 ## Suggested build order
 
 *(Historical — the M1 sequencing note below predates the sweep and M2; every
