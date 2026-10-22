@@ -228,6 +228,18 @@ debug tooling; direct-loop eligible per the T-116 precedent.
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-132 | [Slow-mo for agent play: a pilot `--time-scale` flag that slows the world, not the frames](T-132-agent-time-scale.md) | tooling | 3 | 1 | done (Gate 3 pending) |
 
+## Feel — slower bird, bigger city (owner pick 2026-10-22)
+
+[B-20](../IDEAS.md) forked three ways (cap-only / quartet / full ×0.8); the
+owner picked **tine (b)**: scale the coupled speed quartet down together and
+leave the turn rates alone — the only tine that buys easier aiming AND tighter
+circles at once. Route: pipeline per the T-117 rule (this un-turns the T-117
+dial, so its bars re-derive).
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-133 | [Slower bird, bigger city: the speed quartet ×0.8, turn rates untouched](T-133-slower-bird.md) | flight-control | 3 | 2 | proposed |
+
 ## Suggested build order
 
 *(Historical — the M1 sequencing note below predates the sweep and M2; every
