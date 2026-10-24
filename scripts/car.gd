@@ -1,23 +1,40 @@
 class_name Car
 extends CharacterBody3D
-## One low-poly city car (T-008): a layer-4 `vehicle` on the road grid. Traffic
-## cars loop their home block on the ring-road lane (`City.traffic_loop`) with
-## right-hand, right-turn-only corners — the four loops meeting at any
-## intersection each cut a disjoint corner, so cross traffic can never meet —
-## and brake whenever the front zone (`FrontZone`, masking player · npc ·
-## vehicle) is occupied, so cars queue instead of overlapping. Parked cars sit
-## at the curb (`City.parking_spots`) and never move. Either mode takes a poop
+## One low-poly city car (T-008): a layer-4 `vehicle` on the road grid. Since
+## T-134 traffic cars drive ROUTES through the road grid — a seeded walk of
+## intersection nodes dealt leg by leg by the spawner, each leg's lane center
+## `traffic_lane_offset` right of the road centerline for the travel direction
+## (right-hand traffic, the old `traffic_loop` yaw conventions) — instead of
+## patrolling one block's ring. At every intersection node on the route the car
+## obeys the American four-way-stop protocol (T-134): it brakes to a FULL stop
+## at the approach's stop line, registers with the shared `TrafficControl`
+## ledger (`traffic`, spawner-injected; null skips the whole protocol — the
+## bare-rig escape hatch), and proceeds only when the ladder grants the go —
+## first-stopped-first beyond a near-simultaneous window, simultaneous arrivals
+## yield to the right, straight and right beat left, conflicting committed
+## movements hold the line. A body in the node's padded crosswalk bands holds
+## the car too, pedestrian-priority. Nothing stays stuck: every hold runs the
+## patience clock (T-134 §3) — at `patience_seconds` the car honks once through
+## its own `honk()` and either commits through a protocol denial or steers one
+## careful lateral pass around a physical blocker, then re-arms. Amber corner
+## blinkers arm `blinker_lead` before the route's next turn and flash at
+## `blinker_hz` — the splat-planning tell (T-134 §5). Either mode takes a poop
 ## splat through the duck-typed `on_splatted` convention (T-006): the car
-## honks — a bright body flash plus the horn (T-012) — and fires
-## `splatted`, the cheap-points score event (30 base via the Game autoload's
-## table, DESIGN pillar 3) that the spawner relays. Getting splatted never
-## derails the drive.
+## honks — a bright body flash plus the horn (T-012) — and fires `splatted`,
+## the cheap-points score event (30 base via the Game autoload's table, DESIGN
+## pillar 3) that the spawner relays. Getting splatted never derails the drive,
+## and never drops the stop state.
+
+## Fired when the car adopts the waypoint before the route's last one — the
+## spawner deals a fresh route FROM the car's end node and appends it (no
+## teleport, no stop).
+signal route_exhausted(car: Car)
 
 ## Fired on every splat this car takes — the spawner relays it into the Game
 ## autoload's score table (T-009).
 signal splatted(car: Car)
 
-## PARKED sits at the curb · TRAFFIC loops its block ring.
+## PARKED sits at the curb · TRAFFIC drives its route.
 enum Mode { PARKED, TRAFFIC }
 
 ## Civilian body paints only — the visitors' team hues are RESERVED (T-121):
@@ -30,9 +47,19 @@ const BODY_PALETTE: Array[Color] = [
 	Color(0.35, 0.62, 0.38), Color(0.72, 0.74, 0.78),
 ]
 const HONK_TINT := Color(1.0, 0.85, 0.2)
+## Every living Car — the careful pass's proximity read (round 1 review: two
+## simultaneous passes converged mid-arc at 1.11 m). A car holds no fleet
+## list, so a self-maintaining static registry is the one honest source.
+static var _fleet: Array[Car] = []
+## Half the scene collider's 4.4 m length — the nose offset used for stop-line
+## geometry (the nose stops AT the line; the body stays behind it).
+const HALF_LENGTH := 2.2
+## Braking-profile margin (m): the stop cap lands the nose this short of the
+## line, so an overshooting integrator step can never carry it across.
+const STOP_MARGIN := 0.3
 @export_group("Traffic")
 @export var cruise_speed: float = 6.0 ## Lane speed (m/s), before the per-car pace factor.
-@export var corner_speed: float = 3.5 ## Speed cap while closing on a corner or still swinging onto the new leg (m/s).
+@export var corner_speed: float = 3.5 ## Speed cap while closing on a corner or still swinging onto the new leg (m/s) — and the careful-pass pace.
 @export var corner_slow_range: float = 7.0 ## Distance (m) to the current corner inside which the corner cap applies.
 @export var follow_gap: float = 5.6 ## Stop following at this center-to-center distance to the blocker (m).
 @export var follow_gain: float = 1.8 ## How fast the allowed speed grows with the gap to the blocker (1/s).
@@ -42,17 +69,56 @@ const HONK_TINT := Color(1.0, 0.85, 0.2)
 @export var waypoint_reach: float = 4.5 ## Distance (m) at which the next corner is adopted — wide, in-quadrant turns.
 @export var rejoin_dist: float = 5.0 ## Distance (m) down the new leg of the on-lane rejoin point steered through after each corner.
 
+@export_group("Routes")
+@export var route_legs_min: int = 3 ## Shortest dealt route (legs between intersection nodes).
+@export var route_legs_max: int = 6 ## Longest dealt route.
+@export var straight_weight: float = 0.60 ## Route turn roll: straight.
+@export var right_weight: float = 0.25 ## Route turn roll: right (lefts rarer, per real driving).
+@export var left_weight: float = 0.15 ## Route turn roll: left.
+@export var blinker_lead: float = 12.0 ## Distance (m) to the route's next turn inside which the blinker arms — ≈ 2 s at cruise.
+@export var blinker_hz: float = 2.0 ## Blinker flash rate (Hz) — inside the legal 60-120 pulses/min band.
+
+@export_group("Stops")
+@export var full_stop_speed: float = 0.3 ## Horizontal speed (m/s) at/below which a stopped car counts as fully stopped at its line.
+
+@export_group("Patience")
+@export var patience_seconds: float = 6.0 ## Seconds a hold lasts before the honk-and-pass break.
+@export var pass_clearance: float = 2.3 ## Lateral pass offset around a blocker (m): blocker half-width 0.95 + own half-width 0.95 + margin.
+
 @export_group("Honk")
 @export var honk_flash_seconds: float = 0.8 ## Seconds the honk flash stays lit before fading.
 
-## Ring-road corner loop (global coords) this car patrols — assigned by the
-## spawner. Empty (or PARKED mode) means stand still.
+## Route lane waypoints (global coords) — the current route's corner points and
+## leg leads, dealt and extended by the spawner. Empty (or PARKED mode) means
+## stand still.
 var path: PackedVector3Array = PackedVector3Array()
+## The route's stop entries, one per intersection node still ahead on the
+## route, in path order: {node: Vector2i, pos: Vector3 (node, global),
+## dir: int (approach travel dir), turn: int (−1/0/+1), line: Vector3 (stop
+## line center, global), corner: Vector3 (turn waypoint, global),
+## bands: Array[Rect2] (the node's padded crosswalk bands, global),
+## registered: bool, committed: bool}. The car resolves them front to back.
+var stops: Array[Dictionary] = []
 var waypoint_index: int = 0
 var mode: Mode = Mode.TRAFFIC
-## Global center of the block whose ring this car serves — the recycle scan
-## groups cars by it.
+## Global center of the block the car is currently driving beside — refreshed
+## from the route's leg geometry at every waypoint adoption (a route car's
+## block assignment CHANGES AS IT DRIVES; the recycle scan groups cars by it).
 var block_center: Vector3 = Vector3.ZERO
+## Block-assignment changes taken while driving — the routes evidence the
+## `traffic_routes_multi_block` scenario counts.
+var block_changes: int = 0
+## The grid node this route ends on — the extension deals the next route from
+## here. Spawner-owned bookkeeping the car carries.
+var route_end_node := Vector2i.ZERO
+## The four-way-stop ledger — assigned by the spawner before _ready (the
+## `bread_spawner` service precedent). Null skips the protocol entirely: the
+## car just follows its path (every bare-rig scenario and the harness escape
+## hatch keep today's behavior).
+var traffic: TrafficControl = null
+## The city's block centers (global) — handed over at deal time so the car can
+## refresh `block_center` without holding a City reference.
+var _block_centers := PackedVector3Array()
 var body_color: Color = BODY_PALETTE[0] ## The calm body albedo for every class — the spawner assigns it before _ready (the class draw for VISITOR/SUPERFAN, the palette round-robin for CIVILIAN).
 var citizen_class: CitizenClass.Kind = CitizenClass.Kind.CIVILIAN ## The worn uniform (T-113) — assigned by the spawner before _ready, never re-rolled on recycle.
 ## (T-114) The tailgate pair, spawner-assigned before _ready (the
@@ -75,8 +141,13 @@ var _tailgate_crumb: BreadCrumb = null
 ## at drop time: zero RNG on any stream.
 const TAILGATE_CRUMB_OFFSET := Vector3(1.4, 0.06, 0.75)
 var pace: float = 1.0 ## Per-car speed factor (0.9–1.15) so traffic spreads out.
-## Honks taken so far — evidence for tests and the autoplay DONE line.
+## Honks taken so far — evidence for tests and the autoplay DONE line. The
+## spawner's `honk_count` stays splat-relay-only: patience honks ride HERE
+## and never reach the DONE line (T-134 Gate 2 contract).
 var honk_count: int = 0
+## The armed blinker side: −1 left / 0 none / +1 right — readable by the
+## harness and the pilot (the splat-planning tell).
+var blinker: int = 0
 
 var _honk_tween: Tween
 ## On-lane rejoin point just past the corner being rounded — steering through
@@ -85,12 +156,52 @@ var _honk_tween: Tween
 ## curb or noses into a parking car.
 var _via_point := Vector3.ZERO
 var _has_via := false
+## Index of the next unresolved stop entry (into `stops`).
+var _stop_index: int = 0
+## Patience clock (s) accumulated under the current hold.
+var _patience: float = 0.0
+## While true the car is steering one careful lateral pass around a blocker.
+var _passing := false
+## Where the pass started — its travel measures the pass's progress.
+var _pass_origin := Vector3.ZERO
+## The pass's world-fixed aim point, armed once at the break — steering at a
+## live-heading-relative point turns the pass into a circle that never clears
+## the blocker.
+var _pass_aim := Vector3.ZERO
+## The instance id of the body this pass is clearing — the proximity brake
+## must never brake for it (passing means closing to pass_clearance of it).
+var _pass_target := 0
+## The pass shoulder: +1 left of travel first (the ticket's convention), then
+## alternating — a pass that wedged tries the other side next break.
+var _pass_side := 1
+## Pass progress watch: the best travel so far and how long since it grew.
+var _pass_best := 0.0
+var _pass_stall := 0.0
+## Consecutive patience breaks against a plain CAR queue: a queue is the
+## ladder's job (it dissolves through the leader's progress), so only the
+## third cycle escalates to a pass — two simultaneous queue-break passes
+## crossed mid-arc under the no-overlap floor (round 1 soak).
+var _car_block_cycles := 0
+## The wedge watchdog: last frame's flat position and how long the car has
+## commanded real speed without actually moving (a curb/slab grind the zone
+## can never see — blocker INF, target cruise, zero displacement).
+var _prev_pos := Vector3.ZERO
+var _stalled := 0.0
+## Post-turn blinker hold: the side just driven and the seconds left on it.
+var _blinker_side: int = 0
+var _blinker_hold: float = 0.0
+## Flash clock (s) — the square wave runs off it at `blinker_hz`.
+var _flash_clock: float = 0.0
 
 @onready var _body_mesh: MeshInstance3D = $Visual/Body
 @onready var _flag_pole: MeshInstance3D = $Visual/FlagPole
 @onready var _flag_banner: MeshInstance3D = $Visual/FlagBanner
 @onready var _cooler: Node3D = $Visual/Cooler
 @onready var _front_zone: Area3D = $FrontZone
+@onready var _blink_fl: MeshInstance3D = $Visual/BlinkFL
+@onready var _blink_fr: MeshInstance3D = $Visual/BlinkFR
+@onready var _blink_rl: MeshInstance3D = $Visual/BlinkRL
+@onready var _blink_rr: MeshInstance3D = $Visual/BlinkRR
 
 
 func _ready() -> void:
@@ -112,6 +223,25 @@ func _ready() -> void:
 			pass ## CIVILIAN — exactly the pre-T-113 look: no flag.
 	if has_cooler:
 		_cooler.visible = true ## (T-114) The visitor's tailgate rides along — visual only.
+	_fleet.append(self)
+
+
+## Flat distance to the nearest OTHER living car (m), INF when alone — the
+## pass's no-overlap read. `except_id` skips the body being passed: closing
+## to ~2.3 m of its own blocker is the pass's whole geometry, and braking
+## for it would pin the pass mid-arc forever (round 1 soak: 13/14 cars froze
+## that way).
+func _nearest_car_gap(except_id: int = 0) -> float:
+	var best := INF
+	for other in _fleet:
+		if other == null or other == self or not is_instance_valid(other):
+			continue
+		if other.get_instance_id() == except_id:
+			continue
+		var d := Vector2(other.global_position.x - global_position.x,
+				other.global_position.z - global_position.z).length()
+		best = minf(best, d)
+	return best
 
 
 ## Raises the tailgate flag (T-113) and paints the banner in the pairing
@@ -129,30 +259,75 @@ func _physics_process(delta: float) -> void:
 	if mode == Mode.PARKED:
 		return ## Parked cars just sit at the curb.
 	_drive(delta)
+	_update_blinker(delta)
 
 
 ## Lane-follow with stop-if-blocked: the allowed speed shrinks with the gap to
 ## whatever player·npc·vehicle occupies the front zone, so traffic brakes
 ## smoothly, queues at ~1 m bumper gaps and CREEPS forward as the gap opens —
 ## a binary stop/go would pin cars at zero under the intermittent blocks of a
-## shuffling queue. The zone only reaches into this car's own lane (a 2 m box
-## against a 3 m lane gap), so the disjoint corner cuts of cross traffic never
-## brake us.
+## shuffling queue. On top of that sits the four-way-stop protocol (T-134):
+## approaching an unresolved stop entry caps speed on an exact-brake profile
+## to the line; a registered (or crosswalk-blocked) car holds at its line
+## until the ledger grants the go; a committed car rolls the box and releases
+## past it. Every hold feeds the patience clock.
 func _drive(delta: float) -> void:
 	var hspeed := Vector2(velocity.x, velocity.z).length()
-	var target_speed := minf(cruise_speed * pace, _gap_speed())
+	_refresh_block()
+	## The wedge watchdog measures LAST frame's displacement (cheap, honest).
+	var moved := Vector2(global_position.x - _prev_pos.x,
+			global_position.z - _prev_pos.z).length()
+	_prev_pos = global_position
+	var entry := _current_entry()
+	## The previous frame's motion may have carried us past the active node —
+	## release before anything else reads the entry.
+	entry = _advance_past_entry(entry)
+	## The careful pass overrides the zone cap outright: the pass IS the exit
+	## from a zone the ordinary cap can never open (a stopped car has no
+	## lateral velocity, so the blocker stays parked in its front zone at
+	## exactly the follow gap forever). It steers a near-field offset waypoint
+	## at `corner_speed` instead.
+	var target_speed := corner_speed if _passing \
+			else minf(cruise_speed * pace, _gap_speed())
+	var held := false
+	## The pass overrides the protocol outright, not just the zone cap: a car
+	## breaking a hold must never be re-pinned by the very entry it is
+	## breaking — a registered-denied hold or an at-the-line brake cap would
+	## otherwise pin the pass at 0 m/s and the car would honk forever.
+	if entry != null and traffic != null and not _passing:
+		var cap_result := _protocol_speed(entry, hspeed, target_speed)
+		target_speed = cap_result.x
+		held = cap_result.y
+	## The patience clock (T-134 §3): any hold — a denied go, a FrontZone
+	## blocker, a pigeon in the lane, or a WEDGE (commanded speed, zero
+	## displacement — the curb grind) — feeds it; at `patience_seconds` the car
+	## honks once and breaks the hold (commit through, or one careful pass).
+	if target_speed > 1.0 and moved < 0.03:
+		_stalled += delta
+	else:
+		_stalled = 0.0
+	if held or target_speed < cruise_speed * pace * 0.5 or _stalled > 1.0:
+		_patience += delta
+		if _patience >= patience_seconds and not _passing:
+			_stalled = 0.0
+			_break_hold(entry)
 	if path.size() >= 2:
 		var to_target := path[waypoint_index] - global_position
 		to_target.y = 0.0
 		if to_target.length() < waypoint_reach:
 			# Arm the on-lane rejoin point down the new leg, then switch to the
-			# next corner.
-			var prev := path[(waypoint_index + path.size() - 1) % path.size()]
+			# next corner. On the open route path index 0 extends its own leg
+			# backwards instead of wrapping to the route's far end.
+			var prev := path[waypoint_index - 1] if waypoint_index > 0 \
+					else path[0] - (path[1] - path[0])
 			var leg := path[waypoint_index] - prev
 			leg.y = 0.0
 			_via_point = path[waypoint_index] + leg.normalized() * rejoin_dist
 			_has_via = true
-			waypoint_index = (waypoint_index + 1) % path.size()
+			_on_waypoint_adopted()
+			waypoint_index += 1
+			if waypoint_index >= path.size():
+				waypoint_index = path.size() - 1 ## No extension came — hold at the route's end.
 			to_target = path[waypoint_index] - global_position
 			to_target.y = 0.0
 		var aiming := to_target
@@ -163,14 +338,29 @@ func _drive(delta: float) -> void:
 				_has_via = false
 			else:
 				aiming = to_via
+		if _passing:
+			# The careful pass: steer at the world-fixed aim point armed at the
+			# break (RELATIVE here — `aiming` is a direction vector) — a
+			# live-heading-relative point would turn the pass into a circle
+			# that never clears the blocker. A pass never trades its blocker
+			# for a neighbour: inside the no-overlap margin of any OTHER car
+			# it halts mid-arc (the stall escape then re-arms the clock and
+			# the next break tries the other shoulder).
+			aiming = _pass_aim - global_position
+			aiming.y = 0.0
+			if _nearest_car_gap(_pass_target) < 2.6:
+				target_speed = 0.0
 		_face(aiming / maxf(aiming.length(), 0.001), delta)
 		# Corners are taken wide and slow: the cap applies while closing on the
 		# corner (or rejoin point) AND until the swing has levelled onto the
 		# new leg (yaw still off-target), so the arc never overshoots into the
-		# quadrant where a neighbouring loop makes its own turn.
+		# quadrant where a neighbouring car makes its own turn.
 		if aiming.length() < corner_slow_range \
 				or absf(angle_difference(rotation.y, atan2(-aiming.x, -aiming.z))) > 0.45:
 			target_speed = minf(target_speed, corner_speed)
+		if waypoint_index >= path.size() - 1 \
+				and (path[waypoint_index] - global_position).length() < waypoint_reach:
+			target_speed = 0.0 ## Route ran dry with no extension: stand at the end.
 	var rate := brake_decel if hspeed > target_speed else accel
 	hspeed = move_toward(hspeed, target_speed, rate * delta)
 	var fwd := -transform.basis.z
@@ -180,6 +370,219 @@ func _drive(delta: float) -> void:
 	velocity.z = fwd.z * hspeed
 	velocity.y = -2.0 ## Stay glued to the asphalt.
 	move_and_slide()
+	_update_pass(delta)
+	_apply_blinker_meshes()
+
+
+## The active stop entry, or null when the route's entries are all resolved.
+func _current_entry() -> Dictionary:
+	return stops[_stop_index] if _stop_index < stops.size() else {}
+
+
+## Releases and steps past the active entry once the body is clearly through
+## its node (center 1 m past along the approach axis) — the committed
+## movement frees the box exactly here.
+func _advance_past_entry(entry: Dictionary) -> Dictionary:
+	if entry.is_empty():
+		return entry
+	var a := City.ROUTE_DIR_VECS[entry.dir]
+	var past := Vector3(global_position - entry.pos).dot(a)
+	if past > 1.0:
+		_finish_entry(entry)
+		return _current_entry()
+	return entry
+
+
+## The protocol's speed cap for one frame against `entry` (null-safe).
+## Returns (capped target speed, held-now) as a Vector2 pair.
+func _protocol_speed(entry: Dictionary, hspeed: float, target_speed: float) -> Vector2:
+	if entry.is_empty() or traffic == null:
+		return Vector2(target_speed, false)
+	var a := City.ROUTE_DIR_VECS[entry.dir]
+	var nose := global_position + _flat_forward() * HALF_LENGTH
+	var to_line := Vector3(entry.line - nose)
+	to_line.y = 0.0
+	var along := to_line.dot(a) ## > 0 while the nose is before the line.
+	if not entry.committed:
+		if entry.registered:
+			## Stopped at the line: hold until the ladder (and the crosswalk)
+			## both say go, then commit and roll.
+			if _crosswalk_blocked(entry):
+				return Vector2(0.0, true)
+			if traffic.request_go(self):
+				traffic.commit(self)
+				entry.committed = true
+				return Vector2(target_speed, false)
+			return Vector2(0.0, true)
+		## Approaching: an exact-brake profile to the line — speed squared
+		## capped by twice the deceleration times the remaining distance — so
+		## the nose halts just short and can never cross the bar, even with a
+		## full-brake integrator step. The crosswalk gate does NOT bind here:
+		## the bands sit between the line and the box, so an occupied band is
+		## irrelevant until the car is at its line (where the registered hold
+		## below keeps it) — a mid-approach stop would strand cars tens of
+		## metres from their lines. Registration is ALONG-AXIS and forgiving
+		## of overshoot (round  1 review): a car stopped at its line region
+		## — up to 1 m short or up to 3 m into the box, ANY lateral offset —
+		## registers; the old full 3D distance-to-line-center test left a car
+		## stopped mid-swing/mid-pass 1.1+ m laterally off the line center
+		## unregistered forever, pinned by the zero cap, honking every
+		## patience cycle.
+		var cap := sqrt(2.0 * brake_decel * maxf(0.0, along - STOP_MARGIN))
+		if hspeed <= full_stop_speed and along <= 1.0 and along >= -3.0:
+			entry.registered = true
+			traffic.register_arrival(self, entry.node, entry.dir, entry.turn)
+		return Vector2(minf(target_speed, cap), cap <= 0.0)
+	## Committed and rolling the box: a late-entering body re-holds the car
+	## before its nose crosses the bar; past the bar the box is ours.
+	if along > 0.0 and _crosswalk_blocked(entry):
+		return Vector2(0.0, true)
+	return Vector2(target_speed, false)
+
+
+## True while any watched body (player or tourist) stands in the node's padded
+## crosswalk bands — the pedestrian-priority hold. A cheap rect-overlap point
+## test; no raycasts.
+func _crosswalk_blocked(entry: Dictionary) -> bool:
+	if traffic == null or entry.is_empty():
+		return false
+	for body: Node3D in traffic.watched:
+		if body == null or not is_instance_valid(body):
+			continue
+		var p := body.global_position
+		var flat := Vector2(p.x, p.z)
+		for band: Rect2 in entry.bands:
+			if band.has_point(flat):
+				return true
+	return false
+
+
+## The patience break (T-134 §3): honk ONCE, then make progress. A protocol
+## denial with nothing physical ahead force-commits through (the liveness
+## guarantee that no ladder cycle can deadlock the city); a physical blocker
+## gets one careful lateral pass at corner speed, re-entering the lane once
+## it is behind — EXCEPT another car in a plain queue (round 1: two
+## simultaneous queue-break passes crossed mid-arc at 1.11 m, under the
+## fleet's no-overlap floor): a queue dissolves through the ladder and the
+## leader's own progress, so car-blockers escalate to a pass only after
+## three patience cycles (≈ 18 s of a genuinely wedged car), while a pigeon
+## or a curb grind passes at one cycle. The clock re-arms only after the
+## pass completes.
+func _break_hold(entry: Dictionary) -> void:
+	honk()
+	_patience = 0.0
+	_pass_side = -_pass_side ## The next pass tries the other shoulder.
+	if entry != null and traffic != null and entry.has("registered") \
+			and entry.registered and not entry.committed \
+			and _blocker_distance() == INF:
+		traffic.force_commit(self, entry.node, entry.dir, entry.turn)
+		entry.committed = true
+		return
+	var blocker := _nearest_blocker()
+	if blocker is Car:
+		_car_block_cycles += 1
+		if _car_block_cycles < 3:
+			return ## A queue is the ladder's job — honk, wait, re-assess.
+	else:
+		_car_block_cycles = 0
+	_passing = true
+	_pass_origin = global_position
+	_pass_target = blocker.get_instance_id() if blocker != null else 0
+	var fwd := _flat_forward()
+	var left := Vector3(fwd.z, 0.0, -fwd.x) * float(_pass_side)
+	_pass_aim = global_position + fwd * 6.0 + left * pass_clearance
+
+
+## Ends the pass when the blocker is BEHIND us and we have genuinely moved —
+## the ticket's own completion condition — on the 20 m failsafe, or when the
+## pass itself has stalled (wedged) for 2 s, which re-arms the clock so the
+## next break tries the other shoulder. Nothing stays stuck.
+func _update_pass(_delta: float) -> void:
+	if not _passing:
+		return
+	var traveled := Vector2(global_position.x - _pass_origin.x,
+			global_position.z - _pass_origin.z).length()
+	if traveled > _pass_best + 0.1:
+		_pass_best = traveled
+		_pass_stall = 0.0
+	else:
+		_pass_stall += _delta
+	var blocker_d := _blocker_distance()
+	var behind := blocker_d == INF or blocker_d < 0.5
+	if (traveled > 6.0 and behind) or traveled > 20.0 or _pass_stall > 2.0:
+		_passing = false
+		_pass_stall = 0.0
+		_patience = 0.0
+		_car_block_cycles = 0
+
+
+## Waypoint-adoption bookkeeping (T-134): ask the spawner for a fresh route
+## when the car adopts the waypoint before the path's last one — the deal
+## appends from the end node synchronously, so the index never wraps. (The
+## block assignment refreshes every frame in `_drive`.)
+func _on_waypoint_adopted() -> void:
+	if path.size() >= 2 and waypoint_index == path.size() - 2:
+		route_exhausted.emit(self)
+
+
+## Nearest block center to the car (flat, with a 2 m switch margin so the
+## mid-road equidistant line can't flip-flop the assignment) — a route car's
+## block assignment rides the block it currently drives beside, refreshed
+## EVERY physics frame, so it changes BY DRIVING.
+func _refresh_block() -> void:
+	if _block_centers.is_empty():
+		return
+	var best_d := INF
+	var best := block_center
+	for center in _block_centers:
+		var d := Vector2(center.x - global_position.x,
+				center.z - global_position.z).length_squared()
+		if d < best_d:
+			best_d = d
+			best = center
+	if Vector2(best.x - block_center.x, best.z - block_center.z).length() > 2.0:
+		block_center = best
+		block_changes += 1
+
+
+## Blinker state machine (T-134 §5): arm the route's next turn's side inside
+## `blinker_lead` of its stop line (12 m out ≈ 2 s at cruise — the approach,
+## full stop and grant land inside that window), hold the just-driven side
+## ~0.5 s after the turn completes, and never arm for straight continuations.
+func _update_blinker(delta: float) -> void:
+	_flash_clock += delta
+	if _blinker_hold > 0.0:
+		_blinker_hold -= delta
+		blinker = _blinker_side
+		return
+	blinker = 0
+	for i in range(_stop_index, stops.size()):
+		if stops[i].turn == City.ROUTE_TURN_STRAIGHT:
+			continue
+		var d := Vector2(stops[i].line.x - global_position.x,
+				stops[i].line.z - global_position.z).length()
+		if d < blinker_lead:
+			blinker = stops[i].turn
+		break ## Only the NEXT entry can arm the tell.
+
+
+## The four amber corner meshes: the armed side's pair flashes at
+## `blinker_hz`; everything stays dark at rest.
+func _apply_blinker_meshes() -> void:
+	var lit := blinker != 0 and fmod(_flash_clock * blinker_hz, 1.0) < 0.5
+	var left := blinker < 0
+	var right := blinker > 0
+	_blink_fl.visible = lit and left
+	_blink_rl.visible = lit and left
+	_blink_fr.visible = lit and right
+	_blink_rr.visible = lit and right
+
+
+## The car's flat forward unit vector.
+func _flat_forward() -> Vector3:
+	var fwd := -transform.basis.z
+	fwd.y = 0.0
+	return fwd.normalized()
 
 
 ## Speed cap from the nearest body in the front zone: zero at the follow gap,
@@ -196,9 +599,7 @@ func _gap_speed() -> float:
 ## anything it reports is in front or beside us.
 func _blocker_distance() -> float:
 	var best := INF
-	var fwd := -transform.basis.z
-	fwd.y = 0.0
-	fwd = fwd.normalized()
+	var fwd := _flat_forward()
 	for body in _front_zone.get_overlapping_bodies():
 		if body == self:
 			continue
@@ -208,6 +609,30 @@ func _blocker_distance() -> float:
 	return best
 
 
+## The instance id of the nearest front-zone body (0 when clear) — the pass
+## stores it so the proximity brake never halts for the body being passed.
+func _nearest_blocker_id() -> int:
+	var blocker := _nearest_blocker()
+	return blocker.get_instance_id() if blocker != null else 0
+
+
+## The nearest front-zone body (null when clear).
+func _nearest_blocker() -> Object:
+	var best := INF
+	var best_body: Object = null
+	var fwd := _flat_forward()
+	for body in _front_zone.get_overlapping_bodies():
+		if body == self:
+			continue
+		var to_body := body.global_position - global_position
+		to_body.y = 0.0
+		var d := to_body.dot(fwd)
+		if d < best:
+			best = d
+			best_body = body
+	return best_body
+
+
 func _face(dir: Vector3, delta: float) -> void:
 	var target_yaw := atan2(-dir.x, -dir.z)
 	rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-turn_rate * delta))
@@ -215,14 +640,15 @@ func _face(dir: Vector3, delta: float) -> void:
 
 ## Poop hit (T-006 duck-typed convention): honk and fire the score event.
 ## Cars don't flee — per pillar 2 they honk, and the drive goes on (the sim
-## harness proves it).
+## harness proves it). The stop state rides through untouched.
 func on_splatted(_impact_velocity: Vector3) -> void:
 	honk()
 	splatted.emit(self)
 
 
 ## The horn: a bright flash on the body plus the honk itself (T-012 wires the
-## audio) — a comedic bike-horn blast from the car's position.
+## audio) — a comedic bike-horn blast from the car's position. Counts on this
+## car's OWN `honk_count` only.
 func honk() -> void:
 	honk_count += 1
 	Sfx.play_at("honk", global_position)
@@ -239,22 +665,58 @@ func honk() -> void:
 	_honk_tween.tween_callback(func() -> void: mat.emission_enabled = false)
 
 
-## Teleport-recycle onto a new ring loop (spawner, T-008) — the same node, a
-## new block, no allocation. Yaw snaps onto the loop so the car never arcs
-## across the block while turning around. The armed on-lane rejoin point dies
-## with the old ring (T-089): a stale `_via_point` is tens of metres away on
-## the previous loop, and steering at it drags the fresh arrival off its new
-## lane into the curb — the wedge behind recycled-car clots.
-## (T-114) The tailgate crumb dies with the parking too: the car drove off.
-func recycle_to(pos: Vector3, new_path: PackedVector3Array, new_block: Vector3) -> void:
+## Teleport-staged onto a fresh route (spawner, T-134): the same node, a new
+## route's open waypoint path plus its stop entries, no allocation. The car is
+## placed ON the route's first leg, so waypoint 0 is ahead; yaw snaps onto it.
+## Everything the previous life armed dies here: via point, stop state,
+## blinker, patience, pass.
+func start_route(pos: Vector3, new_path: PackedVector3Array,
+		new_stops: Array[Dictionary], new_block: Vector3,
+		block_centers: PackedVector3Array, new_end: Vector2i) -> void:
 	mode = Mode.TRAFFIC
 	_release_crumb()
 	global_position = pos
 	path = new_path
+	stops = new_stops
+	_stop_index = 0
 	block_center = new_block
+	block_changes = 0
+	_block_centers = block_centers
+	route_end_node = new_end
 	_has_via = false
-	_retarget_loop()
+	waypoint_index = 0
+	blinker = 0
+	_blinker_side = 0
+	_blinker_hold = 0.0
+	_passing = false
+	_patience = 0.0
+	_pass_side = 1
+	_pass_best = 0.0
+	_pass_stall = 0.0
+	_car_block_cycles = 0
+	_stalled = 0.0
+	_prev_pos = pos
 	velocity = Vector3.ZERO
+	if traffic != null:
+		traffic.release(self)
+	_snap_to_waypoint()
+
+
+## The extension deal (spawner): append the next route's waypoints and stop
+## entries onto the live drive, update the end node's provisional straight
+## entry with the real turn (so the blinker can arm for it), and carry the new
+## end node. No teleport, no stop — the car rolls from one route into the next.
+func extend_route(path_tail: PackedVector3Array, new_stops: Array[Dictionary],
+		turn_at_end: int, new_end: Vector2i) -> void:
+	path.append_array(path_tail)
+	stops.append_array(new_stops)
+	route_end_node = new_end
+	## The end node's provisional straight entry gets the real turn from the
+	## dealt route's first leg — the blinker can arm for it.
+	for i in range(_stop_index, stops.size()):
+		if stops[i].node == new_end:
+			stops[i].turn = turn_at_end
+			break
 
 
 ## Teleport-recycle into a curb space (spawner, T-008): parked cars sit where
@@ -268,7 +730,11 @@ func park_at(pos: Vector3, yaw: float, new_block: Vector3) -> void:
 	rotation = Vector3(0.0, yaw, 0.0)
 	velocity = Vector3.ZERO
 	path = PackedVector3Array()
+	stops = []
+	_stop_index = 0
 	block_center = new_block
+	if traffic != null:
+		traffic.release(self)
 	_redress_crumb()
 
 
@@ -315,38 +781,33 @@ func _release_crumb() -> void:
 
 
 ## (T-114) The crumb lives under the bread spawner, not under this car — any
-## teardown releases it so it never outlives its owner.
+## teardown releases it so it never outlives its owner. The stop ledger dies
+## with the car too: a freed car's waiting/committed entries must never leak.
 func _exit_tree() -> void:
+	_fleet.erase(self)
 	_release_crumb()
+	if traffic != null:
+		traffic.release(self)
 
 
-## Adopts the loop leg the car sits on and targets its far corner. Spawning or
-## recycling mid-leg must always yield a FORWARD heading: a nearest-corner
-## rule would flip the car around whenever it lands just past a corner, and a
-## reversed car drives straight into oncoming traffic.
-func _retarget_loop() -> void:
-	if path.size() < 2:
-		return
-	var best_d := INF
-	var best_leg := 0
-	for i in path.size():
-		var a := path[i]
-		var seg := path[(i + 1) % path.size()] - a
-		seg.y = 0.0
-		var t := clampf((global_position - a).dot(seg) / maxf(seg.length_squared(), 0.0001),
-				0.0, 1.0)
-		var d := global_position.distance_squared_to(a + seg * t)
-		if d < best_d:
-			best_d = d
-			best_leg = i
-	waypoint_index = (best_leg + 1) % path.size()
-	_snap_to_waypoint()
-
-
+## Adopts the staged route: targets the first waypoint and snaps the yaw onto
+## it — a staged or recycled car always begins heading FORWARD along its lane.
 func _snap_to_waypoint() -> void:
-	if path.size() < 2:
+	if path.size() < 1:
 		return
+	if path.size() > 1:
+		waypoint_index = 0
 	var to := path[waypoint_index] - global_position
 	to.y = 0.0
 	if to.length() > 0.1:
 		rotation.y = atan2(-to.x, -to.z)
+
+
+## Frees one resolved entry's ledger state (committed or patience-passed).
+func _finish_entry(entry: Dictionary) -> void:
+	if traffic != null:
+		traffic.release(self)
+	if entry.turn != City.ROUTE_TURN_STRAIGHT:
+		_blinker_side = entry.turn
+		_blinker_hold = 0.5
+	_stop_index += 1

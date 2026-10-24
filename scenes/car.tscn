@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=15 format=3]
 [ext_resource type="Script" path="res://scripts/car.gd" id="1_car"]
 [ext_resource type="ArrayMesh" path="res://assets/generated/models/cars/car_paint.res" id="2_paint"]
 [ext_resource type="ArrayMesh" path="res://assets/generated/models/cars/car_glass.res" id="3_glass"]
@@ -46,6 +46,16 @@ material = SubResource("Mat_cooler_lid")
 size = Vector3(0.42, 0.06, 0.6)
 
 
+
+[sub_resource type="StandardMaterial3D" id="Mat_blinker"]
+albedo_color = Color(1, 0.6, 0.1, 1)
+emission_enabled = true
+emission = Color(1, 0.6, 0.1, 1)
+emission_energy_multiplier = 1.4
+
+[sub_resource type="BoxMesh" id="Mesh_blinker"]
+material = SubResource("Mat_blinker")
+size = Vector3(0.14, 0.12, 0.3)
 
 [node name="Car" type="CharacterBody3D"]
 collision_layer = 8
@@ -95,6 +105,28 @@ mesh = ExtResource("6_wheel")
 [node name="WheelRR" type="MeshInstance3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.38, 0.38, 1.139)
 mesh = ExtResource("6_wheel")
+
+; (T-134) Amber corner blinkers — front/rear x left/right, dark at rest,
+; driven by Car._apply_blinker_meshes. Car-local: forward is -z, right is +x.
+[node name="BlinkFL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.82, -1.95)
+visible = false
+mesh = SubResource("Mesh_blinker")
+
+[node name="BlinkFR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.82, -1.95)
+visible = false
+mesh = SubResource("Mesh_blinker")
+
+[node name="BlinkRL" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.82, 1.95)
+visible = false
+mesh = SubResource("Mesh_blinker")
+
+[node name="BlinkRR" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.82, 1.95)
+visible = false
+mesh = SubResource("Mesh_blinker")
 
 [node name="Cooler" type="Node3D" parent="Visual"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 1.05, 1.7)

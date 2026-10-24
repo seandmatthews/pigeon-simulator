@@ -82,6 +82,7 @@ script = ExtResource("7_cars")
 city_path = NodePath("../City")
 player_path = NodePath("../Player")
 bread_spawner_path = NodePath("../BreadSpawner")
+tourist_spawner_path = NodePath("../TouristSpawner")
 staged_boot = true
 
 [node name="BreadSpawner" type="Node3D" parent="."]

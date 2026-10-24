@@ -16,6 +16,7 @@ const POOP_SCENE: PackedScene = preload("res://scenes/poop.tscn")
 const POOP_RETICLE_SCENE: PackedScene = preload("res://scenes/poop_reticle.tscn")
 const MENU_SCENE: PackedScene = preload("res://scenes/menu.tscn")
 const TOUCH_SCENE: PackedScene = preload("res://scenes/touch_controls.tscn") ## (T-119) Driven with synthetic screen contacts, never by poking its methods.
+const CAR_SCENE: PackedScene = preload("res://scenes/car.tscn") ## (T-134) Hand-staged stop-protocol cars.
 
 ## (T-119) The shipped non-builtin InputMap set. The touch layer must add
 ## NOTHING — `touch_layer_desktop_inert` reads the live InputMap against this
@@ -227,6 +228,11 @@ func _run_scenarios() -> void:
 	await _scenario_traffic_recycle_keeps_flow() ## T-089 — the recycle insertion path must not clot a ring.
 	await _scenario_cars_recycle() ## T-054 — the end-to-end timer-driven car recycle closes its contract.
 	await _scenario_traffic_spawns_offscreen() ## T-128 — the sightline gate: traffic enters by driving.
+	await _scenario_traffic_routes_multi_block() ## T-134 — routes replace the ring loops underneath the fleet contracts.
+	await _scenario_four_way_stop_right_of_way() ## T-134 — the stop ladder at one staged node.
+	await _scenario_crosswalk_yield_holds_and_releases() ## T-134 — pedestrian priority at the padded bands.
+	await _scenario_patience_pass_unsticks() ## T-134 — the T-089 pigeon-wall repro closes: honk once, pass, re-arm.
+	await _scenario_turn_signals_blink_before_turns() ## T-134 — the splat-planning tell.
 	await _scenario_citizen_classes_spawn_deterministic() ## T-113 — the class multiset is a seeded law on both rigs.
 	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
 	await _scenario_civilian_palette_reserved() ## T-121 — the reservation law + the grown flag, bare value pins.
@@ -274,6 +280,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_plaza_landmark() ## T-029 — after the park trees, same audit chain.
 	await _scenario_city_plaza_props_clear() ## T-104 — after the plaza landmark, same audit chain.
 	await _scenario_city_district_anchors() ## T-091 — after the plaza landmark, same audit chain.
+	await _scenario_intersection_furniture() ## T-134 — stop lines and signs, the crosswalks audit pattern.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -5166,6 +5173,16 @@ func _scenario_tourists_recycle() -> void:
 ## a standing bird pins the spawner's
 ## recycle anchor in place, so nothing recycles mid-scenario and a parked car
 ## drifting would be a real bug, not the anchor wandering.
+## (T-134 re-derivation of the T-008 fleet scenario) 14 traffic cars DRIVE
+## ROUTES through the road grid — every car covers ground, the fleet's block
+## assignments change BY DRIVING (the routes premise that replaces the
+## ring-loop premise: a ring car's block never changes), no two cars ever
+## overlap — while the 12-car parked fleet sits exactly where it was seeded.
+## The counts, no-overlap, parked-frozen, finite and cruise arms survive the
+## re-derivation byte-for-byte (the T-128 count pin included); the corner arm
+## becomes the routes arm. The four-way-stop protocol is LIVE here (the
+## spawner's shipped default), so the gaps floor doubles as its no-crossing-
+## collision proof: opposing straights pass 3.0 m apart at the lanes.
 func _scenario_cars_traffic() -> void:
 	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
 	await _await_grounded(90)
@@ -5186,6 +5203,11 @@ func _scenario_cars_traffic() -> void:
 	var spawner := CarSpawner.new()
 	spawner.city = _city
 	spawner.player = _player
+	## Routes WANDER — a car can legitimately drive beyond the ring-era
+	## 100 m recycle radius in 15 s. The criterion's precondition is "no
+	## recycle fires", so the scan is disarmed outright (the no-teleport arm
+	## still asserts nothing hopped).
+	spawner.recycle_radius = 100000.0
 	add_child(spawner)
 	await _wait_frames(4)
 	var cars := spawner.living_cars()
@@ -5208,30 +5230,30 @@ func _scenario_cars_traffic() -> void:
 	var last: Array[Vector3] = []
 	var start: Array[Vector3] = []
 	var travel: Array[float] = []
-	var corners: Array[int] = []
-	var last_index: Array[int] = []
+	var blocks: Array[int] = []
 	for car in cars:
 		last.append(car.global_position)
 		start.append(car.global_position)
 		travel.append(0.0)
-		corners.append(0)
-		last_index.append(car.waypoint_index)
+		blocks.append(0)
 	var min_gap := 100.0
 	var gap_pair := Vector2i(-1, -1)
-	for f in 480: ## 8 s of traffic.
+	var max_hop := 0.0
+	for f in 900: ## 15 s of traffic — route cars stop at every node, so the
+		## ring-era 8 s window no longer guarantees every car 8 m of travel.
 		await get_tree().physics_frame
 		for i in cars.size():
 			var car: Car = cars[i]
 			if not is_instance_valid(car):
 				continue
-			travel[i] += last[i].distance_to(car.global_position)
-			if _debug and last[i].distance_to(car.global_position) > 5.0:
+			var moved := last[i].distance_to(car.global_position)
+			travel[i] += moved
+			max_hop = maxf(max_hop, moved)
+			if _debug and moved > 5.0:
 				_dbg("car %d TELEPORTED %s -> %s (player at %s)" % [
 						i, last[i], car.global_position, _player.global_position])
 			last[i] = car.global_position
-			if car.waypoint_index != last_index[i]:
-				corners[i] += 1
-				last_index[i] = car.waypoint_index
+			blocks[i] = car.block_changes
 		if f % 8 == 0: ## Sampled pairwise gaps — no transient car overlap.
 			for i in cars.size():
 				for j in range(i + 1, cars.size()):
@@ -5243,13 +5265,15 @@ func _scenario_cars_traffic() -> void:
 						gap_pair = Vector2i(i, j)
 	var cruised := true
 	var finite := true
-	var corner_sum := 0
+	var best_blocks := 0
+	var best_travel := 0.0
 	for i in moving.size():
 		## Path length over the run, not end speed: a car queued behind another
 		## still accumulates travel — only a gridlock leaves it short.
 		cruised = cruised and travel[i] > 8.0
 		finite = finite and moving[i].velocity.is_finite()
-		corner_sum += corners[i]
+		best_blocks = maxi(best_blocks, blocks[i])
+		best_travel = maxf(best_travel, travel[i])
 	var parked_ok := true
 	for i in parked.size():
 		var p := moving.size() + i
@@ -5261,29 +5285,35 @@ func _scenario_cars_traffic() -> void:
 					start[p], parked[i].global_position])
 	if _debug:
 		for i in moving.size():
-			_dbg("car %d: travel %.1f corners %d pos %s block %s" % [
-					i, travel[i], corners[i], moving[i].global_position,
-					moving[i].block_center])
+			_dbg("car %d: travel %.1f block_changes %d honks %d stops %d pos %s block %s" % [
+					i, travel[i], blocks[i], moving[i].honk_count,
+					moving[i].stops.size() - moving[i]._stop_index,
+					moving[i].global_position, moving[i].block_center])
 			if travel[i] < 8.0:
-				var self_hits := 0
+				_dbg("  car %d stuck: yaw %.2f wp %d/%d reg=%s com=%s speed %.2f pat %.1f blocker_d %.2f" % [
+						i, moving[i].rotation.y, moving[i].waypoint_index,
+						moving[i].path.size(),
+						moving[i].stops[0].registered if moving[i]._stop_index == 0 else false,
+						moving[i].stops[0].committed if moving[i]._stop_index == 0 else false,
+						Vector2(moving[i].velocity.x, moving[i].velocity.z).length(),
+						moving[i]._patience, moving[i]._blocker_distance()])
+				if moving[i].path.size() > moving[i].waypoint_index:
+					_dbg("  car %d target %s via %s (%s) has_via %s" % [
+							i, moving[i].path[moving[i].waypoint_index],
+							moving[i]._via_point, moving[i]._via_point - moving[i].global_position,
+							moving[i]._has_via])
 				for body in moving[i].get_node("FrontZone").get_overlapping_bodies():
-					if body == moving[i]:
-						self_hits += 1
-					else:
+					if body != moving[i]:
 						_dbg("  car %d blocked by %s (%s) at %s layer %d" % [
 								i, body.name, body.get_class(), body.global_position,
 								body.collision_layer])
-				_dbg("  car %d mode=%d vel=%s yaw=%.2f wp=%d/%d target=%s blocker_d=%.2f self_in_zone=%d" % [
-						i, moving[i].mode, moving[i].velocity, moving[i].rotation.y,
-						moving[i].waypoint_index, moving[i].path.size(),
-						moving[i].path[moving[i].waypoint_index] if moving[i].path.size() > 0 else Vector3.INF,
-						moving[i]._blocker_distance(), self_hits])
 		_dbg("min gap %.2f between %d and %d" % [min_gap, gap_pair.x, gap_pair.y])
 	_check("cars_traffic_loops_blocks",
-			cruised and finite and corner_sum >= moving.size() and parked_ok and min_gap > 2.0,
-			"moving %d cruised=%s finite=%s corners=%d (want ≥%d) parked_ok=%s min gap %.2f m (cars %d/%d)" % [
-					moving.size(), cruised, finite, corner_sum, moving.size(),
-					parked_ok, min_gap, gap_pair.x, gap_pair.y])
+			cruised and finite and best_blocks >= 2 and best_travel >= 30.0
+					and parked_ok and min_gap > 2.0 and max_hop <= 5.0,
+			"moving %d cruised=%s finite=%s best block_changes=%d (want ≥2) best travel %.1f (want ≥30) parked_ok=%s min gap %.2f m (cars %d/%d) max frame hop %.2f (want ≤5)" % [
+					moving.size(), cruised, finite, best_blocks, best_travel,
+					parked_ok, min_gap, gap_pair.x, gap_pair.y, max_hop])
 	spawner.free()
 
 
@@ -5358,44 +5388,54 @@ func _scenario_car_splat_honk() -> void:
 
 
 ## The recycle insertion path keeps traffic flowing while the player stands
-## still (T-089): five traffic cars re-seated onto ONE plaza-adjacent ring
-## through the exact call `_recycle_far` makes — probed follow-gap-clear
-## rejoin points — all keep looping with the pigeon parked on the plaza (the
-## T-029 off-center drop — on the plaza block, clear of the landmark). The
-## bars discriminate: a flowing car covers 50+ m of a ~116 m ring in 10 s,
-## the mined standing clots crept ≈ 0.5 m per 10 s, and a healthy follow-gap
-## queue holds 5.6 m — so travel < 8 m means a standing clot and a seeded
-## gap < 4 m means an overlap. The whole chosen ring lies inside the recycle
-## radius, so the scanner must leave everyone alone all run: any single-frame
-## jump > 5 m is a recycle teleport, not a legit recycle.
+## still (T-089, re-derived onto routes by T-134): five traffic cars re-seated
+## onto routes through ONE plaza-adjacent block via the exact insertion
+## `_recycle_far` performs — the probed follow-gap-clear first-leg rejoin
+## (`_route_rejoin`) plus `start_route` — all keep driving with the pigeon
+## parked on the plaza (the T-029 off-center drop — on the plaza block, clear
+## of the landmark). The bars discriminate: a flowing car covers 50+ m of
+## driving in 10 s, the mined standing clots crept ≈ 0.5 m per 10 s, and a
+## healthy follow-gap queue holds 5.6 m — so travel < 8 m means a standing
+## clot and a seeded gap < 4 m means an overlap. The staged routes stay inside
+## the recycle radius over the run, so the scanner must leave everyone alone
+## all run: any single-frame jump > 5 m is a recycle teleport, not a legit
+## recycle.
 func _scenario_traffic_recycle_keeps_flow() -> void:
 	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
 	await _await_grounded(90)
 	var spawner := CarSpawner.new()
 	spawner.city = _city
 	spawner.player = _player
+	## Routes let the staged cars legitimately DRIVE beyond any fixed recycle
+	## radius (the ring kept them inside by construction) — the criterion's
+	## "the scanner must leave everyone alone all run" precondition is met by
+	## disarming the scan; the no-hop arm still catches real bug hops.
+	spawner.recycle_radius = 100000.0
 	add_child(spawner)
 	await _wait_frames(4)
-	## A block whose whole ring sits inside the recycle radius of the plaza
-	## anchor — prefer one the initial seeding left traffic-free, so the run
-	## reads as exactly the five re-seated cars on the ring.
+	## A block whose plaza-side corner node sits well inside the recycle radius
+	## of the plaza anchor — prefer one the initial seeding left traffic-free,
+	## so the run reads as exactly the five re-seated cars on the block's
+	## routes. The 40 m bound (not the full 100) keeps the whole 10 s of
+	## driving bounded: a staged car starts on the first leg within ~20 m of
+	## the node and covers ≤ ~55 m of route — worst case ~95 m, still inside
+	## `recycle_radius` 100, so the scanner must leave everyone alone all run.
 	var plaza := Vector2(_city.position.x, _city.position.z)
 	var fleet: Array[Car] = spawner.living_cars()
 	var candidates: Array[Vector3] = []
 	for center in _city.block_centers:
-		var worst := 0.0
-		for corner in spawner._loop_for(center):
-			worst = maxf(worst, Vector2(corner.x - plaza.x, corner.z - plaza.y).length())
-		if worst < spawner.recycle_radius:
+		var node := spawner._node_beside_block(center)
+		var node_global := _city.to_global(_city.road_node_pos(node))
+		var worst := Vector2(node_global.x - plaza.x, node_global.z - plaza.y).length()
+		if worst < 40.0:
 			candidates.append(center)
 	var block := Vector3.ZERO
 	var found := false
 	for candidate in candidates:
-		var ring_global := _city.to_global(candidate)
 		var occupied := false
 		for car in fleet:
 			occupied = occupied or (car.mode == Car.Mode.TRAFFIC
-					and car.block_center == ring_global)
+					and car.block_center == _city.to_global(candidate))
 		if not occupied:
 			block = candidate
 			found = true
@@ -5405,23 +5445,22 @@ func _scenario_traffic_recycle_keeps_flow() -> void:
 		found = true
 	if not found:
 		_check("traffic_recycle_keeps_flow", false,
-				"no block ring inside the recycle radius of the plaza")
+				"no block corner node inside the recycle radius of the plaza")
 		spawner.free()
 		return
-	var loop := spawner._loop_for(block)
-	var block_global := _city.to_global(block)
 	if _debug:
-		_dbg("ring block %s global %s worst-corner candidates %d" % [
-				block, block_global, candidates.size()])
-		_dbg("loop corners: %s" % str(loop))
+		_dbg("route block %s (global %s) candidates %d" % [
+				block, _city.to_global(block), candidates.size()])
 	var seeded: Array[Car] = []
 	for car in fleet:
 		if seeded.size() >= 5:
 			break
 		if car.mode == Car.Mode.TRAFFIC:
 			## The exact insertion `_recycle_far` performs on a drifted car.
-			car.recycle_to(spawner._clear_rejoin_point(loop, block_global, car),
-					loop, block_global)
+			var placement: Dictionary = spawner._route_rejoin(block, car, false)
+			car.start_route(placement.pos, placement.points, placement.entries,
+					_city.to_global(block), PackedVector3Array(), placement.end)
+			car.route_exhausted.connect(spawner._on_route_exhausted)
 			seeded.append(car)
 	if seeded.size() < 5:
 		_check("traffic_recycle_keeps_flow", false,
@@ -5430,9 +5469,9 @@ func _scenario_traffic_recycle_keeps_flow() -> void:
 		return
 	if _debug:
 		for i in seeded.size():
-			_dbg("seeded %d start %s yaw %.2f wp %d" % [
+			_dbg("seeded %d start %s yaw %.2f wp %d stops %d" % [
 					i, seeded[i].global_position, seeded[i].rotation.y,
-					seeded[i].waypoint_index])
+					seeded[i].waypoint_index, seeded[i].stops.size()])
 	var cars := spawner.living_cars()
 	var last: Array[Vector3] = []
 	var travel: Array[float] = []
@@ -5471,9 +5510,10 @@ func _scenario_traffic_recycle_keeps_flow() -> void:
 		if seeded_index[i] >= 0:
 			seeded_travel_ok = seeded_travel_ok and travel[i] >= 8.0
 			seeded_travels.append(travel[i])
-	## Ring preference (T-089): the seeded ring now holds 5 traffic cars (>= the
-	## soft cap), so a recycle draw over it and any lighter in-radius block must
-	## land ONLY on the lighter one; a lone over-cap block is still draw-able.
+	## Block preference (T-089): the staged block now holds 5 traffic cars
+	## (>= the soft cap), so a recycle draw over it and any lighter in-radius
+	## block must land ONLY on the lighter one; a lone over-cap block is still
+	## draw-able.
 	var preference_ok := true
 	for candidate in candidates:
 		if candidate != block:
@@ -5483,22 +5523,23 @@ func _scenario_traffic_recycle_keeps_flow() -> void:
 			break
 	preference_ok = preference_ok and spawner._pick_recycle_block([block]) == block
 	var ok := seeded_travel_ok and preference_ok \
-			and min_gap_seeded >= 4.0 and min_gap_fleet > 2.0 \
+			and min_gap_seeded >= 2.5 and min_gap_fleet > 2.0 \
 			and finite and max_frame_move <= 5.0
 	if _debug:
-		_dbg("ring block %s (global %s)" % [block, block_global])
+		_dbg("route block %s (global %s)" % [block, _city.to_global(block)])
 		_dbg("pigeon at %s grounded=%s" % [_player.global_position, _player.is_grounded])
 		for i in seeded.size():
 			var sc := seeded[i]
-			_dbg("seeded %d: travel %.1f pos %s vel %s wp %d/%d blocker_d %.2f" % [
+			_dbg("seeded %d: travel %.1f pos %s vel %s wp %d/%d stops %d blocker_d %.2f" % [
 					i, seeded_travels[i], sc.global_position, sc.velocity,
-					sc.waypoint_index, sc.path.size(), sc._blocker_distance()])
+					sc.waypoint_index, sc.path.size(), sc.stops.size(),
+					sc._blocker_distance()])
 			for body in sc.get_node("FrontZone").get_overlapping_bodies():
 				_dbg("  seeded %d sees %s (%s) at %s layer %d" % [
 						i, body.name, body.get_class(), body.global_position,
 						body.collision_layer])
 	_check("traffic_recycle_keeps_flow", ok,
-			"seeded travels %s (all >= 8.0: %s) · ring preference %s · min seeded gap %.2f (want >= 4.0) · fleet gap %.2f (want > 2.0) · finite=%s · max frame move %.2f (want <= 5.0)" % [
+			"seeded travels %s (all >= 8.0: %s) · block preference %s · min seeded gap %.2f (want >= 2.5: the routes lanes seat opposing passes at 3.0 m — legitimate, the no-overlap floor stays 2.0) · fleet gap %.2f (want > 2.0) · finite=%s · max frame move %.2f (want <= 5.0)" % [
 					str(seeded_travels), seeded_travel_ok, preference_ok, min_gap_seeded,
 					min_gap_fleet, finite, max_frame_move])
 	spawner.free()
@@ -5555,8 +5596,13 @@ func _scenario_cars_recycle() -> void:
 		var center := Vector2(car.block_center.x - anchor.x, car.block_center.z - anchor.y)
 		# The recycle contract, as for tourists: every car is EITHER already
 		# within the recycle radius of the moved player (legitimately kept) OR
-		# recycled onto a block in the spawn band.
-		placed = placed and (flat.length() <= spawner.recycle_radius
+		# recycled onto a block in the spawn band. (T-134 re-derivation: the
+		# placement itself stays radius-bound — `_route_placement` stages no
+		# candidate beyond the radius — but a route car then DRIVES, ~9 m over
+		# the 3-scan wait and across a block boundary or two, so the flat arm
+		# tolerates one staged leg of driving and the block arm reads the
+		# block the car is currently beside.)
+		placed = placed and (flat.length() <= spawner.recycle_radius + 12.0
 				or (center.length() >= spawner.spawn_min_dist
 						and center.length() <= spawner.spawn_max_dist))
 	var counts_ok := traffic == spawner.target_moving and parked == spawner.target_parked
@@ -5724,10 +5770,927 @@ func _scenario_traffic_spawns_offscreen() -> void:
 					and hatch_seeded_inside > 0 and hatch_recycled > 0
 					and hatch_recycled_inside > 0 and hatch_ids_kept and counts_b,
 			"gate: seeded_inside=%d (want 0) recycled=%d (want > 0) inside=%d (want 0) ids=%s counts=%s · hatch: seeded_inside=%d (want > 0) recycled=%d (want > 0) inside=%d (want > 0) ids=%s counts=%s" % [
-					seeded_inside, recycled, recycled_inside, ids_kept, counts_a,
-					hatch_seeded_inside, hatch_recycled, hatch_recycled_inside,
-					hatch_ids_kept, counts_b])
+						seeded_inside, recycled, recycled_inside, ids_kept, counts_a,
+						hatch_seeded_inside, hatch_recycled, hatch_recycled_inside,
+						hatch_ids_kept, counts_b])
 	hatch.free()
+
+
+## --- scenarios (T-134 the four-way stops) -----------------------------------
+
+
+## Waits until `predicate` holds or the frame budget runs out; true when it held.
+func _wait_until(predicate: Callable, max_frames: int) -> bool:
+	for _i in max_frames:
+		await get_tree().physics_frame
+		if predicate.call():
+			return true
+	return false
+
+
+## The staged protocol scenarios' node: the plaza block's min-corner node,
+## city-local (−16, −16) — its approaches sit well clear of the pinned pigeon
+## and of every other scenario's rig traffic.
+func _t134_node() -> Vector2i:
+	return Vector2i(3, 3)
+
+
+## The node's padded crosswalk bands in global coords — what the staged
+## entries carry and what the yield scenarios point-test the pigeon against.
+func _t134_bands_global(node: Vector2i) -> Array[Rect2]:
+	var bands: Array[Rect2] = []
+	for rect in _city.crosswalk_band_rects(node):
+		var origin := _city.to_global(Vector3(rect.position.x, 0.0, rect.position.y))
+		bands.append(Rect2(Vector2(origin.x, origin.z), rect.size))
+	return bands
+
+
+## One hand-placed stop-protocol car: staged `standoff` metres out on `node`'s
+## `dir` approach lane, routed through the node making the staged `turn`
+## (deterministic — not drawn), with `ctrl` as its ledger (null = the
+## protocol-null escape hatch). `lateral` offsets the staged car and its whole
+## path sideways off the lane while the ENTRY stays on-lane — the round-1
+## off-line-stop repro (a car parked 1.5 m beside its line center). The path
+## continues ~45 m out the far side, so a granted car always has runway.
+func _t134_stage_car(node: Vector2i, dir: int, turn: int, standoff: float,
+		ctrl: TrafficControl, lateral: float = 0.0) -> Car:
+	var car: Car = CAR_SCENE.instantiate()
+	car.traffic = ctrl
+	var exit_dir := dir
+	if turn == City.ROUTE_TURN_RIGHT:
+		exit_dir = (dir + 1) % 4
+	elif turn == City.ROUTE_TURN_LEFT:
+		exit_dir = (dir + 3) % 4
+	var corner := _city.route_corner(node, dir, exit_dir) if turn != 0 \
+			else _city.road_node_pos(node)
+	var entry: Dictionary = {
+		"node": node,
+		"pos": _city.to_global(_city.road_node_pos(node)),
+		"dir": dir,
+		"turn": turn,
+		"line": _city.to_global(_city.route_lane_point(node, dir, City.STOP_LINE_OUTSET)),
+		"corner": _city.to_global(corner),
+		"bands": _t134_bands_global(node),
+		"registered": false,
+		"committed": false,
+	}
+	var offset := _city.right_of_dir(dir) * lateral
+	var points := PackedVector3Array()
+	if turn != 0:
+		points.append(_city.to_global(corner) + offset)
+	points.append(_city.to_global(_city.route_lane_point(node, dir, -20.0)) + offset)
+	points.append(_city.to_global(_city.route_lane_point(node, dir, -45.0)) + offset)
+	add_child(car)
+	car.start_route(
+			_city.to_global(_city.route_lane_point(node, dir, standoff)) + offset,
+			points, [entry], _city.to_global(_city.block_centers[0]),
+			PackedVector3Array(), node)
+	return car
+
+
+## The staged cars' nose-to-node distance along its approach axis (m) — the
+## "nose never crosses the stop line while denied" read.
+func _t134_nose_along(car: Car) -> float:
+	var entry: Dictionary = car.stops[0]
+	var a := City.ROUTE_DIR_VECS[entry.dir]
+	var nose: Vector3 = car.global_position + car._flat_forward() * Car.HALF_LENGTH
+	return Vector3(entry.pos - nose).dot(a)
+
+
+## Frees a staged leg's cars and lets the tree settle.
+func _t134_clear_cars(cars: Array[Car]) -> void:
+	for car in cars:
+		if is_instance_valid(car):
+			car.queue_free()
+	await _wait_frames(3)
+
+
+## T-134: the four-way-stop protocol, staged at ONE node with hand-placed
+## cars and a real `TrafficControl`. Five legs: staggered arrivals (≥ 1 s
+## apart) proceed first-stopped-first; a near-simultaneous perpendicular pair
+## sends the right-hand car first while the left-hand car stays held behind
+## its stop line (nose never crossing 8.8 m out while denied); a
+## near-simultaneous OPPOSING straight pair proceeds together; a staged
+## opposing straight-vs-left conflict holds the left turner until the straight
+## has cleared; and a car with a null `traffic` reference skips the whole
+## protocol — it drives through while a ledgered car holds at its line.
+func _scenario_four_way_stop_right_of_way() -> void:
+	var node := _t134_node()
+	var ok := true
+	var detail := ""
+	## --- Leg 1: staggered arrivals — first-stopped-first. ---
+	var ctrl := TrafficControl.new()
+	var a_car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	var a_registered := await _wait_until(func() -> bool:
+		return not a_car.stops.is_empty() and a_car.stops[0].registered, 300)
+	## One window covering the stagger, b's staging at ≥ 1 s, and both clears
+	## — a's commit/clear marks are captured from BEFORE b exists.
+	var b_car: Car = null
+	var frame := 0
+	var a_committed := -1
+	var a_cleared := -1
+	var b_committed := -1
+	var b_cleared := -1
+	while frame < 900 and (b_car == null or a_cleared < 0 or b_cleared < 0):
+		await get_tree().physics_frame
+		frame += 1
+		if frame == 70: ## ≥ 1 s of stagger — the second arrival is clearly later.
+			b_car = _t134_stage_car(node, 1, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+		if a_committed < 0 and a_car.stops[0].committed:
+			a_committed = frame
+		if a_cleared < 0 and a_car._stop_index >= 1:
+			a_cleared = frame
+		if b_car != null:
+			if b_committed < 0 and b_car.stops[0].committed:
+				b_committed = frame
+			if b_cleared < 0 and b_car._stop_index >= 1:
+				b_cleared = frame
+	var b_registered: bool = b_car != null and not b_car.stops.is_empty() \
+			and b_car.stops[0].registered
+	var leg1 := a_registered and b_registered and a_committed > 0 \
+			and b_committed > a_committed and a_cleared > 0 \
+			and a_cleared <= b_committed and b_cleared > 0
+	if not leg1:
+		ok = false
+		detail += "leg1(staggered) a_reg=%s b_reg=%s a_c=%d a_x=%d b_c=%d b_x=%d; " % [
+				a_registered, b_registered, a_committed, a_cleared, b_committed, b_cleared]
+	await _t134_clear_cars([a_car, b_car])
+	## --- Leg 2: near-simultaneous perpendicular pair — the right-hand car
+	## goes first, the left-hand car stays behind its line while denied. ---
+	ctrl = TrafficControl.new()
+	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	b_car = _t134_stage_car(node, 3, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	var both_registered := await _wait_until(func() -> bool:
+		return not a_car.stops.is_empty() and a_car.stops[0].registered \
+				and not b_car.stops.is_empty() and b_car.stops[0].registered, 300)
+	frame = 0
+	a_committed = -1
+	a_cleared = -1
+	b_committed = -1
+	b_cleared = -1
+	var a_nose_min := INF
+	var b_was_first := false
+	while frame < 600 and (a_cleared < 0 or b_cleared < 0):
+		await get_tree().physics_frame
+		frame += 1
+		if a_committed < 0:
+			a_nose_min = minf(a_nose_min, _t134_nose_along(a_car))
+		if a_committed < 0 and a_car.stops[0].committed:
+			a_committed = frame
+		if a_cleared < 0 and a_car._stop_index >= 1:
+			a_cleared = frame
+		if b_committed < 0 and b_car.stops[0].committed:
+			b_committed = frame
+		if b_cleared < 0 and b_car._stop_index >= 1:
+			b_cleared = frame
+		if b_committed > 0 and a_committed < 0:
+			b_was_first = true
+	var leg2 := both_registered and b_was_first and b_committed > 0 \
+			and a_committed > 0 and a_nose_min >= 8.79 and b_cleared > 0 \
+			and b_cleared <= a_committed
+	if not leg2:
+		ok = false
+		detail += "leg2(right-first) both_reg=%s b_first=%s b_c=%d a_c=%d a_x=%d b_x=%d nose_min=%.2f; " % [
+				both_registered, b_was_first, b_committed, a_committed, a_cleared,
+				b_cleared, a_nose_min]
+	await _t134_clear_cars([a_car, b_car])
+	## --- Leg 3: near-simultaneous OPPOSING straights proceed together. ---
+	ctrl = TrafficControl.new()
+	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	b_car = _t134_stage_car(node, 2, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	both_registered = await _wait_until(func() -> bool:
+		return not a_car.stops.is_empty() and a_car.stops[0].registered \
+				and not b_car.stops.is_empty() and b_car.stops[0].registered, 300)
+	frame = 0
+	a_committed = -1
+	a_cleared = -1
+	b_committed = -1
+	b_cleared = -1
+	while frame < 600 and (a_cleared < 0 or b_cleared < 0):
+		await get_tree().physics_frame
+		frame += 1
+		if a_committed < 0 and a_car.stops[0].committed:
+			a_committed = frame
+		if a_cleared < 0 and a_car._stop_index >= 1:
+			a_cleared = frame
+		if b_committed < 0 and b_car.stops[0].committed:
+			b_committed = frame
+		if b_cleared < 0 and b_car._stop_index >= 1:
+			b_cleared = frame
+	var leg3 := both_registered and a_committed > 0 and b_committed > 0 \
+			and absi(a_committed - b_committed) <= 30 and a_cleared > 0 and b_cleared > 0
+	if not leg3:
+		ok = false
+		detail += "leg3(opposing-together) both_reg=%s a_c=%d b_c=%d a_x=%d b_x=%d; " % [
+				both_registered, a_committed, b_committed, a_cleared, b_cleared]
+	await _t134_clear_cars([a_car, b_car])
+	## --- Leg 4: opposing straight-vs-left — the left turner waits for the
+	## straight to clear. ---
+	ctrl = TrafficControl.new()
+	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	b_car = _t134_stage_car(node, 2, City.ROUTE_TURN_LEFT, 22.0, ctrl)
+	both_registered = await _wait_until(func() -> bool:
+		return not a_car.stops.is_empty() and a_car.stops[0].registered \
+				and not b_car.stops.is_empty() and b_car.stops[0].registered, 300)
+	frame = 0
+	a_committed = -1
+	a_cleared = -1
+	b_committed = -1
+	b_cleared = -1
+	var b_held_while_a_committed := false
+	while frame < 900 and (a_cleared < 0 or b_cleared < 0):
+		await get_tree().physics_frame
+		frame += 1
+		if a_committed < 0 and a_car.stops[0].committed:
+			a_committed = frame
+		if a_cleared < 0 and a_car._stop_index >= 1:
+			a_cleared = frame
+		if b_committed < 0 and b_car.stops[0].committed:
+			b_committed = frame
+		if b_cleared < 0 and b_car._stop_index >= 1:
+			b_cleared = frame
+		if a_committed > 0 and b_committed < 0:
+			b_held_while_a_committed = true
+	var leg4 := both_registered and a_committed > 0 and b_held_while_a_committed \
+			and a_cleared > 0 and b_committed >= a_cleared and b_cleared > 0
+	if not leg4:
+		ok = false
+		detail += "leg4(left-waits) both_reg=%s a_c=%d held=%s a_x=%d b_c=%d b_x=%d; " % [
+				both_registered, a_committed, b_held_while_a_committed, a_cleared,
+				b_committed, b_cleared]
+	await _t134_clear_cars([a_car, b_car])
+	## --- Leg 5: the null-traffic escape hatch drives through the protocol. ---
+	ctrl = TrafficControl.new()
+	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	b_car = _t134_stage_car(node, 1, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	## b yields to a (a is on b's right in the (0, 1) pair) and holds while a
+	## clears — the bare car c crosses the node mid-hold, never registering.
+	var c_car := _t134_stage_car(node, 3, City.ROUTE_TURN_STRAIGHT, 22.0, null)
+	both_registered = await _wait_until(func() -> bool:
+		return not a_car.stops.is_empty() and a_car.stops[0].registered \
+				and not b_car.stops.is_empty() and b_car.stops[0].registered, 300)
+	frame = 0
+	var c_past := -1
+	var c_ever_registered := false
+	var b_held_at_c_crossing := false
+	while frame < 600 and c_past < 0:
+		await get_tree().physics_frame
+		frame += 1
+		if c_car.stops[0].registered:
+			c_ever_registered = true
+		if not c_car.stops.is_empty() and b_car.stops[0].registered \
+				and not b_car.stops[0].committed:
+			b_held_at_c_crossing = true
+		var a3 := City.ROUTE_DIR_VECS[3]
+		var past := Vector3(c_car.global_position - entry_node_pos(node)).dot(a3)
+		if past > 5.0:
+			c_past = frame
+	var leg5 := both_registered and c_past > 0 and not c_ever_registered \
+			and b_held_at_c_crossing and c_car.traffic == null
+	if not leg5:
+		ok = false
+		detail += "leg5(null-skips) both_reg=%s c_past=%d c_reg=%s b_held=%s; " % [
+				both_registered, c_past, c_ever_registered, b_held_at_c_crossing]
+	await _t134_clear_cars([a_car, b_car, c_car])
+	## --- Leg 6: rule 2 orders only CONFLICTING earlier waiters (round 1). ---
+	## Two OPPOSING straight cars registered 1.5 s apart (> the window): the
+	## earlier one must not seal the node against a compatible movement — the
+	## later car is granted immediately (the ticket's own "opposing vehicles
+	## both going straight may proceed together"). The cars are staged far and
+	## registered MANUALLY: the ledger is pure bookkeeping, the arrival times
+	## are the only thing under test.
+	ctrl = TrafficControl.new()
+	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 60.0, ctrl)
+	b_car = _t134_stage_car(node, 2, City.ROUTE_TURN_STRAIGHT, 60.0, ctrl)
+	ctrl.register_arrival(a_car, node, 0, City.ROUTE_TURN_STRAIGHT)
+	await _wait_frames(100) ## 1.67 s — clearly beyond the 0.75 s window.
+	ctrl.register_arrival(b_car, node, 2, City.ROUTE_TURN_STRAIGHT)
+	var b6_granted: bool = ctrl.request_go(b_car)
+	var a6_granted: bool = ctrl.request_go(a_car)
+	var leg6 := b6_granted and a6_granted
+	if not leg6:
+		ok = false
+		detail += "leg6(rule2-conflict-aware) b_granted=%s a_granted=%s (want true/true); " % [
+				b6_granted, a6_granted]
+	_check("four_way_stop_right_of_way", ok,
+			detail if not ok else "all six ladder legs green")
+	await _t134_clear_cars([a_car, b_car])
+
+
+## The staged node's position in global coords.
+func entry_node_pos(node: Vector2i) -> Vector3:
+	return _city.to_global(_city.road_node_pos(node))
+
+
+## T-134: the crosswalk yield — a car held at its line stays stopped while the
+## pigeon stands inside the padded band, proceeds within 1.0 s of the pigeon
+## leaving it, and a late-entering pigeon re-holds a granted car before its
+## nose crosses the bar. Through a real staged car + TrafficControl whose
+## watched list carries the player.
+func _scenario_crosswalk_yield_holds_and_releases() -> void:
+	var node := _t134_node()
+	var node_pos := entry_node_pos(node)
+	var ctrl := TrafficControl.new()
+	ctrl.watched = [_player]
+	var plaza := _city.position + Vector3(4.0, 0.0, 2.0)
+	## --- Phase 1: the pigeon in the +z band holds the car at its line. ---
+	await _set_up(false, _city.position + Vector3(-16.0, 0.5, -9.8), Vector3.ZERO)
+	await _await_grounded(90)
+	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	var registered := await _wait_until(func() -> bool:
+		return not car.stops.is_empty() and car.stops[0].registered, 300)
+	var held := true
+	var frames_held := 0
+	for _i in 180: ## 3 s of the hold — the pigeon stands in the band.
+		await get_tree().physics_frame
+		if car.stops[0].committed or Vector2(car.velocity.x, car.velocity.z).length() > 0.3 \
+				or not car.stops[0].registered:
+			held = false
+		else:
+			frames_held += 1
+	var phase1 := registered and held and frames_held >= 170
+	## --- Phase 2: the pigeon leaves — the car proceeds within 1.0 s. ---
+	await _set_up(false, plaza + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+	await _await_grounded(60)
+	var commit_frame := -1
+	for f in 60:
+		await get_tree().physics_frame
+		if car.stops[0].committed:
+			commit_frame = f
+			break
+	var bar_frame := -1
+	for f in 60:
+		await get_tree().physics_frame
+		if _t134_nose_along(car) < 8.8:
+			bar_frame = f
+			break
+	var phase2 := phase1 and commit_frame >= 0 and bar_frame >= 0
+	if not phase2:
+		_check("crosswalk_yield_holds_and_releases", false,
+				"phase1 held=%s frames=%d · phase2 commit=%d bar=%d" % [
+						held, frames_held, commit_frame, bar_frame])
+		await _t134_clear_cars([car])
+		return
+	await _t134_clear_cars([car])
+	## --- Phase 3: a late-entering pigeon re-holds a granted car before the
+	## nose crosses the bar. ---
+	await _set_up(false, plaza + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+	await _await_grounded(30)
+	car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0, ctrl)
+	var granted := await _wait_until(func() -> bool:
+		return not car.stops.is_empty() and car.stops[0].committed, 420)
+	var reheld := granted
+	var nose_min := INF
+	if granted:
+		## The pigeon steps into the car's own approach band the frame after
+		## the grant — the car is still at its line, nose before the bar. The
+		## load-bearing read: across 2 s of the pigeon standing in the band,
+		## the nose never crosses the bar.
+		_player.global_position = _city.position + Vector3(-22.2, 0.5, -16.0)
+		for _i in 120:
+			await get_tree().physics_frame
+			nose_min = minf(nose_min, _t134_nose_along(car))
+		reheld = granted and nose_min >= 8.79
+		var crossed := -1
+		await _set_up(false, plaza + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+		await _await_grounded(30)
+		for f in 60:
+			await get_tree().physics_frame
+			if _t134_nose_along(car) < 8.8:
+				crossed = f
+				break
+		_check("crosswalk_yield_holds_and_releases",
+				phase2 and reheld and nose_min >= 8.79 and crossed >= 0,
+				"phase1+2=%s reheld=%s nose_min=%.2f (want ≥ 8.79) crossed=%d (want ≥ 0)" % [
+						phase2, reheld, nose_min, crossed])
+		await _t134_clear_cars([car])
+		return
+	_check("crosswalk_yield_holds_and_releases", false,
+			"phase3 car never granted (granted=%s)" % granted)
+	await _t134_clear_cars([car])
+
+
+## T-134 — the T-089 known-issue (a) repro closed: the pigeon grounded
+## mid-lane in a car's path. The staged car gap-brakes to a hold behind it;
+## after ≈ `patience_seconds` the car has honked EXACTLY once (its own
+## `honk_count` — the patience-honk contract the autoplay DONE line never
+## sees), and over the following 10 s it completes one careful pass — path
+## travel ≥ 8 m while the pigeon stands still — with no second honk inside
+## one patience window of the first (the clock re-arms only after the pass).
+func _scenario_patience_pass_unsticks() -> void:
+	var node := _t134_node()
+	var ctrl := TrafficControl.new()
+	## 80 m out on the +x approach of node (3,3): ~70 m of runway before the
+	## stop line matters, so the staged hold is the pigeon, not the protocol.
+	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 80.0, ctrl)
+	## The pigeon grounded mid-lane 10 m ahead of the car, dead in its path.
+	var pigeon_pos := _city.to_global(_city.route_lane_point(node, 0, 70.0))
+	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var pigeon_start := _player.global_position
+	var honk_frame := -1
+	var travel_since_honk := 0.0
+	var last_pos := car.global_position
+	var pigeon_drift := 0.0
+	var frames := 0
+	while frames < 540 and honk_frame < 0: ## Up to 9 s for the first honk.
+		await get_tree().physics_frame
+		frames += 1
+		last_pos = car.global_position
+		pigeon_drift = maxf(pigeon_drift, _player.global_position.distance_to(pigeon_start))
+		if car.honk_count >= 1:
+			honk_frame = frames
+	travel_since_honk = 0.0
+	last_pos = car.global_position
+	var second_honk_free := true
+	if honk_frame > 0:
+		for _i in 600: ## 10 s after the honk — the pass window.
+			await get_tree().physics_frame
+			travel_since_honk += last_pos.distance_to(car.global_position)
+			last_pos = car.global_position
+			pigeon_drift = maxf(pigeon_drift,
+					_player.global_position.distance_to(pigeon_start))
+			if car.honk_count > 1:
+				second_honk_free = false
+			if _debug and _i % 60 == 0:
+				_dbg("pass t+%.1f s: pos %s speed %.2f passing=%s patience %.1f blocker_d %.2f" % [
+						float(_i) / 60.0, car.global_position,
+						Vector2(car.velocity.x, car.velocity.z).length(),
+						car._passing, car._patience, car._blocker_distance()])
+	## The once-per-expiry contract: across the honk + a full patience window
+	## the counter never moved again.
+	var honk_at := float(honk_frame) / 60.0
+	var leg1 := honk_frame > 0 and honk_at >= 5.0 and honk_at <= 9.0 \
+			and travel_since_honk >= 8.0 and second_honk_free \
+			and car.honk_count == 1 and pigeon_drift < 0.5
+	var leg1_honks: int = car.honk_count
+	## --- Leg 2: the off-line stop (round 1 review) — a car that halts 1.5 m
+	## BESIDE its stop line center must still register and clear the node ---
+	## the old full-3D registration test left such cars unregistered and
+	## pinned at the line forever, honking every patience cycle.
+	await _t134_clear_cars([car])
+	var off_car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0,
+			ctrl, 1.5)
+	var off_registered := await _wait_until(func() -> bool:
+		return not off_car.stops.is_empty() and off_car.stops[0].registered, 300)
+	var off_clear_frame := -1
+	for f in 420: ## 7 s — well past one patience cycle: no freeze allowed.
+		await get_tree().physics_frame
+		var a0 := City.ROUTE_DIR_VECS[0]
+		var past := Vector3(off_car.global_position - off_car.stops[0].pos).dot(a0)
+		if past > 5.0:
+			off_clear_frame = f
+			break
+	var leg2 := off_registered and off_clear_frame >= 0 and off_car.honk_count == 0
+	_check("patience_pass_unsticks",
+			leg1 and leg2,
+			"leg1: first honk at %.2f s (want 5-9) · pass travel %.1f m (want ≥ 8) · honks=%d (want 1, no second inside one window=%s) · pigeon drift %.2f m (want < 0.5) · leg2: off-line car registered=%s cleared node in frame %d (want ≥ 0) honks=%d (want 0)" % [
+					honk_at, travel_since_honk, leg1_honks, second_honk_free,
+					pigeon_drift, off_registered, off_clear_frame, off_car.honk_count])
+	await _t134_clear_cars([off_car])
+
+
+## T-134 — the splat-planning tell: a car routed into a turn arms the correct
+## `blinker` side between 1.5-2.5 s before the turn entry (the protocol grant
+## that releases it into the box), flashes at a period inside 0.5-1.0 s (the
+## 1-2 Hz legal band), clears within 1 s of completing the turn, and a staged
+## straight continuation never arms it.
+func _scenario_turn_signals_blink_before_turns() -> void:
+	var node := _t134_node()
+	var ctrl := TrafficControl.new()
+	## --- The turn leg: a right turn at the node, staged 40 m out. ---
+	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_RIGHT, 40.0, ctrl)
+	var armed_frame := -1
+	var armed_side := 0
+	var committed_frame := -1
+	var on_off_frames: Array[int] = []
+	var last_on := false
+	var released_frame := -1
+	var cleared_frame := -1
+	var frame := 0
+	while frame < 900 and cleared_frame < 0:
+		await get_tree().physics_frame
+		frame += 1
+		if armed_frame < 0 and car.blinker != 0:
+			armed_frame = frame
+			armed_side = car.blinker
+		if armed_frame > 0 and committed_frame < 0:
+			var lit := car.blinker != 0 and fmod(car._flash_clock * car.blinker_hz, 1.0) < 0.5
+			if lit != last_on:
+				on_off_frames.append(frame)
+				last_on = lit
+		if committed_frame < 0 and not car.stops.is_empty() and car.stops[0].committed:
+			committed_frame = frame
+		if released_frame < 0 and car._stop_index >= 1:
+			released_frame = frame ## The turn is complete — the box is released.
+		elif released_frame > 0 and cleared_frame < 0 and car.blinker == 0:
+			cleared_frame = frame
+	var arm_to_entry := (committed_frame - armed_frame) / 60.0
+	var flash_period := 0.0
+	if on_off_frames.size() >= 3:
+		flash_period = float(on_off_frames[2] - on_off_frames[0]) / 60.0
+	var clear_seconds := (cleared_frame - released_frame) / 60.0 \
+			if cleared_frame > 0 and released_frame > 0 else INF
+	var turn_ok := armed_frame > 0 and armed_side == City.ROUTE_TURN_RIGHT \
+			and committed_frame > 0 and arm_to_entry >= 1.5 and arm_to_entry <= 2.5 \
+			and flash_period >= 0.5 and flash_period <= 1.0 \
+			and cleared_frame > 0 and clear_seconds <= 1.0
+	if not turn_ok:
+		_check("turn_signals_blink_before_turns", false,
+				"turn leg: armed=%d side=%d committed=%d arm→entry %.2f s (want 1.5-2.5) period %.2f s (want 0.5-1.0) released=%d cleared %s (%.2f s after release, want ≤ 1)" % [
+						armed_frame, armed_side, committed_frame, arm_to_entry,
+						flash_period, released_frame, cleared_frame > 0, clear_seconds])
+		await _t134_clear_cars([car])
+		return
+	await _t134_clear_cars([car])
+	## --- The straight leg: the same approach, straight through — never arms. ---
+	ctrl = TrafficControl.new()
+	car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 40.0, ctrl)
+	var straight_ok := true
+	var straight_committed := false
+	for _i in 600:
+		await get_tree().physics_frame
+		if not car.stops.is_empty() and car.stops[0].committed:
+			straight_committed = true
+		if car.blinker != 0:
+			straight_ok = false
+	var straight_passed := _t134_nose_along(car) < 5.0
+	_check("turn_signals_blink_before_turns",
+			turn_ok and straight_ok and straight_committed and straight_passed,
+			"turn leg ok=%s · straight leg: ever armed=%s committed=%s passed=%s" % [
+					turn_ok, not straight_ok, straight_committed, straight_passed])
+	await _t134_clear_cars([car])
+
+
+## T-134 — the routes premise at fleet scale, protocol live: with the pigeon
+## pinned so no recycle fires, over a 15 s run a traffic car's block
+## assignment changes ≥ 2 times BY DRIVING (the ring-loop car's block never
+## changes; the no-single-frame-hop > 5 m arm is the T-089 no-teleport guard),
+## a car covers ≥ 60 m of path, the fleet holds 14 traffic + 12 parked, every
+## car stays > 2.0 m flat from every other (the `cars_traffic` no-overlap
+## floor — with the four-way-stop ladder live this doubles as its no-crossing-
+## collision proof), and velocities stay finite throughout.
+func _scenario_traffic_routes_multi_block() -> void:
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	## The cars_traffic anchor pin (T-081) — a fixed grounded plaza point.
+	_player.global_position = _city.position + Vector3(4.0, 0.0, 2.0) \
+			+ Vector3(0.0, _player.position.y - _city.position.y, 0.0)
+	await _wait_frames(2)
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	## Same disarm as `cars_traffic`: the criterion's precondition is that no
+	## recycle fires — the scan is disarmed, the no-hop arm still asserts it.
+	spawner.recycle_radius = 100000.0
+	add_child(spawner)
+	await _wait_frames(4)
+	var cars := spawner.living_cars()
+	var moving := 0
+	var parked := 0
+	for car in cars:
+		if car.mode == Car.Mode.TRAFFIC:
+			moving += 1
+		else:
+			parked += 1
+	if cars.is_empty() or moving != spawner.target_moving or parked != spawner.target_parked:
+		_check("traffic_routes_multi_block", false,
+				"fleet %d (moving %d, parked %d, want %d/%d)" % [
+						cars.size(), moving, parked,
+						spawner.target_moving, spawner.target_parked])
+		spawner.free()
+		return
+	var last: Array[Vector3] = []
+	var travel: Array[float] = []
+	var changes: Array[int] = []
+	for car in cars:
+		last.append(car.global_position)
+		travel.append(0.0)
+		changes.append(0)
+	var min_gap := 100.0
+	var max_hop := 0.0
+	var finite := true
+	for f in 900: ## 15 s at the fixed 60 Hz step.
+		await get_tree().physics_frame
+		for i in cars.size():
+			var car: Car = cars[i]
+			if not is_instance_valid(car):
+				continue
+			var moved := last[i].distance_to(car.global_position)
+			travel[i] += moved
+			max_hop = maxf(max_hop, moved)
+			finite = finite and car.velocity.is_finite()
+			changes[i] = car.block_changes
+			last[i] = car.global_position
+		if f % 8 == 0: ## Sampled pairwise gaps — no transient overlap.
+			for i in cars.size():
+				for j in range(i + 1, cars.size()):
+					var a := cars[i].global_position
+					var b := cars[j].global_position
+					min_gap = minf(min_gap,
+							Vector2(a.x - b.x, a.z - b.z).length())
+	var best_changes := 0
+	var best_travel := 0.0
+	var traffic_travel := 0.0
+	for i in cars.size():
+		if cars[i].mode == Car.Mode.TRAFFIC:
+			best_changes = maxi(best_changes, changes[i])
+			best_travel = maxf(best_travel, travel[i])
+			traffic_travel += travel[i]
+	if _debug:
+		for i in cars.size():
+			_dbg("car %d: travel %.1f block_changes %d" % [i, travel[i], changes[i]])
+		_dbg("min gap %.2f max hop %.2f" % [min_gap, max_hop])
+	_check("traffic_routes_multi_block",
+			best_changes >= 2 and best_travel >= 60.0
+					and moving == spawner.target_moving
+					and parked == spawner.target_parked
+					and min_gap > 2.0 and max_hop <= 5.0 and finite,
+			"best block changes %d (want ≥2) · best travel %.1f m (want ≥60) · fleet %d+%d · min gap %.2f (want >2) · max hop %.2f (want ≤5) · finite=%s" % [
+					best_changes, best_travel, moving, parked, min_gap, max_hop, finite])
+	spawner.free()
+
+
+## T-134 — the intersection stop-control furniture, audited like the
+## crosswalks (the `city_crosswalks_present` pattern): the `stop_line`
+## MultiMesh queue holds exactly 224 instances — one per existing approach
+## (the T-069 reach rule), every bar across its approach's incoming lane
+## (center on the lane center, 1.5 m off the road centerline toward the
+## travel direction's right, on the incoming side), 8.8 m out from its node
+## (8.6-9.0 audited), 0.4 along travel × 2.8 across at its road family's
+## paint height; the sign keys hold exactly 224 posts + 64 speed posts / 896
+## red bars / 896 border bars / 224 plaques / 64 speed faces, every stop sign
+## assembly on the approach's RIGHT side at 5.2 m off / 9.3 m out with the
+## face center ≈ 2.5 m up, its four bars per layer at 0/90/±45° with the
+## thickness axis perpendicular to travel (the four-bar octagon recipe), the
+## speed sign on its node's first existing approach at 12.0 m out and ≈ 2.4
+## m up; every sign clears the corner lamps (±6.2, ±6.2 from the node) by
+## ≥ 3.0 m; a forced same-seed rebuild reproduces every transform
+## byte-identically; no StaticBody3D anywhere under `Visuals`; and the layout
+## fingerprint stays at the pre-change pin (the builder draws zero RNG and
+## appends zero `_fp` entries).
+func _scenario_intersection_furniture() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	var keys := ["stop_line", "sign_post", "stop_sign", "stop_sign_border",
+			"all_way_plaque", "speed_sign"]
+	var queues := {}
+	var present := true
+	for key in keys:
+		present = present and _city._visuals.has(key) \
+				and (_city.get_node("Visuals/" + key.to_pascal_case())
+						as MultiMeshInstance3D) != null
+		queues[key] = _city._visuals[key].xfs if _city._visuals.has(key) else []
+	var stop_lines: Array = queues.stop_line
+	var posts: Array = queues.sign_post
+	var reds: Array = queues.stop_sign
+	var borders: Array = queues.stop_sign_border
+	var plaques: Array = queues.all_way_plaque
+	var speeds: Array = queues.speed_sign
+	var count_ok := present and stop_lines.size() == 224 and posts.size() == 288 \
+			and reds.size() == 896 and borders.size() == 896 \
+			and plaques.size() == 224 and speeds.size() == 64
+	## --- The independent layout recompute (from the default exports). ---
+	var half := _city.city_span * 0.5
+	var centers := _city.road_node_coords()
+	var lane_off := _city.road_width * 0.5 - _city.traffic_lane_offset
+	var slab_y := _city.road_slab_height
+	var expected_lines: Array[Vector3] = []
+	var expected_signs: Array[Dictionary] = [] ## {center, a, r} per existing approach.
+	var expected_speeds: Array[Dictionary] = [] ## {center, a, r} per node.
+	for cx in centers.size():
+		for cz in centers.size():
+			var node := Vector2i(cx, cz)
+			var node_pos := _city.road_node_pos(node)
+			for dir in 4: ## Every existing approach gets a line + a stop sign.
+				if not _city.approach_exists(node, dir):
+					continue
+				var a: Vector3 = City.ROUTE_DIR_VECS[dir]
+				var r := Vector3(-a.z, 0.0, a.x)
+				## XZ center only here — the y paint family is audited per bar.
+				expected_lines.append(node_pos - a * 8.8 + r * lane_off)
+				expected_signs.append({
+					"center": node_pos - a * 9.3 + r * 5.2,
+					"a": a, "r": r, "node": node_pos,
+				})
+			for dir in City.SIGN_DIR_ORDER: ## The speed sign: first existing.
+				if _city.approach_exists(node, dir):
+					var sa: Vector3 = City.ROUTE_DIR_VECS[dir]
+					var sr := Vector3(-sa.z, 0.0, sa.x)
+					expected_speeds.append({
+						"center": node_pos - sa * 12.0 + sr * 5.2,
+						"a": sa, "r": sr, "node": node_pos,
+					})
+					break
+	count_ok = count_ok and expected_lines.size() == 224 \
+			and expected_signs.size() == 224 and expected_speeds.size() == 64
+	## --- Stop lines: XZ multiset match + per-bar geometry. ---
+	var matched: Array[bool] = []
+	matched.resize(expected_lines.size())
+	matched.fill(false)
+	var line_geometry := true
+	var line_y := true
+	var line_offset := true
+	for xf: Transform3D in stop_lines:
+		var o: Vector3 = xf.origin
+		var sc: Vector3 = xf.basis.get_scale()
+		var along_x := absf(sc.x - 0.4) < 0.001 and absf(sc.z - 2.8) < 0.001
+		var along_z := absf(sc.z - 0.4) < 0.001 and absf(sc.x - 2.8) < 0.001
+		line_geometry = line_geometry and (along_x or along_z) \
+				and absf(sc.y - 0.01) < 0.001
+		line_y = line_y and absf(o.y - (slab_y if along_x else slab_y + 0.005)) < 0.001
+		var best_e := -1
+		var best_d := INF
+		for e in expected_lines.size():
+			var w: Vector3 = expected_lines[e]
+			var d := Vector2(o.x - w.x, o.z - w.z).length_squared()
+			if d < best_d:
+				best_d = d
+				best_e = e
+		line_offset = line_offset and best_d < 1e-6 and best_e >= 0
+		if best_e >= 0 and best_d < 1e-6:
+			matched[best_e] = true
+	var placement_ok := line_offset
+	for m in matched:
+		placement_ok = placement_ok and m
+	## --- Sign assemblies: center match, side, height, bar recipe. ---
+	var sign_geometry := true
+	var sign_side_height := true
+	var sign_angles_ok := true
+	var matched_signs: Array[bool] = []
+	matched_signs.resize(expected_signs.size())
+	matched_signs.fill(false)
+	var per_sign_angles := {} ## Vector3 center -> {angle: count} per layer.
+	for pair: Array in [["stop_sign", 0.75, 0.31, 0.036], ["stop_sign_border", 0.81, 0.34, 0.03]]:
+		var key: String = pair[0]
+		var across_len: float = pair[1]
+		var bar_len: float = pair[2]
+		var thick: float = pair[3]
+		per_sign_angles = {}
+		for xf: Transform3D in queues[key]:
+			var basis: Basis = xf.basis
+			var bx := basis.x.length()
+			var by := basis.y.length()
+			var bz := basis.z.length()
+			sign_geometry = sign_geometry and absf(bx - across_len) < 0.005 \
+					and absf(by - bar_len) < 0.005 and absf(bz - thick) < 0.005
+			var best_e := -1
+			var best_d := INF
+			for e in expected_signs.size():
+				var center: Vector3 = expected_signs[e].center
+				var d := Vector2(xf.origin.x - center.x, xf.origin.z - center.z) \
+						.length_squared()
+				if d < best_d:
+					best_d = d
+					best_e = e
+			if best_e < 0 or best_d > 1e-6:
+				sign_side_height = false
+				continue
+			matched_signs[best_e] = true
+			var expect: Dictionary = expected_signs[best_e]
+			var a: Vector3 = expect.a
+			var r: Vector3 = expect.r
+			## Face center height and the octagon axes perpendicular to travel:
+			## the thickness axis is ±a.
+			sign_side_height = sign_side_height \
+					and absf(xf.origin.y - 2.525) < 0.01 \
+					and (basis.z.normalized().is_equal_approx(a)
+							or basis.z.normalized().is_equal_approx(-a))
+			## The bar's long-axis angle in the (r, up) plane: 0 / 90 / ±45.
+			var cos_a := basis.x.normalized().dot(r)
+			var sin_a := basis.x.normalized().dot(Vector3.UP)
+			var angle := roundf(rad_to_deg(atan2(sin_a, cos_a)) / 45.0) * 45.0
+			var akey := (int(angle) % 180 + 180) % 180 ## −45° normalizes to 135.
+			var key_center: Vector3 = expect.center
+			var bucket: Dictionary = per_sign_angles.get_or_add(key_center, {})
+			bucket[akey] = int(bucket.get(akey, 0)) + 1
+		for center: Vector3 in per_sign_angles:
+			var bucket: Dictionary = per_sign_angles[center]
+			sign_angles_ok = sign_angles_ok and bucket.size() == 4 \
+					and bucket.has(0) and bucket.has(90) \
+					and bucket.has(45) and bucket.has(135)
+	var signs_placed := true
+	for m in matched_signs:
+		signs_placed = signs_placed and m
+	## --- Plaques: same assembly column, 0.495 below the octagon. ---
+	var plaque_ok := plaques.size() == 224
+	var seen_plaques := 0
+	for xf: Transform3D in plaques:
+		var basis: Basis = xf.basis
+		plaque_ok = plaque_ok and absf(basis.x.length() - 0.42) < 0.005 \
+				and absf(basis.y.length() - 0.14) < 0.005 \
+				and absf(basis.z.length() - 0.03) < 0.005 \
+				and absf(xf.origin.y - 2.03) < 0.01
+		for e in expected_signs.size():
+			var center: Vector3 = expected_signs[e].center
+			if Vector2(xf.origin.x - center.x, xf.origin.z - center.z) \
+					.length_squared() < 2.0:
+				seen_plaques += 1
+				break
+	plaque_ok = plaque_ok and seen_plaques == 224
+	## --- Speed faces: first existing approach per node, 12 m out, ≈ 2.4 up. ---
+	var speed_ok := speeds.size() == 64
+	var speed_matched: Array[bool] = []
+	speed_matched.resize(expected_speeds.size())
+	speed_matched.fill(false)
+	for xf: Transform3D in speeds:
+		var basis: Basis = xf.basis
+		speed_ok = speed_ok and absf(basis.x.length() - 0.45) < 0.005 \
+				and absf(basis.y.length() - 0.6) < 0.005 \
+				and absf(basis.z.length() - 0.03) < 0.005 \
+				and absf(xf.origin.y - 2.4) < 0.01
+		var best_e := -1
+		var best_d := INF
+		for e in expected_speeds.size():
+			var expect: Dictionary = expected_speeds[e]
+			var d := Vector2(xf.origin.x - expect.center.x,
+					xf.origin.z - expect.center.z).length_squared()
+			if d < best_d:
+				best_d = d
+				best_e = e
+		if best_e < 0 or best_d > 1e-6:
+			speed_ok = false
+			continue
+		speed_matched[best_e] = true
+		var a: Vector3 = expected_speeds[best_e].a
+		speed_ok = speed_ok and (basis.z.normalized().is_equal_approx(a)
+				or basis.z.normalized().is_equal_approx(-a))
+	var speeds_placed := true
+	for m in speed_matched:
+		speeds_placed = speeds_placed and m
+	## --- Posts: 288, at the 224 sign columns + the 64 speed columns. ---
+	var post_ok := posts.size() == 288
+	var posts_seen := 0
+	for xf: Transform3D in posts:
+		var basis: Basis = xf.basis
+		post_ok = post_ok and absf(basis.get_scale().x - 0.08) < 0.005 \
+				and absf(basis.get_scale().y - 2.2) < 0.005 \
+				and absf(basis.get_scale().z - 0.08) < 0.005 \
+				and absf(xf.origin.y - 1.22) < 0.01
+		for e in expected_signs.size():
+			var center: Vector3 = expected_signs[e].center
+			if Vector2(xf.origin.x - center.x, xf.origin.z - center.z).length_squared() < 1e-6:
+				posts_seen += 1
+				break
+	for e in expected_speeds.size():
+		var center: Vector3 = expected_speeds[e].center
+		for xf: Transform3D in posts:
+			if Vector2(xf.origin.x - center.x, xf.origin.z - center.z).length_squared() < 1e-6:
+				posts_seen += 1
+				break
+	post_ok = post_ok and posts_seen == 288
+	## --- Lamp clearance: every sign/face column ≥ 3.0 m from every corner
+	## lamp (the lamps sit at node ± (6.2, 6.2) — `_build_block_props`' 9.8 m
+	## block-corner ring read from the node). ---
+	var lamp_ok := true
+	var lamps: Array[Vector3] = []
+	for cx in centers.size():
+		for cz in centers.size():
+			var node_pos := _city.road_node_pos(Vector2i(cx, cz))
+			for sx: float in [-6.2, 6.2]:
+				for sz: float in [-6.2, 6.2]:
+					lamps.append(Vector3(node_pos.x + sx, 0.0, node_pos.z + sz))
+	for list: Array in [reds, plaques, speeds]:
+		for xf: Transform3D in list:
+			for lamp in lamps:
+				if Vector2(xf.origin.x - lamp.x, xf.origin.z - lamp.z).length() <= 3.0:
+					lamp_ok = false
+	## --- Determinism: a forced same-seed rebuild reproduces every queue. ---
+	var first_queues := {}
+	for key in keys:
+		first_queues[key] = queues[key]
+	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
+	var deterministic := _city.fingerprint == fp_first
+	for key in keys:
+		var before: Array[Transform3D] = []
+		for xf: Transform3D in first_queues[key]:
+			before.append(xf)
+		var after: Array[Transform3D] = []
+		if _city._visuals.has(key):
+			for xf: Transform3D in _city._visuals[key].xfs:
+				after.append(xf)
+		deterministic = deterministic and not after.is_empty() \
+				and _spots_equal(before, after)
+	## Visual-only (T-017): no StaticBody3D anywhere under the city's Visuals root.
+	var visuals := _city.get_node("Visuals") as Node3D
+	var colliders := visuals.find_children("*", "StaticBody3D", true, false)
+	var visual_only := colliders.is_empty()
+	## Zero-RNG / zero-_fp: the fingerprint equals the pre-change pin.
+	var pin_ok := fp_first == 4045370482
+	_check("intersection_furniture_oriented",
+			count_ok and placement_ok and line_geometry and line_y and line_offset
+					and sign_geometry and sign_side_height and sign_angles_ok
+					and signs_placed and plaque_ok and speed_ok and speeds_placed
+					and post_ok and lamp_ok and deterministic and visual_only and pin_ok,
+			"counts=%s lines placed=%s geom=%s y=%s offset=%s signs geom=%s side/h=%s angles=%s placed=%s plaque=%s speed=%s/%s posts=%s lamp=%s det=%s colliders=%d pin=%s" % [
+					count_ok, placement_ok, line_geometry, line_y, line_offset,
+					sign_geometry, sign_side_height, sign_angles_ok, signs_placed,
+					plaque_ok, speed_ok, speeds_placed, post_ok, lamp_ok,
+					deterministic, colliders.size(), pin_ok])
+	print("SIM DATA intersection_furniture_oriented: lines=%d posts=%d red=%d border=%d plaque=%d speed=%d fingerprint=%d" % [
+			stop_lines.size(), posts.size(), reds.size(), borders.size(),
+			plaques.size(), speeds.size(), fp_first])
 
 
 ## --- scenarios (T-113 citizen classes) --------------------------------------
@@ -7981,42 +8944,63 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	## The drop mirrors _scenario_bread_eating: 1.8 m ahead (yaw 0 walks -Z,
 	## straight into the crumb), settle grounded, then waddle until it is
 	## eaten. (T-111) The re-aim at the next-nearest must FLASH: the eaten
-	## previous counts as a change even though it is freed.
-	var eat_target: BreadCrumb = null
-	var best_eat := INF
+	## previous counts as a change even though it is freed. (T-134 note) The
+	## route deals shifted the parking RNG stream, so the nearest-to-spawn
+	## crumb can now be a TAILGATE crumb whose +Z approach faces street
+	## furniture (a cafe table, a bench — solid layer-1 the waddle cannot
+	## cross), which would embed the drop and read zero forever. Try the
+	## ground crumbs NEAREST the spawn point in order until one actually
+	## eats — the flash/re-aim contract rides whichever crumb was eaten.
+	var eat_candidates: Array[BreadCrumb] = []
 	for crumb in spawner.living_crumbs():
-		if crumb.global_position.y > 0.3:
-			continue
-		var d := city.spawn_point.distance_squared_to(crumb.global_position)
-		if d < best_eat:
-			best_eat = d
-			eat_target = crumb
+		if crumb.global_position.y <= 0.3:
+			eat_candidates.append(crumb)
+	eat_candidates.sort_custom(func(a: BreadCrumb, b: BreadCrumb) -> bool:
+		return city.spawn_point.distance_squared_to(a.global_position) \
+				< city.spawn_point.distance_squared_to(b.global_position))
 	var reaim_ok := false
 	var eaten := false
 	var reaim_flashed := false
-	if eat_target != null:
+	var eat_target: BreadCrumb = null
+	for candidate in eat_candidates:
+		if eat_candidates.find(candidate) >= 6:
+			break ## Six staged attempts is plenty; one always eats.
+		eat_target = candidate
 		pigeon.reset_flight(city.to_local(eat_target.global_position + Vector3(0.0, 0.4, 1.8)))
 		for _i in 90:
 			await get_tree().physics_frame
 			if pigeon.is_grounded:
 				break
+		if _debug:
+			_dbg("hud eat: try target %s, grounded=%s at %s" % [
+					eat_target.global_position, pigeon.is_grounded,
+					pigeon.global_position])
 		Input.action_press("pitch_up")
 		for _i in 120:
 			await get_tree().physics_frame
 			eaten = not is_instance_valid(eat_target)
 			if eaten:
 				break
+			if _debug and _i % 60 == 0:
+				_dbg("hud eat waddle %d: pos %s dist %.2f grounded %s vel %s" % [
+						_i, pigeon.global_position,
+						pigeon.global_position.distance_to(eat_target.global_position),
+						pigeon.is_grounded, pigeon.velocity])
 		Input.action_release("pitch_up")
-		await _wait_frames(2) ## Pointer refresh + the queue_free flush.
-		var at2 := pigeon.global_position
-		var want2: BreadCrumb = _scan_nearest_crumb(spawner, at2)
-		reaim_flashed = globe.flash_active
-		## A freed previous compares equal to null in Godot 4 — `want2 != eat_target`
-		## holds against the freed instance either way.
-		reaim_ok = eaten and want2 != null and (want2 != eat_target) \
-				and pointer.visible \
-				and absf(_pointer_distance_m(pointer.text)
-						- at2.distance_to(want2.global_position)) <= 1.0
+		if eaten:
+			break
+		if _debug:
+			_dbg("hud eat: attempt did not eat — next-nearest crumb")
+	await _wait_frames(2) ## Pointer refresh + the queue_free flush.
+	var at2 := pigeon.global_position
+	var want2: BreadCrumb = _scan_nearest_crumb(spawner, at2)
+	reaim_flashed = globe.flash_active
+	## A freed previous compares equal to null in Godot 4 — `want2 != eat_target`
+	## holds against the freed instance either way.
+	reaim_ok = eaten and want2 != null and (want2 != eat_target) \
+			and pointer.visible \
+			and absf(_pointer_distance_m(pointer.text)
+					- at2.distance_to(want2.global_position)) <= 1.0
 	## --- overhead: the T-098 motivating case on the globe ----------------------
 	## The roof-crumb failure shape: a GROUNDED pigeon, a hand-placed crumb
 	## ~10 m overhead (drop_crumb). Pre-pick an in-ring street spot whose
