@@ -241,6 +241,21 @@ dial, so its bars re-derive).
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-133 | [Slower bird, bigger city: the speed quartet ×0.8, turn rates untouched](T-133-slower-bird.md) | flight-control | 3 | 2 | done |
 
+## City identity — parks & districts (owner direction 2026-10-23)
+
+Owner pick: one park per district, then give each district a real theme —
+campus / main-street / tailgate / residential (the fourth theme
+owner-picked), dressing plus one signature silhouette per quadrant, themed
+parks included. Two serial tickets: T-135 pins the parks first; T-136 themes
+on top and forge-routes first (reference photos — every theme and signature
+has a clear real-world counterpart). The quadrant↔theme mapping and the
+signature-prop fork are T-136 owner picks at forge sign-off.
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-135 | [One park per district: pin the park roll to four mirrored blocks](T-135-one-park-per-district.md) | worldbuilding | 4 | 3 | proposed |
+| T-136 | [District theming: four dressed quadrants, one signature silhouette each](T-136-district-theming.md) | worldbuilding | 4 | 3 | proposed (forge pending) |
+
 ## Suggested build order
 
 *(Historical — the M1 sequencing note below predates the sweep and M2; every
