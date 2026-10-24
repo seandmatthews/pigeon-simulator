@@ -91,12 +91,18 @@ func request_go(car: Car) -> bool:
 		if movements_conflict(movement.approach, movement.turn,
 				committed.approach, committed.turn):
 			return false
-	## 2. A clearly earlier stopper at the node goes first — real
-	## first-arrived-goes, not a queue position.
+	## 2. A clearly earlier stopper at the node goes first — but only over
+	## CONFLICTING movements (round 1 review): an earlier waiter making a
+	## movement compatible with ours (an opposing straight, a same-turn
+	## opposite) must never order us, or one waiter that cannot proceed
+	## would seal every compatible later arrival out of the node forever.
 	for other: Movement in _waiting[movement.node]:
 		if other.car_id == movement.car_id:
 			continue
-		if movement.arrival - other.arrival > simultaneous_window:
+		if movement.arrival - other.arrival <= simultaneous_window:
+			continue
+		if movements_conflict(movement.approach, movement.turn,
+				other.approach, other.turn):
 			return false
 	## 3+4. Near-simultaneous set: yield to the right; still tied, straight
 	## and right beat our left — for CONFLICTING pairs only.

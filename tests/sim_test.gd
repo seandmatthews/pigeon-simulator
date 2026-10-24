@@ -5808,10 +5808,12 @@ func _t134_bands_global(node: Vector2i) -> Array[Rect2]:
 ## One hand-placed stop-protocol car: staged `standoff` metres out on `node`'s
 ## `dir` approach lane, routed through the node making the staged `turn`
 ## (deterministic — not drawn), with `ctrl` as its ledger (null = the
-## protocol-null escape hatch). The path continues ~45 m out the far side, so
-## a granted car always has runway.
+## protocol-null escape hatch). `lateral` offsets the staged car and its whole
+## path sideways off the lane while the ENTRY stays on-lane — the round-1
+## off-line-stop repro (a car parked 1.5 m beside its line center). The path
+## continues ~45 m out the far side, so a granted car always has runway.
 func _t134_stage_car(node: Vector2i, dir: int, turn: int, standoff: float,
-		ctrl: TrafficControl) -> Car:
+		ctrl: TrafficControl, lateral: float = 0.0) -> Car:
 	var car: Car = CAR_SCENE.instantiate()
 	car.traffic = ctrl
 	var exit_dir := dir
@@ -5832,13 +5834,15 @@ func _t134_stage_car(node: Vector2i, dir: int, turn: int, standoff: float,
 		"registered": false,
 		"committed": false,
 	}
+	var offset := _city.right_of_dir(dir) * lateral
 	var points := PackedVector3Array()
 	if turn != 0:
-		points.append(entry.corner)
-	points.append(_city.to_global(_city.route_lane_point(node, dir, -20.0)))
-	points.append(_city.to_global(_city.route_lane_point(node, dir, -45.0)))
+		points.append(_city.to_global(corner) + offset)
+	points.append(_city.to_global(_city.route_lane_point(node, dir, -20.0)) + offset)
+	points.append(_city.to_global(_city.route_lane_point(node, dir, -45.0)) + offset)
 	add_child(car)
-	car.start_route(_city.to_global(_city.route_lane_point(node, dir, standoff)),
+	car.start_route(
+			_city.to_global(_city.route_lane_point(node, dir, standoff)) + offset,
 			points, [entry], _city.to_global(_city.block_centers[0]),
 			PackedVector3Array(), node)
 	return car
@@ -6047,9 +6051,30 @@ func _scenario_four_way_stop_right_of_way() -> void:
 		ok = false
 		detail += "leg5(null-skips) both_reg=%s c_past=%d c_reg=%s b_held=%s; " % [
 				both_registered, c_past, c_ever_registered, b_held_at_c_crossing]
-	_check("four_way_stop_right_of_way", ok,
-			detail if not ok else "all five ladder legs green")
 	await _t134_clear_cars([a_car, b_car, c_car])
+	## --- Leg 6: rule 2 orders only CONFLICTING earlier waiters (round 1). ---
+	## Two OPPOSING straight cars registered 1.5 s apart (> the window): the
+	## earlier one must not seal the node against a compatible movement — the
+	## later car is granted immediately (the ticket's own "opposing vehicles
+	## both going straight may proceed together"). The cars are staged far and
+	## registered MANUALLY: the ledger is pure bookkeeping, the arrival times
+	## are the only thing under test.
+	ctrl = TrafficControl.new()
+	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 60.0, ctrl)
+	b_car = _t134_stage_car(node, 2, City.ROUTE_TURN_STRAIGHT, 60.0, ctrl)
+	ctrl.register_arrival(a_car, node, 0, City.ROUTE_TURN_STRAIGHT)
+	await _wait_frames(100) ## 1.67 s — clearly beyond the 0.75 s window.
+	ctrl.register_arrival(b_car, node, 2, City.ROUTE_TURN_STRAIGHT)
+	var b6_granted: bool = ctrl.request_go(b_car)
+	var a6_granted: bool = ctrl.request_go(a_car)
+	var leg6 := b6_granted and a6_granted
+	if not leg6:
+		ok = false
+		detail += "leg6(rule2-conflict-aware) b_granted=%s a_granted=%s (want true/true); " % [
+				b6_granted, a6_granted]
+	_check("four_way_stop_right_of_way", ok,
+			detail if not ok else "all six ladder legs green")
+	await _t134_clear_cars([a_car, b_car])
 
 
 ## The staged node's position in global coords.
@@ -6195,14 +6220,34 @@ func _scenario_patience_pass_unsticks() -> void:
 	## The once-per-expiry contract: across the honk + a full patience window
 	## the counter never moved again.
 	var honk_at := float(honk_frame) / 60.0
-	_check("patience_pass_unsticks",
-			honk_frame > 0 and honk_at >= 5.0 and honk_at <= 9.0
-					and travel_since_honk >= 8.0 and second_honk_free
-					and car.honk_count == 1 and pigeon_drift < 0.5,
-			"first honk at %.2f s (want 5-9) · pass travel %.1f m (want ≥ 8) · honks=%d (want 1, no second inside one window=%s) · pigeon drift %.2f m (want < 0.5)" % [
-					honk_at, travel_since_honk, car.honk_count, second_honk_free,
-					pigeon_drift])
+	var leg1 := honk_frame > 0 and honk_at >= 5.0 and honk_at <= 9.0 \
+			and travel_since_honk >= 8.0 and second_honk_free \
+			and car.honk_count == 1 and pigeon_drift < 0.5
+	var leg1_honks: int = car.honk_count
+	## --- Leg 2: the off-line stop (round 1 review) — a car that halts 1.5 m
+	## BESIDE its stop line center must still register and clear the node ---
+	## the old full-3D registration test left such cars unregistered and
+	## pinned at the line forever, honking every patience cycle.
 	await _t134_clear_cars([car])
+	var off_car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0,
+			ctrl, 1.5)
+	var off_registered := await _wait_until(func() -> bool:
+		return not off_car.stops.is_empty() and off_car.stops[0].registered, 300)
+	var off_clear_frame := -1
+	for f in 420: ## 7 s — well past one patience cycle: no freeze allowed.
+		await get_tree().physics_frame
+		var a0 := City.ROUTE_DIR_VECS[0]
+		var past := Vector3(off_car.global_position - off_car.stops[0].pos).dot(a0)
+		if past > 5.0:
+			off_clear_frame = f
+			break
+	var leg2 := off_registered and off_clear_frame >= 0 and off_car.honk_count == 0
+	_check("patience_pass_unsticks",
+			leg1 and leg2,
+			"leg1: first honk at %.2f s (want 5-9) · pass travel %.1f m (want ≥ 8) · honks=%d (want 1, no second inside one window=%s) · pigeon drift %.2f m (want < 0.5) · leg2: off-line car registered=%s cleared node in frame %d (want ≥ 0) honks=%d (want 0)" % [
+					honk_at, travel_since_honk, leg1_honks, second_honk_free,
+					pigeon_drift, off_registered, off_clear_frame, off_car.honk_count])
+	await _t134_clear_cars([off_car])
 
 
 ## T-134 — the splat-planning tell: a car routed into a turn arms the correct

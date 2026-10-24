@@ -47,6 +47,10 @@ const BODY_PALETTE: Array[Color] = [
 	Color(0.35, 0.62, 0.38), Color(0.72, 0.74, 0.78),
 ]
 const HONK_TINT := Color(1.0, 0.85, 0.2)
+## Every living Car — the careful pass's proximity read (round 1 review: two
+## simultaneous passes converged mid-arc at 1.11 m). A car holds no fleet
+## list, so a self-maintaining static registry is the one honest source.
+static var _fleet: Array[Car] = []
 ## Half the scene collider's 4.4 m length — the nose offset used for stop-line
 ## geometry (the nose stops AT the line; the body stays behind it).
 const HALF_LENGTH := 2.2
@@ -164,12 +168,20 @@ var _pass_origin := Vector3.ZERO
 ## live-heading-relative point turns the pass into a circle that never clears
 ## the blocker.
 var _pass_aim := Vector3.ZERO
+## The instance id of the body this pass is clearing — the proximity brake
+## must never brake for it (passing means closing to pass_clearance of it).
+var _pass_target := 0
 ## The pass shoulder: +1 left of travel first (the ticket's convention), then
 ## alternating — a pass that wedged tries the other side next break.
 var _pass_side := 1
 ## Pass progress watch: the best travel so far and how long since it grew.
 var _pass_best := 0.0
 var _pass_stall := 0.0
+## Consecutive patience breaks against a plain CAR queue: a queue is the
+## ladder's job (it dissolves through the leader's progress), so only the
+## third cycle escalates to a pass — two simultaneous queue-break passes
+## crossed mid-arc under the no-overlap floor (round 1 soak).
+var _car_block_cycles := 0
 ## The wedge watchdog: last frame's flat position and how long the car has
 ## commanded real speed without actually moving (a curb/slab grind the zone
 ## can never see — blocker INF, target cruise, zero displacement).
@@ -211,6 +223,25 @@ func _ready() -> void:
 			pass ## CIVILIAN — exactly the pre-T-113 look: no flag.
 	if has_cooler:
 		_cooler.visible = true ## (T-114) The visitor's tailgate rides along — visual only.
+	_fleet.append(self)
+
+
+## Flat distance to the nearest OTHER living car (m), INF when alone — the
+## pass's no-overlap read. `except_id` skips the body being passed: closing
+## to ~2.3 m of its own blocker is the pass's whole geometry, and braking
+## for it would pin the pass mid-arc forever (round 1 soak: 13/14 cars froze
+## that way).
+func _nearest_car_gap(except_id: int = 0) -> float:
+	var best := INF
+	for other in _fleet:
+		if other == null or other == self or not is_instance_valid(other):
+			continue
+		if other.get_instance_id() == except_id:
+			continue
+		var d := Vector2(other.global_position.x - global_position.x,
+				other.global_position.z - global_position.z).length()
+		best = minf(best, d)
+	return best
 
 
 ## Raises the tailgate flag (T-113) and paints the banner in the pairing
@@ -259,7 +290,11 @@ func _drive(delta: float) -> void:
 	var target_speed := corner_speed if _passing \
 			else minf(cruise_speed * pace, _gap_speed())
 	var held := false
-	if entry != null and traffic != null:
+	## The pass overrides the protocol outright, not just the zone cap: a car
+	## breaking a hold must never be re-pinned by the very entry it is
+	## breaking — a registered-denied hold or an at-the-line brake cap would
+	## otherwise pin the pass at 0 m/s and the car would honk forever.
+	if entry != null and traffic != null and not _passing:
 		var cap_result := _protocol_speed(entry, hspeed, target_speed)
 		target_speed = cap_result.x
 		held = cap_result.y
@@ -307,9 +342,14 @@ func _drive(delta: float) -> void:
 			# The careful pass: steer at the world-fixed aim point armed at the
 			# break (RELATIVE here — `aiming` is a direction vector) — a
 			# live-heading-relative point would turn the pass into a circle
-			# that never clears the blocker.
+			# that never clears the blocker. A pass never trades its blocker
+			# for a neighbour: inside the no-overlap margin of any OTHER car
+			# it halts mid-arc (the stall escape then re-arms the clock and
+			# the next break tries the other shoulder).
 			aiming = _pass_aim - global_position
 			aiming.y = 0.0
+			if _nearest_car_gap(_pass_target) < 2.6:
+				target_speed = 0.0
 		_face(aiming / maxf(aiming.length(), 0.001), delta)
 		# Corners are taken wide and slow: the cap applies while closing on the
 		# corner (or rejoin point) AND until the swing has levelled onto the
@@ -381,9 +421,15 @@ func _protocol_speed(entry: Dictionary, hspeed: float, target_speed: float) -> V
 		## the bands sit between the line and the box, so an occupied band is
 		## irrelevant until the car is at its line (where the registered hold
 		## below keeps it) — a mid-approach stop would strand cars tens of
-		## metres from their lines.
+		## metres from their lines. Registration is ALONG-AXIS and forgiving
+		## of overshoot (round  1 review): a car stopped at its line region
+		## — up to 1 m short or up to 3 m into the box, ANY lateral offset —
+		## registers; the old full 3D distance-to-line-center test left a car
+		## stopped mid-swing/mid-pass 1.1+ m laterally off the line center
+		## unregistered forever, pinned by the zero cap, honking every
+		## patience cycle.
 		var cap := sqrt(2.0 * brake_decel * maxf(0.0, along - STOP_MARGIN))
-		if hspeed <= full_stop_speed and to_line.length() <= 1.0:
+		if hspeed <= full_stop_speed and along <= 1.0 and along >= -3.0:
 			entry.registered = true
 			traffic.register_arrival(self, entry.node, entry.dir, entry.turn)
 		return Vector2(minf(target_speed, cap), cap <= 0.0)
@@ -415,7 +461,13 @@ func _crosswalk_blocked(entry: Dictionary) -> bool:
 ## denial with nothing physical ahead force-commits through (the liveness
 ## guarantee that no ladder cycle can deadlock the city); a physical blocker
 ## gets one careful lateral pass at corner speed, re-entering the lane once
-## it is behind. The clock re-arms only after the pass completes.
+## it is behind — EXCEPT another car in a plain queue (round 1: two
+## simultaneous queue-break passes crossed mid-arc at 1.11 m, under the
+## fleet's no-overlap floor): a queue dissolves through the ladder and the
+## leader's own progress, so car-blockers escalate to a pass only after
+## three patience cycles (≈ 18 s of a genuinely wedged car), while a pigeon
+## or a curb grind passes at one cycle. The clock re-arms only after the
+## pass completes.
 func _break_hold(entry: Dictionary) -> void:
 	honk()
 	_patience = 0.0
@@ -426,8 +478,16 @@ func _break_hold(entry: Dictionary) -> void:
 		traffic.force_commit(self, entry.node, entry.dir, entry.turn)
 		entry.committed = true
 		return
+	var blocker := _nearest_blocker()
+	if blocker is Car:
+		_car_block_cycles += 1
+		if _car_block_cycles < 3:
+			return ## A queue is the ladder's job — honk, wait, re-assess.
+	else:
+		_car_block_cycles = 0
 	_passing = true
 	_pass_origin = global_position
+	_pass_target = blocker.get_instance_id() if blocker != null else 0
 	var fwd := _flat_forward()
 	var left := Vector3(fwd.z, 0.0, -fwd.x) * float(_pass_side)
 	_pass_aim = global_position + fwd * 6.0 + left * pass_clearance
@@ -453,6 +513,7 @@ func _update_pass(_delta: float) -> void:
 		_passing = false
 		_pass_stall = 0.0
 		_patience = 0.0
+		_car_block_cycles = 0
 
 
 ## Waypoint-adoption bookkeeping (T-134): ask the spawner for a fresh route
@@ -548,6 +609,30 @@ func _blocker_distance() -> float:
 	return best
 
 
+## The instance id of the nearest front-zone body (0 when clear) — the pass
+## stores it so the proximity brake never halts for the body being passed.
+func _nearest_blocker_id() -> int:
+	var blocker := _nearest_blocker()
+	return blocker.get_instance_id() if blocker != null else 0
+
+
+## The nearest front-zone body (null when clear).
+func _nearest_blocker() -> Object:
+	var best := INF
+	var best_body: Object = null
+	var fwd := _flat_forward()
+	for body in _front_zone.get_overlapping_bodies():
+		if body == self:
+			continue
+		var to_body := body.global_position - global_position
+		to_body.y = 0.0
+		var d := to_body.dot(fwd)
+		if d < best:
+			best = d
+			best_body = body
+	return best_body
+
+
 func _face(dir: Vector3, delta: float) -> void:
 	var target_yaw := atan2(-dir.x, -dir.z)
 	rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-turn_rate * delta))
@@ -608,6 +693,7 @@ func start_route(pos: Vector3, new_path: PackedVector3Array,
 	_pass_side = 1
 	_pass_best = 0.0
 	_pass_stall = 0.0
+	_car_block_cycles = 0
 	_stalled = 0.0
 	_prev_pos = pos
 	velocity = Vector3.ZERO
@@ -698,6 +784,7 @@ func _release_crumb() -> void:
 ## teardown releases it so it never outlives its owner. The stop ledger dies
 ## with the car too: a freed car's waiting/committed entries must never leak.
 func _exit_tree() -> void:
+	_fleet.erase(self)
 	_release_crumb()
 	if traffic != null:
 		traffic.release(self)

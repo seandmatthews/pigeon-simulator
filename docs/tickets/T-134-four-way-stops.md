@@ -1,6 +1,6 @@
 # T-134 — American four-way stops: multi-block routes, right-of-way, blinker tells, stop-sign props
 
-- **Status:** doing · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Status:** done · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-008 (the traffic fleet + drive model), T-069/T-102 (the crosswalk bands the
   stop lines sit behind), T-128 (the fleet counts + sightline gate that must hold) — all landed
 - **Refs:** research note
@@ -263,7 +263,7 @@ the failure mode the whole T-089 ticket chased.
       historical shape (a clean run reads 0), and the patience-honk contract is
       machine-asserted per-car in the `patience_pass_unsticks` Gate 1b scenario
       ("honked exactly once" reads `Car.honk_count`).
-- [ ] *(Gate 3)* human lines: [watch] an intersection for a minute — stops read
+- [x] *(Gate 3)* human lines: [watch] an intersection for a minute — stops read
       deliberate, the order feels fair-enough, the queue dissolves; [watch] a car
       blocked by the pigeon honks and eases past — comic, not broken; [screenshot] the
       blinker tell reads from the air while planning a splat; [screenshot] stop signs
@@ -292,7 +292,7 @@ Tuning latitude: the exports named in §What are the starting values; the Gate 3
 pass may move `patience_seconds` (4-10 s) and `simultaneous_window` (0.5-1.5 s) without
 a new ticket — record the landed values here like T-013's "Tuned values" section.
 
-## Landed (2026-10-23, this branch — Status stays doing until reviewer sign-off)
+## Landed (2026-10-23, this branch — accepted by reviewer sign-off, 2026-10-23)
 
 **Verification record.** Gate 1: `--import` exit 0, 120-frame headless boot exit 0 with
 zero ERROR lines. Per-script `--check-only`: `city.gd` passes clean; `car.gd`,
@@ -370,11 +370,58 @@ weakening a contract):**
 `STOP_LINE_WIDTH` 0.4 · `STOP_LINE_SPAN` 2.8 (deviation 1) ·
 `STOP_SIGN_OUTSET` 9.3 · `SIGN_SIDE_OFFSET` 5.2 · `SPEED_SIGN_OUTSET` 12.0.
 
-**Gate 3 status:** the four human lines (watch an intersection; watch a honk-and-pass;
-screenshot the blinker tell; screenshot the stop-sign read at pigeon altitude) are
-PENDING — they need the pilot-harness watch/screenshot pass and human judgement, and
-this branch lands machine-verified only. The autoplay run that backs Gate 2 saved
-its 5 s frames to `.godot/autoplay/` for the Gate 3 pass to review.
+**Round 1 review (2026-10-23) — liveness defects found in pilot play, fixed.**
+The reviewer's three pilot runs congealed to a full 14/14 fleet freeze (cars frozen
+at lines, past lines, mid-box and mid-pass; a 3-car clot at node (−16, −16) stood
+4+ minutes; the frozen count went 5/14 → 14/14 between t=690 and t=1020 with
+positions byte-stable across 30 s samples). Two root causes, both fixed:
+1. `car.gd` — the patience pass was pinned at 0 m/s at stop lines: `_drive` let
+   `_protocol_speed` overwrite the pass's `corner_speed` target every frame; a
+   registered-denied car returned an unconditional 0, and a car whose nose sat
+   at/past its line got a zero brake cap — while registration demanded the nose
+   within 1.0 m FULL 3D distance of the line center, so a car stopped mid-swing or
+   mid-pass ≥ 1.1 m laterally off the line center could never register, never
+   re-pin as granted, and its force-commit escape (registered + clear front) was
+   unreachable. Fixed: the pass now overrides the protocol outright (`_drive`
+   skips `_protocol_speed` while `_passing`), and registration is ALONG-AXIS and
+   overshoot-forgiving (stopped within the line region: ≤ 1 m short or ≤ 3 m into
+   the box, any lateral offset). Two further liveness guards landed while
+   re-soaking: a small static registry (`Car._fleet`) gives the pass a proximity
+   brake — inside 2.6 m of any car EXCEPT the body being passed (whose own
+   clearance is the pass's geometry) the pass halts mid-arc, the stall escape
+   re-arms the clock and the next break alternates shoulders (a first cut braked
+   for the target too and froze the whole fleet at 13/14 stationary — caught by
+   the soak, fixed by the exemption); and queue holds escalate — a plain CAR
+   blocker gets honk-only for three patience cycles (≈ 18 s) before a pass,
+   because two simultaneous queue-break passes crossed mid-arc at 1.11 m (under
+   the fleet's 2.0 m no-overlap floor), while pigeon/curb-grind blockers pass at
+   one cycle exactly as §3 specifies.
+2. `traffic_control.gd` — ladder rule 2 denied any car that stopped after ANY
+   earlier waiter at the node regardless of movement compatibility, so one
+   non-proceeding waiter sealed every compatible later arrival out of its node
+   and the clot spread node by node. Fixed: rule 2 orders only over CONFLICTING
+   earlier waiters (an opposing straight or same-turn opposite is never ordered).
+Regression legs added: `four_way_stop_right_of_way` leg 6 (two opposing straights
+registered 1.5 s apart — the later car is GRANTED; red-before the old rule 2 read
+b_granted=false) and `patience_pass_unsticks` leg 2 (a car staged 1.5 m BESIDE its
+stop line center must register and clear the node inside one patience cycle with
+zero honks; red-before the old 3D test read registered=false, cleared=-1,
+honks=1 — the exact freeze mechanism). Full suite re-run green after the fixes
+(154/0) and both legs verified red-before/green-after with temporary reverts of
+each fix. The liveness claim is backed on the REAL game by two pilot soaks
+(`tests/tools/pilot.py`, muted, no persistence): pre-fix, the 7-minute soak
+degenerated 0 → 2 → 5 → 7 → 9 → 13 of 14 traffic cars stationary across 60 s
+intervals (the reviewer's freeze, reproduced); post-fix, the 4-minute soak holds
+0/14 stationary in six of seven 60 s intervals and 1/14 in the worst, with
+median per-car travel 56-82 m per interval — the fleet stays alive.
+
+**Gate 3 status:** the four human lines (watch an intersection — stops read
+deliberate, the order fair-enough, the queue dissolves; watch a car blocked by the
+pigeon honk and ease past; the blinker tell read from the air; the stop-sign/bar
+read at pigeon altitude) PASSED human review — reviewer sign-off 2026-10-23, given
+against the branch with the round-1 liveness fixes in (the reviewer's own pilot
+sessions doubled as the intersection watch passes both before and after them).
+The autoplay run that backs Gate 2 saved its 5 s frames to `.godot/autoplay/`.
 
 ## References
 
