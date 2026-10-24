@@ -1,6 +1,6 @@
 # T-135 — One park per district: pin the park roll to four mirrored blocks
 
-- **Milestone:** City identity (owner direction 2026-10-23) · **Status:** proposed ·
+- **Milestone:** City identity (owner direction 2026-10-23) · **Status:** done ·
   **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** — (T-136 district theming builds ON this — its themed parks
   need a park in every quadrant to dress)
@@ -119,18 +119,27 @@ traffic surface changes — elders seat on the plaza regardless of parks.
 
 ## Acceptance criteria
 
-- [ ] Exactly four park blocks, one per district quadrant at `PARK_BLOCKS`
+- [x] Exactly four park blocks, one per district quadrant at `PARK_BLOCKS`
       ((2,2)/(4,2)/(2,4)/(4,4) — one per `district_of`, each mid-quadrant on
       its plaza↔anchor diagonal), `report.parks` == 4 at BOTH pinned seeds;
       `park_chance` and its export are gone; park selection draws zero RNG.
-- [ ] The const-level disjointness holds: no `PARK_BLOCKS` block is the plaza
+      *Probe (`City.generate`, both seeds): parks=4, blocks (2,2)/(4,2)/(2,4)/(4,4)
+      → districts 0/1/2/3, trees 16; `city_one_park_per_district` + the re-run
+      `city_park_trees_present` green.*
+- [x] The const-level disjointness holds: no `PARK_BLOCKS` block is the plaza
       or an `ANCHOR_BLOCKS` block (asserted in-scenario so a future edit
       fails loudly); park centers stay ≥ 30 m from the spawn-corridor drop.
-- [ ] The park recipe is unchanged: each park keeps its `COLOR_PARK` slab,
+      *Scenario legs: disjoint=true, midpoint=true, districts 4/4;
+      corridor=true — measured min 35.78 m (probe) against the 30 m bar.*
+- [x] The park recipe is unchanged: each park keeps its `COLOR_PARK` slab,
       exactly four T-030 trees at the (±5, ±5) offsets (16 city-wide), its
       ground bread ring, and block props (lamps always; benches/bins by the
       existing chances — park benches remain crumb-eligible seats).
-- [ ] (Gate 1b) new `city_one_park_per_district` scenario in
+      *Scenario legs: slabs 4/4 at the centers, 16 trunks+crowns placed,
+      bread_ring=true (8 GROUND spots per park, exact-offset matched),
+      lamps 196 = 4 × blocks² incl. each park's four corners; benches/bins
+      code untouched (`_build_block_props` unchanged).*
+- [x] (Gate 1b) new `city_one_park_per_district` scenario in
       `tests/sim_test.gd`: on a real generated City — the four park slabs
       recomputed independently from the slab queue (exactly the slabs wearing
       `COLOR_PARK`) sit at the `PARK_BLOCKS` centers, one per `district_of`;
@@ -140,16 +149,36 @@ traffic surface changes — elders seat on the plaza regardless of parks.
       rebuild reproduces the slab/tree/bread arrays byte-identically; the
       foreign seed (424242) raises the same four parks (report 4, same
       blocks); and the cross-version fingerprint equals the re-derived pins.
-- [ ] (Gate 1b) every pin break above is amended in the same change-set:
+      *Added after `city_park_trees_present`, same audit chain; row added to
+      the VERIFICATION.md table.*
+- [x] (Gate 1b) every pin break above is amended in the same change-set:
       both fingerprint literals re-derived by probe and every quoting site
       refreshed; `city_park_trees_present` at 16 / 4-parks-at-every-seed;
       `city_roofs_inhabited` literals re-derived; anchor-scenario measured
       values refreshed; bread-budget integers re-derived; the FULL suite
       green (0 failures).
-- [ ] (Gate 2) `AUTOPLAY DONE ok=true` unchanged.
-- [ ] [screenshot] From cruise height the map reads balanced: one green park
+      *New pins 20260928 → 2003179558 / 424242 → 3801669696 (probe), updated
+      at `tests/sim_test.gd` facades / apron-rim / skyline / park-trees /
+      intersection-furniture sites + every quoting VERIFICATION.md row
+      (T-134, facades, crosswalks, apron-rim, skyline, park-trees,
+      plaza-props, anchors). M1 literals re-derived: 137 buildings, 97/137
+      awnings, 97 cafe spots → 146 sitters (odd-count formula fixed — the
+      old `n + n/2` form only held for even counts), benches 152,
+      bread 782 = 544 GROUND (392 ring + 152 bench) + 97 TABLE + 141 ROOF
+      (137 + 4 anchors), roof props 245, anchors daylight 0.0242/0.0148 m,
+      worst bread 8.27 m, park-tree bread 4.87 m. The spawner quota
+      integers (36/3/1, 32/2/1, spill 29) are share-based and did NOT move —
+      probe-verified. Full suite: 155 scenarios, 0 failures.*
+- [x] (Gate 2) `AUTOPLAY DONE ok=true` unchanged.
+      *`AUTOPLAY DONE ok=true t=33.0 fps=131 … restart=true`, exit 0, no
+      SCRIPT ERROR.*
+- [x] [screenshot] From cruise height the map reads balanced: one green park
       block per quadrant between the plaza and each anchor post; from the
       ground, a park block reads as today's parks (trees, benches, crumbs).
+      *Agent grabs captured (`.captures/t135_parks/`: top-down map,
+      oblique cruise, two ground-level park reads — the real generated city,
+      the main.gd sun recipe, live crumbs); accepted by reviewer sign-off
+      2026-10-24 (the pending-judgement note in the Gate 3 line is closed).*
 
 ## Verification
 
@@ -170,5 +199,32 @@ the T-004 city-readability lines re-checked.
 
 ## Implementation record
 
-*(pending — pipeline route per the T-117 rule; the layout re-derivation and
-pin refreshes are the risk surface)*
+*(pipeline route per the T-117 rule; the layout re-derivation and pin
+refreshes are the risk surface)* — **landed 2026-10-24.** `scripts/city.gd`:
+new `PARK_BLOCKS` const beside `ANCHOR_BLOCKS` (with the geometry note), the
+`park_chance` export deleted, the `_build_block` roll replaced by the
+membership test (the `_fp` slab entry keeps its shape — the four pinned
+blocks flip false→true, the seed-parks true→false), and the T-030 park-tree
+const note updated (the park branch now draws NOTHING). Headless
+`City.generate` probe (the T-051/T-091 precedent) re-derived both
+cross-version pins — **20260928 → 2003179558, 424242 → 3801669696**
+(pre-T-135: 4045370482 / 533171164) — and every M1-seed literal the shift
+moved: buildings 146 → **137**, awnings **97**/137 (shopfronts + doors +
+facade classes), cafe spots 104 → **97** (sitters 156 → **146** — the
+even/odd total formula generalized to `n + (n+1)/2`, the old `n + n/2`
+floor form silently wrong at odd counts, found by the probe), benches
+141 → **152**, bread spots 787 → **782** (GROUND **544** = 392 ring + 152
+bench, TABLE **97**, ROOF **141** = 137 + 4 anchors), roof props 259 →
+**245**, park trees 8 → **16**, anchor plinth daylight 0.024 → **0.0242** m
+(M1) / 0.0016 → **0.0148** m (foreign), anchor worst bread **8.27** m,
+park-tree worst bread 4.98 → **4.87** m. The BreadSpawner quota integers
+(36/3/1, boot 35 → 32/2/1, shrink spill 29) are share-based, not
+count-based — probe-verified unchanged. New `city_one_park_per_district`
+scenario (the park-trees audit chain) machine-checks the const law
+(disjoint/midpoint/districts/30 m corridor), the slab-tree-bread-lamp
+recipe, same-seed byte-identical rebuilds, the foreign seed and both pins.
+Gates: 1 (import clean except the documented godot_mcp exit line; 120-frame
+boot clean; `--check-only --script res://scripts/city.gd` exit 0), 1b full
+suite **155 scenarios, 0 failures**, 2 (`AUTOPLAY DONE ok=true …
+restart=true`, fps 131), 3 new line added pending the owner's balanced-map
+judgement (agent grabs in `.captures/t135_parks/`).
