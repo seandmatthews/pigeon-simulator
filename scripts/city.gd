@@ -236,6 +236,24 @@ const PARK_CROWN_CENTER_Y := 3.3 ## Crown box center height above the slab top (
 const ANCHOR_BLOCKS: Array[Vector2i] = [
 	Vector2i(1, 1), Vector2i(5, 1), Vector2i(1, 5), Vector2i(5, 5),
 ]
+
+## Pinned park blocks (T-135): exactly one open park per district quadrant, at
+## the midpoint of each plaza↔anchor diagonal — the spawn plaza is (3,3) and
+## the T-091 anchors sit at (1,1)/(5,1)/(1,5)/(5,5), so (2,2)/(4,2)/(2,4)/(4,4)
+## put every park one block diagonal from both, one per `district_of`
+## ((2,2)→0 NW warm brick, (4,2)→1 NE sandy cream, (2,4)→2 SW cool blue-gray,
+## (4,4)→3 SE sage green). Block centers land at (±32, ±32) — 45.25 m from the
+## plaza center, outside the 16 m `city_plaza_props_clear` census and ≥ 35.8 m
+## from the spawn-corridor drop (16, 0.6, 0) — and 45.25 m center-to-center
+## from each district's anchor. The list replaces the old per-block 12%
+## `park_chance` roll: park count and position are seed-independent identity,
+## zero RNG draws (the `ANCHOR_BLOCKS` precedent), asserted disjoint from the
+## plaza and `ANCHOR_BLOCKS` by the `city_one_park_per_district` scenario so a
+## future const edit fails loudly.
+const PARK_BLOCKS: Array[Vector2i] = [
+	Vector2i(2, 2), Vector2i(4, 2), Vector2i(2, 4), Vector2i(4, 4),
+]
+
 const ANCHOR_PLINTH_SIZE := Vector3(1.4, 1.0, 1.4) ## Alley-cross footing, rising from the slab.
 const ANCHOR_SHAFT_SIZE := Vector3(0.7, 13.6, 0.7) ## The post — slab+1.0 up to slab+14.6.
 const ANCHOR_HEAD_SIZE := Vector3(1.8, 2.2, 1.8) ## The clock/bell housing — district-tinted.
@@ -316,7 +334,6 @@ const LANDMARK_FIGURE_TOP := 4.95 ## Figure's highest point above the slab top (
 @export var building_floors_min: int = 2
 @export var building_floors_max: int = 6
 @export var lot_gap: float = 1.4 ## Alley between buildings inside one block (m).
-@export var park_chance: float = 0.12 ## Chance a non-plaza block comes up as an open park.
 
 @export_group("Spawn")
 ## Height above the road surface the pigeon drops in from. Keep small: the
@@ -1196,7 +1213,11 @@ func _build_rim() -> void:
 
 func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 	var center := _block_center(bx, bz)
-	var is_park: bool = (not is_plaza) and _rng.randf() < park_chance
+	## Pinned parks (T-135): the four `PARK_BLOCKS` blocks, zero RNG — the old
+	## per-block `park_chance` roll (one `_rng.randf()` draw per block) is gone,
+	## so every downstream layout draw at every seed shifts by the removed
+	## draws; the cross-version fingerprint pins were re-derived for it.
+	var is_park: bool = (not is_plaza) and PARK_BLOCKS.has(Vector2i(bx, bz))
 	var slab_color := COLOR_PLAZA if is_plaza else (COLOR_PARK if is_park else COLOR_SIDEWALK)
 	var slab_size := Vector3(block_size, block_slab_height, block_size)
 	_add_mm("slab", _box_xf(center + Vector3(0.0, block_slab_height * 0.5, 0.0), slab_size), slab_color)
@@ -1223,10 +1244,10 @@ func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 ## ±PARK_TREE_OFFSET) offsets — the vacant-lot fix, a grove read from the air.
 ## Trunks rise from the slab, crowns sit on them (crown bottom at trunk top),
 ## all visual-only so the pigeon brushes through at park-cruise altitude (the
-## T-017 awning decision). Zero RNG and zero `_fp` entries: the park branch's
-## only draw remains the park roll in `_build_block`, and every tree position
-## is a pure function of the block center — the layout fingerprint stays
-## byte-identical to pre-T-030 builds. Pinned by `city_park_trees_present`.
+## T-017 awning decision). Zero RNG and zero `_fp` entries: every tree position
+## is a pure function of the block center (since T-135 the park branch draws
+## NOTHING — the old park roll is gone, `PARK_BLOCKS` decides), so the seeded
+## streams carry no park-tree trace. Pinned by `city_park_trees_present`.
 func _build_park_trees(center: Vector3) -> void:
 	for sx: float in [PARK_TREE_OFFSET, -PARK_TREE_OFFSET]:
 		for sz: float in [PARK_TREE_OFFSET, -PARK_TREE_OFFSET]:
