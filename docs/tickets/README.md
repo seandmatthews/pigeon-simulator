@@ -249,12 +249,15 @@ owner-picked), dressing plus one signature silhouette per quadrant, themed
 parks included. Two serial tickets: T-135 pins the parks first; T-136 themes
 on top and forge-routes first (reference photos — every theme and signature
 has a clear real-world counterpart). The quadrant↔theme mapping and the
-signature-prop fork are T-136 owner picks at forge sign-off.
+signature-prop fork are T-136 owner picks at forge sign-off. Follow-up
+(2026-10-24, forks picked same day): after a share the elder relocates to a
+different district's bench, walking there — T-137, waits behind both.
 
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-135 | [One park per district: pin the park roll to four mirrored blocks](T-135-one-park-per-district.md) | worldbuilding | 4 | 3 | proposed |
 | T-136 | [District theming: four dressed quadrants, one signature silhouette each](T-136-district-theming.md) | worldbuilding | 4 | 3 | proposed (forge pending) |
+| T-137 | [The grandpa shuffle: elders relocate after a share, walking there themselves](T-137-elder-migration.md) | worldbuilding | 3 | 2 | proposed |
 
 ## Suggested build order
 
