@@ -1,17 +1,24 @@
 class_name CarSpawner
 extends BandSpawner
-## The car service (T-008): keeps `target_moving` traffic cars looping the
-## city's ring roads (`City.traffic_loop` over `City.block_centers`) and
-## `target_parked` cars sitting in the curb spaces (`City.parking_spots`)
-## around the player. The band/recycle machinery — the shared recycle exports,
-## the recycle-scan timer and the band helpers — lives in the BandSpawner base
-## (T-054); this script keeps only the car specifics. Since T-089 recycled
-## traffic prefers rings holding fewer than `ring_traffic_soft_cap` cars and
-## rejoins at a probed follow-gap-clear point, so a standing player stops
-## watching the band clot into one parked wall. Since T-128 BOTH placement
-## paths (the populate loop and the recycle rejoin) pass the sightline gate:
-## a candidate point within `spawn_sightline_max` of the player AND inside the
-## chase camera's horizontal cone is rejected, so cars only ever enter view by
+## The car service (T-008): keeps `target_moving` traffic cars driving ROUTES
+## through the city's road grid (T-134 — a seeded random walk of intersection
+## nodes dealt by `City.route_from` off this spawner's own `_rng` stream, so a
+## car's block assignment changes as it DRIVES) and `target_parked` cars
+## sitting in the curb spaces (`City.parking_spots`) around the player. At
+## every intersection the four-way-stop protocol applies through the shared
+## `TrafficControl` ledger each traffic car carries (`Car.traffic`; the
+## `stop_protocol_enabled` hatch is the test escape back to bare pathing).
+## When a route runs out the spawner deals a fresh one FROM the car's end node
+## — continuous driving, no teleport; teleporting stays the recycle scan's job.
+## The band/recycle machinery — the shared recycle exports, the recycle-scan
+## timer and the band helpers — lives in the BandSpawner base (T-054). Since
+## T-089 recycled traffic prefers blocks holding fewer than
+## `ring_traffic_soft_cap` cars and rejoins at a probed follow-gap-clear point
+## on the fresh route's first leg, so a standing player stops watching the
+## band clot into one parked wall. Since T-128 BOTH placement paths (the
+## populate loop and the recycle rejoin) pass the sightline gate: a candidate
+## point within `spawn_sightline_max` of the player AND inside the chase
+## camera's horizontal cone is rejected, so cars only ever enter view by
 ## driving — `sightline_gate_enabled` is the test escape hatch back to the old
 ## staging. Seeded from the city's seed and re-seeded on city regeneration,
 ## like the tourist (T-007) and bread (T-005) services. Every car splat relays
@@ -24,7 +31,7 @@ signal car_splatted(car: Car)
 
 @export_group("Population")
 @export var car_scene: PackedScene = preload("res://scenes/car.tscn")
-@export var target_moving: int = 14 ## Traffic cars kept looping block rings (T-128: 20 → 14 — fewer visible spawn events).
+@export var target_moving: int = 14 ## Traffic cars kept driving routes (T-128: 20 → 14 — fewer visible spawn events).
 @export var target_parked: int = 12 ## Cars kept parked at curbs (T-128: 16 → 12 — the owner's "less frequently").
 
 @export_group("Classes")
@@ -42,20 +49,40 @@ signal car_splatted(car: Car)
 @export var spawn_sightline_max: float = 80.0 ## Cone-test radius (flat, m) around the player — points at or beyond it always pass.
 @export var spawn_avoid_cone_deg: float = 55.0 ## Avoided cone half-angle (deg) around the chase camera's live flat view direction.
 
+## (T-134) The four-way-stop protocol hatch: when ON every traffic car gets
+## the shared `TrafficControl` ledger and stops at every intersection; OFF
+## hands the cars a null `traffic` — the whole protocol skips (the red-before
+## probe and the bare-pathing escape hatch).
+@export_group("Stops")
+@export var stop_protocol_enabled: bool = true
+
 @export_group("Recycle")
-@export var recycle_probe_count: int = 5 ## Evenly spaced loop fractions probed for a follow-gap-clear traffic rejoin point before the random draw (T-089).
-@export var ring_traffic_soft_cap: int = 3 ## Recycled traffic skips rings already holding this many traffic cars while any band ring is lighter (T-089).
+@export var recycle_probe_count: int = 5 ## Evenly spaced route-leg fractions probed for a follow-gap-clear traffic rejoin point before the random draw (T-089).
+@export var ring_traffic_soft_cap: int = 3 ## Recycled traffic skips blocks already holding this many traffic cars while any band block is lighter (T-089).
 
 @export_group("Wiring")
 @export var bread_spawner_path: NodePath ## (T-114) The bread service tailgate crumbs drop through — Main wires the path.
+@export var tourist_spawner_path: NodePath ## (T-134) The tourist fleet the crosswalk yield senses — Main wires the path.
 
-## Car honks this run — the autoplay DONE line reports it.
+## Car honks this run — the autoplay DONE line reports it. Splat-relay ONLY:
+## patience honks ride `Car.honk_count` and never touch this counter (T-134).
 var honk_count: int = 0
 
 ## (T-114) The bread service the tailgate crumbs drop through — resolved from
 ## `bread_spawner_path` in _ready; the sim harness assigns directly. Null
 ## (bare rigs) means the fleet grows coolers but no crumbs.
 var bread_spawner: BreadSpawner
+
+## (T-134) The shared four-way-stop ledger every traffic car carries, built
+## here in _ready when `stop_protocol_enabled` is on. The crosswalk yield's
+## watched bodies (the pigeon plus the tourist fleet) refresh on every
+## populate.
+var traffic_ctrl: TrafficControl = null
+
+## (T-134) The tourist service the crosswalk yield senses through
+## `traffic_ctrl.watched` — resolved from `tourist_spawner_path`; the harness
+## assigns directly. Null means only the pigeon is watched.
+var tourist_spawner: TouristSpawner
 
 var _cars: Array[Car] = []
 
@@ -73,20 +100,30 @@ var _class_slots_left: int = 0
 var _visitors_left: int = 0
 var _superfans_left: int = 0
 
+## The city's block centers in global coords — handed to each dealt car so it
+## can refresh its block assignment by driving (T-134).
+var _block_centers_cache := PackedVector3Array()
+
 
 func _ready() -> void:
 	# (T-114) Resolve the tailgate bread service BEFORE super()'s populate —
 	# the parked-visitor cars it seeds anchor their crumbs during _populate.
 	if bread_spawner == null and not bread_spawner_path.is_empty():
 		bread_spawner = get_node(bread_spawner_path) as BreadSpawner
+	# (T-134) The tourist service and the shared stop ledger, likewise before
+	# the populate hands cars out.
+	if tourist_spawner == null and not tourist_spawner_path.is_empty():
+		tourist_spawner = get_node(tourist_spawner_path) as TouristSpawner
+	if stop_protocol_enabled:
+		traffic_ctrl = TrafficControl.new()
 	super()
 
 
 func _init() -> void:
 	# Beyond this flat distance (m) a car recycles to the player's area. Must
-	# clear the WORST legitimate loop distance — a car seeded at spawn_max_dist
-	# rounds ring corners ~20 m past its block center — or traffic gets yanked
-	# mid-lap and dropped on top of other cars. (A GDScript subclass cannot
+	# clear the WORST legitimate route leg distance — a car seeded at
+	# spawn_max_dist drives legs ~32 m toward or away — or traffic gets yanked
+	# mid-route and dropped on top of other cars. (A GDScript subclass cannot
 	# redeclare the inherited export, so the tourist-default 80.0 becomes an
 	# `_init` override — T-054.)
 	recycle_radius = 100.0
@@ -111,6 +148,10 @@ func _populate() -> void:
 	var anchor := _anchor_flat()
 	if city.block_centers.is_empty():
 		return
+	_block_centers_cache = PackedVector3Array()
+	for center in city.block_centers:
+		_block_centers_cache.append(city.to_global(center))
+	_refresh_watched()
 	var made_moving := 0
 	_begin_class_quota(target_moving)
 	while made_moving < target_moving:
@@ -140,14 +181,29 @@ func _populate() -> void:
 	_dress_tailgates.call_deferred()
 
 
+## (T-134) The crosswalk yield's senses: the pigeon plus the whole living
+## tourist fleet. Re-read on every populate — a re-seeded fleet is new nodes.
+func _refresh_watched() -> void:
+	if traffic_ctrl == null:
+		return
+	traffic_ctrl.watched.clear()
+	if player != null:
+		traffic_ctrl.watched.append(player)
+	if tourist_spawner != null:
+		for tourist in tourist_spawner.living_tourists():
+			if is_instance_valid(tourist):
+				traffic_ctrl.watched.append(tourist)
+
+
 ## Puts a car that drifted beyond the recycle radius back into the spawn band
-## — the same node teleports onto a fresh block ring (the recycle acceptance
+## — the same node teleports onto a fresh dealt route (the recycle acceptance
 ## contract, as for tourists T-007). Since T-089 the block draw prefers light
-## rings and traffic rejoins at a probed clear point, so recycled cars stop
-## stuffing full rings into braking queues. Since T-128 every rejoin point
-## also passes the sightline gate (a gated draw walks its own ring, then the
-## band — light rings first; the free drawn point stands as the documented
-## least-bad fallback), so recycled cars drive into view instead of popping.
+## blocks and traffic rejoins at a probed follow-gap-clear point on the fresh
+## route's first leg, so recycled cars stop stuffing full blocks into braking
+## queues. Since T-128 every rejoin point also passes the sightline gate (a
+## gated draw walks its own first leg, then the band — light blocks first; the
+## free drawn point stands as the documented least-bad fallback), so recycled
+## cars drive into view instead of popping.
 func _recycle_far() -> void:
 	var anchor := _anchor_flat()
 	var far: Array[Car] = []
@@ -165,17 +221,15 @@ func _recycle_far() -> void:
 			if not _recycle_parked_to(car, block, blocks):
 				continue
 		else:
-			var loop := _loop_for(block)
-			var block_global := city.to_global(block)
-			var rejoin := _clear_rejoin_point(loop, block_global, car)
-			if not _sightline_ok(rejoin):
-				var scan := _offscreen_rejoin(blocks, car)
-				if scan.size() == 2:
-					block = scan[0] ## City-local center of the scanned block.
-					loop = _loop_for(block)
-					block_global = city.to_global(block)
-					rejoin = scan[1]
-			car.recycle_to(rejoin, loop, block_global)
+			var placement := _route_rejoin(block, car, false)
+			if not _sightline_ok(placement.pos):
+				var scan := _offscreen_route_rejoin(blocks, car)
+				if not scan.is_empty():
+					block = scan.block
+					placement = scan.placement
+			## else: least-bad — the drawn rejoin stands (in view, documented).
+			car.start_route(placement.pos, placement.points, placement.entries,
+					city.to_global(block), _block_centers_cache, placement.end)
 
 
 ## `_pick_block`'s fallback pool for a far-from-every-block anchor: the whole
@@ -192,14 +246,33 @@ func _spawn_traffic(block_local: Vector3, index: int) -> void:
 		car.body_color = Car.BODY_PALETTE[index % Car.BODY_PALETTE.size()]
 	_assign_tailgate(car) ## (T-114) The cooler rides traffic AND parked visitors.
 	car.pace = _rng.randf_range(0.9, 1.15)
-	var loop := _loop_for(block_local)
+	car.traffic = traffic_ctrl ## (T-134) Null when the protocol hatch is off — bare pathing.
 	add_child(car)
-	# A deterministic spread point per car: two cars sharing one block ring
+	# A deterministic seeded route off the block's corner node, staged at a
+	# deterministic spread point on its first leg: two cars sharing one leg
 	# never start overlapped. Since T-128 the point passes the sightline gate
-	# first — a gated spread fraction walks the ring's probe fractions (the
+	# first — a gated spread fraction walks the leg's probe fractions (the
 	# least-bad fallback below keeps the spread fraction when none pass).
-	car.recycle_to(_offscreen_point_on_loop(loop, fmod(index * 0.37, 1.0)), loop,
-			city.to_global(block_local))
+	var nodes := _deal_nodes(car, _node_beside_block(block_local), -1)
+	## The placement walk honours the follow-gap clearance against the block's
+	## live cars too — two cars dealt onto the same corner node must never
+	## land on the same probe fraction. When a whole dealt route stays inside
+	## the sightline window (a short route hugging the player's cone), up to
+	## three fresh deals get the same walk before the least-bad fallback
+	## stands — the fleet COUNT contract never starves.
+	var placement := _route_placement(nodes, city.to_global(block_local), car,
+			sightline_gate_enabled, fmod(index * 0.37, 1.0))
+	var deals := 1
+	while deals < 4 and sightline_gate_enabled \
+			and not _sightline_ok(placement.pos):
+		nodes = _deal_nodes(car, _node_beside_block(block_local), -1)
+		placement = _route_placement(nodes, city.to_global(block_local), car,
+				true, fmod(index * 0.37, 1.0))
+		deals += 1
+	var built := _build_route(placement.nodes)
+	car.start_route(placement.pos, built.points, built.entries,
+			city.to_global(block_local), _block_centers_cache, built.end)
+	car.route_exhausted.connect(_on_route_exhausted)
 	car.splatted.connect(_on_car_splatted)
 	_cars.append(car)
 
@@ -286,18 +359,209 @@ func _flat_dist_pos(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x - b.x, a.z - b.z).length()
 
 
-## The block's ring-road loop in global coords.
-func _loop_for(block_local: Vector3) -> PackedVector3Array:
-	var loop := PackedVector3Array()
-	for point in city.traffic_loop(block_local):
-		loop.append(city.to_global(point))
-	return loop
+## --- route dealing (T-134) -------------------------------------------------
 
 
-## A random point along the loop — the T-089 fallback when every probed
-## rejoin point is blocked; the worst case stays exactly the old behavior.
-func _point_on_loop(loop: PackedVector3Array) -> Vector3:
-	return _point_at_fraction(loop, _rng.randf())
+## The grid node at a block's minimum corner — a dealt route's start. Blocks
+## sit between nodes: block index (i, j) has corner node (i, j) on the grid.
+func _node_beside_block(block_local: Vector3) -> Vector2i:
+	var half := float(city.blocks_per_side - 1) * 0.5
+	return Vector2i(roundi(block_local.x / city.block_pitch + half),
+			roundi(block_local.z / city.block_pitch + half))
+
+
+## One seeded route draw off this spawner's own `_rng` stream: the leg count
+## from the car's Routes exports, the turn weights from the same group, the
+## initial heading random (`initial_dir` < 0) or pinned (extensions — the car's
+## live heading, so a dealt route never U-turns). Two-ish draws per deal.
+func _deal_nodes(car: Car, start: Vector2i, initial_dir: int) -> Array[Vector2i]:
+	var legs := _rng.randi_range(car.route_legs_min, car.route_legs_max)
+	var weights := {
+		"straight": car.straight_weight,
+		"right": car.right_weight,
+		"left": car.left_weight,
+	}
+	return city.route_from(start, legs, _rng, weights, initial_dir)
+
+
+## The grid-direction index of a node step.
+func _dir_index(step: Vector2i) -> int:
+	for d in 4:
+		if City.ROUTE_DIRS[d] == step:
+			return d
+	return 0
+
+
+## One stop entry for the car's `stops` walk — the node, its approach axis,
+## the turn made there, the stop-line center (where the NOSE halts), the car
+## center point that puts the nose on the line, the turn waypoint, and the
+## node's padded crosswalk bands — all in GLOBAL coords (the car never sees
+## the City). `exit_dir` is the leg leaving the node (its own `dir` when the
+## route ends here).
+func _stop_entry(node: Vector2i, dir: int, turn: int, exit_dir: int) -> Dictionary:
+	var a := City.ROUTE_DIR_VECS[dir]
+	var line_local := city.route_lane_point(node, dir, City.STOP_LINE_OUTSET)
+	var corner_local := city.route_corner(node, dir, exit_dir) if turn != 0 \
+			else city.road_node_pos(node)
+	var bands: Array[Rect2] = []
+	for rect in city.crosswalk_band_rects(node):
+		var origin := city.to_global(Vector3(rect.position.x, 0.0, rect.position.y))
+		bands.append(Rect2(Vector2(origin.x, origin.z), rect.size))
+	return {
+		"node": node,
+		"pos": city.to_global(city.road_node_pos(node)),
+		"dir": dir,
+		"turn": turn,
+		"line": city.to_global(line_local),
+		"corner": city.to_global(corner_local),
+		"bands": bands,
+		"registered": false,
+		"committed": false,
+		"center": city.to_global(line_local) - a * Car.HALF_LENGTH,
+	}
+
+
+## Builds a dealt route's driving data from its node list: the open waypoint
+## path (`points` — turn corners plus the final leg's exit point, a mid-leg
+## lead point when the route never turns), the same list WITHOUT the lead for
+## extensions (`tail`), the stop `entries` (provisionally straight at the end
+## node — the extension deals the real turn), the leg `dirs` and the `end`
+## node. The spawner owns the City reference; the car receives globals.
+func _build_route(nodes: Array[Vector2i]) -> Dictionary:
+	var dirs: Array[int] = []
+	for i in range(1, nodes.size()):
+		dirs.append(_dir_index(nodes[i] - nodes[i - 1]))
+	var entries: Array[Dictionary] = []
+	for i in range(1, nodes.size()):
+		var turn := 0
+		var exit_dir := dirs[i - 1] ## The route ends here: the exit is straight on.
+		if i < dirs.size():
+			turn = city.route_relative_turn(dirs[i - 1], dirs[i])
+			exit_dir = dirs[i]
+		entries.append(_stop_entry(nodes[i], dirs[i - 1], turn, exit_dir))
+	var points := PackedVector3Array()
+	var tail := PackedVector3Array()
+	for i in range(1, nodes.size()):
+		if entries[i - 1].turn != 0:
+			points.append(entries[i - 1].corner)
+			tail.append(entries[i - 1].corner)
+	var exit_point := city.to_global(city.route_lane_point(nodes[nodes.size() - 1],
+			dirs[dirs.size() - 1], -14.0))
+	points.append(exit_point)
+	tail.append(exit_point)
+	if points.size() < 2:
+		## An all-straight route has no corners: one mid-leg lead point keeps
+		## the path steerable (>= 2 waypoints). It never rides `tail` — an
+		## extension appends from the end node onward only.
+		points.insert(0, city.to_global(
+				city.route_lane_point(nodes[0], dirs[0], -16.0)))
+	return {
+		"points": points,
+		"tail": tail,
+		"entries": entries,
+		"dirs": dirs,
+		"end": nodes[nodes.size() - 1],
+	}
+
+
+## The direction the car's route currently ends on — the last stop entry's
+## approach axis (an extension pins the next deal's initial heading to it).
+func _last_leg_dir(car: Car) -> int:
+	return car.stops[car.stops.size() - 1].dir
+
+
+## The route-exhaustion handler: deal a fresh route FROM the car's end node
+## (its live heading pinned as the initial direction — never a U-turn) and
+## append it through `Car.extend_route`. Continuous driving, no teleport.
+func _on_route_exhausted(car: Car) -> void:
+	if city == null or not is_instance_valid(car) or car.stops.is_empty():
+		return
+	var last_dir := _last_leg_dir(car)
+	var nodes := _deal_nodes(car, car.route_end_node, last_dir)
+	var built := _build_route(nodes)
+	var turn_at_end := 0
+	if not built.dirs.is_empty():
+		turn_at_end = city.route_relative_turn(last_dir, built.dirs[0])
+	car.extend_route(built.tail, built.entries, turn_at_end, built.end)
+
+
+## A point at fraction (0..1) along a segment — the route-leg analogue of the
+## old loop fractions (T-089's probed rejoin shape, on legs).
+func _segment_point(a: Vector3, b: Vector3, fraction: float) -> Vector3:
+	return a.lerp(b, clampf(fraction, 0.0, 1.0))
+
+
+## A placement point on a dealt route: walks the route's legs in order (leg 1
+## first), probing `recycle_probe_count` evenly spaced fractions of each leg's
+## mid-lane segment — the first fraction that passes the sightline gate (with
+## `gate`) AND the follow-gap clearance (when `clear_block` is a real block
+## center) wins, and the route is REBASED to that leg: the dropped lead nodes
+## leave behind exactly the entries and waypoints the car starts past, so a
+## car staged mid-route is clean. When every probe fails, leg 1's `spread`
+## fraction stands — the documented least-bad fallback that keeps the fleet
+## COUNT contract from ever starving. Deterministic, RNG-free (the spread
+## fraction carries the caller's draw).
+func _route_placement(nodes: Array[Vector2i], clear_block: Vector3, mover: Car,
+		gate: bool, spread: float) -> Dictionary:
+	var dirs: Array[int] = []
+	for i in range(1, nodes.size()):
+		dirs.append(_dir_index(nodes[i] - nodes[i - 1]))
+	var probes := maxi(recycle_probe_count, 1)
+	var anchor := _anchor_flat()
+	for k in dirs.size():
+		var d := dirs[k]
+		var seg_a := city.to_global(city.route_lane_point(nodes[k], d, 11.0))
+		var seg_b := city.to_global(city.route_lane_point(nodes[k + 1], d, 11.0))
+		for p in 2 * probes: ## Denser than the recycle knob: two per probe step.
+			var fraction := float(p) / float(2 * probes)
+			if k == 0 and p == 0:
+				fraction = spread ## The caller's deterministic spread first.
+			var candidate := _segment_point(seg_a, seg_b, fraction)
+			## A placement beyond the recycle radius of the player would be
+			## re-recycled on the next scan — never stage one there.
+			if player != null and _flat_dist(candidate, anchor) > recycle_radius:
+				continue
+			if (not gate or _sightline_ok(candidate)) \
+					and (clear_block == Vector3.INF
+							or _probe_clear(candidate, clear_block, mover)):
+				var subset: Array[Vector2i] = []
+				for i in range(k, nodes.size()):
+					subset.append(nodes[i])
+				return {"pos": candidate, "nodes": subset}
+	var d0: int = dirs[0]
+	var fallback := _segment_point(
+			city.to_global(city.route_lane_point(nodes[0], d0, 11.0)),
+			city.to_global(city.route_lane_point(nodes[1], d0, 11.0)), spread)
+	return {"pos": fallback, "nodes": nodes.duplicate()}
+
+
+## A fresh dealt route's rejoin for one traffic car: one seeded deal off the
+## block's node plus a gate/clear placement walk over the route's legs (see
+## `_route_placement`). The fallback roll (one `_rng` draw) fires only when
+## every probed fraction on every leg fails — the T-089 documented least-bad
+## fallback.
+func _route_rejoin(block_local: Vector3, mover: Car, gate: bool) -> Dictionary:
+	var start := _node_beside_block(block_local)
+	var nodes := _deal_nodes(mover, start, -1)
+	var placement := _route_placement(nodes, city.to_global(block_local), mover,
+			gate, _rng.randf())
+	var built := _build_route(placement.nodes)
+	return {"pos": placement.pos, "points": built.points,
+			"entries": built.entries, "end": built.end}
+
+
+## A recycled traffic car's gate-passing rejoin: scans the band — light blocks
+## first (T-089's preference, T-128's scan), natural order inside each group —
+## for the first block whose leg walk lands an off-screen placement. Returns
+## {"block": city-local center, "placement": rejoin} — empty when no band
+## block offers one (the caller keeps the drawn placement — the documented
+## least-bad fallback).
+func _offscreen_route_rejoin(blocks: Array[Vector3], mover: Car) -> Dictionary:
+	for block in _band_blocks_light_first(blocks):
+		var placement := _route_rejoin(block, mover, true)
+		if _sightline_ok(placement.pos):
+			return {"block": block, "placement": placement}
+	return {}
 
 
 ## The block a recycled car draws onto (T-089): rings already holding
@@ -345,24 +609,9 @@ func _band_blocks_light_first(blocks: Array[Vector3]) -> Array[Vector3]:
 	return order
 
 
-## A rejoin point on `loop` with follow-gap clearance (T-089): walks
-## `recycle_probe_count` evenly spaced loop fractions and returns the first
-## whose flat distance to every traffic car already looping this ring is at
-## least the mover's `follow_gap` — an insertion inside the gap would turn
-## both cars into a braking queue. When every probe is blocked, falls back to
-## the random `_point_on_loop` draw.
-func _clear_rejoin_point(loop: PackedVector3Array, block_global: Vector3, mover: Car) -> Vector3:
-	var probes := maxi(recycle_probe_count, 1)
-	for i in probes:
-		var probe := _point_at_fraction(loop, float(i) / float(probes))
-		if _probe_clear(probe, block_global, mover):
-			return probe
-	return _point_on_loop(loop)
-
-
 ## True when `probe` sits at least `mover.follow_gap` away (flat, center to
-## center) from every traffic car looping the `block_global` ring — the car
-## being placed excepted: its old body teleports away with the rejoin.
+## center) from every traffic car assigned to the `block_global` block — the
+## car being placed excepted: its old body teleports away with the rejoin.
 func _probe_clear(probe: Vector3, block_global: Vector3, mover: Car) -> bool:
 	for car in _cars:
 		if not is_instance_valid(car) or car == mover:
@@ -372,25 +621,6 @@ func _probe_clear(probe: Vector3, block_global: Vector3, mover: Car) -> bool:
 		if _flat_dist_pos(probe, car.global_position) < mover.follow_gap:
 			return false
 	return true
-
-
-## The point a fraction (0..1) of the loop perimeter along — deterministic
-## spread positions for seeded traffic.
-func _point_at_fraction(loop: PackedVector3Array, fraction: float) -> Vector3:
-	if loop.size() < 2:
-		return loop[0] if loop.size() == 1 else Vector3.ZERO
-	var segs: Array[float] = []
-	var total := 0.0
-	for i in loop.size():
-		var seg := loop[i].distance_to(loop[(i + 1) % loop.size()])
-		segs.append(seg)
-		total += seg
-	var want := clampf(fraction, 0.0, 1.0) * total
-	for i in loop.size():
-		if want <= segs[i]:
-			return loop[i].lerp(loop[(i + 1) % loop.size()], want / maxf(segs[i], 0.001))
-		want -= segs[i]
-	return loop[0]
 
 
 ## True when a living parked car already sits within a car length of `pos` —
@@ -441,24 +671,6 @@ func _sightline_ok(pos: Vector3) -> bool:
 	if offset.length() < 0.001:
 		return false ## At the player's feet is the worst pop there is.
 	return offset.normalized().dot(_view_dir_flat()) <= cos(deg_to_rad(spawn_avoid_cone_deg))
-
-
-## A seeded traffic car's loop point: the deterministic spread fraction when it
-## passes the gate — byte-identical to the pre-T-128 placement whenever nothing
-## is gated — else the nearest of the ring's evenly spaced probe fractions that
-## passes, else the spread fraction unchanged (the documented least-bad
-## fallback that keeps the fleet COUNT contract from ever starving).
-func _offscreen_point_on_loop(loop: PackedVector3Array, fraction: float) -> Vector3:
-	var spread := _point_at_fraction(loop, fraction)
-	if _sightline_ok(spread):
-		return spread
-	var probes := maxi(recycle_probe_count, 1)
-	for i in probes:
-		var candidate := _point_at_fraction(loop,
-				fmod(fraction + float(i + 1) / float(probes), 1.0))
-		if _sightline_ok(candidate):
-			return candidate
-	return spread
 
 
 ## One parked-placement attempt of the populate loop: the seeded two-draw
@@ -533,20 +745,3 @@ func _offscreen_band_spot(blocks: Array[Vector3]) -> Dictionary:
 			return {"block": block, "spot": found}
 	return {}
 
-
-## A recycled traffic car's gate-passing rejoin: scans the band — light rings
-## first (T-089's preference), natural order inside each group — for the first
-## probe point that is BOTH follow-gap-clear and outside the sightline window.
-## Returns [city-local block center, global rejoin point]; empty when no band
-## block offers one (the caller keeps the drawn placement — the documented
-## least-bad fallback). Deterministic, RNG-free.
-func _offscreen_rejoin(blocks: Array[Vector3], mover: Car) -> PackedVector3Array:
-	for block in _band_blocks_light_first(blocks):
-		var block_global := city.to_global(block)
-		var loop := _loop_for(block)
-		var probes := maxi(recycle_probe_count, 1)
-		for i in probes:
-			var probe := _point_at_fraction(loop, float(i) / float(probes))
-			if _sightline_ok(probe) and _probe_clear(probe, block_global, mover):
-				return PackedVector3Array([block, probe])
-	return PackedVector3Array()

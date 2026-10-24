@@ -40,6 +40,8 @@ const COLOR_LAMP_GLOW := Color(1.0, 0.9, 0.6)
 const COLOR_DOOR := Color(0.18, 0.14, 0.12)
 const COLOR_SIGNBOARD := Color(0.92, 0.87, 0.74) ## Blank cream signboard plaque over every door (T-090) — clearly lighter than every shopfront band and the dark door slab.
 const COLOR_CROSSWALK := Color(0.78, 0.78, 0.75) ## Worn-white zebra paint (T-069) — clearly not the yellow lane mark.
+const COLOR_STOP_SIGN := Color(0.78, 0.10, 0.10) ## R1-1 octagon red (T-134) — the closeup photo's bright red, clearly not the worn crosswalk white.
+const COLOR_SIGN_WHITE := Color(0.94, 0.94, 0.92) ## Raised sign faces (T-134) — brighter than the worn COLOR_CROSSWALK paint so the raised sign reads against the flat paint.
 ## City-edge rim greens (T-088 commit 1, executing T-047): the hedge band and
 ## tree crowns must read against the grass apron they sit on — both hold ≥ 0.15
 ## Euclidean RGB from COLOR_GRASS (0.188 / 0.195 at these values), a floor the
@@ -101,6 +103,65 @@ const CROSSWALK_OUTSET := 6.2 ## Band center out from the node (m).
 const CROSSWALK_BAND_DEPTH := 2.4 ## Band depth along the road (m).
 const CROSSWALK_BAR_PITCH := 1.0 ## Bar spacing across the road (m).
 const CROSSWALK_BAR_WIDTH := 0.5 ## Bar width across the road (m).
+## How far a crosswalk band reaches from its node: center plus half depth
+## (7.4 m at the defaults) — the T-069 approach-existence rule's reach, shared
+## by the T-134 stop-control furniture so paint and cars agree on which
+## approaches exist.
+const CROSSWALK_REACH := 6.2 + 2.4 * 0.5
+
+## Route grid (T-134): the intersection nodes are the (blocks_per_side + 1)
+## road centers per axis; `ROUTE_DIRS` is the cyclic compass (index +1 = a
+## RIGHT turn: +x → +z → −x → −z), so `route_relative_turn` and every
+## right-hand lane/yaw derivation share one definition. Turn codes double as
+## Car blinker sides (−1 left / 0 straight / +1 right).
+const ROUTE_DIRS: Array[Vector2i] = [
+	Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1),
+]
+const ROUTE_DIR_VECS: Array[Vector3] = [
+	Vector3(1.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0),
+	Vector3(-1.0, 0.0, 0.0), Vector3(0.0, 0.0, -1.0),
+]
+const ROUTE_TURN_LEFT := -1
+const ROUTE_TURN_STRAIGHT := 0
+const ROUTE_TURN_RIGHT := 1
+
+## Intersection stop-control layout (T-134): per EXISTING approach (the same
+## T-069 reach rule as the crosswalk bands) one white stop line across the
+## incoming lane, one stop-sign assembly on the approach's right side, and per
+## node one speed-limit sign on the first existing approach. All pure layout
+## math on the grid constants: zero RNG of any stream, zero `_fp` entries (the
+## T-069/T-031 precedent — the layout fingerprint stays byte-identical) and
+## zero colliders (visual-only, the T-017 decision). Pinned by
+## `intersection_furniture_oriented`.
+const STOP_LINE_OUTSET := 8.8 ## Stop-line bar center out from the node (m) — 1.2 m beyond the crosswalk band's 7.4 m edge plus half the bar width (MUTCD ≥ 4 ft before the crosswalk).
+const STOP_LINE_WIDTH := 0.4 ## Bar thickness along travel (m).
+## Bar span across the road (m), centered on the incoming lane center — the
+## lane center sits `traffic_lane_offset` (3.5) BEYOND THE BLOCK EDGE, i.e.
+## `road_width * 0.5 − traffic_lane_offset` (1.5) right of the road centerline
+## (the `traffic_loop` convention this ticket freezes). A 4.0 m bar cannot fit
+## that lane: it would paint under the parallel-parked row (which occupies
+## 3.0–4.9 m off the centerline on the same side) or cross the centerline, so
+## the landed span is the clear lane-width asphalt between centerline and
+## parked cars (ticket deviation, recorded in T-134).
+const STOP_LINE_SPAN := 2.8
+const STOP_SIGN_OUTSET := 9.3 ## Stop-sign assembly out from the node (m) — 0.5 m beyond the stop line.
+const SIGN_SIDE_OFFSET := 5.2 ## Sign assemblies' offset off the road centerline (m) — 0.2 m onto the sidewalk slab past the 5.0 m road edge.
+const SPEED_SIGN_OUTSET := 12.0 ## Speed-limit sign out from the node (m).
+const SIGN_POST_SIZE := Vector3(0.08, 2.2, 0.08) ## Metal post, rising from the sidewalk slab.
+const STOP_SIGN_ACROSS := 0.75 ## Red octagon across flats (m) — the research note's 30 in.
+const STOP_SIGN_BAR := 0.31 ## One bar's short side (m) — 0.75·(√2−1) rounded; the four-bar union is the regular octagon.
+const STOP_SIGN_BORDER_ACROSS := 0.81 ## White border octagon across flats (m) — reads ≈ 0.03 m of border all around.
+const STOP_SIGN_BORDER_BAR := 0.34 ## Border bar short side (m).
+const STOP_SIGN_THICKNESS := 0.036 ## Red bar thickness (m) — sits proud of the 0.03 border on both faces.
+const SIGN_BORDER_THICKNESS := 0.03 ## White border/plaque/speed-face thickness (m).
+const ALL_WAY_PLAQUE_SIZE := Vector3(0.42, 0.14, 0.03) ## Blank white plaque below the octagon (the T-090 blank-signboard convention).
+const SPEED_SIGN_SIZE := Vector3(0.45, 0.6, 0.03) ## White portrait rectangle (m) — the Southbridge photo's shape, no legend.
+const STOP_SIGN_CENTER_Y := 2.525 ## Red/border octagon center over the asphalt (m): bottom ≈ 2.1 (MUTCD mount height) + the 0.375 across-flats half.
+const PLAQUE_DROP := 0.495 ## Plaque center below the octagon center (m): the 0.375 half + 0.05 gap + the 0.07 plaque half.
+const SPEED_SIGN_CENTER_Y := 2.4 ## Speed-sign face center over the asphalt (m).
+## Speed-sign approach scan order (T-134): the node's first EXISTING approach
+## in +x/−x/+z/+… order — indices into `ROUTE_DIRS` (+x, −x, +z, −z).
+const SIGN_DIR_ORDER: Array[int] = [0, 2, 1, 3]
 
 ## Rooftop clutter layout (T-032): per building, 1-3 props sit at ±0.25·footprint
 ## per axis in the three non-(+,+) corner quadrants and one roof crumb at
@@ -468,6 +529,7 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	_build_roads()
 	_build_rim() ## T-088 commit 1 — the city-edge rim, visual-only.
 	_build_crossings() ## T-069 — intersection paint, visual-only.
+	_build_intersection_furniture() ## T-134 — stop lines and signs, visual-only.
 	return true
 
 
@@ -654,6 +716,12 @@ func _make_meshes() -> void:
 		"anchor_shaft": _unit_box(_flat_material(COLOR_METAL)),
 		"anchor_head": _unit_box(_vertex_color_material()),
 		"anchor_cap": _unit_box(_flat_material(COLOR_STONE)),
+		"stop_line": _unit_box(_flat_material(COLOR_SIGN_WHITE)), ## (T-134) brighter than the worn crosswalk paint.
+		"sign_post": _unit_box(_flat_material(COLOR_METAL)),
+		"stop_sign": _unit_box(_flat_material(COLOR_STOP_SIGN)),
+		"stop_sign_border": _unit_box(_flat_material(COLOR_SIGN_WHITE)),
+		"all_way_plaque": _unit_box(_flat_material(COLOR_SIGN_WHITE)),
+		"speed_sign": _unit_box(_flat_material(COLOR_SIGN_WHITE)),
 	}
 	## Facades (T-049): one key per floor count a building can have — each its
 	## own material drawing exactly that many window rows, so a BoxMesh face
@@ -813,6 +881,284 @@ func _add_crosswalk_band(node: Vector3, along_x: bool, side: float) -> void:
 		var y := road_slab_height if along_x else road_slab_height + 0.005
 		var pos := node + (Vector3(out, y, across) if along_x else Vector3(across, y, out))
 		_add_mm("crosswalk", _box_xf(pos, size))
+
+
+## --- route grid (T-134) -----------------------------------------------------
+
+
+## The road-center coordinate per axis (city-local): the `blocks_per_side + 1`
+## street centerlines both `_build_roads` and `_build_crossings` walk.
+func road_node_coords() -> Array[float]:
+	var half := city_span * 0.5
+	var centers: Array[float] = []
+	for i in blocks_per_side + 1:
+		centers.append(-half + road_width * 0.5 + i * block_pitch)
+	return centers
+
+
+## One intersection node's position (city-local), at paint height.
+func road_node_pos(node: Vector2i) -> Vector3:
+	var centers := road_node_coords()
+	return Vector3(centers[node.x], road_slab_height, centers[node.y])
+
+
+## True when the node index stays on the (blocks_per_side + 1)² grid.
+func on_grid(node: Vector2i) -> bool:
+	return node.x >= 0 and node.x <= blocks_per_side \
+			and node.y >= 0 and node.y <= blocks_per_side
+
+
+## True when a route may step from `node` toward `dir` — on-grid only, so at
+## rim nodes the outward turn is simply not offered.
+func route_step_ok(node: Vector2i, dir: int) -> bool:
+	return on_grid(node + ROUTE_DIRS[dir])
+
+
+## True when the node's `dir` approach exists as PAINT (the T-069 reach rule:
+## its crosswalk band, and so every stop-control prop, stays on the asphalt).
+## At the defaults this coincides exactly with `route_step_ok` — every approach
+## a car can arrive on carries furniture.
+func approach_exists(node: Vector2i, dir: int) -> bool:
+	var centers := road_node_coords()
+	var along: float = centers[node.x] if ROUTE_DIRS[dir].x != 0 else centers[node.y]
+	return absf(along + signf(ROUTE_DIRS[dir].x + ROUTE_DIRS[dir].y) * CROSSWALK_REACH) \
+			<= city_span * 0.5
+
+
+## The driving-lane center's offset off the road centerline toward the travel
+## direction's right (m): the lane sits `traffic_lane_offset` beyond the block
+## edge — the `traffic_loop`/`parking_spots` right-hand convention — which is
+## `road_width * 0.5 − traffic_lane_offset` (1.5 m at the defaults) off the
+## centerline. Route legs reuse it verbatim, so the lane geometry (and the
+## parked-row clearance) is byte-identical to the ring loops'.
+func lane_center_off() -> float:
+	return road_width * 0.5 - traffic_lane_offset
+
+
+## The unit right-of-travel vector for approach `dir` (right = forward × up:
+## facing +x your right is +z, facing −z your right is +x).
+func right_of_dir(dir: int) -> Vector3:
+	var a := ROUTE_DIR_VECS[dir]
+	return Vector3(-a.z, 0.0, a.x)
+
+
+## A point on `node`'s `dir` approach lane, `out` metres before the node
+## (city-local, paint height): `out` back along the approach axis plus the
+## lane-center offset to the travel direction's right.
+func route_lane_point(node: Vector2i, dir: int, out: float) -> Vector3:
+	var a := ROUTE_DIR_VECS[dir]
+	return road_node_pos(node) - a * out + right_of_dir(dir) * lane_center_off()
+
+
+## −1 left / 0 straight / +1 right — the turn `dir_out` makes against `dir_in`
+## on the cyclic compass (the code doubles as the Car blinker side).
+func route_relative_turn(dir_in: int, dir_out: int) -> int:
+	if dir_out == (dir_in + 1) % 4:
+		return ROUTE_TURN_RIGHT
+	if dir_out == (dir_in + 3) % 4:
+		return ROUTE_TURN_LEFT
+	return ROUTE_TURN_STRAIGHT
+
+
+## The turn waypoint where `dir_in`'s approach lane line meets `dir_out`'s exit
+## lane line at `node` (city-local): the closed form falls out of the two
+## perpendicular lane lines — n + off·(r_in − a_in) for a right turn,
+## n + off·(r_in + a_in) for a left — the same disjoint-corner recipe the ring
+## loops cut, now inside the intersection box.
+func route_corner(node: Vector2i, dir_in: int, dir_out: int) -> Vector3:
+	var a := ROUTE_DIR_VECS[dir_in]
+	var r := right_of_dir(dir_in)
+	var sign := 1.0 if route_relative_turn(dir_in, dir_out) == ROUTE_TURN_LEFT else -1.0
+	return road_node_pos(node) + (r + a * sign) * lane_center_off()
+
+
+## A seeded random walk over the node grid (T-134): never doubling back (no
+## U-turns — the offered moves are straight/right/left only) and never stepping
+## off the grid (at rim nodes the outward turn is not offered; a weight whose
+## move is unavailable is simply not rolled). Turn weights come from the car's
+## Routes exports via `weights` — straight 0.60 / right 0.25 / left 0.15 at the
+## defaults, lefts rare per real behavior. One `rng.randi_range` for the initial
+## heading (uniform over the on-grid neighbors, or `initial_dir` fixed — the
+## extension path passes the car's live heading so a dealt route never
+## U-turns) and one `rng.randf()` per step, off the CALLER's stream (the
+## spawner's `_rng`) — zero new streams.
+func route_from(start: Vector2i, steps: int, rng: RandomNumberGenerator,
+		weights: Dictionary = {}, initial_dir: int = -1) -> Array[Vector2i]:
+	var straight: float = weights.get("straight", 0.60)
+	var right: float = weights.get("right", 0.25)
+	var left: float = weights.get("left", 0.15)
+	var nodes: Array[Vector2i] = [start]
+	var dir := initial_dir
+	if dir < 0:
+		var options: Array[int] = []
+		for d in 4:
+			if route_step_ok(start, d):
+				options.append(d)
+		dir = options[rng.randi_range(0, options.size() - 1)]
+	elif not route_step_ok(start, dir):
+		## A pinned heading can point off-grid — an extension dealt at a rim
+		## node whose car arrived heading outward. Degrade to the weighted
+		## walk: the offered-move roll below never steps off the grid.
+		dir = -1
+		var options: Array[int] = []
+		for d in 4:
+			if route_step_ok(start, d):
+				options.append(d)
+		dir = options[rng.randi_range(0, options.size() - 1)]
+	for _s in steps:
+		nodes.append(nodes[nodes.size() - 1] + ROUTE_DIRS[dir])
+		var here := nodes[nodes.size() - 1]
+		var moves: Array[int] = []
+		var totals: Array[float] = []
+		var total := 0.0
+		for move_dir: int in [dir, (dir + 1) % 4, (dir + 3) % 4]:
+			var weight: float = straight if move_dir == dir \
+					else (right if move_dir == (dir + 1) % 4 else left)
+			if weight > 0.0 and route_step_ok(here, move_dir):
+				total += weight
+				moves.append(move_dir)
+				totals.append(total)
+		var roll := rng.randf() * total
+		for i in moves.size():
+			if roll <= totals[i]:
+				dir = moves[i]
+				break
+	return nodes
+
+
+## The padded crosswalk-band rectangles of `node`'s existing approaches
+## (city-local XZ `Rect2`s): each band spans CROSSWALK_OUTSET ± half depth
+## along its approach axis, padded 0.5 m, and the full road width across,
+## padded 0.5 m. The four-way-stop crosswalk yield point-tests bodies against
+## these — no raycasts (T-134).
+func crosswalk_band_rects(node: Vector2i) -> Array[Rect2]:
+	var centers := road_node_coords()
+	var pos := Vector2(centers[node.x], centers[node.y])
+	var rects: Array[Rect2] = []
+	for dir in 4:
+		if not approach_exists(node, dir):
+			continue
+		var u := ROUTE_DIRS[dir]
+		var near := CROSSWALK_OUTSET - CROSSWALK_BAND_DEPTH * 0.5 - 0.5
+		var far := CROSSWALK_OUTSET + CROSSWALK_BAND_DEPTH * 0.5 + 0.5
+		var lo := minf(near, far)
+		var hi := maxf(near, far)
+		var along_lo: float = pos.x + u.x * lo if u.x != 0 else pos.x - 5.5
+		var along_hi: float = pos.x + u.x * hi if u.x != 0 else pos.x + 5.5
+		var cross_lo: float = pos.y + u.y * lo if u.y != 0 else pos.y - 5.5
+		var cross_hi: float = pos.y + u.y * hi if u.y != 0 else pos.y + 5.5
+		rects.append(Rect2(
+				Vector2(minf(along_lo, along_hi), minf(cross_lo, cross_hi)),
+				Vector2(absf(along_hi - along_lo), absf(cross_hi - cross_lo))))
+	return rects
+
+
+## --- intersection stop-control furniture (T-134, visual-only) ---------------
+
+
+## Stop lines, stop signs with ALL-WAY plaques, and speed-limit signs: pure
+## layout math over the T-069 road-center grid and its approach-existence skip
+## rule (224 existing approaches at the defaults), like `_build_crossings`.
+## Zero RNG draws, zero `_fp.append` calls (the layout fingerprint stays
+## byte-identical to pre-T-134 builds), zero colliders (the T-017 decision).
+##
+## Paint orientation is the research note's first MUST: the stop line is one
+## solid bar ACROSS the road, perpendicular to travel, spanning the incoming
+## lane only — centered on the incoming lane center, `traffic_lane_offset`
+## beyond the block edge (`lane_center_off()` off the centerline) so it paints
+## the clear asphalt between the centerline and the parallel-parked row —
+## never mid-road, never on the outgoing side. Signs mount on the approach's
+## RIGHT side (right relative to travel), 0.2 m onto the sidewalk slab, faces
+## perpendicular to travel readable by the approaching driver.
+func _build_intersection_furniture() -> void:
+	var centers := road_node_coords()
+	for cx in centers.size():
+		for cz in centers.size():
+			var node := Vector2i(cx, cz)
+			for dir in 4:
+				if not approach_exists(node, dir):
+					continue
+				_queue_stop_line(node, dir)
+				_queue_stop_sign(node, dir)
+			for dir in SIGN_DIR_ORDER:
+				if approach_exists(node, dir):
+					_queue_speed_sign(node, dir)
+					break
+
+
+## Queues one approach's stop-line bar: `STOP_LINE_WIDTH` along travel ×
+## `STOP_LINE_SPAN` across, centered on the incoming lane center
+## `STOP_LINE_OUTSET` out from the node, at its road family's paint height
+## (the two dash-family recipes — horizontal roads at slab height, vertical
+## 5 mm proud).
+func _queue_stop_line(node: Vector2i, dir: int) -> void:
+	var along_x := ROUTE_DIRS[dir].x != 0
+	var center := route_lane_point(node, dir, STOP_LINE_OUTSET)
+	center.y = road_slab_height if along_x else road_slab_height + 0.005
+	var size := Vector3(STOP_LINE_WIDTH, 0.01, STOP_LINE_SPAN) if along_x \
+			else Vector3(STOP_LINE_SPAN, 0.01, STOP_LINE_WIDTH)
+	_add_mm("stop_line", _box_xf(center, size))
+
+
+## Queues one approach's stop-sign assembly: metal post rising from the
+## sidewalk slab at `STOP_SIGN_OUTSET` out / `SIGN_SIDE_OFFSET` right, the red
+## octagon and its white border each read as the union of FOUR equal bars per
+## layer (the only unit-box recipe that draws a real 8-sided sign — the
+## two-square union is a 4-sided square, a 4-sided diamond, or a 16-sided
+## blob at every size ratio), red 0.006 m prouder than the border on both
+## faces, with the blank ALL-WAY plaque below.
+func _queue_stop_sign(node: Vector2i, dir: int) -> void:
+	var a := ROUTE_DIR_VECS[dir]
+	var r := right_of_dir(dir)
+	var base := road_node_pos(node) - a * STOP_SIGN_OUTSET + r * SIGN_SIDE_OFFSET
+	var post_pos := base
+	post_pos.y = block_slab_height + SIGN_POST_SIZE.y * 0.5
+	_add_mm("sign_post", _box_xf(post_pos, SIGN_POST_SIZE))
+	var center := base
+	center.y = STOP_SIGN_CENTER_Y
+	for angle: float in [0.0, PI * 0.5, PI * 0.25, -PI * 0.25]:
+		_add_mm("stop_sign_border", _sign_bar_xf(center, a, r, angle,
+				STOP_SIGN_BORDER_ACROSS, STOP_SIGN_BORDER_BAR, SIGN_BORDER_THICKNESS))
+		_add_mm("stop_sign", _sign_bar_xf(center, a, r, angle,
+				STOP_SIGN_ACROSS, STOP_SIGN_BAR, STOP_SIGN_THICKNESS))
+	var plaque_pos := base
+	plaque_pos.y = STOP_SIGN_CENTER_Y - PLAQUE_DROP
+	_add_mm("all_way_plaque", Transform3D(
+			Basis(r * ALL_WAY_PLAQUE_SIZE.x, Vector3.UP * ALL_WAY_PLAQUE_SIZE.y,
+					a * ALL_WAY_PLAQUE_SIZE.z),
+			plaque_pos))
+
+
+## Queues the node's speed-limit sign: white portrait rectangle on its own
+## post, `SPEED_SIGN_OUTSET` out from the node on the first existing approach
+## (the caller walked `SIGN_DIR_ORDER`), face turned along its approach.
+func _queue_speed_sign(node: Vector2i, dir: int) -> void:
+	var a := ROUTE_DIR_VECS[dir]
+	var r := right_of_dir(dir)
+	var base := road_node_pos(node) - a * SPEED_SIGN_OUTSET + r * SIGN_SIDE_OFFSET
+	var post_pos := base
+	post_pos.y = block_slab_height + SIGN_POST_SIZE.y * 0.5
+	_add_mm("sign_post", _box_xf(post_pos, SIGN_POST_SIZE))
+	var face_pos := base
+	face_pos.y = SPEED_SIGN_CENTER_Y
+	_add_mm("speed_sign", Transform3D(
+			Basis(r * SPEED_SIGN_SIZE.x, Vector3.UP * SPEED_SIGN_SIZE.y,
+					a * SPEED_SIGN_SIZE.z),
+			face_pos))
+
+
+## One octagon bar's transform: `across` × `bar` in the sign's face plane,
+## the long axis rotated `angle` off the ACROSS-the-approach axis (`r`),
+## thickness along the travel axis (`a`) — 0° lies across the approach (flats
+## facing ±travel), 90° in profile, ±45° the diagonal flats.
+func _sign_bar_xf(center: Vector3, a: Vector3, r: Vector3, angle: float,
+		across: float, bar: float, thickness: float) -> Transform3D:
+	var long_axis := r * cos(angle) + Vector3.UP * sin(angle)
+	var short_axis := -r * sin(angle) + Vector3.UP * cos(angle)
+	return Transform3D(
+			Basis(long_axis * across, short_axis * bar, a * thickness),
+			center)
+
 
 
 ## City-edge rim (T-088 commit 1, executing T-047): a low hedge band on the

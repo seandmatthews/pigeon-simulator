@@ -1,6 +1,6 @@
 # T-134 — American four-way stops: multi-block routes, right-of-way, blinker tells, stop-sign props
 
-- **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Status:** doing · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-008 (the traffic fleet + drive model), T-069/T-102 (the crosswalk bands the
   stop lines sit behind), T-128 (the fleet counts + sightline gate that must hold) — all landed
 - **Refs:** research note
@@ -204,12 +204,12 @@ the failure mode the whole T-089 ticket chased.
 
 ## Acceptance criteria
 
-- [ ] *(Gate 1b)* new `traffic_routes_multi_block`: with the protocol live and the pigeon
+- [x] *(Gate 1b)* new `traffic_routes_multi_block`: with the protocol live and the pigeon
       pinned so no recycle fires, a traffic car's block assignment changes ≥ 2 times over
       a 15 s run **by driving** (no single-frame hop > 5 m — the T-089 no-teleport arm),
       covering ≥ 60 m of path; the fleet holds 14 traffic + 12 parked; pairwise flat gaps
       stay > 2.0 m (the `cars_traffic` no-overlap floor); velocities finite throughout.
-- [ ] *(Gate 1b)* new `four_way_stop_right_of_way`, staged at one node with hand-placed
+- [x] *(Gate 1b)* new `four_way_stop_right_of_way`, staged at one node with hand-placed
       cars and a real `TrafficControl`: staggered arrivals (≥ 1 s apart) proceed
       first-stopped-first; a near-simultaneous perpendicular pair sends the right-hand
       car first while the left-hand car stays held behind its stop line (nose never
@@ -217,20 +217,20 @@ the failure mode the whole T-089 ticket chased.
       proceeds together; a staged opposing straight-vs-left conflict holds the left
       turner until the straight has cleared; a car with a null `traffic` reference skips
       the whole protocol (the escape hatch drives today's behavior).
-- [ ] *(Gate 1b)* new `crosswalk_yield_holds_and_releases`: a car held at its line stays
+- [x] *(Gate 1b)* new `crosswalk_yield_holds_and_releases`: a car held at its line stays
       stopped while the pigeon stands inside the padded crosswalk band, and proceeds
       within 1.0 s of the pigeon leaving it; a late-entering pigeon re-holds the car
       before its nose crosses the bar.
-- [ ] *(Gate 1b)* new `patience_pass_unsticks` — the T-089 known-issue (a) repro: the
+- [x] *(Gate 1b)* new `patience_pass_unsticks` — the T-089 known-issue (a) repro: the
       pigeon grounded mid-lane in a car's path; after ≈ `patience_seconds` the car has
       honked exactly once, and over the following 10 s completes a pass (its path travel
       ≥ 8 m while the pigeon stands still), with no second honk inside one patience
       window (once per expiry, no horn spam).
-- [ ] *(Gate 1b)* new `turn_signals_blink_before_turns`: a car routed into a turn arms
+- [x] *(Gate 1b)* new `turn_signals_blink_before_turns`: a car routed into a turn arms
       the correct `blinker` side between 1.5-2.5 s before the turn entry, its flash
       period lands inside 0.5-1.0 s (the 1-2 Hz legal band), and the state clears within
       1 s of completing the turn; straight continuations never arm it.
-- [ ] *(Gate 1b)* new `intersection_furniture_oriented` (the `city_crosswalks_present`
+- [x] *(Gate 1b)* new `intersection_furniture_oriented` (the `city_crosswalks_present`
       pattern): the `stop_line` MultiMesh holds exactly 224 instances, every bar across
       its approach's incoming lane half (center 3.5 m off the road centerline, on the
       incoming side), every bar center 8.6-9.0 m out from its node — ≥ 1.2 m beyond the
@@ -241,7 +241,7 @@ the failure mode the whole T-089 ticket chased.
       perpendicular to travel; a forced same-seed rebuild reproduces every transform
       byte-identically (`_spots_equal`); no `StaticBody3D` anywhere under `Visuals`; the
       layout fingerprint equals the pre-change pin (zero `_fp`, zero RNG).
-- [ ] *(Gate 1b)* the pinned traffic scenarios re-derived in the same change-set,
+- [x] *(Gate 1b)* the pinned traffic scenarios re-derived in the same change-set,
       red-before/green-after: `cars_traffic_loops_blocks` (its ring-loop premise becomes
       a routes premise — the counts, no-overlap and parked-fleet arms survive),
       `traffic_recycle_keeps_flow` (the T-089 clear-probe rejoin lands on routes' first
@@ -252,9 +252,9 @@ the failure mode the whole T-089 ticket chased.
       re-measured with the protocol + ≈2,600 new MultiMesh instances live (2,592 at
       defaults: 224 stop lines + 224 posts + 896 red + 896 border + 224 plaques +
       64 + 64 speed).
-- [ ] *(Gate 1)* `--import` and the 120-frame boot exit clean; `--check-only` passes on
+- [x] *(Gate 1)* `--import` and the 120-frame boot exit clean; `--check-only` passes on
       every touched script (`car.gd`, `car_spawner.gd`, `city.gd`, `traffic_control.gd`).
-- [ ] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`); the DONE line's
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`); the DONE line's
       `honks` stays **splat-only, by design** — it reads the CarSpawner counter
       (`tests/autoplay.gd:130` → `car_spawner.gd:53`), which only the splat relay
       `_on_car_splatted` bumps (`car_spawner.gd:276-278`). Patience honks go through
@@ -291,6 +291,90 @@ stubbed, `intersection_furniture_oriented` fails on the 224-count leg.
 Tuning latitude: the exports named in §What are the starting values; the Gate 3 watch
 pass may move `patience_seconds` (4-10 s) and `simultaneous_window` (0.5-1.5 s) without
 a new ticket — record the landed values here like T-013's "Tuned values" section.
+
+## Landed (2026-10-23, this branch — Status stays doing until reviewer sign-off)
+
+**Verification record.** Gate 1: `--import` exit 0, 120-frame headless boot exit 0 with
+zero ERROR lines. Per-script `--check-only`: `city.gd` passes clean; `car.gd`,
+`car_spawner.gd` and `traffic_control.gd` fail `--check-only` on
+`Identifier not found: Sfx/Game` — the environment quirk where bare `--check-only`
+runs never register the autoload singletons — IDENTICALLY on the pristine main
+checkout's own untouched `car.gd` (verified side by side this session), so the
+honest pass evidence for those three is the 120-frame boot, which fully loads and
+compiles every touched script with the autoloads present. Gate 1b: full suite `godot --headless --fixed-fps 60 --path .
+res://tests/sim_test.tscn` — 154 scenarios, **0 failures, exit 0**, zero SCRIPT ERROR
+lines, with the six new scenarios plus the re-derived pins all green. Gate 2:
+`godot --path . res://tests/autoplay.tscn` — exit 0, `AUTOPLAY DONE ok=true …
+restart=true`, and the DONE line reads `honks=0` while its `sfx` dict shows `honk:7`
+— patience honks ride `Car.honk_count` + Sfx and never reach the splat-relay
+counter, exactly the shape this criterion pins. `density_cpu_budget` re-measured
+with the protocol + the 2,592 new MultiMesh instances live: median 260.4 ms per 100
+physics frames against the 750 budget (nodes 3188).
+
+**Red-before probes (measured on this branch, then reverted):**
+- `stop_protocol_enabled` hatch — the runnable form here is the protocol-null escape
+  on the staged cars (`car.traffic = null` in `_t134_stage_car`): with it,
+  `four_way_stop_right_of_way` fails ALL FIVE legs (a_reg=false, no ladder, no
+  commits), `crosswalk_yield_holds_and_releases` fails (no hold, no grant), and
+  `turn_signals_blink_before_turns` fails (committed=-1 — the arm→entry read
+  collapses). The rest of the suite stayed green.
+- Furniture builder stubbed (`_build_intersection_furniture()` commented out of
+  `generate_step_ground`): `intersection_furniture_oriented` FAILS on exactly the
+  224-count leg (counts=false, placements/plaques/posts empty). The rest of the
+  suite stayed green.
+- By construction (the old tree cannot express them, so no hatch reproduces them):
+  `traffic_routes_multi_block` (the ring tree has no `block_changes` — a ring car's
+  block never changes), `patience_pass_unsticks` and `turn_signals_blink_before_turns`
+  (no patience machinery, no blinker state to read), and the routes arm of
+  `cars_traffic_loops_blocks`.
+
+**Deviations from the ticket text, each forced by a measured conflict inside the
+ticket's own contracts (all within the §What "fair-enough judge" latitude, none
+weakening a contract):**
+1. **Stop-line span 2.8 (not 4.0) and centered on the incoming lane center** —
+   `traffic_lane_offset` 3.5 is measured BEYOND THE BLOCK EDGE (`city.gd`'s own
+   export doc), i.e. 1.5 m off the road centerline toward the curb, with the
+   parallel-parked row at 3.0-4.9 m on the same side. A 4.0 m bar cannot fit that
+   lane: it would paint under parked cars or cross the centerline (research note
+   MUST 1: never mid-road, never on the outgoing side). The landed bar spans the
+   clear lane-width asphalt (2.8 m) centered on the lane center.
+2. **Compatibility table strengthened twice, measured:** the draft's
+   perpendicular straight-vs-left pair merged at 0.73 m center-to-center and its
+   rights-compatible-with-everything row merged a perpendicular right-vs-right at
+   1.05 m (bodies overlapped both times — the fleet's > 2.0 m no-overlap floor,
+   which this same ticket keeps, cannot coexist with those rows). The landed table:
+   a movement coexists only with a same-approach queue mate and an opposing
+   movement of the SAME turn (opposing straights pass 3.0 m apart, opposing rights
+   cut the two disjoint corners 3.0 m apart, opposing lefts sweep 4.2 m apart);
+   everything else conflicts.
+3. **Blinker arm reference is the entry's STOP LINE, not the node** — the ticket's
+   "12 m ≈ 2 s at cruise" arithmetic only lands inside the 1.5-2.5 s acceptance
+   band when the 12 m is measured to the stop line (the arm then precedes the
+   box-entry commit by ≈ 1.9 s at cruise; measured 1.86 s).
+4. **Scenario-side re-derivations** (documented in VERIFICATION.md rows):
+   `cars_traffic_loops_blocks` runs 15 s (route cars stop at every node; the
+   ring-era 8 s no longer guarantees 8 m) with the recycle scan disarmed (routes
+   legitimately drive beyond any fixed radius — the criterion's own "no recycle
+   fires" precondition), same for `traffic_recycle_keeps_flow` whose seeded-gap bar
+   moves 4.0 → 2.5 (opposing passes at 3.0 m are the lanes' legitimate geometry);
+   `cars_recycle_around_player`'s flat arm tolerates one leg of driving (+12 m) —
+   the placement itself stays radius-bound; `hud_bread_pointer`'s eat leg tries the
+   nearest ground crumbs in order (the shifted parking stream can put street
+   furniture in the first crumb's +Z approach, which embedded the drop).
+
+**Tuned values (all at the ticket's starting values, no Gate 3 moves):**
+`route_legs_min` 3 · `route_legs_max` 6 · `straight_weight` 0.60 ·
+`right_weight` 0.25 · `left_weight` 0.15 · `full_stop_speed` 0.3 ·
+`simultaneous_window` 0.75 · `patience_seconds` 6.0 · `pass_clearance` 2.3 ·
+`blinker_lead` 12.0 · `blinker_hz` 2.0 · `STOP_LINE_OUTSET` 8.8 ·
+`STOP_LINE_WIDTH` 0.4 · `STOP_LINE_SPAN` 2.8 (deviation 1) ·
+`STOP_SIGN_OUTSET` 9.3 · `SIGN_SIDE_OFFSET` 5.2 · `SPEED_SIGN_OUTSET` 12.0.
+
+**Gate 3 status:** the four human lines (watch an intersection; watch a honk-and-pass;
+screenshot the blinker tell; screenshot the stop-sign read at pigeon altitude) are
+PENDING — they need the pilot-harness watch/screenshot pass and human judgement, and
+this branch lands machine-verified only. The autoplay run that backs Gate 2 saved
+its 5 s frames to `.godot/autoplay/` for the Gate 3 pass to review.
 
 ## References
 
