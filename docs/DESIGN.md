@@ -158,6 +158,16 @@ from Iowa reads "black and gold flooding a college town" instantly). Tone stays
 locked on comedic, family-friendly: the visitors are a goofy nuisance, not a
 hated enemy.
 
+**The city is Windrow (T-136, owner pick 2026-10-24, "names Windrow"):** the
+four quadrants wear their themes as dressing only — no text renders anywhere.
+NW **Bricklight Row** (main street: shopfronts, green awnings, the marquee
+anchor), NE **Tailgate Terrace** (the visitor lot's edge: open parks, the
+water-tower anchor), SW **Campanile Green** (Windrow State's campus side:
+quads, the campanile anchor), SE **Windrow Heights** (residential: porch
+rhythm, buried canopy, the silo anchor). The school is **Windrow State**; the
+names are records, not rendered strings — if signage text ever lands it is its
+own ticket.
+
 **Scope guardrail (user, 2026-10-01):** if a proposal starts needing dialogue
 trees, NPC schedules, or quest machinery — stop, it's gone too crazy. It's a
 silly game about a bird pooping on people.

@@ -1,10 +1,10 @@
 # T-136 — District theming: four dressed quadrants, one signature silhouette each
 
-- **Milestone:** City identity (owner direction 2026-10-23) · **Status:** proposed
+- **Milestone:** City identity (owner direction 2026-10-23) · **Status:** done
   (forge deliverables landed 2026-10-24 — research note + 8 reference photos in
   `docs/references/district-theming/`, photo-grounded values recorded below;
-  OWNER SIGN-OFF RECORDED 2026-10-24 — the three picks below are decided,
-  implementation is the next step) ·
+  OWNER SIGN-OFF RECORDED 2026-10-24 — the three picks below are decided;
+  implementation landed 2026-10-25, REVIEWER SIGN-OFF on the same tree) ·
   **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-135 (one park per district, done — the themed parks dress
   its four pinned `PARK_BLOCKS`; the guarantee is what makes per-theme park
@@ -314,11 +314,12 @@ rule); all eight photos were opened and the values above written against them.
 *Implementation legs (pipeline route — `scripts/city.gd` pin surfaces are the
 risk surface):*
 
-- [ ] Each themed park wears its district: slab tint per `PARK_SLAB_TINTS`,
+- [x] Each themed park wears its district: slab tint per `PARK_SLAB_TINTS`,
       tree layout per `PARK_TREE_LAYOUTS` (2/3/8/6, city total 19, zero RNG),
       d3 crowns at 0.8 scale; the rest of the T-135 park recipe (benches,
       crumbs, lamps, tourist loop, curb parking) unchanged.
-- [ ] Each anchor reads as its theme: the per-district restyles above with the
+      *(Proven: `city_district_theming_present` leg (a) + `city_park_trees_present`, green.)*
+- [x] Each anchor reads as its theme: the per-district restyles above with the
       tier stack exact (top 17.3 / cap_top 17.42 global, crumb +0.06, records
       and `_fp` entry unchanged), detail boxes visual-only (zero new
       colliders — the Props shape count stays 4 per anchor, 3 above y 5.0),
@@ -326,13 +327,15 @@ risk surface):*
       plinth's own per-seed derivation; `city_district_anchors_present`'s
       tier-copy, head-tint and visual-queue legs re-derive to the restyle law
       (Known pin breaks) and its VERIFICATION.md row is refreshed in the same
-      change-set.
-- [ ] The prop-mix tables hold (`BENCH_CHANCE_BY_DISTRICT` /
+      change-set. *(Proven: `city_district_theming_present` legs (b)+(c) +
+      `city_district_anchors_present`, green; row refreshed.)*
+- [x] The prop-mix tables hold (`BENCH_CHANCE_BY_DISTRICT` /
       `BIN_CHANCE_BY_DISTRICT`, exports deleted) and the stream shift they
       cause is paid honestly: both fingerprint literals re-derived by probe,
       every M1 literal and quoting `VERIFICATION.md` row refreshed in the same
       change-set (the T-135 storm list, executed).
-- [ ] (Gate 1b) new `city_district_theming_present` scenario in
+      *(Probe: headless `City.generate` at both pinned seeds — fp 20260928 → 1103197745, 424242 → 1411023184; buildings 137 → 142, awnings 97 → 100, cafe spots 97 → 100 (sitters 146 → 150), benches 152 → 136, bread spots 782 → 774 (GROUND 528 = 392 ring + 136 bench, TABLE 100, ROOF 146 = 142 + 4 anchors), roof props 245 → 242, anchor plinth daylight 0.0242 → 0.0281 m (M1) / 0.0148 → 0.0094 m (foreign), anchor worst bread 8.27 → 8.40 m, park-tree worst bread 4.87 → 2.35 m (M1), cafe-bread minima 2.704 → 2.590 m (M1) / 2.626 → 2.631 m (foreign); lamps 196 and max_roof 18.25 unchanged; BreadSpawner quotas 36/3/1 probe-verified share-based — the awning pool stays ≥ 36 at both seeds (100/88), the boot spread integers proven by `splat_favor_follows_citizen_class` re-running green.)*
+- [x] (Gate 1b) new `city_district_theming_present` scenario in
       `tests/sim_test.gd` — the only machine-checkable home for the theming
       law: on a real generated City it recomputes INDEPENDENTLY (a) each
       park's district from `district_of` and its slab tint/tree layout from
@@ -346,21 +349,33 @@ risk surface):*
       the themed-park and anchor arrays byte-identically (the
       `_props_reproduced`/`_vec_spots_equal` pattern), and (e) at BOTH pinned
       seeds the cross-version fingerprint equals the re-derived literals.
-- [ ] (Gate 1b) every pin break named in What is amended in the same
+      *(Green; row added to the VERIFICATION.md table.)*
+- [x] (Gate 1b) every pin break named in What is amended in the same
       change-set and the FULL suite is green (0 failures).
-- [ ] Mechanics untouched: elders/favor/hunger/scoring/traffic re-derive
+      *(156 scenarios, 0 failures — including the T-135 record's 16-scenario list, `city_district_palettes_distinct` and the T-090 signboard scenarios.)*
+- [x] Mechanics untouched: elders/favor/hunger/scoring/traffic re-derive
       nothing — the elder seat ring is plaza-side, benches remain crumb hosts
       wherever they land, and the bread-budget spawner integers are
       probe-verified (re-derived if the awning pool moved).
-- [ ] Tone check passes: invented names only in any new string/comment, no
+      *(The plaza branch still returns early in `_build_block_props`; `elder_placement_no_rng`, `splat_favor_follows_citizen_class`, `bread_distribution_weighted` re-ran green.)*
+- [x] Tone check passes: invented names only in any new string/comment, no
       real-world marks, no sub-goals or objectives anywhere in the diff, no
       rendered text.
-- [ ] [screenshot] From cruise height the four quadrants are distinguishable
+      *(Names recorded in DESIGN.md + this ticket are the invented Windrow set; new code comments cite the reference photos as photos, no in-world real names; the name band and signboards render NO letters; no objectives anywhere.)*
+- [x] [screenshot] From cruise height the four quadrants are distinguishable
       by silhouette and dressing alone — canopy deltas read (treeless formal
       square / bare-edged green / framed quad / buried block), each signature
       steers by, and the T-088 backdrop ring stays background; at block level
       each district reads as its theme (tints, signboards/awnings, prop
       rhythm). The map still reads balanced (T-135's line re-checked).
+      *(Accepted by reviewer sign-off on the landed tree: the machine legs are
+      `city_district_theming_present` + the refreshed anchor/park rows; the
+      in-session agent grabs — street-level d0 row with green awnings and
+      cream signboards, the d1 tinted park square, cruise-over-plaza with two
+      themed parks, a clean cruise frame above the T-088 skyline ring — read
+      on-theme, and the regenerable autoplay frames (`.godot/autoplay/`,
+      every Gate 2 run) back the read. The per-district Gate 3 lines in
+      VERIFICATION.md are ticked on the same sign-off.)*
 
 ## Verification
 
@@ -449,4 +464,72 @@ the implementation MUST respect, orientation first:
 ## Implementation record
 
 *(sign-off landed 2026-10-24 — pipeline fired same day; `scripts/city.gd` pin
-surfaces first, the full re-derivation storm per Known pin breaks)*
+surfaces first, the full re-derivation storm per Known pin breaks)* —
+**landed 2026-10-25.** `scripts/city.gd`: the four levers — `PARK_SLAB_TINTS`
+(park slabs wear their district's tint; plaza/sidewalk untouched),
+`SIGNBOARD_TINTS` + the `AWN_TINTS`×`AWN_TINT_WEIGHTS` lerp (the T-090 plaque
+moves to the per-instance vertex-color material, transforms unchanged; both
+post-roll pure math, zero stream/`_fp` movement),
+`BENCH_CHANCE_BY_DISTRICT`/`BIN_CHANCE_BY_DISTRICT` (the exports deleted, the
+single draw sites per edge/block unchanged), and `PARK_TREE_LAYOUTS` +
+`PARK_CROWN_SCALE_BY_DISTRICT` (2/3/8/6 = 19 city-wide, d3 crowns 0.8 with the
+crown center dropped half the shrink so the bottom stays on the trunk; every
+offset a constant, zero RNG/`_fp`). The D-A restyle: `_build_district_anchor`
+branches per district (marquee bulbs / water-tower band + cap-top antenna /
+campanile insets + clocks + pinnacles / silo hoop bands) on ONE new
+`"anchor_detail"` vertex-color key — 21 visual-only instances (4/2/12/3),
+zero new colliders — with the tier STACK exact and the d3 shaft widened
+0.7 → 1.4 (mesh AND its one collider) under the new per-district consts
+(`ANCHOR_SHAFT_SIZES`/`_SHAFT_TINTS`/`_HEAD_TINTS`/`_CAP_TINTS`). The names
+recorded in DESIGN.md + this ticket (Windrow / Bricklight Row / Tailgate
+Terrace / Campanile Green / Windrow Heights); nothing renders. Headless
+`City.generate` probe (the T-051/T-091/T-135 precedent) re-derived both
+cross-version pins — **20260928 → 1103197745, 424242 → 1411023184**
+(pre-T-136: 2003179558 / 3801669696) — and every M1 literal the bench/bin
+stream shift moved: buildings 137 → **142**, awnings **100**/142 (shopfronts +
+doors + facade classes), cafe spots **100** (sitters **150**), benches 152 →
+**136**, bread spots 782 → **774** (GROUND **528** = 392 ring + 136 bench,
+TABLE **100**, ROOF **146** = 142 + 4 anchors), roof props 245 → **242**,
+park trees 16 → **19**, anchor plinth daylight 0.0242 → **0.0281** m (M1) /
+0.0148 → **0.0094** m (foreign), anchor worst bread **8.40** m, park-tree
+worst bread **2.35** m (M1) / **3.52** m (foreign), cafe-bread minima
+**2.590** m (M1) / **2.631** m (foreign); lamps **196** and max roof
+**18.25** unchanged. The BreadSpawner quota integers (36/3/1, boot 35 →
+32/2/1) are share-based, not count-based — probe-verified (the awning pool
+stays ≥ 36 at both seeds: 100/88). Scenario work: `city_park_trees_present`
+(per-district layouts/tints/crown scales, 19), `city_one_park_per_district`
+(tinted-slab recompute, 19, byte-identical rebuilds), 
+`city_district_anchors_present` (per-district tier copy learning the 1.4 m d3
+shaft, the restyle head-tint table, daylight/worst-bread literals), a new
+`city_district_theming_present` (the theming law's machine home: parks law,
+restyle law incl. detail counts 4/2/12/3 and the collider-census, the d3
+height-band standoff — worst 0.0281 m at M1 / 0.3233 m at 424242 — same-seed
+byte-identical rebuilds, both pins, the sign/awning tint law and the prop-mix
+tables), and every quoting row/`VERIFICATION.md` pin refreshed in the same
+change-set. Gates: 1 (import clean except the documented godot_mcp exit line;
+120-frame boot clean; `--check-only --script res://scripts/city.gd` exit 0),
+1b full suite **156 scenarios, 0 failures**, 2 (`AUTOPLAY DONE ok=true …
+restart=true`, fps 137). Gate 3: the five new per-district lines are ticked on
+the REVIEWER SIGN-OFF on the landed tree (2026-10-25) — in-session agent
+grabs (street-level d0 row with green awnings/cream signboards, the d1
+tinted park square, cruise-over-plaza with two themed parks, a clean cruise
+frame above the skyline ring) were reviewed and read on-theme (the session
+dir was swept by `pilot.py clean` after review); the regenerable evidence is
+the autoplay frame set (`.godot/autoplay/`, re-produced by every Gate 2 run
+— the 11 s frame reads two themed park squares and the street-level dressing
+from the plaza climb) plus any fresh pilot session. The T-004
+city-readability lines re-checked on the same evidence.
+
+**Final tuned values** (all re-derived by probe; the const tables carry them
+in `scripts/city.gd`): pins 20260928 → **1103197745**, 424242 →
+**1411023184**; park slabs **(0.46, 0.52, 0.30) / (0.48, 0.50, 0.28) /
+(0.36, 0.58, 0.32) / (0.44, 0.56, 0.33)**; park trees **2/3/8/6 = 19**,
+d3 crown scale **0.8** (crown center 3.08 above the slab); signboards
+**cream / (0.90, 0.78, 0.50) / (0.88, 0.85, 0.74) / (0.88, 0.90, 0.82)**;
+awnings lerp toward **(0.16, 0.35, 0.27) @0.65 / (0.62, 0.48, 0.18) @0.35 /
+(0.30, 0.40, 0.50) @0.35 / (0.60, 0.64, 0.55) @0.35**; prop mix **bench
+0.90/0.50/0.90/0.50, bin 0.70/0.90/0.40/0.70**; anchor tiers **plinth
+1.4×1.0×1.4 / shaft 0.7 (d3 1.4)×13.6 / head 1.8×2.2×1.8 / cap 2.0×0.5×2.0,
+top 17.3 above the slab, cap_top 17.42 global, crumb +0.06**; shaft/head/cap
+tints per the `ANCHOR_*_TINTS` tables; details **4/2/12/3 = 21**
+visual-only.
