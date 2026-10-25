@@ -3,7 +3,8 @@
 - **Milestone:** City identity (owner direction 2026-10-23) · **Status:** proposed
   (forge deliverables landed 2026-10-24 — research note + 8 reference photos in
   `docs/references/district-theming/`, photo-grounded values recorded below;
-  owner sign-off of the three open picks is the gate before implementation) ·
+  OWNER SIGN-OFF RECORDED 2026-10-24 — the three picks below are decided,
+  implementation is the next step) ·
   **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-135 (one park per district, done — the themed parks dress
   its four pinned `PARK_BLOCKS`; the guarantee is what makes per-theme park
@@ -38,7 +39,8 @@ dressing with the existing recipes plus one signature silhouette per district.
 All presentation; zero mechanics, zero economy, zero new verbs. `scripts/city.gd`
 only.
 
-**The quadrant↔theme mapping (Fork 1 — owner confirms at sign-off):**
+**The quadrant↔theme mapping (Fork 1 — CONFIRMED by the owner 2026-10-24, as
+proposed):**
 
 | District (`district_of`) | Blocks | Palette today | Theme | Signature (Fork D-A restyle) |
 | ---- | ---- | ---- | ---- | ---- |
@@ -114,8 +116,8 @@ owner-owned (research.md §"Quadrant ↔ theme mapping").
    park trees 16 → **19**. Trees stay visual-only (no colliders, the T-030
    convention) — the ±7.5 crowns overhang the sidewalk ≤ 0.84 m, brush-through.
 
-**The signature silhouettes — FORK D-A (recommended): restyle the four T-091
-anchor posts.** The posts already give each quadrant a steer-by silhouette at
+**The signature silhouettes — FORK D-A (PICKED by the owner 2026-10-24; the
+hybrid rider and full D-B declined): restyle the four T-091 anchor posts.** The posts already give each quadrant a steer-by silhouette at
 a pinned block with a landable cap, a crumb and re-derived pins. The restyle
 branches `_build_district_anchor` per district and keeps the tier STACK exact:
 plinth 1.4 × 1.0 × 1.4 / shaft 0.7 × 13.6 × 0.7 / head 1.8 × 2.2 × 1.8 / cap
@@ -195,7 +197,7 @@ storm (T-091's own record). The research adds: campanile and water tower
 re-skin cleanly onto the tier stack, the silo is the one that suffers, and if
 the owner wants ONE true-scale landmark, a D-B water tower at the tailgate
 alone is the highest-value exception (the district whose real structure is the
-town's name-bearer). Recommend D-A; owner picks.
+town's name-bearer). PICKED: D-A, no hybrid rider (owner 2026-10-24).
 
 **Tone rules:** invented Ames-flavored names only; no real schools, logos,
 mascots or trademarks anywhere — colors and behavior carry the joke (DESIGN.md
@@ -203,20 +205,27 @@ naming rule). NO per-district sub-goals, score bonuses or quest machinery —
 B-4e's "per-district sub-goals" stays out per the scope guardrail; this ticket
 is identity, not objectives.
 
-**Name candidates (Fork 3 — owner picks; collision checks were plain web
-searches 2026-10-24, NOT a trademark-registry search):**
+**Name candidates (Fork 3 — PICKED by the owner 2026-10-24, "names Windrow":
+city **Windrow**, school **Windrow State**, residential **Windrow Heights**;
+the three places the Windrow family does not cover were recorded from the
+presented defaults — main street **Bricklight Row**, tailgate **Tailgate
+Terrace**, campus **Campanile Green** — trivially amendable records, since
+names render nowhere. Full candidate list kept for reference; collision
+checks were plain web searches 2026-10-24, NOT a trademark-registry
+search):**
 
-- School (campus): **Windrow State** / **Prairie Fork A&M** / **Vesper Plains
-  State** — searched, no real institutions by these names.
-- City: **Marigold Bend** / **Corntassel** / **Nettlebrook** — no towns;
-  subdivision/neighborhood names only, no marks attached.
-- Main street: **Bricklight Row** / **Marquee Mile** (searched clean) /
-  **Gaslight Mile** (unsearched).
-- Tailgate lot: **Tailgate Terrace** (searched clean) / **The Blacktop** /
-  **The Gold Lot** (unsearched; "Gold Lot" is generic stadium-lot vernacular).
-- Campus: **Campanile Green** / **Bell Walk** / **The Quad** (unsearched; all
-  generic descriptive).
-- Residential: **Windrow Heights** / **Porch Row** / **Dome Corner**
+- School (campus): **Windrow State — PICKED** / Prairie Fork A&M / Vesper
+  Plains State — searched, no real institutions by these names.
+- City: **Windrow — PICKED** / Marigold Bend / Corntassel / Nettlebrook — no
+  towns; subdivision/neighborhood names only, no marks attached.
+- Main street: **Bricklight Row — PICKED (recording default)** / Marquee Mile
+  (searched clean) / **Gaslight Mile** (unsearched).
+- Tailgate lot: **Tailgate Terrace — PICKED (recording default)** (searched
+  clean) / The Blacktop / The Gold Lot (unsearched; "Gold Lot" is generic
+  stadium-lot vernacular).
+- Campus: **Campanile Green — PICKED (recording default)** / Bell Walk / The
+  Quad (unsearched; all generic descriptive).
+- Residential: **Windrow Heights — PICKED** / Porch Row / Dome Corner
   (unsearched). *Silo Bend was considered and DROPPED — taken (a Tampa event
   venue, Nashville's "Bexley Silo Bend", streets in NC/GA).*
 - Cohesion: "Windrow" seeds city + school + residential for free.
@@ -290,13 +299,17 @@ rule); all eight photos were opened and the values above written against them.
 
 *Forge legs (checked before implementation):*
 
-- [ ] The reference set is in place: `docs/references/district-theming/`
+- [x] The reference set is in place: `docs/references/district-theming/`
       holds `research.md`, the 8 credited photos (`credits.md`, all Wikimedia,
       free licenses) and this ticket's §References checked against them.
-- [ ] The owner has signed off on the three open picks — the quadrant↔theme
-      mapping (or an amended table), D-A vs D-B (D-A recommended; the hybrid
-      "D-A + one D-B tailgate tower" is a legal pick), and the four names —
-      and the picks are recorded in this file before implementation starts.
+- [x] The owner has signed off on the three open picks — 2026-10-24, verbatim
+      "all recommended, names Windrow": the quadrant↔theme mapping confirmed
+      as proposed; D-A picked (no hybrid rider, full D-B declined); names
+      recorded — city **Windrow**, school **Windrow State**, residential
+      **Windrow Heights**, main street **Bricklight Row**, tailgate **Tailgate
+      Terrace**, campus **Campanile Green** (the last three the recording
+      defaults under the terse sign-off — amendable records, nothing
+      renders). The picks are recorded above in this file.
 
 *Implementation legs (pipeline route — `scripts/city.gd` pin surfaces are the
 risk surface):*
@@ -435,5 +448,5 @@ the implementation MUST respect, orientation first:
 
 ## Implementation record
 
-*(pending — fires on the owner's sign-off of the three picks; implementation
-routes through the pipeline after that, `scripts/city.gd` pin surfaces first)*
+*(sign-off landed 2026-10-24 — pipeline fired same day; `scripts/city.gd` pin
+surfaces first, the full re-derivation storm per Known pin breaks)*

@@ -256,7 +256,7 @@ different district's bench, walking there — T-137, waits behind both.
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-135 | [One park per district: pin the park roll to four mirrored blocks](T-135-one-park-per-district.md) | worldbuilding | 4 | 3 | done |
-| T-136 | [District theming: four dressed quadrants, one signature silhouette each](T-136-district-theming.md) | worldbuilding | 4 | 3 | proposed (sign-off pending) |
+| T-136 | [District theming: four dressed quadrants, one signature silhouette each](T-136-district-theming.md) | worldbuilding | 4 | 3 | proposed (sign-off recorded 2026-10-24 — D-A, Windrow names) |
 | T-137 | [The grandpa shuffle: elders relocate after a share, walking there themselves](T-137-elder-migration.md) | worldbuilding | 3 | 2 | proposed |
 
 ## Suggested build order
