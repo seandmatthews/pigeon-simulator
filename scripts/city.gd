@@ -58,6 +58,32 @@ const SHOPFRONT_PALETTE: Array[Color] = [
 	Color(0.34, 0.48, 0.36), ## Bookshop green.
 	Color(0.26, 0.42, 0.48), ## Deli teal.
 ]
+## Per-district signboard tints (T-136): the T-090 plaque over every door moves
+## to the vertex-color material (the `anchor_head` precedent) and takes one
+## tint per district — d0 keeps the marquee photo's cream, the others dress to their
+## theme (banner gold on the tailgate lot, limestone cream on the campus,
+## muted white-sage on the residential row). Post-roll pure math: the tint
+## rides the queue's per-instance color, touches no RNG stream and no `_fp`
+## entry (the `["shop"]` ledger entry keeps its shape).
+const SIGNBOARD_TINTS: Array[Color] = [
+	COLOR_SIGNBOARD, ## d0 NW main street — the marquee photo's cream letter board.
+	Color(0.90, 0.78, 0.50), ## d1 NE tailgate — banner gold, the visitor pairing.
+	Color(0.88, 0.85, 0.74), ## d2 SW campus — limestone cream.
+	Color(0.88, 0.90, 0.82), ## d3 SE residential — muted white-sage.
+]
+## Per-district awning tints (T-136): each awning lerps its shop-derived color
+## toward its district's target at the matching weight (d0's marquee-photo dark
+## green is the strongest read — green awnings on warm brick IS the photo's main
+## street). Post-roll pure math on the already-rolled `shop_color`: the
+## `has_awning` roll and `awning_chance` stay untouched, so no stream and no
+## `_fp` entry moves.
+const AWN_TINTS: Array[Color] = [
+	Color(0.16, 0.35, 0.27), ## d0 — the marquee photo's dark green.
+	Color(0.62, 0.48, 0.18), ## d1 — banner gold.
+	Color(0.30, 0.40, 0.50), ## d2 — collegiate slate.
+	Color(0.60, 0.64, 0.55), ## d3 — porch sage.
+]
+const AWN_TINT_WEIGHTS: Array[float] = [0.65, 0.35, 0.35, 0.35] ## Lerp weight per district.
 ## Shopfront door faces: 0=+x 1=-x 2=+z 3=-z — the same order `_add_shopfront`
 ## indexes its normals with. The T-031 cafe placement reads it too.
 const FACE_NORMALS: Array[Vector3] = [
@@ -196,23 +222,71 @@ const RIM_TRUNK_SIZE := Vector3(0.35, 2.2, 0.35) ## Rising from the apron (y 0).
 const RIM_CROWN_SIZE := Vector3(2.6, 2.2, 2.6) ## Centered 3.3 m up — sits on the 2.2 m trunk.
 const RIM_CROWN_CENTER_Y := 3.3 ## Crown box center height (m).
 
-## Park tree layout (T-030): four trees per park block at the fixed (±5, ±5)
-## offsets from the block center — the same trunk/crown recipe as the rim
-## trees (T-088), so the whole city wears one tree: bench-wood trunks under
-## the hedge-family crown green, which holds 0.28 Euclidean RGB from COLOR_PARK
-## (the lawn) so crowns read against their own grass. Fully inside the block
-## (5.0 + 1.3 = 6.3 m < the 11.0 m half footprint) and ≥ 1.5 m clear of
-## everything `_build_block_props` shares the block with — worst approach is a
-## max-jitter bin at (8, 8), 4.24 m center-to-center from the (5, 5) tree,
-## vs the crown's 1.84 m horizontal half-diagonal plus a ~0.9 m worst prop
-## half-extent. Pure layout numbers; the placement draws no RNG of any stream
-## and appends no `_fp` entry (the T-020 `elder_spots` precedent), so the
-## layout fingerprint stays byte-identical to pre-T-030 builds; visual-only
-## (the T-017 decision), pinned by the `city_park_trees_present` scenario.
+## Park tree layout (T-030, themed per district by T-136): each park block
+## plants its district's fixed layout — every offset a constant, ZERO RNG and
+## zero `_fp` entries (the T-030 convention holds: the park branch draws
+## NOTHING, and since T-136 neither do the tree positions — a pure function of
+## the block center and `district_of`). d0 NW keeps a formal axial pair (the
+## main-street photo's canyon is treeless; the square keeps a ceremonial
+## pair); d1 NE plants the plaza-facing half only (the anchor-facing half
+## stays bare — the tailgate lots are treeless asphalt); d2 SW frames an
+## open middle with corner + edge-midpoint clusters (the campanile photo's
+## lawn); d3 SE buries the whole block (the tower-aerial photo's canopy) at
+## a small-crown scale. Trunks rise
+## from the slab, crowns sit on them (crown bottom at trunk top — the crown
+## center drops by half the scale shrink), all visual-only so the pigeon
+## brushes through at park-cruise altitude (the T-017 awning decision), so the
+## seeded streams carry no park-tree trace. City-wide park
+## trees 16 → 19. Pinned by `city_park_trees_present` and
+## `city_district_theming_present`.
 const PARK_TREE_OFFSET := 5.0 ## Tree center out from the block center, per axis (m).
 const PARK_TRUNK_SIZE := Vector3(0.35, 2.2, 0.35) ## Rising from the slab.
 const PARK_CROWN_SIZE := Vector3(2.6, 2.2, 2.6) ## Centered 3.3 m up — sits on the 2.2 m trunk.
 const PARK_CROWN_CENTER_Y := 3.3 ## Crown box center height above the slab top (m).
+## Per-district park tree layouts (T-136), keyed on `district_of` — offsets
+## from the park block center. The d2 edge midpoints sit ±7.5 m out: their
+## crowns overhang the sidewalk ring's inner edge (8.5 m) by ≤ 0.84 m —
+## brush-through, no collider anywhere (the T-030 visual-only rule).
+const PARK_TREE_LAYOUTS: Array = [
+	[ ## d0 NW main street — the formal axial pair (2).
+		Vector2(PARK_TREE_OFFSET, 0.0), Vector2(-PARK_TREE_OFFSET, 0.0),
+	],
+	[ ## d1 NE tailgate lot — the plaza-facing (−x/+z) half (3).
+		Vector2(-PARK_TREE_OFFSET, 0.0), Vector2(0.0, PARK_TREE_OFFSET),
+		Vector2(-PARK_TREE_OFFSET, PARK_TREE_OFFSET),
+	],
+	[ ## d2 SW campus — corners plus edge midpoints, an open middle (8).
+		Vector2(PARK_TREE_OFFSET, PARK_TREE_OFFSET),
+		Vector2(PARK_TREE_OFFSET, -PARK_TREE_OFFSET),
+		Vector2(-PARK_TREE_OFFSET, PARK_TREE_OFFSET),
+		Vector2(-PARK_TREE_OFFSET, -PARK_TREE_OFFSET),
+		Vector2(7.5, 0.0), Vector2(-7.5, 0.0),
+		Vector2(0.0, 7.5), Vector2(0.0, -7.5),
+	],
+	[ ## d3 SE residential — the buried block: corners plus two mid-edge (6).
+		Vector2(PARK_TREE_OFFSET, PARK_TREE_OFFSET),
+		Vector2(PARK_TREE_OFFSET, -PARK_TREE_OFFSET),
+		Vector2(-PARK_TREE_OFFSET, PARK_TREE_OFFSET),
+		Vector2(-PARK_TREE_OFFSET, -PARK_TREE_OFFSET),
+		Vector2(6.5, 0.0), Vector2(-6.5, 0.0),
+	],
+]
+## Per-district crown scale (T-136): the residential canopy runs small dense
+## crowns (0.8×), every other district the standard 1.0.
+const PARK_CROWN_SCALE_BY_DISTRICT: Array[float] = [1.0, 1.0, 1.0, 0.8]
+## Themed park slabs (T-136): one lawn tint per district, applied when
+## `is_park` (the plaza keeps `COLOR_PLAZA`, every other block
+## `COLOR_SIDEWALK`). All within ≈ 0.06 RGB of base `COLOR_PARK`
+## (0.42/0.55/0.34) so the city stays coherent while each quadrant's lawn
+## reads as its place (photo-sampled values, the T-136 ticket's table). Zero
+## RNG, zero `_fp` (the slab entries carry only booleans). Pinned by
+## `city_district_theming_present`.
+const PARK_SLAB_TINTS: Array[Color] = [
+	Color(0.46, 0.52, 0.30), ## d0 NW main street — the formal warm square.
+	Color(0.48, 0.50, 0.28), ## d1 NE tailgate lot — dry sandy-green edge.
+	Color(0.36, 0.58, 0.32), ## d2 SW campus — lush cool quad lawn.
+	Color(0.44, 0.56, 0.33), ## d3 SE residential — sage lawn.
+]
 
 ## District anchor layout (T-091): one tall clock post per district quadrant, at
 ## the pinned blocks' alley-cross centers — the one spot on EVERY block the
@@ -231,8 +305,10 @@ const PARK_CROWN_CENTER_Y := 3.3 ## Crown box center height above the slab top (
 ## fingerprint tracks the anchors' positions. The anchors deliberately do NOT
 ## feed `_max_roof` — the `city_district_anchors_present` scenario re-pins
 ## `report.max_roof_height` to the building roofs so the rule is guarded. The
-## head wears the district's first `DISTRICT_PALETTES` color so the quadrant
-## reads from the air.
+## T-136 restyle dresses each post as its district's signature — marquee /
+## water tower / campanile / silo (the D-A fork): per-district tier tints, one
+## widened d3 shaft, and visual-only detail boxes on the `anchor_detail` key
+## (see the tier-tint consts below).
 const ANCHOR_BLOCKS: Array[Vector2i] = [
 	Vector2i(1, 1), Vector2i(5, 1), Vector2i(1, 5), Vector2i(5, 5),
 ]
@@ -259,6 +335,41 @@ const ANCHOR_SHAFT_SIZE := Vector3(0.7, 13.6, 0.7) ## The post — slab+1.0 up t
 const ANCHOR_HEAD_SIZE := Vector3(1.8, 2.2, 1.8) ## The clock/bell housing — district-tinted.
 const ANCHOR_CAP_SIZE := Vector3(2.0, 0.5, 2.0) ## The landable pad.
 const ANCHOR_CRUMB_LIFT := 0.06 ## Crumb height above the cap's top face (the T-032 roof-crumb pattern).
+## T-136 anchor restyle consts (the D-A fork): per-district tier tints and the
+## d3 silo's widened shaft. The tier STACK stays exact — plinth 1.4 × 1.0 × 1.4
+## / shaft 0.7 (d3: 1.4) × 13.6 × 0.7 (d3: 1.4) / head 1.8 × 2.2 × 1.8 / cap
+## 2.0 × 0.5 × 2.0, top 17.3 above the slab (17.42 global), crumb at cap_top +
+## 0.06 — so the landing, crumb, top/cap_top and plinth-daylight guarantees
+## hold; the d3 shaft's 1.4 m footprint equals the plinth's own, so the
+## per-seed plinth-daylight derivation covers it at every height by the same
+## arithmetic. Detail boxes queue on ONE `"anchor_detail"` vertex-color key and
+## carry NO collider — the Props shape count stays 4 per anchor, 3 above the
+## y 5.0 window (pinned by `city_district_anchors_present` and
+## `city_district_theming_present`).
+const ANCHOR_SHAFT_SIZES: Array[Vector3] = [
+	Vector3(0.7, 13.6, 0.7), ## d0 marquee post / d1 riser / d2 campanile shaft.
+	Vector3(0.7, 13.6, 0.7),
+	Vector3(0.7, 13.6, 0.7),
+	Vector3(1.4, 13.6, 1.4), ## d3 silo — the widened drum (≈ 11:1, honestly stylized).
+]
+const ANCHOR_SHAFT_TINTS: Array[Color] = [
+	Color(0.16, 0.35, 0.27), ## d0 — the marquee photo's blade green.
+	COLOR_METAL, ## d1 — the water tower's riser steel.
+	Color(0.60, 0.65, 0.72), ## d2 — cool limestone (the campanile photo's tan, re-tinted cool).
+	Color(0.68, 0.67, 0.64), ## d3 — light concrete gray (the silo photo's stave type).
+]
+const ANCHOR_HEAD_TINTS: Array[Color] = [
+	COLOR_SIGNBOARD, ## d0 — the marquee's cream letter board.
+	Color(0.88, 0.86, 0.80), ## d1 — the tank cream.
+	Color(0.60, 0.65, 0.72), ## d2 — the belfry's cool limestone.
+	Color(0.68, 0.67, 0.64), ## d3 — the upper drum, the same concrete gray.
+]
+const ANCHOR_CAP_TINTS: Array[Color] = [
+	Color(0.16, 0.35, 0.27), ## d0 — the dark-green landing pad.
+	Color(0.88, 0.86, 0.80), ## d1 — the tank roof, cream.
+	Color(0.22, 0.24, 0.28), ## d2 — the slate spire mass.
+	Color(0.68, 0.67, 0.64), ## d3 — the dome, gray.
+]
 
 ## Distant skyline layout (T-088 commit 2): a ring of flat-shaded background
 ## towers on the grass apron — the horizon reads as a larger city under haze
@@ -341,8 +452,26 @@ const LANDMARK_FIGURE_TOP := 4.95 ## Figure's highest point above the slab top (
 @export var spawn_drop_height: float = 0.6
 
 @export_group("Props")
-@export var bench_chance: float = 0.75 ## Chance each block edge gets a bench.
-@export var bin_chance: float = 0.6 ## Chance each block gets a trash bin.
+## Per-district prop-mix weights (T-136): how often a block edge gets a bench
+## and a block gets a trash bin, keyed on `district_of` — the old single
+## `bench_chance`/`bin_chance` exports, split per district so each quadrant
+## dresses like its place (the T-135 `park_chance` precedent: the exports are
+## gone, the consts are the law). Same single draw site per edge and per block
+## (`_build_block_props`), so the streams stay single-sited; the hit-count
+## shift re-rolls every downstream draw — the T-136 fingerprint re-derivation
+## paid for that (see the T-136 ticket's Known pin breaks).
+const BENCH_CHANCE_BY_DISTRICT: Array[float] = [
+	0.90, ## d0 NW main street — the walked canyon's high street furniture.
+	0.50, ## d1 NE tailgate lot — the open lot keeps its edges bare.
+	0.90, ## d2 SW campus — quad seating.
+	0.50, ## d3 SE residential — the quiet porch rhythm.
+]
+const BIN_CHANCE_BY_DISTRICT: Array[float] = [
+	0.70, ## d0 — curbside bins along the row.
+	0.90, ## d1 — party litter everywhere.
+	0.40, ## d2 — a mown lawn with few bins (the campanile photo shows none).
+	0.70, ## d3 — curb bins on collection day.
+]
 
 @export_group("Shopfronts")
 @export var awning_chance: float = 0.6 ## Share of buildings whose shop door gets an awning (T-017).
@@ -716,7 +845,7 @@ func _make_meshes() -> void:
 		"shopfront": _unit_box(_vertex_color_material()),
 		"awning": _unit_box(_vertex_color_material()),
 		"door": _unit_box(_flat_material(COLOR_DOOR)),
-		"sign": _unit_box(_flat_material(COLOR_SIGNBOARD)),
+		"sign": _unit_box(_vertex_color_material()), ## (T-136) per-district plaque tints.
 		"ac_box": _unit_box(_flat_material(COLOR_METAL)),
 		"water_tank": _unit_box(_flat_material(COLOR_TANK)),
 		"roof_vent": _unit_box(_flat_material(COLOR_METAL)),
@@ -730,9 +859,10 @@ func _make_meshes() -> void:
 		"plinth": _unit_box(_flat_material(COLOR_STONE)),
 		"figure": _unit_box(_flat_material(COLOR_BRONZE)),
 		"anchor_plinth": _unit_box(_flat_material(COLOR_STONE)),
-		"anchor_shaft": _unit_box(_flat_material(COLOR_METAL)),
+		"anchor_shaft": _unit_box(_vertex_color_material()), ## (T-136) per-district tints.
 		"anchor_head": _unit_box(_vertex_color_material()),
-		"anchor_cap": _unit_box(_flat_material(COLOR_STONE)),
+		"anchor_cap": _unit_box(_vertex_color_material()), ## (T-136) per-district tints.
+		"anchor_detail": _unit_box(_vertex_color_material()), ## (T-136) visual-only restyle boxes.
 		"stop_line": _unit_box(_flat_material(COLOR_SIGN_WHITE)), ## (T-134) brighter than the worn crosswalk paint.
 		"sign_post": _unit_box(_flat_material(COLOR_METAL)),
 		"stop_sign": _unit_box(_flat_material(COLOR_STOP_SIGN)),
@@ -1218,7 +1348,10 @@ func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 	## so every downstream layout draw at every seed shifts by the removed
 	## draws; the cross-version fingerprint pins were re-derived for it.
 	var is_park: bool = (not is_plaza) and PARK_BLOCKS.has(Vector2i(bx, bz))
-	var slab_color := COLOR_PLAZA if is_plaza else (COLOR_PARK if is_park else COLOR_SIDEWALK)
+	## (T-136) Park slabs wear their district's tint (PARK_SLAB_TINTS); the
+	## plaza keeps COLOR_PLAZA, every other block COLOR_SIDEWALK.
+	var slab_color := COLOR_PLAZA if is_plaza \
+			else (PARK_SLAB_TINTS[district_of(bx, bz)] if is_park else COLOR_SIDEWALK)
 	var slab_size := Vector3(block_size, block_slab_height, block_size)
 	_add_mm("slab", _box_xf(center + Vector3(0.0, block_slab_height * 0.5, 0.0), slab_size), slab_color)
 	_add_collider("Blocks", slab_size, center + Vector3(0.0, block_slab_height * 0.5, 0.0))
@@ -1229,7 +1362,7 @@ func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 		_build_plaza(center)
 	elif is_park:
 		_counts.parks += 1
-		_build_park_trees(center)
+		_build_park_trees(center, district_of(bx, bz))
 	else:
 		_build_block_buildings(center, district_of(bx, bz), bx, bz)
 	## District anchor (T-091) — OUTSIDE the plaza/park/building branch, so the
@@ -1237,54 +1370,72 @@ func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
 	## by the same layout math; see the ANCHOR_BLOCKS const note).
 	if ANCHOR_BLOCKS.has(Vector2i(bx, bz)):
 		_build_district_anchor(center, district_of(bx, bz))
-	_build_block_props(center, is_plaza)
+	_build_block_props(center, district_of(bx, bz), is_plaza)
 
 
-## Park trees (T-030): four per park block at the fixed (±PARK_TREE_OFFSET,
-## ±PARK_TREE_OFFSET) offsets — the vacant-lot fix, a grove read from the air.
-## Trunks rise from the slab, crowns sit on them (crown bottom at trunk top),
-## all visual-only so the pigeon brushes through at park-cruise altitude (the
-## T-017 awning decision). Zero RNG and zero `_fp` entries: every tree position
-## is a pure function of the block center (since T-135 the park branch draws
-## NOTHING — the old park roll is gone, `PARK_BLOCKS` decides), so the seeded
-## streams carry no park-tree trace. Pinned by `city_park_trees_present`.
-func _build_park_trees(center: Vector3) -> void:
-	for sx: float in [PARK_TREE_OFFSET, -PARK_TREE_OFFSET]:
-		for sz: float in [PARK_TREE_OFFSET, -PARK_TREE_OFFSET]:
-			var base := center + Vector3(sx, block_slab_height, sz)
-			_add_mm("tree_trunk", _box_xf(
-					base + Vector3.UP * (PARK_TRUNK_SIZE.y * 0.5), PARK_TRUNK_SIZE))
-			_add_mm("tree_crown", _box_xf(
-					base + Vector3.UP * PARK_CROWN_CENTER_Y, PARK_CROWN_SIZE))
+## Park trees (T-030, themed per district by T-136): each park block plants its
+## district's fixed `PARK_TREE_LAYOUTS` offsets — d0 a formal axial pair, d1
+## the plaza-facing half, d2 a corner+midpoint frame, d3 the buried block —
+## with the d3 crowns at their small-crown scale (PARK_CROWN_SCALE_BY_DISTRICT;
+## the crown center drops by half the shrink so the bottom stays on the trunk
+## top, the T-030 convention). Trunks rise from the slab, all visual-only so
+## the pigeon brushes through at park-cruise altitude (the T-017 awning
+## decision). Zero RNG and zero `_fp` entries: every tree position is a pure
+## function of the block center and `district_of` (the park branch draws
+## NOTHING — `PARK_BLOCKS` decides). Pinned by `city_park_trees_present` and
+## `city_district_theming_present`.
+func _build_park_trees(center: Vector3, district: int) -> void:
+	var crown_scale: float = PARK_CROWN_SCALE_BY_DISTRICT[district]
+	var crown_size: Vector3 = PARK_CROWN_SIZE * crown_scale
+	var crown_y: float = PARK_CROWN_CENTER_Y \
+			- (PARK_CROWN_SIZE.y - crown_size.y) * 0.5
+	for offset: Vector2 in PARK_TREE_LAYOUTS[district]:
+		var base := center + Vector3(offset.x, block_slab_height, offset.y)
+		_add_mm("tree_trunk", _box_xf(
+				base + Vector3.UP * (PARK_TRUNK_SIZE.y * 0.5), PARK_TRUNK_SIZE))
+		_add_mm("tree_crown", _box_xf(base + Vector3.UP * crown_y, crown_size))
 
 
-## One district anchor (T-091): the four-tier clock post at `center` (a block
-## center), its head tinted `district`'s first palette color so the quadrant
-## reads. Tiers stack from the slab top; every tier carries its own layer-1
-## `Props` box (the T-093 shape-per-group pattern — the cap's top face is the
-## landing surface). Appends the cap crumb to `bread_spots` (the T-032
-## roof-crumb pattern) and the record to `anchors`, and leaves the one `["anchor",
-## center.x, center.z, district]` `_fp` entry — zero RNG of any stream.
+## One district anchor (T-091, restyled per district by T-136 — the D-A fork):
+## the four-tier post at `center` (a block center) wears its district's
+## signature — d0 the movie marquee (blade-green shaft, cream letter
+## board, warm corner bulbs), d1 the water tower (steel riser, cream tank, gold
+## name band, cap-top antenna), d2 the campanile (limestone shaft, dark belfry
+## insets on every face, a clock per face, slate spire with corner pinnacles),
+## d3 the grain silo (the widened concrete drum with hoop bands). The tier
+## STACK stays exact (see the T-136 const note above the tint tables): every
+## tier carries its own layer-1 `Props` box (the T-093 shape-per-group pattern
+## — the cap's top face is the landing surface); the detail boxes queue on the
+## visual-only `"anchor_detail"` key and carry NO collider, so the Props shape
+## count stays 4 per anchor, 3 above the y 5.0 window. Appends the cap crumb
+## to `bread_spots` (the T-032 roof-crumb pattern) and the record to `anchors`,
+## and leaves the one `["anchor", center.x, center.z, district]` `_fp` entry —
+## zero RNG of any stream.
 func _build_district_anchor(center: Vector3, district: int) -> void:
-	var palette: Array = DISTRICT_PALETTES[district]
-	var head_color: Color = palette[0]
+	var shaft_size: Vector3 = ANCHOR_SHAFT_SIZES[district]
 	var y := block_slab_height
 	var pos := center + Vector3(0.0, y + ANCHOR_PLINTH_SIZE.y * 0.5, 0.0)
 	_add_mm("anchor_plinth", _box_xf(pos, ANCHOR_PLINTH_SIZE))
 	_add_collider("Props", ANCHOR_PLINTH_SIZE, pos)
 	y += ANCHOR_PLINTH_SIZE.y
-	pos = center + Vector3(0.0, y + ANCHOR_SHAFT_SIZE.y * 0.5, 0.0)
-	_add_mm("anchor_shaft", _box_xf(pos, ANCHOR_SHAFT_SIZE))
-	_add_collider("Props", ANCHOR_SHAFT_SIZE, pos)
-	y += ANCHOR_SHAFT_SIZE.y
+	pos = center + Vector3(0.0, y + shaft_size.y * 0.5, 0.0)
+	_add_mm("anchor_shaft", _box_xf(pos, shaft_size), ANCHOR_SHAFT_TINTS[district])
+	_add_collider("Props", shaft_size, pos)
+	y += shaft_size.y
 	pos = center + Vector3(0.0, y + ANCHOR_HEAD_SIZE.y * 0.5, 0.0)
-	_add_mm("anchor_head", _box_xf(pos, ANCHOR_HEAD_SIZE), head_color)
+	_add_mm("anchor_head", _box_xf(pos, ANCHOR_HEAD_SIZE), ANCHOR_HEAD_TINTS[district])
 	_add_collider("Props", ANCHOR_HEAD_SIZE, pos)
+	_anchor_details(center, district, y) ## The restyle's visual-only boxes (head base passed).
 	y += ANCHOR_HEAD_SIZE.y
 	pos = center + Vector3(0.0, y + ANCHOR_CAP_SIZE.y * 0.5, 0.0)
-	_add_mm("anchor_cap", _box_xf(pos, ANCHOR_CAP_SIZE))
+	_add_mm("anchor_cap", _box_xf(pos, ANCHOR_CAP_SIZE), ANCHOR_CAP_TINTS[district])
 	_add_collider("Props", ANCHOR_CAP_SIZE, pos)
 	y += ANCHOR_CAP_SIZE.y
+	if district == 1: ## The tank's cap-top antenna — the photos put it central,
+		## moved off-center here because the cap center hosts the crumb/landing spot.
+		_add_mm("anchor_detail", _box_xf(
+				center + Vector3(0.55, y + 0.45, 0.55), Vector3(0.08, 0.9, 0.08)),
+				Color(0.88, 0.86, 0.80))
 	bread_spots.append(center + Vector3(0.0, y + ANCHOR_CRUMB_LIFT, 0.0))
 	bread_spot_kinds.append(BreadKind.ROOF) ## The anchor's cap crumb (T-112 kinds).
 	anchors.append({
@@ -1294,6 +1445,54 @@ func _build_district_anchor(center: Vector3, district: int) -> void:
 		"cap_top": to_global(Vector3(0.0, y, 0.0)).y, ## Global cap-top face y.
 	})
 	_fp.append(["anchor", center.x, center.z, district])
+
+
+## The T-136 restyle's detail boxes: visual-only instances on the one
+## `"anchor_detail"` key — zero colliders, zero RNG, zero `_fp` entries.
+## `head_base` is the head tier's base in city-local y (slab + 14.6 at the
+## stack constants); the caller queues these between the head and cap tiers.
+func _anchor_details(center: Vector3, district: int, head_base: float) -> void:
+	match district:
+		0: ## Marquee: one warm bulb box at each head corner — the bulb border
+			## that runs the box perimeter in the marquee photo, approximated.
+			for sx: float in [0.9, -0.9]:
+				for sz: float in [0.9, -0.9]:
+					_add_mm("anchor_detail", _box_xf(center + Vector3(sx,
+							head_base + ANCHOR_HEAD_SIZE.y * 0.5, sz),
+							Vector3(0.12, ANCHOR_HEAD_SIZE.y, 0.12)),
+							Color(1.0, 0.85, 0.50))
+		1: ## Water tower: the horizontal gold name band at head mid-height —
+			## the band that carries the town's name in the photos (no letters).
+			_add_mm("anchor_detail", _box_xf(center + Vector3(0.0,
+					head_base + ANCHOR_HEAD_SIZE.y * 0.5, 0.0),
+					Vector3(1.84, 0.4, 1.84)), Color(0.72, 0.55, 0.15))
+		2: ## Campanile: four dark belfry insets (ALL four faces pierced), four
+			## white clocks at the head's lower band (a clock on EVERY face —
+			## never one side only), and four slate pinnacles rising from the
+			## cap's corners (the pad center stays clear for landings/crumb).
+			for face: int in 4:
+				var n: Vector3 = FACE_NORMALS[face]
+				var inset_size := Vector3(0.1, 1.4, 1.2) if absf(n.x) > 0.5 \
+						else Vector3(1.2, 1.4, 0.1)
+				_add_mm("anchor_detail", _box_xf(center + n * 0.95
+						+ Vector3(0.0, head_base + ANCHOR_HEAD_SIZE.y * 0.5, 0.0),
+						inset_size), Color(0.20, 0.22, 0.26))
+				var clock_size := Vector3(0.06, 0.5, 0.5) if absf(n.x) > 0.5 \
+						else Vector3(0.5, 0.5, 0.06)
+				_add_mm("anchor_detail", _box_xf(center + n * 0.93
+						+ Vector3(0.0, head_base + 0.25, 0.0),
+						clock_size), Color(0.92, 0.92, 0.90))
+			for sx: float in [0.9, -0.9]:
+				for sz: float in [0.9, -0.9]:
+					_add_mm("anchor_detail", _box_xf(center + Vector3(sx,
+							head_base + ANCHOR_HEAD_SIZE.y + 0.25, sz),
+							Vector3(0.14, 0.5, 0.14)), Color(0.22, 0.24, 0.28))
+		3: ## Silo: three hoop bands (0.02 m proud of the 1.4 m drum) at
+			## slab+4/+8/+12 — the stave-and-hoop read at box scale.
+			for band_y: float in [4.0, 8.0, 12.0]:
+				_add_mm("anchor_detail", _box_xf(center + Vector3(0.0,
+						block_slab_height + band_y, 0.0),
+						Vector3(1.44, 0.12, 1.44)), Color(0.55, 0.54, 0.52))
 
 
 ## Subdivides a block interior into 2x2 lots and fills 2–4 of them with
@@ -1343,7 +1542,7 @@ func _add_building(base_center: Vector3, footprint: Vector2, district: int,
 	_add_mm("roof", _box_xf(
 			base_center + Vector3(0.0, block_slab_height + wall_h + roof_slab_height * 0.5, 0.0),
 			Vector3(footprint.x, roof_slab_height, footprint.y)))
-	var shop := _add_shopfront(base_center, footprint, lot_offset)
+	var shop := _add_shopfront(base_center, footprint, district, lot_offset)
 	_add_collider("Buildings",
 			Vector3(footprint.x, total_h, footprint.y),
 			base_center + Vector3(0.0, block_slab_height + total_h * 0.5, 0.0))
@@ -1415,8 +1614,12 @@ func _add_building(base_center: Vector3, footprint: Vector2, district: int,
 ## whose outward normal points away from the block center; the other two look
 ## into the `lot_gap` alley, where facing awnings at the same height would
 ## interpenetrate. The awning is deliberately visual-only (no collider — see
-## the ticket's Decisions).
-func _add_shopfront(base_center: Vector3, footprint: Vector2, lot_offset: Vector2) -> Dictionary:
+## the ticket's Decisions). Since T-136 the signboard plaque and the awning
+## take their district's tint (`SIGNBOARD_TINTS` / the `AWN_TINTS` lerp) —
+## post-roll pure math on the already-rolled `shop_color`: no stream and no
+## `_fp` entry moves.
+func _add_shopfront(base_center: Vector3, footprint: Vector2, district: int,
+		lot_offset: Vector2) -> Dictionary:
 	var shop_color: Color = SHOPFRONT_PALETTE[
 			_shop_rng.randi_range(0, SHOPFRONT_PALETTE.size() - 1)]
 	var band_h := 2.4
@@ -1462,7 +1665,7 @@ func _add_shopfront(base_center: Vector3, footprint: Vector2, lot_offset: Vector
 	_add_mm("sign", _box_xf(
 			base_center + face_normal * (face_out * 0.5 + band_outset + 0.05)
 					+ Vector3(0.0, block_slab_height + 2.55, 0.0),
-			sign_size))
+			sign_size), SIGNBOARD_TINTS[district])
 	var has_awning := _shop_rng.randf() < awning_chance
 	if has_awning:
 		var awn_depth := 1.3
@@ -1472,7 +1675,8 @@ func _add_shopfront(base_center: Vector3, footprint: Vector2, lot_offset: Vector
 		_add_mm("awning", _box_xf(
 				base_center + face_normal * (face_out * 0.5 + awn_depth * 0.5)
 						+ Vector3(0.0, block_slab_height + 2.9, 0.0),
-				awn_size), shop_color.darkened(0.15))
+				awn_size), shop_color.darkened(0.15).lerp(
+						AWN_TINTS[district], AWN_TINT_WEIGHTS[district]))
 	return {"color": shop_color, "door_face": door_face, "has_awning": has_awning}
 
 
@@ -1589,20 +1793,23 @@ func _add_landmark(center: Vector3) -> void:
 	_fp.append(["landmark", center.x, center.z])
 
 
-## Benches along the edges, lamps on the corners, the occasional bin.
-func _build_block_props(center: Vector3, is_plaza: bool) -> void:
+## Benches along the edges, lamps on the corners, the occasional bin — at the
+## block district's prop-mix weights (T-136: BENCH_CHANCE_BY_DISTRICT /
+## BIN_CHANCE_BY_DISTRICT). Same single draw site per edge and per block as
+## ever; only the chances are per-district now.
+func _build_block_props(center: Vector3, district: int, is_plaza: bool) -> void:
 	if is_plaza:
 		return ## The plaza places its own ring.
 	for corner: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
 		_add_lamp(center + Vector3(corner.x * 9.8, 0.0, corner.y * 9.8))
 	var edges: Array[Vector3] = [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]
 	for n: Vector3 in edges:
-		if _rng.randf() < bench_chance:
+		if _rng.randf() < BENCH_CHANCE_BY_DISTRICT[district]:
 			var perp := Vector3(-n.z, 0.0, n.x)
 			var offset := _rng.randf_range(-4.0, 4.0)
 			var pos := center + n * 9.75 + perp * offset
 			_add_bench(pos, atan2(-perp.z, perp.x))
-	if _rng.randf() < bin_chance:
+	if _rng.randf() < BIN_CHANCE_BY_DISTRICT[district]:
 		var corner: Vector2 = [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)][
 				_rng.randi_range(0, 3)]
 		_add_bin(center + Vector3(

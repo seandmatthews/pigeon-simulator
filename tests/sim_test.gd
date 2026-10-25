@@ -281,6 +281,7 @@ func _run_scenarios() -> void:
 	await _scenario_city_plaza_landmark() ## T-029 — after the park trees, same audit chain.
 	await _scenario_city_plaza_props_clear() ## T-104 — after the plaza landmark, same audit chain.
 	await _scenario_city_district_anchors() ## T-091 — after the plaza landmark, same audit chain.
+	await _scenario_city_district_theming() ## T-136 — after the anchors, the theming law on the same standing city.
 	await _scenario_intersection_furniture() ## T-134 — stop lines and signs, the crosswalks audit pattern.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
@@ -1515,8 +1516,8 @@ func _facade_node(f: int) -> MultiMeshInstance3D:
 ## `_fp` entries. Layout asserts on the standing city, no flight (the
 ## district-palettes scenario shape).
 func _scenario_city_facades_fit_floors() -> void:
-	var pin_default := 2003179558 ## Fingerprint baseline — moved for T-051's two-axis footprint `_fp` entry, again for T-029's plaza-landmark `_fp` entry, again for T-091's four district-anchor `_fp` entries, again for T-104's four plaza-bin `_fp` x/z entries, and again for T-135's pinned parks (the per-block `park_chance` draw deleted from `_rng` — every downstream layout draw shifted at every seed; the four seed-parks swapped for `PARK_BLOCKS` in the `_fp` slabs), each re-derived with a headless City.generate probe (pre-T-051: 2492360539; pre-T-029: 4188136223; pre-T-091: 1006789400; pre-T-104: 650664268; pre-T-135: 4045370482).
-	var pin_foreign := 3801669696 ## Foreign-seed fingerprint, ditto (pre-T-051: 2662825400; pre-T-029: 547420287; pre-T-091: 3359332191; pre-T-104: 4031380170; pre-T-135: 533171164).
+	var pin_default := 1103197745 ## Fingerprint baseline — moved for T-051's two-axis footprint `_fp` entry, again for T-029's plaza-landmark `_fp` entry, again for T-091's four district-anchor `_fp` entries, again for T-104's four plaza-bin `_fp` x/z entries, again for T-135's pinned parks (the per-block `park_chance` draw deleted from `_rng` — every downstream layout draw shifted at every seed; the four seed-parks swapped for `PARK_BLOCKS` in the `_fp` slabs), and again for T-136's per-district prop mix (the bench/bin chances became `BENCH_CHANCE_BY_DISTRICT`/`BIN_CHANCE_BY_DISTRICT` — the hit-count shift re-rolled every downstream draw at every seed), each re-derived with a headless City.generate probe (pre-T-051: 2492360539; pre-T-029: 4188136223; pre-T-091: 1006789400; pre-T-104: 650664268; pre-T-135: 4045370482; pre-T-136: 2003179558).
+	var pin_foreign := 1411023184 ## Foreign-seed fingerprint, ditto (pre-T-051: 2662825400; pre-T-029: 547420287; pre-T-091: 3359332191; pre-T-104: 4031380170; pre-T-135: 533171164; pre-T-136: 3801669696).
 	var baseline_ok: bool = _city.fingerprint == pin_default
 	var default_seed: int = _city.seed_value
 	var fp_first: int = _city.fingerprint
@@ -1641,7 +1642,7 @@ func _expected_footprint_scale(bx: int, bz: int, qx: int, qz: int, axis: int,
 ## record's size recomputable from the pure per-block/quadrant/axis hash plus
 ## the seed (within 0.01) — with the observed scales spread across the mapped
 ## [0.78, 1.0] band, not degenerate. The hash draws from NO RNG stream: the
-## pinned 97-of-137 awning count (`city_shopfronts_present`, re-derived when
+## pinned 100-of-142 awning count (`city_shopfronts_present`, re-derived when
 ## T-135's park pinning shrank the building pool) and the byte
 ## counts elsewhere prove both streams untouched; a forced same-seed rebuild
 ## reproduces every size exactly and the fingerprint holds. Layout asserts on
@@ -1761,7 +1762,7 @@ func _expected_door(city: City, info: Dictionary) -> Transform3D:
 ## street-facing faces, and the seeded share of awnings; the shopfront palette
 ## stays measurably distinct from all four district palettes. Under the fixed
 ## seed every roll is deterministic, so coverage is asserted at 100% and the
-## awning count is pinned to the seed's exact draw (97 of 137 = 70.8% for
+## awning count is pinned to the seed's exact draw (100 of 142 = 70.4% for
 ## awning_chance 0.6 at seed 20260928 — retune the pin if the chance changes;
 ## T-135's park pinning shrank the pool from 104 of 146 by removing nine
 ## seed-park building blocks).
@@ -1811,7 +1812,7 @@ func _scenario_city_shopfronts() -> void:
 	var coverage_ok := count > 0 and members_ok and doors_on_street and palette_distinct
 	## The seed's exact deterministic draw — an extra (or missing) _shop_rng roll
 	## anywhere upstream would shift this count and fail here.
-	var awn_ok := awnings == 97
+	var awn_ok := awnings == 100
 	## Signboard plaques (T-090): the `sign` visual queue holds exactly one
 	## plaque per building — the queue that feeds the MultiMesh, read like the
 	## crosswalk paint's (MultiMesh.get_instance_transform reads back identity
@@ -1831,7 +1832,7 @@ func _scenario_city_shopfronts() -> void:
 					and xf.basis.get_euler().distance_to(expected.basis.get_euler()) < 0.01
 			sign_i += 1
 	## Door geometry (T-103): the `door` visual queue holds exactly one door
-	## per building (137 at the M1 seed, paired 1:1 in order like the sign
+	## per building (142 at the M1 seed, paired 1:1 in order like the sign
 	## queue), and every transform is a FLUSH slab — the basis decomposes as
 	## pure scale, no rotation (per `_box_xf`), with the ≈0.1 m thin axis ON
 	## the face-normal direction and the 0.95 m width along the wall, re-derived
@@ -1840,7 +1841,7 @@ func _scenario_city_shopfronts() -> void:
 	## swapped the per-axis scales — exactly what this leg reads — so a fin
 	## fails here on both the raw-axis compare and the expected-scale compare.
 	var door_queue: Array = _city._visuals.get("door", {}).get("xfs", [])
-	var doors_ok: bool = door_queue.size() == 137 and door_queue.size() == count
+	var doors_ok: bool = door_queue.size() == 142 and door_queue.size() == count
 	if doors_ok:
 		var door_i := 0
 		for info in _city.buildings:
@@ -2992,7 +2993,7 @@ func _expected_cafe_spot(city: City, info: Dictionary) -> Transform3D:
 
 
 ## Cafe tables (T-031, batched T-094): the city records one pure-layout spot
-## per awninged building (the pinned 97 at the M1 seed since T-135's park
+## per awninged building (the pinned 100 at the M1 seed since T-136's prop-mix
 ## pinning shrank the pool from 104; non-awninged
 ## buildings get none), every spot recomputable from its building's
 ## `door_face`/`size`/`lot_offset`, same-seed regeneration reproducing the
@@ -3007,7 +3008,7 @@ func _expected_cafe_spot(city: City, info: Dictionary) -> Transform3D:
 ## off the door line. Since T-094 the rig reads the batch: one positioned
 ## shape per piece under the two merged bodies (`Tables` layer 1 `world`,
 ## `Sitters` collision-layer value 4 — the retired scenes' value — mask 0
-## both), sitters 1-2 per table by the even/odd spot rule (97 tables → 146)
+## both), sitters 1-2 per table by the even/odd spot rule (100 tables → 150)
 ## counted through the spawner exposure, shirts straight from the tourist
 ## palette by spot index read off the torso/arm MultiMesh instance colors —
 ## and a grounded pigeon can waddle up and perch beside a table, which stops
@@ -3021,7 +3022,7 @@ func _scenario_city_cafe_tables() -> void:
 	for info in _city.buildings:
 		if info.has_awning:
 			awnings += 1
-	var count_ok: bool = spots.size() == awnings and awnings == 97
+	var count_ok: bool = spots.size() == awnings and awnings == 100
 	var recompute_ok := spots.size() > 0
 	var band_ok := spots.size() > 0
 	var bread_ok := spots.size() > 0
@@ -3140,7 +3141,7 @@ func _scenario_city_cafe_tables() -> void:
 	## The batch is complete: one shape and one record per sitter, the torso
 	## MultiMesh carrying one instance per sitter and the arm key one per arm
 	## (anchoring the queue indices above to the live MultiMeshes), and the
-	## even/odd total: 97 tables → 49 even × 2 + 48 odd × 1 = 146 sitters —
+	## even/odd total: 100 tables → 50 even × 2 + 50 odd × 1 = 150 sitters —
 	## `n + ceil(n/2)` (T-135's shrunken pool made the count ODD; the old
 	## `n + n/2` floor form only held for even counts, the same law stated
 	## exactly, never weakened).
@@ -3431,9 +3432,9 @@ func _scenario_city_roofs_inhabited() -> void:
 					props_ok, spots_snapshot.size(), _city.buildings.size(),
 					total_ok, one_per_building, colliders_ok, high_shapes,
 					deterministic, physical_ok, eat_ok, prop_ok])
-	## Informational: the M1-seed surface counts (137 buildings → 245 props,
-	## 544 ground spots (392 ring + 152 bench) + 141 y > 1.0 roof/anchor spots
-	## (137 roofs + 4 anchor crumbs since T-091), +97 tabletop spots since
+	## Informational: the M1-seed surface counts (142 buildings → 242 props,
+	## 528 ground spots (392 ring + 136 bench) + 146 y > 1.0 roof/anchor spots
+	## (142 roofs + 4 anchor crumbs since T-091), +100 tabletop spots since
 	## T-112 → 782 — T-135's park pinning re-derived every literal in that
 	## chain) — the tickets' tuned numbers, re-printed on every re-verification.
 	print("SIM DATA roofs_inhabited: buildings=%d roof_props=%d roof_spots=%d bread_spots=%d fingerprint=%d" % [
@@ -3475,8 +3476,8 @@ func _crumb_multiset(spawner: BreadSpawner) -> Array[Vector3]:
 ## quotas — exactly 36 TABLE / 3 GROUND / 1 ROOF at the M1 seed AND at seed
 ## 424242 — with every crumb sitting exactly on its spot's `to_global`.
 ## City-side, `bread_spot_kinds` stays index-aligned with `bread_spots`, the
-## M1 class tally is exact (GROUND 544 = 392 ring + 152 bench, ROOF 141 =
-## 137 + 4 anchors, TABLE 97 = the awninged buildings — 782 total; every
+## M1 class tally is exact (GROUND 528 = 392 ring + 136 bench, ROOF 146 =
+## 142 + 4 anchors, TABLE 100 = the awninged buildings — 774 total; every
 ## literal re-derived when T-135's park pinning shrank the building pool) and every
 ## TABLE spot sits exactly at the tabletop law recomputed from the building
 ## record (`cafe_spot.origin + basis.x * 0.25 + UP * 0.78`, XZ inside the
@@ -3513,9 +3514,9 @@ func _scenario_bread_distribution_weighted() -> void:
 			awninged.append(info)
 	var ground_expected: int = _city.blocks_per_side * _city.blocks_per_side * 8 \
 			+ int(_city.last_report.benches)
-	var tally_ok: bool = tally[City.BreadKind.GROUND] == 544 \
-			and tally[City.BreadKind.TABLE] == 97 and tally[City.BreadKind.ROOF] == 141 \
-			and _city.bread_spots.size() == 782 \
+	var tally_ok: bool = tally[City.BreadKind.GROUND] == 528 \
+			and tally[City.BreadKind.TABLE] == 100 and tally[City.BreadKind.ROOF] == 146 \
+			and _city.bread_spots.size() == 774 \
 			and tally[City.BreadKind.GROUND] == ground_expected \
 			and tally[City.BreadKind.ROOF] == _city.buildings.size() + _city.anchors.size() \
 			and tally[City.BreadKind.TABLE] == awninged.size()
@@ -3835,7 +3836,7 @@ func _scenario_city_crosswalks() -> void:
 ## CollisionObject3D under the Visuals root, a forced same-seed rebuild
 ## reproducing both spot lists byte-identically, and the layout fingerprint
 ## still equal to the cross-version pins recorded by T-047 (seed 20260928 →
-## 2003179558, seed 424242 → 3801669696 — the values moved for T-051's
+## 1103197745, seed 424242 → 1411023184 — the values moved for T-051's
 ## mandated two-axis footprint `_fp` entry, re-derived 2026-10-01 with a
 ## headless `City.generate` probe (pre-T-051: 2492360539 / 2662825400), again
 ## for T-029's plaza-landmark `_fp` entry, same probe (pre-T-029:
@@ -3954,11 +3955,11 @@ func _scenario_city_apron_rim() -> void:
 			and (_city._visuals["rim_crown"].xfs as Array).size() == expected_trees
 	## --- cross-version pins (moved for T-051's `_fp` entry, T-029's and -------
 	## T-091's four district-anchor entries, T-104's four plaza-bin entries,
-	## T-135's pinned parks)
+	## T-135's pinned parks, T-136's per-district prop mix)
 	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 3801669696
+	var pin_foreign: bool = _city.fingerprint == 1411023184
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 2003179558
+	var pin_default: bool = _city.fingerprint == 1103197745
 	var rim_detail := "hedges=%d trees=%d/%d hedge_place=%s tree_place=%s trees_3d=%s green=%s (%.3f/%.3f) colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
 			hedges.size(), trees.size(), expected_trees, hedge_place_ok,
 			tree_place_ok, trees_3d_ok, green_ok, hedge_dist, crown_dist,
@@ -4044,10 +4045,10 @@ func _scenario_city_horizon_skyline() -> void:
 			and _spots_equal(skyline_xfs, skyline_b) and _spots_equal(tall_xfs, tall_b)
 	## --- cross-version pins and the foreign-seed contract ---------------------
 	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 3801669696 \
+	var pin_foreign: bool = _city.fingerprint == 1411023184 \
 			and _city._visuals["skyline_tall"].xfs.size() != tall_xfs.size()
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 2003179558
+	var pin_default: bool = _city.fingerprint == 1103197745
 	var skyline_detail := "nodes=%s total=%d tall=%d place=%s size=%s colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
 			nodes_ok, total, tall_xfs.size(), place_ok, size_ok, collider_count,
 			deterministic, pin_foreign, pin_default]
@@ -4087,31 +4088,42 @@ func _scenario_city_park_trees() -> void:
 	var fp_first: int = _city.fingerprint
 	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
 	var parks: int = _city.last_report.parks
-	## Park block centers, recomputed independently: the slab queue wears
-	## COLOR_PARK on exactly the park blocks (plaza wears COLOR_PLAZA, every
-	## other block COLOR_SIDEWALK). The slab instance sits at center
-	## + UP * block_slab_height * 0.5.
+	## Park block centers, recomputed independently: the slab queue wears one
+	## of the four per-district PARK_SLAB_TINTS tints on exactly the park
+	## blocks (T-136; the plaza wears COLOR_PLAZA, every other block
+	## COLOR_SIDEWALK). The slab instance sits at center + UP *
+	## block_slab_height * 0.5. The tint also re-derives the slab's district.
 	var park_centers: Array[Vector3] = []
+	var park_districts: Array[int] = []
 	var slab_xfs: Array = _city._visuals["slab"].xfs
 	var slab_colors: Array = _city._visuals["slab"].colors
 	for i in slab_xfs.size():
-		if slab_colors[i] == _city.COLOR_PARK:
-			park_centers.append((slab_xfs[i] as Transform3D).origin)
-	var expected_count := 4 * parks
+		for d in _city.PARK_SLAB_TINTS.size():
+			if slab_colors[i] == _city.PARK_SLAB_TINTS[d]:
+				park_centers.append((slab_xfs[i] as Transform3D).origin)
+				park_districts.append(d)
+	var tree_total: int = 0
+	for layout: Array in _city.PARK_TREE_LAYOUTS:
+		tree_total += layout.size()
+	var expected_count := tree_total ## 19 — the per-district layouts 2/3/8/6.
 	var count_ok: bool = park_centers.size() == parks \
 			and (_city._visuals["tree_trunk"].xfs as Array).size() == expected_count \
 			and (_city._visuals["tree_crown"].xfs as Array).size() == expected_count
-	## Expected tree bases: the four fixed offsets of every park center, on the
-	## slab (y = block_slab_height).
+	## Expected tree bases: each park center's DISTRICT layout offsets, on the
+	## slab (y = block_slab_height) — with each tree's crown center height and
+	## scale read off the same tables (the d3 crowns run 0.8, centered lower
+	## so the bottom stays on the trunk top).
 	var expected_pos: Array[Vector3] = []
 	var expected_center: Array[Vector3] = []
-	for c: Vector3 in park_centers:
-		for sx: float in [1.0, -1.0]:
-			for sz: float in [1.0, -1.0]:
-				expected_pos.append(Vector3(
-						c.x + sx * _city.PARK_TREE_OFFSET, _city.block_slab_height,
-						c.z + sz * _city.PARK_TREE_OFFSET))
-				expected_center.append(c)
+	var expected_district: Array[int] = []
+	for pi in park_centers.size():
+		var c: Vector3 = park_centers[pi]
+		var d: int = park_districts[pi]
+		for offset: Vector2 in _city.PARK_TREE_LAYOUTS[d]:
+			expected_pos.append(Vector3(
+					c.x + offset.x, _city.block_slab_height, c.z + offset.y))
+			expected_center.append(c)
+			expected_district.append(d)
 	## --- trunks and crowns, off the actual MultiMesh queues -------------------
 	var trunk_xfs: Array[Transform3D] = []
 	var crown_xfs: Array[Transform3D] = []
@@ -4126,15 +4138,13 @@ func _scenario_city_park_trees() -> void:
 	for xf: Transform3D in trunk_xfs:
 		trees_3d_ok = trees_3d_ok and absf(xf.origin.y
 				- (_city.block_slab_height + _city.PARK_TRUNK_SIZE.y * 0.5)) < 0.001
-	for xf: Transform3D in crown_xfs:
-		trees_3d_ok = trees_3d_ok and absf(xf.origin.y
-				- (_city.block_slab_height + _city.PARK_CROWN_CENTER_Y)) < 0.001
-	var place_ok: bool = count_ok
-	var inside_ok: bool = count_ok
 	var crown_matched: Array[bool] = []
 	crown_matched.resize(expected_pos.size())
 	crown_matched.fill(false)
 	var crown_half := _city.PARK_CROWN_SIZE.x * 0.5
+	var place_ok: bool = count_ok
+	var inside_ok: bool = count_ok
+	var scale_ok: bool = count_ok
 	for xf: Transform3D in crown_xfs:
 		var o: Vector3 = xf.origin
 		var hit := false
@@ -4145,6 +4155,15 @@ func _scenario_city_park_trees() -> void:
 			if Vector2(o.x - ep.x, o.z - ep.z).length_squared() < 1e-8:
 				crown_matched[e] = true
 				hit = true
+				var d: int = expected_district[e]
+				var crown_size: Vector3 = _city.PARK_CROWN_SIZE \
+						* float(_city.PARK_CROWN_SCALE_BY_DISTRICT[d])
+				var crown_y: float = _city.PARK_CROWN_CENTER_Y \
+						- (_city.PARK_CROWN_SIZE.y - crown_size.y) * 0.5
+				trees_3d_ok = trees_3d_ok and absf(o.y
+						- (_city.block_slab_height + crown_y)) < 0.001
+				scale_ok = scale_ok \
+						and (xf.basis.get_scale() - crown_size).length() < 0.001
 				var c: Vector3 = expected_center[e]
 				inside_ok = inside_ok \
 						and absf(o.x - c.x) + crown_half <= _city.block_size * 0.5 + 0.001 \
@@ -4179,9 +4198,10 @@ func _scenario_city_park_trees() -> void:
 			worst_bread = minf(worst_bread, d)
 			clear_ok = clear_ok and d >= 2.0
 	## The lamp/bin half at every seed: worst center-to-center approach is a
-	## max-jitter bin at (9−1, 9−1) from a tree at (5, 5) — 4.24 m — against
-	## the crown's horizontal half-diagonal plus a ~0.9 m worst prop
-	## half-extent (the bench).
+	## max-jitter bin at (9−1, 9−1) from a corner tree at (5, 5) — 4.24 m —
+	## against the crown's horizontal half-diagonal plus a ~0.9 m worst prop
+	## half-extent. The T-136 edge-midpoint trees are farther from the corners
+	## (a (7.5, 0) tree vs a (8, 8) bin: ≥ 8.0 m), so the corner case pins it.
 	var center_dist := Vector2(5.0, 5.0).distance_to(Vector2(8.0, 8.0))
 	var crown_half_diag := sqrt(2.0) * crown_half
 	var arithmetic_ok := center_dist - crown_half_diag - 0.9 >= 1.5
@@ -4201,24 +4221,25 @@ func _scenario_city_park_trees() -> void:
 		crown_b.append(xf)
 	var deterministic: bool = _city.fingerprint == fp_first \
 			and _spots_equal(trunk_a, trunk_b) and _spots_equal(crown_a, crown_b)
-	## --- foreign seed raises the same 4 × parks law over the same blocks; pins
+	## --- foreign seed raises the same per-district law over the same blocks;
+	## pins.
 	_city.generate(424242)
 	var foreign_parks: int = _city.last_report.parks
 	var foreign_ok: bool = foreign_parks == 4 \
-			and (_city._visuals["tree_trunk"].xfs as Array).size() == 4 * foreign_parks \
-			and (_city._visuals["tree_crown"].xfs as Array).size() == 4 * foreign_parks
-	var pin_foreign: bool = _city.fingerprint == 3801669696
+			and (_city._visuals["tree_trunk"].xfs as Array).size() == expected_count \
+			and (_city._visuals["tree_crown"].xfs as Array).size() == expected_count
+	var pin_foreign: bool = _city.fingerprint == 1411023184
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 2003179558
-	var trees_detail := "parks=%d trees=%d/%d centers=%d place=%s inside=%s trees_3d=%s green=%s (%.3f) clear=%s (worst %.2f m) arith=%s (%.2f m margin) colliders=%d det=%s foreign=%s pins=%s/%s" % [
+	var pin_default: bool = _city.fingerprint == 1103197745
+	var trees_detail := "parks=%d trees=%d/%d centers=%d place=%s inside=%s trees_3d=%s scale=%s green=%s (%.3f) clear=%s (worst %.2f m) arith=%s (%.2f m margin) colliders=%d det=%s foreign=%s pins=%s/%s" % [
 			parks, trunk_xfs.size(), expected_count, park_centers.size(), place_ok,
-			inside_ok, trees_3d_ok, green_ok, crown_dist, clear_ok, worst_bread,
-			arithmetic_ok, center_dist - crown_half_diag - 0.9, colliders.size(),
-			deterministic, foreign_ok, pin_foreign, pin_default]
+			inside_ok, trees_3d_ok, scale_ok, green_ok, crown_dist, clear_ok,
+			worst_bread, arithmetic_ok, center_dist - crown_half_diag - 0.9,
+			colliders.size(), deterministic, foreign_ok, pin_foreign, pin_default]
 	_check("city_park_trees_present",
-			count_ok and place_ok and inside_ok and trees_3d_ok and green_ok
-					and clear_ok and arithmetic_ok and visual_only and deterministic
-					and foreign_ok and pin_foreign and pin_default,
+			count_ok and place_ok and inside_ok and trees_3d_ok and scale_ok
+					and green_ok and clear_ok and arithmetic_ok and visual_only
+					and deterministic and foreign_ok and pin_foreign and pin_default,
 			trees_detail)
 	## Informational: the park trees' tuned numbers — the ticket's counts and
 	## distances, re-printed on every re-verification.
@@ -4239,12 +4260,14 @@ func _scenario_city_park_trees() -> void:
 ##   district's anchor block, and every park center ≥ 30 m from the
 ##   spawn-corridor drop — asserted off the live consts so a future const edit
 ##   fails loudly;
-## - the layout: the slab queue's COLOR_PARK slabs (recomputed independently,
-##   the `city_park_trees_present` channel) sit exactly at the four
+## - the layout: the slab queue's park slabs (recomputed independently,
+##   exactly the slabs wearing one of the four per-district `PARK_SLAB_TINTS`
+##   tints, each matched to its district's tint) sit at the four
 ##   `PARK_BLOCKS` centers, one per `district_of`; `report.parks` == 4; no
 ##   `buildings[]` record sits on a park block;
-## - the recipe unchanged: 16 tree trunks/crowns over the park centers (the
-##   T-030 offsets), every park block keeping its 8-spot ground bread ring and
+## - the recipe themed by T-136: 19 tree trunks/crowns over the park centers
+##   (each park its district's `PARK_TREE_LAYOUTS` — 2/3/8/6), every park
+##   block keeping its 8-spot ground bread ring and
 ##   its 4 corner lamps (`_build_block_props` runs for parks too; benches/bins
 ##   stay RNG per block — park benches remain seats and crumb hosts);
 ## - determinism: a forced same-seed rebuild reproduces the park slab, tree
@@ -4294,13 +4317,14 @@ func _scenario_city_one_park_per_district() -> void:
 		expected_centers.append(c)
 		corridor_ok = corridor_ok and Vector3(c.x - spawn_drop.x, c.y - spawn_drop.y,
 				c.z - spawn_drop.z).length() >= 30.0
-	## --- the layout: COLOR_PARK slabs exactly at the four centers -------------
+	## --- the layout: per-district tinted slabs exactly at the four centers ---
 	var slab_xfs: Array = _city._visuals["slab"].xfs
 	var slab_colors: Array = _city._visuals["slab"].colors
 	var park_slabs: Array[Vector3] = []
 	for i in slab_xfs.size():
-		if slab_colors[i] == _city.COLOR_PARK:
-			park_slabs.append((slab_xfs[i] as Transform3D).origin)
+		for d in _city.PARK_SLAB_TINTS.size():
+			if slab_colors[i] == _city.PARK_SLAB_TINTS[d]:
+				park_slabs.append((slab_xfs[i] as Transform3D).origin)
 	var slabs_ok: bool = park_slabs.size() == 4
 	var per_district := {}
 	for c: Vector3 in park_slabs:
@@ -4314,6 +4338,20 @@ func _scenario_city_one_park_per_district() -> void:
 		var bz := roundi(c.z / _city.block_pitch + half_blocks)
 		per_district[_city.district_of(bx, bz)] = true
 	slabs_ok = slabs_ok and per_district.size() == 4
+	## Exactly the park slabs wear the tints, each ITS district's (the T-136
+	## re-derivation of the old "exactly the slabs wearing COLOR_PARK" leg):
+	## a park block's slab wears its own tint; no non-park slab wears any tint.
+	for i in slab_xfs.size():
+		var o: Vector3 = (slab_xfs[i] as Transform3D).origin
+		var bx := roundi(o.x / _city.block_pitch + half_blocks)
+		var bz := roundi(o.z / _city.block_pitch + half_blocks)
+		var on_park: bool = _city.PARK_BLOCKS.has(Vector2i(bx, bz))
+		var d := _city.district_of(bx, bz)
+		var wears_own_tint: bool = slab_colors[i] == _city.PARK_SLAB_TINTS[d]
+		var wears_any_tint := false
+		for tint: Color in _city.PARK_SLAB_TINTS:
+			wears_any_tint = wears_any_tint or slab_colors[i] == tint
+		slabs_ok = slabs_ok and (wears_own_tint if on_park else not wears_any_tint)
 	var report_ok: bool = _city.last_report.parks == 4
 	## No building record stands on a park block.
 	var buildings_ok := true
@@ -4325,7 +4363,7 @@ func _scenario_city_one_park_per_district() -> void:
 				and not _city.PARK_BLOCKS.has(Vector2i(
 						roundi(block_local.x / _city.block_pitch + half_blocks),
 						roundi(block_local.z / _city.block_pitch + half_blocks)))
-	## --- the recipe: 16 trees, the 8-spot ground ring, 4 lamps per park -------
+	## --- the recipe: 19 themed trees, the 8-spot ground ring, 4 lamps/park ---
 	var trunk_xfs: Array[Transform3D] = []
 	var crown_xfs: Array[Transform3D] = []
 	if _city._visuals.has("tree_trunk"):
@@ -4334,13 +4372,18 @@ func _scenario_city_one_park_per_district() -> void:
 	if _city._visuals.has("tree_crown"):
 		for xf: Transform3D in _city._visuals["tree_crown"].xfs:
 			crown_xfs.append(xf)
-	var trees_ok: bool = trunk_xfs.size() == 16 and crown_xfs.size() == 16
+	var tree_total: int = 0
+	for layout: Array in _city.PARK_TREE_LAYOUTS:
+		tree_total += layout.size()
+	var trees_ok: bool = trunk_xfs.size() == tree_total \
+			and crown_xfs.size() == tree_total
 	var tree_expected: Array[Vector3] = []
-	for c: Vector3 in expected_centers:
-		for sx: float in [1.0, -1.0]:
-			for sz: float in [1.0, -1.0]:
-				tree_expected.append(Vector3(c.x + sx * _city.PARK_TREE_OFFSET,
-						_city.block_slab_height, c.z + sz * _city.PARK_TREE_OFFSET))
+	for e_i in expected_centers.size():
+		var c: Vector3 = expected_centers[e_i]
+		var d: int = _city.district_of(_city.PARK_BLOCKS[e_i].x, _city.PARK_BLOCKS[e_i].y)
+		for offset: Vector2 in _city.PARK_TREE_LAYOUTS[d]:
+			tree_expected.append(Vector3(c.x + offset.x,
+					_city.block_slab_height, c.z + offset.y))
 	var tree_matched_trunk: Array[bool] = []
 	tree_matched_trunk.resize(tree_expected.size())
 	tree_matched_trunk.fill(false)
@@ -4432,8 +4475,9 @@ func _scenario_city_one_park_per_district() -> void:
 	var slab_xfs2: Array = _city._visuals["slab"].xfs
 	var slab_colors2: Array = _city._visuals["slab"].colors
 	for i in slab_xfs2.size():
-		if slab_colors2[i] == _city.COLOR_PARK:
-			slabs_after.append((slab_xfs2[i] as Transform3D).origin)
+		for tint: Color in _city.PARK_SLAB_TINTS:
+			if slab_colors2[i] == tint:
+				slabs_after.append((slab_xfs2[i] as Transform3D).origin)
 	var trunks_after: Array[Transform3D] = []
 	for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
 		trunks_after.append(xf)
@@ -4454,19 +4498,20 @@ func _scenario_city_one_park_per_district() -> void:
 	var slab_xfs3: Array = _city._visuals["slab"].xfs
 	var slab_colors3: Array = _city._visuals["slab"].colors
 	for i in slab_xfs3.size():
-		if slab_colors3[i] == _city.COLOR_PARK:
-			foreign_slabs.append((slab_xfs3[i] as Transform3D).origin)
+		for tint: Color in _city.PARK_SLAB_TINTS:
+			if slab_colors3[i] == tint:
+				foreign_slabs.append((slab_xfs3[i] as Transform3D).origin)
 	var foreign_ok: bool = foreign_parks == 4 and foreign_slabs.size() == 4 \
-			and (_city._visuals["tree_trunk"].xfs as Array).size() == 16
+			and (_city._visuals["tree_trunk"].xfs as Array).size() == tree_total
 	for e: Vector3 in expected_centers:
 		var hit := false
 		for c: Vector3 in foreign_slabs:
 			hit = hit or Vector2(c.x - e.x, c.z - e.z).length_squared() < 1e-8
 		foreign_ok = foreign_ok and hit
 	## --- cross-version pins (the re-derived literals; see the rim scenario) ----
-	var pin_foreign: bool = _city.fingerprint == 3801669696
+	var pin_foreign: bool = _city.fingerprint == 1411023184
 	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 2003179558
+	var pin_default: bool = _city.fingerprint == 1103197745
 	var parks_detail := "const=%s (disjoint=%s midpoint=%s districts=%d) corridor=%s slabs=%d/4 (%s) report=%s buildings_clear=%s trees=%d placed=%s bread_ring=%s lamps=%d/%s det=%s foreign=%s pins=%s/%s" % [
 			const_ok, disjoint_ok, midpoint_ok, districts_seen.size(), corridor_ok,
 			park_slabs.size(), per_district.size(), report_ok, buildings_ok,
@@ -4479,7 +4524,7 @@ func _scenario_city_one_park_per_district() -> void:
 			parks_detail)
 	## Informational: the pinned parks — one per quadrant at (±32, ±32).
 	print("SIM DATA city_one_park_per_district: parks=%d blocks=%s trees=%d fingerprint=%d" % [
-			_city.last_report.parks, _city.PARK_BLOCKS, 4 * _city.last_report.parks,
+			_city.last_report.parks, _city.PARK_BLOCKS, tree_total,
 			fp_first])
 
 
@@ -4847,15 +4892,20 @@ func _anchors_reproduced(a: Array[Dictionary], b: Array[Dictionary]) -> bool:
 ## equals the BUILDING roofs only (max(buildings[].top) − block_slab_height;
 ## newly guarded here, nothing pinned it before); clearance — the 1.4 m
 ## plinth's per-axis daylight re-derived from `buildings[]` so a bad seed fails
-## loudly (worst 0.0242 m at the M1 seed, 0.0148 m at the foreign one — flush,
-## never overlapping), no bread spot but the anchor's own cap crumb within 5 m
-## XZ (measured worst 8.27 m) and the bench line / lamps+bins / tourist loop / park-tree
+## loudly (worst 0.0281 m at the M1 seed, 0.0094 m at the foreign one — flush,
+## never overlapping; re-derived for T-136's stream shift), no bread spot but the
+## anchor's own cap crumb within 5 m
+## XZ and the bench line / lamps+bins / tourist loop / park-tree
 ## crown distances held by constants arithmetic; the cap crumb sitting in
 ## `bread_spots` at cap_top + 0.06; `last_report.plaza_clear` still true;
 ## visuals — the four tier queues hold 4 instances each, over the anchor
-## centers at the tier scales and stacked y, every head tinted one of the four
-## districts' first palette colors with all four present; collision — one
-## layer-1 `Props` box per tier under the shared group body, exactly 3 of them
+## centers at the per-district tier scales and stacked y (the T-136 restyle:
+## the d3 silo's shaft widens 0.7 → 1.4, mesh AND collider), every head tinted
+## by the restyle's per-district head-tint table (marquee cream / tank cream /
+## cool limestone / concrete gray — all four distinct, the harness's own copy)
+## with all four present; collision — one
+## layer-1 `Props` box per tier under the shared group body (the detail boxes
+## are visual-only, zero colliders), exactly 3 of them
 ## above the y 5.0 window per anchor (the plinth sits below it); determinism —
 ## a forced same-seed rebuild reproduces `anchors` and `bread_spots`
 ## byte-identically, and the foreign seed raises the same four posts; physical
@@ -4875,12 +4925,24 @@ func _scenario_city_district_anchors() -> void:
 	var anchors_snapshot := _city.anchors.duplicate()
 	var bread_snapshot := _city.bread_spots.duplicate()
 	## The harness's own copy of the tier layout numbers (the
-	## `_expected_sign_plaque` pattern): key + size, stacked from the slab top.
-	var tiers := [
+	## `_expected_sign_plaque` pattern): key + size, stacked from the slab top —
+	## the T-136 restyle learns the per-district shaft (the d3 silo drum
+	## widens 0.7 → 1.4, mesh AND its one collider; the STACK heights stay
+	## exact, so the tops/crumb legs are untouched).
+	var tiers_d0 := [
 		["anchor_plinth", Vector3(1.4, 1.0, 1.4)],
 		["anchor_shaft", Vector3(0.7, 13.6, 0.7)],
 		["anchor_head", Vector3(1.8, 2.2, 1.8)],
 		["anchor_cap", Vector3(2.0, 0.5, 2.0)],
+	]
+	var tiers_d3 := [tiers_d0[0].duplicate(), tiers_d0[1].duplicate(),
+			tiers_d0[2].duplicate(), tiers_d0[3].duplicate()]
+	tiers_d3[1][1] = Vector3(1.4, 13.6, 1.4)
+	## The harness's own copy of the restyle's per-district head tints
+	## (marquee cream / tank cream / cool limestone / concrete gray).
+	var head_tints: Array[Color] = [
+		_city.COLOR_SIGNBOARD, Color(0.88, 0.86, 0.80),
+		Color(0.60, 0.65, 0.72), Color(0.68, 0.67, 0.64),
 	]
 	## --- records: exactly 4, one per district, at the pinned block centers ---
 	var pins: Array[Vector2i] = [Vector2i(1, 1), Vector2i(5, 1), Vector2i(1, 5), Vector2i(5, 5)]
@@ -4967,30 +5029,34 @@ func _scenario_city_district_anchors() -> void:
 	var visuals_ok := count_ok
 	var head_colors := {}
 	var tier_base := 0.0
-	for tier in tiers:
-		var key: String = tier[0]
-		var size: Vector3 = tier[1]
+	for ti in tiers_d0.size():
+		var key: String = tiers_d0[ti][0]
 		var queue: Array = _city._visuals[key].xfs if _city._visuals.has(key) else []
 		var colors: Array = _city._visuals[key].colors if _city._visuals.has(key) else []
 		visuals_ok = visuals_ok and queue.size() == 4
-		var want_y := _city.block_slab_height + tier_base + size.y * 0.5
 		for i in queue.size():
 			var o: Vector3 = (queue[i] as Transform3D).origin
 			var sc: Vector3 = (queue[i] as Transform3D).basis.get_scale()
 			var over_anchor := false
+			var district := -1
 			for rec in _city.anchors:
 				var local := _city.to_local(rec.center)
-				over_anchor = over_anchor \
-						or Vector2(o.x - local.x, o.z - local.z).length() < 0.01
+				if Vector2(o.x - local.x, o.z - local.z).length() < 0.01:
+					over_anchor = true
+					district = rec.district
+			## The per-district expected size: only the shaft varies (d3 1.4).
+			var size: Vector3 = tiers_d3[ti][1] if district == 3 \
+					else tiers_d0[ti][1]
+			var want_y := _city.block_slab_height + tier_base + size.y * 0.5
 			visuals_ok = visuals_ok and over_anchor \
 					and sc.distance_to(size) < 0.001 \
 					and absf(o.y - want_y) < 0.001
 			if key == "anchor_head":
 				head_colors[colors[i]] = true
-		tier_base += size.y
+		tier_base += (tiers_d0[ti][1] as Vector3).y
 	var all_four := head_colors.size() == 4
-	for palette: Array in _city.DISTRICT_PALETTES:
-		all_four = all_four and head_colors.has(palette[0])
+	for tint: Color in head_tints:
+		all_four = all_four and head_colors.has(tint)
 	visuals_ok = visuals_ok and all_four
 	## --- collision: one Props box per tier, 3 above the y 5.0 window ----------
 	var props_body := _city.get_node("Static/Props") as StaticBody3D
@@ -5001,6 +5067,7 @@ func _scenario_city_district_anchors() -> void:
 		for rec in _city.anchors:
 			var local := _city.to_local(rec.center)
 			var per_anchor := 0
+			var tiers: Array = tiers_d3 if rec.district == 3 else tiers_d0
 			for shape_node in props_body.find_children("*", "CollisionShape3D", true, false):
 				var shape := shape_node as CollisionShape3D
 				var box := shape.shape as BoxShape3D
@@ -5090,6 +5157,327 @@ func _scenario_city_district_anchors() -> void:
 			_city.anchors[0].top if not _city.anchors.is_empty() else 0.0,
 			_city.anchors[0].cap_top if not _city.anchors.is_empty() else 0.0,
 			worst_daylight, worst_bread, fp_first])
+
+
+## --- scenario (T-136 district theming) ---------------------------------------
+
+
+## District theming (T-136): the four quadrants read as places — themed parks
+## (per-district slab tints and tree layouts), themed signboards and awnings,
+## the per-district prop mix, and the D-A anchor restyles (marquee / water
+## tower / campanile / silo). The machine home of the theming law, on a real
+## generated City, recomputed INDEPENDENTLY (the park-trees/anchors audit
+## shape, no flight):
+## (a) parks — each `PARK_BLOCKS` block's district from `district_of`, its
+##     slab wearing exactly `PARK_SLAB_TINTS[district]` (each tint seen once),
+##     its trees exactly the district's `PARK_TREE_LAYOUTS` offsets (2/3/8/6,
+##     19 city-wide) with d3's crowns at the 0.8 scale, centered so the bottom
+##     stays on the trunk top;
+## (b) anchors — each restyle's tier widths (the d3 shaft 1.4 wide) and tier
+##     tints (the harness's own copies of the restyle tables), the
+##     detail-instance counts (4/2/12/3 per district on the visual-only
+##     `anchor_detail` key), zero colliders beyond the four tiers (3 shapes
+##     above the y 5.0 window per anchor), tops/crumb records intact;
+## (c) the d3 shaft's building standoff re-derived per seed from `buildings[]`
+##     (the plinth derivation, extended to the shaft's height band — buildings
+##     whose roof reaches above the shaft's base clear the 1.4 m drum's 0.7 m
+##     half-extent);
+## (d) same-seed `generate(default_seed, true)` reproduces the themed-park and
+##     anchor arrays byte-identically (`_vec_spots_equal`/`_anchors_reproduced`);
+## (e) at BOTH pinned seeds the cross-version fingerprint equals the
+##     re-derived literals (the T-051 probe precedent).
+## Plus the dressing law: every signboard plaque wears its district's
+## `SIGNBOARD_TINTS` tint and every awning the `AWN_TINTS` lerp at its
+## `AWN_TINT_WEIGHTS` weight (post-roll pure math off the building records),
+## and the prop-mix tables hold the ticket's values.
+func _scenario_city_district_theming() -> void:
+	var default_seed: int = _city.seed_value
+	var fp_first: int = _city.fingerprint
+	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
+	var half_blocks := float(_city.blocks_per_side - 1) * 0.5
+	## The harness's own copies of the restyle tables (the `_expected_sign_plaque`
+	## pattern — a future const edit fails here, not silently).
+	var shaft_sizes: Array[Vector3] = [
+		Vector3(0.7, 13.6, 0.7), Vector3(0.7, 13.6, 0.7),
+		Vector3(0.7, 13.6, 0.7), Vector3(1.4, 13.6, 1.4),
+	]
+	var shaft_tints: Array[Color] = [
+		Color(0.16, 0.35, 0.27), Color(0.25, 0.26, 0.28),
+		Color(0.60, 0.65, 0.72), Color(0.68, 0.67, 0.64),
+	]
+	var head_tints: Array[Color] = [
+		Color(0.92, 0.87, 0.74), Color(0.88, 0.86, 0.80),
+		Color(0.60, 0.65, 0.72), Color(0.68, 0.67, 0.64),
+	]
+	var cap_tints: Array[Color] = [
+		Color(0.16, 0.35, 0.27), Color(0.88, 0.86, 0.80),
+		Color(0.22, 0.24, 0.28), Color(0.68, 0.67, 0.64),
+	]
+	var want_details: Array[int] = [4, 2, 12, 3]
+	## (a) the parks: per-district slab tint + tree layout over PARK_BLOCKS ----
+	var park_ok: bool = _city.PARK_BLOCKS.size() == 4
+	var tree_total: int = 0
+	for layout: Array in _city.PARK_TREE_LAYOUTS:
+		tree_total += layout.size()
+	var trunks: Array[Transform3D] = []
+	var crowns: Array[Transform3D] = []
+	for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
+		trunks.append(xf)
+	for xf: Transform3D in _city._visuals["tree_crown"].xfs:
+		crowns.append(xf)
+	park_ok = park_ok and trunks.size() == tree_total and crowns.size() == tree_total
+	var slab_xfs: Array = _city._visuals["slab"].xfs
+	var slab_colors: Array = _city._visuals["slab"].colors
+	var tint_seen: Array[bool] = [false, false, false, false]
+	var trees_matched: Array[bool] = []
+	trees_matched.resize(tree_total)
+	trees_matched.fill(false)
+	var crowns_matched: Array[bool] = []
+	crowns_matched.resize(tree_total)
+	crowns_matched.fill(false)
+	for park: Vector2i in _city.PARK_BLOCKS:
+		var d: int = _city.district_of(park.x, park.y)
+		var c := Vector3((park.x - half_blocks) * _city.block_pitch, 0.0,
+				(park.y - half_blocks) * _city.block_pitch)
+		var slab_hits := 0
+		for i in slab_xfs.size():
+			var o: Vector3 = (slab_xfs[i] as Transform3D).origin
+			if Vector2(o.x - c.x, o.z - c.z).length_squared() < 1e-8:
+				if slab_colors[i] == _city.PARK_SLAB_TINTS[d]:
+					slab_hits += 1
+				else:
+					park_ok = false ## A park block's slab wearing a wrong color.
+		park_ok = park_ok and slab_hits == 1
+		tint_seen[d] = true
+		for offset: Vector2 in _city.PARK_TREE_LAYOUTS[d]:
+			var want := Vector3(c.x + offset.x, _city.block_slab_height, c.z + offset.y)
+			var trunk_hit := false
+			var crown_hit := false
+			for t in trunks.size():
+				if not trees_matched[t] \
+						and Vector2(trunks[t].origin.x - want.x,
+								trunks[t].origin.z - want.z).length_squared() < 1e-8:
+					trees_matched[t] = true
+					trunk_hit = true
+			for t in crowns.size():
+				if not crowns_matched[t] \
+						and Vector2(crowns[t].origin.x - want.x,
+								crowns[t].origin.z - want.z).length_squared() < 1e-8:
+					crowns_matched[t] = true
+					crown_hit = true
+					var crown_size: Vector3 = _city.PARK_CROWN_SIZE \
+							* float(_city.PARK_CROWN_SCALE_BY_DISTRICT[d])
+					var crown_y: float = _city.PARK_CROWN_CENTER_Y \
+							- (_city.PARK_CROWN_SIZE.y - crown_size.y) * 0.5
+					park_ok = park_ok \
+							and absf(crowns[t].origin.y
+									- (_city.block_slab_height + crown_y)) < 0.001 \
+							and (crowns[t].basis.get_scale() - crown_size).length() < 0.001
+			park_ok = park_ok and trunk_hit and crown_hit
+	park_ok = park_ok and not trees_matched.has(false) and not crowns_matched.has(false)
+	for seen: bool in tint_seen:
+		park_ok = park_ok and seen
+	## (b) the anchors: tier widths + tints, detail counts, collider shape law --
+	var anchors_ok: bool = _city.anchors.size() == 4
+	var detail_counts: Array[int] = [0, 0, 0, 0]
+	var details: Array[Transform3D] = []
+	if _city._visuals.has("anchor_detail"):
+		for xf: Transform3D in _city._visuals["anchor_detail"].xfs:
+			details.append(xf)
+	var detail_total: int = want_details[0] + want_details[1] + want_details[2] \
+			+ want_details[3]
+	anchors_ok = anchors_ok and details.size() == detail_total
+	for xf: Transform3D in details:
+		var best_i := -1
+		var best := INF
+		for ai in _city.anchors.size():
+			var local: Vector3 = _city.to_local(_city.anchors[ai].center)
+			var dd := Vector2(xf.origin.x - local.x, xf.origin.z - local.z).length()
+			if dd < best:
+				best = dd
+				best_i = ai
+		anchors_ok = anchors_ok and best_i >= 0 and best < 1.5 ## 1.273 m worst
+				## detail offset (the marquee bulbs at the head corners).
+		if best_i >= 0:
+			detail_counts[_city.anchors[best_i].district] += 1
+	for d in 4:
+		anchors_ok = anchors_ok and detail_counts[d] == want_details[d]
+	## The tier queues: every instance over one anchor, at its district's
+	## expected width and tint (shaft/head/cap; the plinth keeps its stone).
+	for pair: Array in [["anchor_shaft", shaft_sizes, shaft_tints],
+			["anchor_head", [
+					Vector3(1.8, 2.2, 1.8), Vector3(1.8, 2.2, 1.8),
+					Vector3(1.8, 2.2, 1.8), Vector3(1.8, 2.2, 1.8)], head_tints],
+			["anchor_cap", [
+					Vector3(2.0, 0.5, 2.0), Vector3(2.0, 0.5, 2.0),
+					Vector3(2.0, 0.5, 2.0), Vector3(2.0, 0.5, 2.0)], cap_tints]]:
+		var key: String = pair[0]
+		var queue: Array = _city._visuals[key].xfs if _city._visuals.has(key) else []
+		var colors: Array = _city._visuals[key].colors if _city._visuals.has(key) else []
+		anchors_ok = anchors_ok and queue.size() == 4
+		for i in queue.size():
+			var o: Vector3 = (queue[i] as Transform3D).origin
+			var sc: Vector3 = (queue[i] as Transform3D).basis.get_scale()
+			var district := -1
+			for rec in _city.anchors:
+				var local: Vector3 = _city.to_local(rec.center)
+				if Vector2(o.x - local.x, o.z - local.z).length() < 0.01:
+					district = rec.district
+			anchors_ok = anchors_ok and district >= 0
+			if district < 0:
+				continue
+			var sizes: Array = pair[1]
+			var tints: Array = pair[2]
+			anchors_ok = anchors_ok \
+					and (sc - (sizes[district] as Vector3)).length() < 0.001 \
+					and (colors[i] as Color).is_equal_approx(tints[district])
+	## Records intact: top 17.3, cap_top slab + 17.3, crumb at cap_top + 0.06.
+	var records_ok: bool = _city.anchors.size() == 4
+	for rec in _city.anchors:
+		records_ok = records_ok and absf((rec.top as float) - 17.3) < 0.001 \
+				and absf((rec.cap_top as float)
+						- (_city.block_slab_height + 17.3)) < 0.001
+		var local: Vector3 = _city.to_local(rec.center)
+		var found := false
+		for i in _city.bread_spots.size():
+			var spot: Vector3 = _city.bread_spots[i]
+			found = found or (Vector2(spot.x - local.x, spot.z - local.z).length() < 0.001
+					and absf(spot.y - ((rec.cap_top as float) + 0.06)) < 0.001
+					and _city.bread_spot_kinds[i] == City.BreadKind.ROOF)
+		records_ok = records_ok and found
+	## Zero colliders beyond the four tiers: every Props box within 1.5 m XZ of
+	## an anchor center is one of ITS four tiers, 3 above the y 5.0 window.
+	var props_body := _city.get_node("Static/Props") as StaticBody3D
+	var colliders_ok: bool = props_body != null
+	var tier_sizes: Array[Vector3] = [Vector3(1.4, 1.0, 1.4),
+			Vector3(0.7, 13.6, 0.7), Vector3(1.8, 2.2, 1.8), Vector3(2.0, 0.5, 2.0)]
+	var high_total := 0
+	if colliders_ok:
+		for rec in _city.anchors:
+			var local: Vector3 = _city.to_local(rec.center)
+			var near := 0
+			var matched := 0
+			var high := 0
+			for shape_node in props_body.find_children("*", "CollisionShape3D", true, false):
+				var shape := shape_node as CollisionShape3D
+				var box := shape.shape as BoxShape3D
+				if box == null:
+					continue
+				if Vector2(shape.position.x - local.x,
+						shape.position.z - local.z).length() > 1.5:
+					continue
+				near += 1
+				var tier_floor := 0.0
+				for ti in tier_sizes.size():
+					var want_size: Vector3 = tier_sizes[ti]
+					if rec.district == 3 and ti == 1:
+						want_size = shaft_sizes[3] ## The d3 widened drum.
+					if box.size.distance_to(want_size) < 0.001 \
+							and absf(shape.position.y - (_city.block_slab_height
+									+ tier_floor + want_size.y * 0.5)) < 0.001:
+						matched += 1
+						if shape.position.y > 5.0:
+							high += 1
+					tier_floor += want_size.y
+			colliders_ok = colliders_ok and near == 4 and matched == 4 and high == 3
+			high_total += high
+		colliders_ok = colliders_ok and high_total == 3 * _city.anchors.size()
+	## (c) the d3 shaft's building standoff, extended to the height band --------
+	var d3_center := Vector3.INF
+	var found_d3 := false
+	for rec in _city.anchors:
+		if rec.district == 3:
+			d3_center = rec.center
+			found_d3 = true
+	var band_ok: bool = found_d3
+	var band_worst := INF
+	for info in _city.buildings:
+		var bc: Vector3 = info.center
+		if absf(bc.x - d3_center.x) > _city.block_size * 0.5 \
+				or absf(bc.z - d3_center.z) > _city.block_size * 0.5:
+			continue
+		if float(info.top) <= _city.block_slab_height + 1.0:
+			continue ## Below the shaft's base — no height-band overlap.
+		var size: Vector2 = info.size
+		var face_x := absf(bc.x - d3_center.x) - size.x * 0.5 - 0.7
+		var face_z := absf(bc.z - d3_center.z) - size.y * 0.5 - 0.7
+		band_ok = band_ok and face_x >= 0.0 and face_z >= 0.0
+		band_worst = minf(band_worst, minf(face_x, face_z))
+	## The dressing law: signboard tints and awning lerps, queue-paired --------
+	var sign_colors: Array = _city._visuals["sign"].colors \
+			if _city._visuals.has("sign") else []
+	var tints_ok: bool = sign_colors.size() == _city.buildings.size()
+	var sign_i := 0
+	for info in _city.buildings:
+		tints_ok = tints_ok and (sign_colors[sign_i] as Color).is_equal_approx(
+				_city.SIGNBOARD_TINTS[info.district])
+		sign_i += 1
+	var awn_colors: Array = _city._visuals["awning"].colors \
+			if _city._visuals.has("awning") else []
+	var awnings := 0
+	for info in _city.buildings:
+		if info.has_awning:
+			awnings += 1
+	tints_ok = tints_ok and awn_colors.size() == awnings
+	var awn_i := 0
+	for info in _city.buildings:
+		if not info.has_awning:
+			continue
+		var want_awn: Color = (info.shop_color as Color).darkened(0.15).lerp(
+				_city.AWN_TINTS[info.district], _city.AWN_TINT_WEIGHTS[info.district])
+		tints_ok = tints_ok and (awn_colors[awn_i] as Color).is_equal_approx(want_awn)
+		awn_i += 1
+	## The prop-mix tables hold the ticket's values (a silent retune fails here).
+	var tables_ok: bool = _city.BENCH_CHANCE_BY_DISTRICT.size() == 4 \
+			and _city.BIN_CHANCE_BY_DISTRICT.size() == 4
+	for d in 4:
+		tables_ok = tables_ok \
+				and absf(_city.BENCH_CHANCE_BY_DISTRICT[d] - [0.90, 0.50, 0.90, 0.50][d]) < 0.0001 \
+				and absf(_city.BIN_CHANCE_BY_DISTRICT[d] - [0.70, 0.90, 0.40, 0.70][d]) < 0.0001
+	## (d) determinism: a real rebuild reproduces the themed arrays -----------
+	var trunks_a := trunks.duplicate()
+	var crowns_a := crowns.duplicate()
+	var details_a := details.duplicate()
+	var anchors_a: Array[Dictionary] = []
+	for rec in _city.anchors:
+		anchors_a.append(rec)
+	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
+	var trunks_b: Array[Transform3D] = []
+	var details_b: Array[Transform3D] = []
+	for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
+		trunks_b.append(xf)
+	if _city._visuals.has("anchor_detail"):
+		for xf: Transform3D in _city._visuals["anchor_detail"].xfs:
+			details_b.append(xf)
+	var deterministic: bool = _city.fingerprint == fp_first \
+			and _spots_equal(trunks_a, trunks_b) \
+			and _spots_equal(details_a, details_b) \
+			and _anchors_reproduced(anchors_a, _city.anchors)
+	## (e) the foreign seed raises the same law; the cross-version pins --------
+	_city.generate(424242)
+	var foreign_park_ok: bool = _city.last_report.parks == 4 \
+			and (_city._visuals["tree_trunk"].xfs as Array).size() == tree_total
+	var foreign_anchor_ok: bool = _city.anchors.size() == 4
+	for rec in _city.anchors:
+		foreign_anchor_ok = foreign_anchor_ok \
+				and absf((rec.top as float) - 17.3) < 0.001
+	var pin_foreign: bool = _city.fingerprint == 1411023184
+	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
+	var pin_default: bool = _city.fingerprint == 1103197745
+	_check("city_district_theming_present",
+			park_ok and anchors_ok and records_ok and colliders_ok and band_ok
+					and tints_ok and tables_ok and deterministic and foreign_park_ok
+					and foreign_anchor_ok and pin_foreign and pin_default,
+			("parks=%s trees=%d anchors=%s details=%s records=%s colliders=%s (%d high) "
+			+ "d3_band=%s (worst %.4f m) tints=%s tables=%s det=%s foreign=%s/%s "
+			+ "pins=%s/%s") % [
+					park_ok, trunks.size(), anchors_ok, detail_counts, records_ok,
+					colliders_ok, high_total, band_ok, band_worst, tints_ok,
+					tables_ok, deterministic, foreign_park_ok, foreign_anchor_ok,
+					pin_foreign, pin_default])
+	## Informational: the theming law's tuned numbers, re-printed every pass.
+	print("SIM DATA city_district_theming: trees=%d details=%s d3_band_worst=%.4f m fingerprint=%d" % [
+			trunks.size(), detail_counts, band_worst, fp_first])
 
 
 ## --- scenarios (T-007 tourists) ---------------------------------------------
@@ -6955,7 +7343,7 @@ func _scenario_intersection_furniture() -> void:
 	## Zero-RNG / zero-_fp: the fingerprint equals the pre-change pin (re-derived
 	## for T-135's pinned parks — the removed per-block draw shifted every
 	## seeded stream; pre-T-135: 4045370482).
-	var pin_ok := fp_first == 2003179558
+	var pin_ok := fp_first == 1103197745
 	_check("intersection_furniture_oriented",
 			count_ok and placement_ok and line_geometry and line_y and line_offset
 					and sign_geometry and sign_side_height and sign_angles_ok
