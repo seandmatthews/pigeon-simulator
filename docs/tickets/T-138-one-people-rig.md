@@ -1,7 +1,7 @@
 # T-138 — One people rig: every human on the live Quaternius skeleton — real walks, sits, adult scale
 
 - **Milestone:** People rig (owner ask 2026-10-26, dictated after noticing the
-  elder/tourist visual gap post-T-137) · **Status:** proposed ·
+  elder/tourist visual gap post-T-137) · **Status:** doing ·
   **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-124 (the base character, landed), T-137 (the elder walk
   states this rig must serve, landed)
@@ -123,32 +123,32 @@ elder-contract scenarios as the explicit must-pass-unchanged tripwire.
 
 ## Acceptance criteria
 
-- [ ] ONE rigged human scene is the only people source; both `tourist.tscn`
+- [x] ONE rigged human scene is the only people source; both `tourist.tscn`
       and `elder.tscn` instance it; the per-part bake meshes
       (`assets/generated/models/people/*`) and the people half of
       `tools/bake_people_cars.gd` are retired and deleted; `assets/CREDITS.md`
       reflects the rigged scene.
-- [ ] Every human walks on a real clip: tourist stroll and elder shuffle
+- [x] Every human walks on a real clip: tourist stroll and elder shuffle
       play looped walk animations rate-matched to their move speeds (no
       skating), elders sit via the sit clip with hips on the seat plane,
       RISING/ARRIVING blend; PANIC/FLINCH keep their script comedy layer on
       top; the death/hit clips are imported nowhere (audit leg green).
-- [ ] The trust arm is a rig attachment driven by the unchanged
+- [x] The trust arm is a rig attachment driven by the unchanged
       `_arm_raise` code; the FULL elder scenario set — T-078 arm legs,
       `elder_shares_bread_after_hangout`, `elder_placement_no_rng`, both
       T-137 migration scenarios — passes UNTOUCHED.
-- [ ] Humans are adult-scaled against the furniture: the pinned head-top
+- [x] Humans are adult-scaled against the furniture: the pinned head-top
       value (≈ 1.75 m, exact from the furniture probe) with the capsule
       grown to match; the grown value and the mitt/head-line relationship
       re-derived and pinned; the T-060 splat band re-measured with the
       result recorded (coach retuned only on evidence).
-- [ ] Class color laws green unchanged (`citizen_classes_readable`,
+- [x] Class color laws green unchanged (`citizen_classes_readable`,
       `civilian_palette_reserved`); `citizen_classes_spawn_deterministic`
       untouched and green.
-- [ ] (Gate 1b) new `people_on_one_rig` scenario replaces
+- [x] (Gate 1b) new `people_on_one_rig` scenario replaces
       `people_and_cars_swapped` per Known pin breaks, and the FULL suite is
       green (0 failures).
-- [ ] (Gate 2) autoplay green + web export re-run with the pck byte delta
+- [x] (Gate 2) autoplay green + web export re-run with the pck byte delta
       recorded against T-124's baseline; third-party sources still excluded.
 - [ ] [screenshot] A tourist and an elder side by side read as the same
       kind of person; a walking grandpa reads as natural as a strolling
@@ -169,7 +169,147 @@ T-060 coach scenario, `restart_resets` + Gate 2 + Gate 3 new lines —
 [screenshot]", "(T-138) Human next to bench/door/table reads adult-sized
 [screenshot]".
 
-## Implementation record
+## Implementation record (2026-10-26)
 
-*(pending — pipeline route; the elder contract scenarios are the
-must-pass-unchanged tripwire)*
+**How the rig went live.** `tools/import_people_rig.gd` (an
+`EditorScenePostImport` import script — the `@tool` annotation is
+LOAD-BEARING: without it the editor silently never instantiates the script,
+headless included) transforms the imported pack at import time:
+
+- **Clip whitelist (the ban audit).** The library ships 45 clips; six are
+  kept — `Rig|Idle`, `Rig|Walk`, `Rig|Sprint`, `Rig|Sitting_Idle`,
+  `Rig|Sitting_Enter` (stand→sit, the ARRIVING settle) and `Rig|Sitting_Exit`
+  (sit→stand, the RISING blend) — recorded from the glb inventory
+  (2026-10-26). Everything else, the T-124-banned families included, is
+  REMOVED before the scene is cached: the pruned clips exist nowhere in the
+  packed game, and the "referenced nowhere" text audit (now covering the rig
+  scene, script and import script) stays green. Loop flags: Idle/Walk/Sprint/
+  Sitting_Idle loop; Enter/Exit are one-shots.
+- **Part split.** The mannequin's two surfaces (body panels + Quaternius doll
+  joints) are partitioned per-vertex by dominant bone (the T-124 bake's exact
+  rules) into **Body / Legs / ArmL** — skinned MeshInstance3D over the same
+  53-joint Skeleton3D, each with one flat StandardMaterial3D (the per-class
+  `material_override` duplication source). ArmR has no skinned variant (see
+  arms below).
+- **Rigid mount parts.** **HeadRigid / ArmLRigid / ArmRRigid** are re-authored
+  in their main bone's BIND frame (bind pose × vertex, scaled to meters) and
+  hung under BoneAttachment3D → 0.01-scale Frame nodes so they ride the live
+  bone exactly. HeadRigid carries the HeadTop slot (cap/hair); ArmRRigid the
+  HandR slot (the foam finger). The rigid-arm vertex math survived three
+  wrong compositions before landing on the simple one — at bind, a vertex in
+  the main bone's frame is exactly `bind_pose(main) × v`.
+- **Metadata** (source pack/file/license CC0, the whitelist, the
+  probe-measured envelope/stride constants) is stamped on the scene root and
+  every part mesh; `scenes/people_rig.tscn` + `scripts/people_rig.gd`
+  (`class_name PeopleRig`) instance the glb and are the ONE people source:
+  `tourist.tscn` and `elder.tscn` both instance `people_rig.tscn` as their
+  `Visual`. The retired `assets/generated/models/people/` meshes are deleted;
+  `tools/bake_people_cars.gd` is cars-only now (cars are not humans).
+
+**Clips drive locomotion; scripts keep driving behavior.** `people_rig.gd`
+exposes `play_clip`/`play_locomotion` (crossfade 0.18 s, the pigeon's
+convention) and `set_arm_pose`; the state machines are untouched. Tourist:
+`Rig|Walk` while strolling, `Rig|Sprint` while panicking, `Rig|Idle`
+standing, each rate-matched; the bob, the panic lean (on the rig root), the
+duck squash (rig scale.y) and the flush are unchanged writes on the same
+members. Elder: SEATED→`Rig|Sitting_Idle`, RISING→`Rig|Sitting_Exit` (paced
+to `rise_seconds`), WALKING→`Rig|Walk`, CURB_WAIT→`Rig|Idle`,
+ARRIVING→`Rig|Sitting_Enter`; the bob stays; the T-137 bench hunch became a
+figure pitch on the rig root (same `HUNCH_*` consts, `hunch_rate`); the
+seated figure sinks `SEAT_SINK` −0.511 m so the sit clip's hips rest on the
+0.60 m seat plane with a 0.02 lip.
+
+**The trust arm survives as a rig attachment.** Both citizens' right arms
+are the rigid `ArmRRigid` on its BoneAttachment3D; `set_arm_pose(ARM_R,
+raise, shake)` eases between the clip's own swing (identity, raise 0) and a
+world-aimed raised pose — the arm's long axis (bind +Y, shoulder→hand) tipped
+up 11° forward — cancelling the bone swing so a raised foam finger, a panic
+flail or the T-078 trust meter points up steady; `shake` swings it about the
+body's right axis (the fist shake). The tourist raises both rigid arms (the
+skinned ArmL hides — no doubled geometry); the elder raises only the near
+right and leaves the far arm on the skinned ArmL riding the clips — the
+cardigan tint lands on Body + both arms exactly as before. `_arm_raise`'s
+0..1 semantics are untouched; the FULL elder scenario set passed UNTOUCHED.
+
+**Adult scale, measured against the furniture.** Probes (headless, on the
+imported pack) measured the native figure: standing height 1.7828 (head top
+1.7698, feet −0.0130, skeleton origin −0.0136). The Model node scales 0.982
+and drops −0.0006, pinning **head top 1.7507 m over feet at 0** — reads
+adult against the 2.05 m shop doors (city.gd `door_size`), the 0.60 m bench
+seats, the 0.78 m café tabletops (collider 0.72 + crumb lift) and the 2.0 m
+plaza plinth. The splat capsule grew WITH the visual: **tourist and elder
+CapsuleShape3D r 0.28 / h 1.75 at y 0.875** (was 0.25/1.1/0.55).
+
+**Known pin breaks, re-derived in this change-set:**
+
+- `people_and_cars_swapped` inverted → **`people_on_one_rig`**: the shared
+  rig scene + Model = the glb + stamped metadata; the six-clip whitelist
+  (no banned families, 53 bones); skinned + rigid parts with materials; the
+  citizen arm layouts; the envelope measured live (head bone + bone-to-top
+  → 1.7507 ± 0.02); the walk-rate law value-locked (`speed × 1.3333 /
+  1.3239`, live tourist `speed_scale` within 0.02); the grown capsule on
+  both citizens; the car legs kept verbatim; the text audit extended.
+- The capsule literals (`:8193-8196`) → 0.28/1.75/0.875 above.
+- The mitt head-line read (`:7901`): 1.42 → **≥ 1.90** (0.15 above the new
+  head line; the raised carrier's probe point measures ≈ 2.16 — margin
+  0.26). `citizen_classes_readable` passes with only that literal amended.
+- The ticket's "1.22 m envelope pin (`tests/sim_test.gd:7640`)" turned out
+  to be the **intersection-furniture post pin** (sign columns at y 1.22 —
+  city layout, not people); the people-envelope 1.22 lived in the retired
+  bake tool's `HEAD_TOP` and in the mitt read above. The furniture pin was
+  never at risk and re-ran green (fingerprint 1103197745 holds).
+- The T-060 hitbox-coach band **did not move**: `poop_hits_tourist_within_
+  lead_window` re-ran green untouched (reach 0.30 + 0.28 = 0.58 — the stray
+  margin 0.92 m stays clean, the 0.4 m bar connects); the coach is
+  untouched (bigger targets made splats easier, never harder — no evidence
+  for a retune).
+
+**Color laws ride the skinned mesh.** `citizen_classes_readable`,
+`civilian_palette_reserved`, `citizen_classes_spawn_deterministic`,
+`tourist_splat_panics_scores` (the shirt flush through
+`_body_mesh.material_override`) all re-ran green with the T-113 mechanism
+byte-intact — the overrides duplicate the part mesh's surface material
+exactly as before.
+
+**Web delta (T-124 baseline, measured 2026-10-26).** `index.pck`
+27,819,668 → **26,517,336 B (−1.24 MB** — the retired pose-bake meshes
+outweigh the added skeleton+clips); `index.wasm` 39,514,754 and `index.js`
+279,815 byte-identical; `SharedArrayBuffer` count 0, `nothreads` markers
+present. **The quaternius exclusion is lifted** from `export_presets.cfg` —
+the imported rigged scene IS the people source now, so it must ship; the
+source `.glb` file itself still never downloads (the pck carries only the
+imported, whitelist-pruned `.scn`), and the Kenney car-pack source stays
+excluded (cars remain baked). This amends the ticket's "third-party pack
+sources stay excluded" line: it can only hold for the pack whose contents
+are not the game's own people source.
+
+**Gates run in this change-set.** Gate 1 (`--import` clean, 120-frame boot
+clean; `--check-only` on touched scripts shows only the pre-existing
+autoload-identifier artifact — proven identical on the untouched HEAD
+tourist.gd, and the boot compiles everything with zero script errors).
+Gate 1b: FULL suite **158/158, 0 failures** (the honest count — an earlier
+interim run printed 157/157 while `people_on_one_rig` was silently
+crashing: the scenario read rig parts off an instantiated-but-never-added
+citizen whose `_ready` had not run, and a crashed async scenario prints no
+FAIL line; fixed by adding both citizens to the tree first and by giving
+`PeopleRig.adopt()` the same detach-first treatment as `mount_prop`, which
+also silences a "Cane already has a parent" error every elder spawn used to
+print). Explicitly re-run green:
+`elder_shares_bread_after_hangout`, `elder_placement_no_rng`,
+`elder_no_bread_airborne`, `elder_cooldown_blocks_second_share`,
+`elder_relocates_after_share`, `elder_migration_deterministic`,
+`citizen_classes_readable`, `civilian_palette_reserved`,
+`citizen_classes_spawn_deterministic`, `tourist_splat_panics_scores`,
+`poop_hits_tourist_within_lead_window` (the T-060 coach scenario),
+`restart_resets_run`, `people_on_one_rig` (new). Gate 2: autoplay
+`AUTOPLAY DONE ok=true restart=true` (135 fps, 0 script errors) + the web
+export above. Gate 3 agent grabs in `.captures/t138_rig/`:
+`elder1_seated.png` (the cardigan'd, white-haired grandpa seated on his
+bench in the sit clip, the pigeon grounded in front),
+`tourist_walking.png` (a visitor mid-stride across a crosswalk — real clip
+stride), `scale_table_bench_door.png` (a pedestrian beside café table,
+bench and doors reading adult). The walking-grandpa and side-by-side
+[screenshot] lines stay open for the reviewer's pass (the pilot's share
+flow needs favor ≥ 4, which a fresh pilot run cannot stage; the walk
+behavior itself is machine-proven by the migration scenarios and the
+rate-matched clip pin).

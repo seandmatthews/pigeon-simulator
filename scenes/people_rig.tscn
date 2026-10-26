@@ -1,0 +1,17 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/people_rig.gd" id="1_rig"]
+[ext_resource type="PackedScene" path="res://assets/third-party/quaternius/base_character.glb" id="2_model"]
+
+; T-138: the ONE shared rigged people visual. The Model child carries the
+; adult envelope — the pack's native 1.7828 m figure scales by 0.982 and
+; drops 0.0006 so the head top lands at 1.7507 m over feet at 0
+; (probe-measured; furniture probe: 2.05 m doors, 0.60 m benches, 0.78 m
+; tables, 2.0 m plinth). Translation+uniform scale only, per the scene
+; conventions (pigeon precedent).
+
+[node name="PeopleRig" type="Node3D"]
+script = ExtResource("1_rig")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(0.982, 0, 0, 0, 0.982, 0, 0, 0, 0.982, 0, -0.0006, 0)

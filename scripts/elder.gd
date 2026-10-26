@@ -22,6 +22,15 @@ extends CharacterBody3D
 ## onto the reserved bench (ARRIVING). Trust accrues only while SEATED —
 ## mid-walk the bank is frozen (no accrual, no decay). Elders still don't
 ## react to splats or buzzes (that is the tourists' job).
+## Since T-138 the visual is the ONE shared rigged people scene (`Visual`, a
+## PeopleRig — the same model as the tourists): the shuffle walks the live
+## `Rig|Walk` clip rate-matched to the 0.8 m/s pace, RISING/ARRIVING play the
+## library's stand-up/sit-down transition clips, SEATED holds `Rig|Sitting_Idle`
+## with the figure sunk so the sit pose's hips rest on the 0.60 m bench seat.
+## The near trust arm is the rig's rigid right arm on its BoneAttachment3D —
+## `_arm_raise` drives it exactly as it drove the static part (T-078); the
+## far arm rides the skinned clips. The bob and the bench-hunch comedy layer
+## stay.
 
 ## Fired on every share — the spawner relays it as `bread_shared` (the
 ## CaptureRecorder's `elder_bread_shared` event listens there).
@@ -53,6 +62,11 @@ const SEAT_HEIGHT := 0.60 ## Bench seat top above the slab — the `_add_bench` 
 const CRUMB_LIFT := 0.06 ## Tossed crumbs rest at the same height as bread-spot ring crumbs.
 const HUNCH_SEATED := 0.18 ## The bench hunch (the `_ready` pose).
 const HUNCH_WALKING := 0.06 ## Nearly upright mid-shuffle — "upright, bobbing" (T-137).
+## (T-138) The seated sink: the rig plays the pack's sit clip with its hips
+## 0.531 m above the rig root (probe-measured, adult scale 0.982), so the
+## figure sinks this far to rest the hips on the 0.60 m seat plane with a
+## 0.02 lip.
+const SEAT_SINK := -0.511
 
 @export_group("Trust")
 @export var proximity_radius: float = 3.0 ## PresenceZone radius (m) around the bench.
@@ -117,24 +131,30 @@ var _arrive_from := Vector3.ZERO
 var _seat_target := Vector3.ZERO
 var _seat_yaw: float = 0.0
 var _phase: float = 0.0
+var _sink: float = 0.0 ## (T-138) The eased seated sink (SEAT_SINK when seated).
 var _stall_left: float = 0.5
 var _stall_pos := Vector3.ZERO
 
 @onready var _zone: Area3D = $PresenceZone
 @onready var _zone_shape: CollisionShape3D = $PresenceZone/Shape
-@onready var _visual: Node3D = $Visual
-@onready var _torso: MeshInstance3D = $Visual/Torso
-@onready var _cane: MeshInstance3D = $Visual/Cane
-@onready var _arm_near: MeshInstance3D = $Visual/ArmNear
-@onready var _arm_far: MeshInstance3D = $Visual/ArmFar
+@onready var _visual: PeopleRig = $Visual
+@onready var _torso: MeshInstance3D = _visual.body_mesh
+@onready var _cane: MeshInstance3D = $Cane
+@onready var _arm_near: MeshInstance3D = _visual.arm_r_rigid
+@onready var _arm_far: MeshInstance3D = _visual.arm_skinned_l
 
 
 func _ready() -> void:
 	(_zone_shape.shape as SphereShape3D).radius = proximity_radius
-	## The hunched pose and the leaning cane — rotations live in script so the
-	## scene file stays free of hand-computed basis matrices.
-	_torso.rotation.x = HUNCH_SEATED
+	## (T-138) The elder layout: the near trust arm is the rig's rigid right
+	## arm (the T-078 meter), the far arm rides the skinned clips, the hair
+	## mounts on the head bone and the cane is adopted into the bob/lean
+	## container. The bench hunch is a figure pitch on the rig root.
+	_visual.show_rigid_arms(false)
+	_visual.mount_prop($Hair, PeopleRig.Mount.HEAD)
+	_visual.adopt(_cane)
 	_cane.rotation.z = -0.08
+	_visual.rotation.x = HUNCH_SEATED
 	## Per-elder cardigan material: the palette tint, without touching the
 	## shared scene material (the tourist's pattern).
 	var mat: StandardMaterial3D = _torso.mesh.surface_get_material(0).duplicate()
@@ -575,21 +595,49 @@ func _face(dir: Vector3, delta: float, rate: float) -> void:
 	rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-rate * delta))
 
 
-## Cosmetic layer: the near arm eases toward `_arm_target` at
+## Cosmetic layer (T-138): the near arm eases toward `_arm_target` at
 ## `arm_raise_rate` — the share beat first, then the trust meter (T-078) —
-## plus (T-137) the shamble: a bob sine scaled by the pace fraction while
-## walking, and the torso easing upright off the bench hunch mid-route.
+## driven through the rig's raised-arm aim exactly as it drove the static
+## part; plus (T-137) the shamble: a bob sine scaled by the pace fraction
+## while walking, and the torso easing upright off the bench hunch mid-route.
+## The clip layer follows the state machine: Sitting_Idle seated, the
+## stand-up/sit-down transitions on RISING/ARRIVING (paced to
+## `rise_seconds`), the rate-matched Walk shuffle, Idle at the curb.
 func _animate(delta: float) -> void:
 	if _arm_left > 0.0:
 		_arm_left -= delta
 	_arm_raise = move_toward(_arm_raise, _arm_target, arm_raise_rate * delta)
-	_arm_near.rotation.x = -_arm_raise * 2.2
+	_visual.set_arm_pose(PeopleRig.ARM_R, _arm_raise)
 	var hspeed := Vector2(velocity.x, velocity.z).length()
 	if _state == State.WALKING and hspeed > 0.05:
 		_phase += bob_rate * delta
-		_visual.position.y = bob_height * minf(hspeed / walk_speed, 1.5) * sin(_phase)
+		_visual.position.y = _sink + bob_height * minf(hspeed / walk_speed, 1.5) * sin(_phase)
 	else:
-		_visual.position.y = move_toward(_visual.position.y, 0.0, bob_height * delta)
+		_visual.position.y = _sink + move_toward(
+				_visual.position.y - _sink, 0.0, bob_height * delta)
 	var want_hunch: float = HUNCH_SEATED \
 			if (_state == State.SEATED or _state == State.ARRIVING) else HUNCH_WALKING
-	_torso.rotation.x = move_toward(_torso.rotation.x, want_hunch, hunch_rate * delta)
+	_visual.rotation.x = move_toward(_visual.rotation.x, want_hunch, hunch_rate * delta)
+	var want_sink: float = SEAT_SINK \
+			if (_state == State.SEATED or _state == State.ARRIVING) else 0.0
+	_sink = move_toward(_sink, want_sink, hunch_rate * absf(SEAT_SINK) * delta)
+	_sync_clip()
+
+
+## (T-138) The state machine's clip layer — the states are untouched; each
+## just picks its clip: the seated hold, the paced stand-up/sit-down
+## transitions, the rate-matched shuffle and the curb-side idle.
+func _sync_clip() -> void:
+	match _state:
+		State.SEATED:
+			_visual.play_clip(PeopleRig.CLIP_SITTING_IDLE, 1.0)
+		State.RISING:
+			_visual.play_clip(PeopleRig.CLIP_SITTING_EXIT,
+					PeopleRig.SITTING_EXIT_SECONDS / rise_seconds)
+		State.WALKING:
+			_visual.play_clip(PeopleRig.CLIP_WALK, PeopleRig.walk_rate(walk_speed))
+		State.CURB_WAIT:
+			_visual.play_clip(PeopleRig.CLIP_IDLE, 1.0)
+		State.ARRIVING:
+			_visual.play_clip(PeopleRig.CLIP_SITTING_ENTER,
+					PeopleRig.SITTING_ENTER_SECONDS / rise_seconds)

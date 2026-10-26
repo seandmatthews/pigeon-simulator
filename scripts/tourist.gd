@@ -13,6 +13,12 @@ extends CharacterBody3D
 ## invader pairing (plus the raised foam finger on a share), SUPERFAN wears
 ## the head-to-toe cardinal-and-gold stack with cap and permanent mitt. The
 ## panic flush stays a torso-material write; arms keep their class colors.
+## Since T-138 the visual is the ONE shared rigged people scene (`Visual`, a
+## PeopleRig): the stroll is the live `Rig|Walk` clip rate-matched to the
+## move speed, panic sprints on `Rig|Sprint`, standing idles on `Rig|Idle`,
+## and the arms are the rig's rigid bone-mounted meshes that the script raise
+## over the clip base — the T-011 comedy layer (bob, lean, fist shake, duck
+## squash, flush) rides on top exactly as before.
 
 ## Fired on every splat this tourist takes — the spawner relays it into the
 ## Game autoload's score table (T-009).
@@ -29,7 +35,6 @@ const SHIRT_PALETTE: Array[Color] = [
 ]
 const SKIN := Color(0.87, 0.68, 0.55)
 const PANIC_TINT := Color(0.92, 0.22, 0.18)
-const ARM_RAISED_ANGLE := 2.4 ## Raised-arm pitch (rad): the panic raise, and the finger carriers' permanent right-arm baseline (T-113).
 
 @export_group("Walk")
 @export var walk_speed: float = 1.3 ## Stroll speed along the loop (m/s), before the per-tourist pace factor.
@@ -76,16 +81,23 @@ var _arm_r_raise: float = 0.0 ## The right arm's own raise — finger carriers h
 var _tint_panic: bool = false ## (T-055) Panic state the shirt material last showed — false matches _ready's initial shirt_color write, so the flush is written only on a change, not every tick.
 var _phase: float = 0.0
 
-@onready var _visual: Node3D = $Visual
-@onready var _body_mesh: MeshInstance3D = $Visual/Body
-@onready var _arm_l: MeshInstance3D = $Visual/ArmL
-@onready var _arm_r: MeshInstance3D = $Visual/ArmR
-@onready var _mitt: MeshInstance3D = $Visual/ArmR/Mitt
-@onready var _cap: MeshInstance3D = $Visual/Head/Cap
+@onready var _visual: PeopleRig = $Visual
+@onready var _body_mesh: MeshInstance3D = _visual.body_mesh
+@onready var _arm_l: MeshInstance3D = _visual.arm_l_rigid
+@onready var _arm_r: MeshInstance3D = _visual.arm_r_rigid
+@onready var _mitt: MeshInstance3D = $Mitt
+@onready var _cap: MeshInstance3D = $Cap
 @onready var _buzz_zone: Area3D = $BuzzZone
 
 
 func _ready() -> void:
+	## (T-138) Both arms are the rig's rigid bone-mounted meshes (the script
+	## raise rides the clip base); the skinned ArmL hides — no doubled
+	## geometry. Props mount onto the bone slots (mitt on the hand, cap on
+	## the head).
+	_visual.show_rigid_arms(true)
+	_visual.mount_prop(_mitt, PeopleRig.Mount.HAND_R)
+	_visual.mount_prop(_cap, PeopleRig.Mount.HEAD)
 	# Per-tourist shirt material: the palette tint and later the panic flush,
 	# without touching the shared scene material. (T-113) It stays the TORSO
 	# material for every class; the special classes split the ARMS onto their
@@ -106,9 +118,8 @@ func _ready() -> void:
 			_arm_l.material_override = mat
 			_arm_r.material_override = mat
 	if carries_finger:
-		_mitt.rotation.x = ARM_RAISED_ANGLE ## Counter-rotates the raised arm so the mitt points straight up while carried (the scene carries translation only).
 		_mitt.visible = true
-		_arm_r_raise = 1.0 ## The permanent baseline raise — the mitt rides above the head line while strolling.
+		_arm_r_raise = 1.0 ## The permanent baseline raise — the mitt rides above the head line while strolling (the rig aims the raised arm; T-113).
 
 
 ## Puts the class's arm color on both arms (T-113): a separate material from
@@ -233,11 +244,14 @@ func _face(dir: Vector3, delta: float, rate: float) -> void:
 	rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-rate * delta))
 
 
-## Cosmetic layer: the walk bob, the panic lean + arms up + fist shake, the
-## flinch duck and the panic flush on the shirt (presentation pass comes later).
+## Cosmetic layer (T-138): the clip base — `Rig|Walk` / `Rig|Sprint` /
+## `Rig|Idle`, rate-matched to the move speed so the feet don't skate — plus
+## the script comedy layer riding on top: the walk bob, the panic lean + arms
+## up + fist shake, the flinch duck and the panic flush on the shirt.
 func _animate(delta: float) -> void:
 	var hspeed := Vector2(velocity.x, velocity.z).length()
 	var panicking := mood == Mood.PANIC
+	_visual.play_locomotion(hspeed, panicking)
 	if hspeed > 0.2:
 		_phase += bob_rate * (panic_bob_scale if panicking else 1.0) * delta
 		_visual.position.y = bob_height * sin(_phase)
@@ -246,10 +260,10 @@ func _animate(delta: float) -> void:
 	_arm_raise = move_toward(_arm_raise, 1.0 if panicking else 0.0, arm_raise_rate * delta)
 	_arm_r_raise = move_toward(_arm_r_raise,
 			1.0 if panicking or carries_finger else 0.0, arm_raise_rate * delta)
-	_arm_l.rotation.x = -_arm_raise * ARM_RAISED_ANGLE
-	_arm_r.rotation.x = -_arm_r_raise * ARM_RAISED_ANGLE
-	if panicking and _panic_left < 0.8:
-		_arm_r.rotation.x += sin(_phase * 3.0) * 0.6 ## The fist shake.
+	var shake := sin(_phase * 3.0) * 0.6 \
+			if panicking and _panic_left < 0.8 else 0.0 ## The fist shake.
+	_visual.set_arm_pose(PeopleRig.ARM_L, _arm_raise)
+	_visual.set_arm_pose(PeopleRig.ARM_R, _arm_r_raise, shake)
 	_visual.rotation.x = _arm_raise * 0.3 ## Lean into the sprint.
 	var duck := flinch_squash if mood == Mood.FLINCH else 1.0
 	_visual.scale.y = lerpf(_visual.scale.y, duck, 1.0 - exp(-18.0 * delta))
