@@ -270,6 +270,8 @@ func _run_scenarios() -> void:
 	await _scenario_elder_shares_bread_after_hangout()
 	await _scenario_elder_no_bread_airborne()
 	await _scenario_elder_cooldown_blocks_second_share()
+	await _scenario_elder_relocates_after_share() ## T-137 — the grandpa shuffle, end to end on a real Main.
+	await _scenario_elder_migration_deterministic() ## T-137 — the hash chain over two same-seed runs.
 	await _scenario_city_cafe_tables() ## T-031 — after the elder block, same rig pattern.
 	await _scenario_city_roofs_inhabited() ## T-032 — after the cafe block, same audit pattern.
 	await _scenario_bread_distribution_weighted() ## T-112 — the weighted spread over a real city.
@@ -2750,20 +2752,47 @@ func _spots_equal(a: Array[Transform3D], b: Array[Transform3D]) -> bool:
 ## line). Regenerating the same seed reproduces the fingerprint, the
 ## bench/lamp/bin counts AND the spot list byte-identically, every seed still
 ## gets its ring, and the spawner seats one elder per chosen spot on the real
-## city.
+## city. (T-137) The list grows to 12 — the four PARK_BLOCKS benches take
+## indices 8–11 at the pinned (0, 0, +3) offset, yaw 0, one per
+## `district_of` in order, with `elder_seat_districts` (plaza −1, parks
+## their district) appended in lockstep — while the BOOT population stays
+## exactly the plaza ring's 0/2/4/6 and the fingerprint pins hold (the park
+## benches draw zero RNG and add zero `_fp` entries).
 func _scenario_elder_placement_no_rng() -> void:
 	var default_seed: int = _city.seed_value
 	var fp_first: int = _city.fingerprint
 	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
 	var spots_a := _city.elder_spots.duplicate()
+	var districts_a: Array[int] = _city.elder_seat_districts.duplicate()
 	var report_a: Dictionary = _city.last_report
-	var shape_ok: bool = spots_a.size() == 8
+	var shape_ok: bool = spots_a.size() == 12
 	var angles: Array[float] = []
-	for spot in spots_a:
-		var origin: Vector3 = (spot as Transform3D).origin
+	for i in 8: ## The plaza ring (T-137: 8–11 are the park benches).
+		var origin: Vector3 = (spots_a[i] as Transform3D).origin
 		shape_ok = shape_ok and absf(Vector2(origin.x, origin.z).length() - 8.0) < 0.01 \
 				and absf(origin.y - (_city.block_slab_height + 0.60)) < 0.001
 		angles.append(atan2(origin.z, origin.x))
+	## (T-137) The four park seats: exact (0, 0, +3) offsets in PARK_BLOCKS
+	## order, yaw 0 (facing the block center), districts 0,1,2,3 — and the
+	## district table matches (plaza −1 eight times, parks their `district_of`).
+	var parks_ok: bool = _city.elder_seat_districts.size() == 12
+	var plaza_districts_ok: bool = parks_ok
+	for i in 8:
+		plaza_districts_ok = plaza_districts_ok \
+				and _city.elder_seat_districts[i] == -1
+	var half_blocks := float(_city.blocks_per_side - 1) * 0.5
+	for p in _city.PARK_BLOCKS.size():
+		var block: Vector2i = _city.PARK_BLOCKS[p]
+		var center := Vector3((block.x - half_blocks) * _city.block_pitch, 0.0,
+				(block.y - half_blocks) * _city.block_pitch)
+		var xf: Transform3D = spots_a[8 + p]
+		parks_ok = parks_ok \
+				and absf(xf.origin.x - center.x) < 0.001 \
+				and absf(xf.origin.z - (center.z + 3.0)) < 0.001 \
+				and absf(xf.origin.y - (_city.block_slab_height + 0.60)) < 0.001 \
+				and xf.basis.x.distance_to(Vector3.RIGHT) < 0.001 \
+				and xf.basis.z.distance_to(Vector3.BACK) < 0.001 \
+				and _city.elder_seat_districts[8 + p] == _city.district_of(block.x, block.y)
 	var spread := true
 	angles.sort()
 	for i in angles.size():
@@ -2781,9 +2810,13 @@ func _scenario_elder_placement_no_rng() -> void:
 			and report_a.benches == _city.last_report.benches \
 			and report_a.lamps == _city.last_report.lamps \
 			and report_a.bins == _city.last_report.bins \
-			and _spots_equal(typed_a, typed_b)
+			and _spots_equal(typed_a, typed_b) \
+			and typed_b.size() == 12 \
+			and _city.elder_seat_districts == districts_a \
+			and districts_a == [-1, -1, -1, -1, -1, -1, -1, -1, 0, 1, 2, 3]
 	_city.generate(424242)
-	var foreign_ok := _city.elder_spots.size() == 8 and _city.fingerprint != fp_first
+	var foreign_ok := _city.elder_spots.size() == 12 and _city.fingerprint != fp_first \
+			and _city.elder_seat_districts.size() == 12
 	_city.generate(default_seed)
 	var rig := _add_elder_rig()
 	var spawner: ElderSpawner = rig[0]
@@ -2794,9 +2827,11 @@ func _scenario_elder_placement_no_rng() -> void:
 		seated = seated and elders[i].global_position.distance_to(
 				_city.to_global((city_spot(_city, i) as Transform3D).origin)) < 0.01
 	_check("elder_placement_no_rng",
-			shape_ok and spread and deterministic and foreign_ok and seated,
-			"spots %d, on-ring=%s, spread=%s, deterministic=%s, foreign=%s, seated=%d/4" % [
-					spots_a.size(), shape_ok, spread, deterministic, foreign_ok, elders.size()])
+			shape_ok and spread and parks_ok and plaza_districts_ok
+					and deterministic and foreign_ok and seated,
+			"spots %d, on-ring=%s, spread=%s, parks=%s plaza-districts=%s, deterministic=%s, foreign=%s, seated=%d/4" % [
+					spots_a.size(), shape_ok, spread, parks_ok, plaza_districts_ok,
+					deterministic, foreign_ok, elders.size()])
 	spawner.free()
 	(rig[1] as Node).free()
 
@@ -2827,6 +2862,7 @@ func _scenario_elder_shares_bread_after_hangout() -> void:
 		(rig[1] as Node).free()
 		return
 	var elder: Elder = elders[0]
+	var seat_pos: Vector3 = elder.global_position ## (T-137) The elder departs after the share — the toss scatter reads from the SEAT.
 	## Park 2.6 m in front of the elder's facing — inside the PresenceZone,
 	## clear of the 1.1 m crumb eat radius (the toss lands 1.2 m out ±0.4).
 	var park := elder.global_position - elder.global_transform.basis.z * 2.6
@@ -2865,13 +2901,19 @@ func _scenario_elder_shares_bread_after_hangout() -> void:
 	## (T-114) The share IS the purchase: the exact `elder_loaf_cost ×
 	## crumbs_per_share` favor left the balance at the share.
 	var spend_ok: bool = Game.favor == 8 - Game.elder_loaf_cost * elder.crumbs_per_share
+	## (T-137) The share now launches the shuffle: the elder departs to a
+	## park seat reserved BEFORE he stood. The arm still pins DOWN through the
+	## cooldown while the pigeon stays parked (the T-078 law that survives),
+	## trust cannot re-pin once he is walking (accrual is seated-only), and
+	## the vacated bench shows in the seat book.
 	var arm_cooldown_pins := still_parked and elder._arm_raise < 0.1 \
-			and elder._trust >= elder.trust_needed
+			and elder._cooldown_left > 0.0 and elder._trust < elder.trust_needed \
+			and elder._state != Elder.State.SEATED and elder.current_seat >= 8
 	var live := 0
 	var ordinary := true
 	for crumb in crumbs.living_crumbs():
-		var flat := Vector2(crumb.global_position.x - elder.global_position.x,
-				crumb.global_position.z - elder.global_position.z)
+		var flat := Vector2(crumb.global_position.x - seat_pos.x,
+				crumb.global_position.z - seat_pos.z)
 		if flat.length() <= elder.toss_distance + elder.toss_spread + 0.05:
 			live += 1
 			ordinary = ordinary and crumb.restore == 30.0 and crumb.spot_index == -1
@@ -2920,7 +2962,10 @@ func _scenario_elder_no_bread_airborne() -> void:
 
 ## After a share the elder goes quiet: the pigeon hanging out CONTINUOUSLY
 ## through the whole share_cooldown earns nothing until it expires — then one
-## more share, exactly.
+## more share, exactly. (T-137) The cooldown FOLLOWS the elder to his new
+## bench: after the first share the shuffle walks him to a different-district
+## seat, the pigeon re-parks in front of it for the remainder of the window,
+## and the second (and only second) share fires there.
 func _scenario_elder_cooldown_blocks_second_share() -> void:
 	var rig := _add_elder_rig()
 	var spawner: ElderSpawner = rig[0]
@@ -2934,6 +2979,7 @@ func _scenario_elder_cooldown_blocks_second_share() -> void:
 		(rig[1] as Node).free()
 		return
 	var elder: Elder = elders[0]
+	elder.walk_speed = 6.0 ## (T-137) The bounded-window pace — the law is pace-free.
 	var park := elder.global_position - elder.global_transform.basis.z * 2.6
 	park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
 	await _set_up(true, park, Vector3.ZERO)
@@ -2945,27 +2991,327 @@ func _scenario_elder_cooldown_blocks_second_share() -> void:
 			first_at = f
 			break
 	var shared_first: bool = _bread_shared.size() == 1 and _bread_shared[0].elder == elder
-	## Keep hanging straight through the cooldown window (stop just before it
+	## (T-137) The elder departs; wait him out to the new bench (bounded).
+	var since_share := 0
+	var arrived := false
+	for _i in 2400:
+		await get_tree().physics_frame
+		since_share += 1
+		if elder._state == Elder.State.SEATED and elder.current_seat >= 8:
+			arrived = true
+			break
+	var new_park := elder.global_position - elder.global_transform.basis.z * 2.6
+	new_park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
+	await _set_up(true, new_park, Vector3.ZERO)
+	await _await_grounded(90)
+	## Keep hanging through the remaining cooldown window (stop just before it
 	## expires): not one further relay.
 	var quiet := true
-	for _f in int(elder.share_cooldown * 60.0) - maxi(first_at, 0) - 30:
+	for _f in maxi(int(elder.share_cooldown * 60.0) - since_share - 30, 0):
 		await get_tree().physics_frame
 		if _bread_shared.size() != 1:
 			quiet = false
 			break
 	var second_at := -1
-	for f in 600: ## Trust refills in trust_needed — the second share must come.
+	for f in 900: ## Trust refills in trust_needed — the second share must come.
 		await get_tree().physics_frame
 		if _bread_shared.size() >= 2:
 			second_at = f
 			break
 	_check("elder_cooldown_blocks_second_share",
-			shared_first and quiet and second_at > 0 and _bread_shared.size() == 2
-					and _bread_shared[1].elder == elder,
-			"first relay at f%d, quiet through cooldown=%s, second at f%d, relays %d" % [
-					first_at, quiet, second_at, _bread_shared.size()])
+			shared_first and arrived and quiet and second_at > 0
+					and _bread_shared.size() == 2 and _bread_shared[1].elder == elder,
+			"first relay at f%d, arrived=%s (seat %d), quiet through cooldown=%s, second at f%d, relays %d" % [
+					first_at, arrived, elder.current_seat, quiet, second_at,
+					_bread_shared.size()])
 	spawner.free()
 	(rig[1] as Node).free()
+
+
+## --- scenarios (T-137 the grandpa shuffle) ----------------------------------
+
+
+## The migration fold the spawner owns (`ElderSpawner._migration_roll`), copied
+## so the scenario recomputes every pick independently (the `_expected_cafe_spot`
+## rule: prove the spots, never the function that filled them).
+func _t137_roll(seed_value: int, share_number: int) -> int:
+	var h := hash(Vector2i(seed_value, share_number))
+	h = hash(h ^ seed_value)
+	return h & 0x7fffffff
+
+
+## The different-district free pool for `seat` given the taken seats — the
+## scenario's own copy of the pick-pool law (T-137): every seat index except
+## `seat` and the taken ones whose `elder_seat_districts` entry differs from
+## `seat`'s (plaza −1 differs from every park).
+func _t137_pool(city: City, seat: int, taken: Array[int]) -> Array[int]:
+	var own: int = city.elder_seat_districts[seat]
+	var pool: Array[int] = []
+	for i in city.elder_spots.size():
+		if i == seat or taken.has(i):
+			continue
+		if city.elder_seat_districts[i] == own:
+			continue
+		pool.append(i)
+	return pool
+
+
+## The grandpa shuffle end to end, through the REAL main scene (instanced-Main
+## pattern, its own space): staged favor + a real grounded hangout earn the
+## share; the spawner's relay reserves the pick (recomputed independently from
+## the hash fold — different district, free seat) BEFORE the elder stands;
+## the state machine walks SEATED → RISING → WALKING (CURB_WAIT observed
+## under a hand-staged closing car, the T-134 staging pattern) → SEATED on
+## the picked park bench inside a bounded window; `elder_relocated` fires
+## exactly once with the right seats; trust stays frozen mid-walk (the pigeon
+## shadowing the elder banks nothing) and resumes on the new bench; a pigeon
+## parked on the destination route does not corrupt the walk; `elder_count`
+## stays 4 with no shared bench; and restart_run() re-seats the boot ring.
+## The walk itself runs at a 6 m/s window pace (set per-elder post-boot); the
+## shipped 0.8 m/s export and the 15 m curb radius are value-locked before it.
+func _scenario_elder_relocates_after_share() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO) ## The harness pigeon parks grounded, far from the rig.
+	await _await_grounded(90)
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(4500.0, 0.0, 4500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var spawner: ElderSpawner = main_game.elder_spawner
+	var city: City = main_game.city
+	var pigeon: Player = main_game.player
+	Game.favor = 40 ## Funds the share's spend with change to spare.
+	var elders := spawner.living_elders()
+	if elders.size() != 4:
+		_check("elder_relocates_after_share", false, "elders %d/4" % elders.size())
+		main_game.free()
+		Game.hunger.player = null
+		Game.reset_run()
+		return
+	var elder: Elder = elders[0]
+	var pace_locked := is_equal_approx(elder.walk_speed, 0.8) \
+			and is_equal_approx(elder.curb_car_radius, 15.0)
+	for e in elders:
+		e.walk_speed = 6.0 ## The bounded-window pace — every mechanism is pace-free.
+	var relocations: Array[Dictionary] = []
+	spawner.elder_relocated.connect(func(e: Elder, from_seat: int, to_seat: int):
+		relocations.append({"elder": e, "from": from_seat, "to": to_seat}))
+	var other_seats: Array[int] = []
+	for i in elders.size():
+		if elders[i] != elder:
+			other_seats.append(elders[i].current_seat)
+	var old_seat: int = elder.current_seat
+	var expected_pool := _t137_pool(city, old_seat, other_seats)
+	var expected: int = expected_pool[_t137_roll(city.seed_value, 1) % expected_pool.size()]
+	var dest_district: int = city.elder_seat_districts[expected]
+	var dest_xf: Transform3D = city.global_transform * city.elder_spots[expected]
+	var old_pos: Vector3 = elder.global_position
+	## Stage the pigeon in front of the elder's bench — the trust fill.
+	## reset_flight takes MAIN-LOCAL coordinates (the player is Main's child;
+	## the reticle scenario's convention) — a global here drops him in the void.
+	var park := elder.global_position - elder.global_transform.basis.z * 2.6
+	park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
+	pigeon.reset_flight(main_game.to_local(park))
+	for _i in 120:
+		await get_tree().physics_frame
+		if pigeon.is_grounded:
+			break
+	## One hand-staged closing car (the T-134 pattern): parked mode, so its own
+	## driving never runs and the scenario owns position and velocity — it
+	## shadows the walking elder at 12 m with a closing velocity until the
+	## CURB_WAIT gate has been observed, then frees.
+	var car: Car = CAR_SCENE.instantiate()
+	car.mode = Car.Mode.PARKED
+	main_game.add_child(car)
+	## Wait out the trust fill — the share fires through the real path.
+	var shared := false
+	for _i in 900:
+		await get_tree().physics_frame
+		if elder.share_count >= 1:
+			shared = true
+			break
+	## The walk window: states, the curb gate, the trust freeze, arrival.
+	var saw_rising := false
+	var saw_walking := false
+	var saw_curb := false
+	var trust_frozen := true
+	var trust_mid := -1.0
+	var pigeon_parked_midroute := false
+	var car_seen := is_instance_valid(car)
+	var arrived := false
+	for _i in 3000:
+		await get_tree().physics_frame
+		match elder._state:
+			Elder.State.RISING:
+				saw_rising = true
+			Elder.State.WALKING:
+				saw_walking = true
+				if not pigeon_parked_midroute:
+					## The pigeon shadows the walker (grounded, in the zone) —
+					## accrual must stay paused: trust sampled at zero through it.
+					pigeon.global_position = elder.global_position \
+							- elder.global_transform.basis.z * 2.0
+					pigeon.velocity = Vector3.ZERO
+					trust_mid = elder._trust
+					trust_frozen = trust_frozen and elder._trust <= 0.001
+					if Vector2(elder.global_position.x - old_pos.x,
+							elder.global_position.z - old_pos.z).length() > 6.0:
+						pigeon_parked_midroute = true
+						## Parked ON the destination route: the walk must not care.
+						pigeon.reset_flight(main_game.to_local(
+								dest_xf.origin - dest_xf.basis.z * 1.5
+								+ Vector3(0.0, 0.2, 0.0)))
+			Elder.State.CURB_WAIT:
+				saw_curb = true
+			Elder.State.SEATED:
+				if saw_walking: ## A pre-share SEATED frame is not the arrival.
+					arrived = true
+		if is_instance_valid(car):
+			if saw_curb:
+				car.free() ## The road is clear again — the walk resumes.
+			else:
+				car.global_position = elder.global_position + Vector3(12.0, 0.5, 0.0)
+				car.velocity = Vector3(-6.0, 0.0, 0.0) ## Closing.
+		if arrived:
+			break
+	var pick_ok: bool = shared and elder.current_seat == expected \
+			and elder.departed_seat == old_seat
+	var seated_pos_ok: bool = arrived \
+			and elder.global_position.distance_to(dest_xf.origin) < 0.01
+	var relocated_ok: bool = relocations.size() == 1 and relocations[0].elder == elder \
+			and int(relocations[0].from) == old_seat and int(relocations[0].to) == expected
+	var count_ok: bool = spawner.living_elders().size() == 4
+	var district_ok: bool = dest_district >= 0 \
+			and dest_district != city.elder_seat_districts[old_seat] \
+			and expected >= 8 and expected <= 11
+	var distinct := true
+	var seen := {}
+	for e in spawner.living_elders():
+		distinct = distinct and not seen.has(e.current_seat)
+		seen[e.current_seat] = true
+	## Trust resumes on the new bench (the pigeon is parked at the stand point,
+	## inside the zone, grounded).
+	var trust_resumed := false
+	for _i in 240:
+		await get_tree().physics_frame
+		if elder._trust > 0.3:
+			trust_resumed = true
+			break
+	## Snapshot the arrival reads BEFORE the restart leg — restart_run()
+	## re-seats the flock, freeing this elder (the detail string below reads
+	## the snapshot, never the freed node).
+	var arrive_dist: float = elder.global_position.distance_to(dest_xf.origin)
+	var elders_final: int = spawner.living_elders().size()
+	## restart_run() resets everything: 4 elders, plaza ring seats, SEATED.
+	main_game.restart_run()
+	await _wait_frames(4)
+	var restart_ok: bool = spawner.living_elders().size() == 4
+	for i in spawner.living_elders().size():
+		var e2: Elder = spawner.living_elders()[i]
+		restart_ok = restart_ok and e2.current_seat == i * 2 \
+				and e2._state == Elder.State.SEATED \
+				and e2.global_position.distance_to(
+						city.to_global(city.elder_spots[e2.current_seat].origin)) < 0.01
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("elder_relocates_after_share",
+			pick_ok and saw_rising and saw_walking and saw_curb and arrived
+					and trust_frozen and trust_resumed and relocated_ok and count_ok
+					and district_ok and distinct and car_seen and pace_locked
+					and pigeon_parked_midroute and seated_pos_ok and restart_ok,
+			"pick=%s (seat %d→%d) rising=%s walking=%s curb=%s arrived=%s (%.3f m) trust frozen=%.2f resumed=%s relocated=%s count=%d district=%s distinct=%s car=%s pace=%s midroute=%s restart=%s" % [
+					pick_ok, old_seat, expected, saw_rising, saw_walking, saw_curb,
+					arrived, arrive_dist,
+					trust_mid, trust_resumed, relocated_ok,
+					elders_final, district_ok, distinct, car_seen,
+					pace_locked, pigeon_parked_midroute, restart_ok])
+
+
+## The pick chain is a pure function of (run seed, share count): two same-seed
+## runs over the real city produce IDENTICAL destination sequences, and every
+## pick in them equals the scenario's own recomputation (the `_t137_roll` fold
+## over the `_t137_pool` law). Each run drives elder 0 through two REAL shares
+## — grounded hangout → relay → reserve → walk (window pace, empty
+## `Car._fleet` on the bare rig) → arrival → next hangout at the new bench.
+func _scenario_elder_migration_deterministic() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var run_a: Array = await _t137_migration_sequence()
+	var run_b: Array = await _t137_migration_sequence()
+	var identical: bool = run_a[0] == run_b[0] and run_a[0].size() == 2 \
+			and run_a[1] and run_b[1]
+	## The district law on the chain: the first pick (from the plaza's
+	## sentinel -1) is a park seat, and every pick differs in district
+	## from the seat it left - plaza seats are legal destinations from a
+	## park (the rederivation already walks the filtered pools).
+	var districts_ok: bool = not run_a[0].is_empty()\
+			and run_a[0][0] >= 8 and run_a[0][0] <= 11
+	var prev := 0
+	for seat: int in run_a[0]:
+		districts_ok = districts_ok\
+				and _city.elder_seat_districts[seat] != _city.elder_seat_districts[prev]
+		prev = seat
+	_check("elder_migration_deterministic",
+			identical and districts_ok,
+			"run A %s rederived=%s / run B %s rederived=%s districts_ok=%s" % [
+					run_a[0], run_a[1], run_b[0], run_b[1], districts_ok])
+
+
+## One full two-share migration sequence on a fresh `_add_elder_rig` rig —
+## returns [picked seats, every pick rederived]. The other three elders hold
+## their boot seats (2/4/6) throughout, so the pick pool at share k is the
+## scenario's own fold over (previous seat of elder 0, {2, 4, 6}).
+func _t137_migration_sequence() -> Array:
+	var rig := _add_elder_rig()
+	var spawner: ElderSpawner = rig[0]
+	(rig[1] as BreadSpawner).target_count = 0 ## Only tossed crumbs exist.
+	Game.favor = 40 ## Funds both shares' spends.
+	await _wait_frames(4)
+	var elders := spawner.living_elders()
+	var seats: Array[int] = []
+	var rederived := elders.size() == 4
+	if not rederived:
+		spawner.free()
+		(rig[1] as Node).free()
+		return [seats, false]
+	var elder: Elder = elders[0]
+	elder.walk_speed = 6.0 ## The bounded-window pace.
+	var own_before := 0 ## Elder 0 boots on plaza seat 0.
+	for share_i in 2:
+		var park := elder.global_position - elder.global_transform.basis.z * 2.6
+		park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
+		await _set_up(true, park, Vector3.ZERO)
+		await _await_grounded(90)
+		var shared := false
+		for _i in 900:
+			await get_tree().physics_frame
+			if elder.share_count >= share_i + 1:
+				shared = true
+				break
+		if not shared:
+			rederived = false
+			break
+		var picked: int = elder.current_seat
+		var pool := _t137_pool(_city, own_before, [2, 4, 6])
+		rederived = rederived and not pool.is_empty() \
+				and picked == pool[_t137_roll(_city.seed_value, share_i + 1) % pool.size()]
+		seats.append(picked)
+		own_before = picked
+		if share_i == 1:
+			break
+		## Wait out the walk to the new bench, then the next hangout parks there.
+		var settled := false
+		for _i in 2400:
+			await get_tree().physics_frame
+			if elder._state == Elder.State.SEATED:
+				settled = true
+				break
+		rederived = rederived and settled
+	spawner.free()
+	(rig[1] as Node).free()
+	return [seats, rederived]
 
 
 ## --- scenarios (T-031 cafe tables) ------------------------------------------
@@ -3433,7 +3779,7 @@ func _scenario_city_roofs_inhabited() -> void:
 					total_ok, one_per_building, colliders_ok, high_shapes,
 					deterministic, physical_ok, eat_ok, prop_ok])
 	## Informational: the M1-seed surface counts (142 buildings → 242 props,
-	## 528 ground spots (392 ring + 136 bench) + 146 y > 1.0 roof/anchor spots
+	## 532 ground spots (392 ring + 140 bench: T-137's four pinned park benches) + 146 y > 1.0 roof/anchor spots
 	## (142 roofs + 4 anchor crumbs since T-091), +100 tabletop spots since
 	## T-112 → 782 — T-135's park pinning re-derived every literal in that
 	## chain) — the tickets' tuned numbers, re-printed on every re-verification.
@@ -3476,7 +3822,7 @@ func _crumb_multiset(spawner: BreadSpawner) -> Array[Vector3]:
 ## quotas — exactly 36 TABLE / 3 GROUND / 1 ROOF at the M1 seed AND at seed
 ## 424242 — with every crumb sitting exactly on its spot's `to_global`.
 ## City-side, `bread_spot_kinds` stays index-aligned with `bread_spots`, the
-## M1 class tally is exact (GROUND 528 = 392 ring + 136 bench, ROOF 146 =
+## M1 class tally is exact (GROUND 532 = 392 ring + 140 bench incl. T-137's four park benches, ROOF 146 =
 ## 142 + 4 anchors, TABLE 100 = the awninged buildings — 774 total; every
 ## literal re-derived when T-135's park pinning shrank the building pool) and every
 ## TABLE spot sits exactly at the tabletop law recomputed from the building
@@ -3514,9 +3860,9 @@ func _scenario_bread_distribution_weighted() -> void:
 			awninged.append(info)
 	var ground_expected: int = _city.blocks_per_side * _city.blocks_per_side * 8 \
 			+ int(_city.last_report.benches)
-	var tally_ok: bool = tally[City.BreadKind.GROUND] == 528 \
+	var tally_ok: bool = tally[City.BreadKind.GROUND] == 532 \
 			and tally[City.BreadKind.TABLE] == 100 and tally[City.BreadKind.ROOF] == 146 \
-			and _city.bread_spots.size() == 774 \
+			and _city.bread_spots.size() == 778 \
 			and tally[City.BreadKind.GROUND] == ground_expected \
 			and tally[City.BreadKind.ROOF] == _city.buildings.size() + _city.anchors.size() \
 			and tally[City.BreadKind.TABLE] == awninged.size()
