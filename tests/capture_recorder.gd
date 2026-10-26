@@ -397,6 +397,12 @@ func _ensure_connections(player: Node) -> void:
 	if elder_spawner != null:
 		_connect_once(elder_spawner, "bread_shared", func(e, crumbs):
 			_log_event("elder_bread_shared", {"p": _v((e as Node3D).global_position), "crumbs": crumbs}))
+		## (T-137) The grandpa shuffle's pilot event — the T-095 precedent:
+		## from/to are seat indices into `City.elder_spots`, so pilot sessions
+		## and agents can assert on the migration chain.
+		_connect_once(elder_spawner, "elder_relocated", func(e, from_seat, to_seat):
+			_log_event("elder_relocated", {"p": _v((e as Node3D).global_position),
+					"from": from_seat, "to": to_seat}))
 	var bread_spawner := _spawner("BreadSpawner")
 	if bread_spawner != null:
 		_connect_once(bread_spawner, "crumb_eaten", func(amount):

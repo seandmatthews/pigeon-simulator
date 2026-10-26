@@ -529,6 +529,11 @@ var bread_spot_kinds: Array[int] = []
 ## seed and never shifts the layout RNG sequence.
 var elder_spots: Array[Transform3D] = []
 
+## The migration district of each `elder_spots` entry (T-137), appended in
+## lockstep: -1 for the 8 plaza seats, `district_of` for the 4 park seats.
+## Pure layout data - zero RNG, zero `_fp` entries.
+var elder_seat_districts: Array[int] = []
+
 ## Seated spots (city-local) for the sidewalk cafes (T-031): one transform per
 ## awninged building — table center on the sidewalk in front of the shop door,
 ## yaw facing the street. Appended after the block loop from the public
@@ -655,6 +660,7 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	bread_spots = []
 	bread_spot_kinds = []
 	elder_spots = []
+	elder_seat_districts = []
 	cafe_spots = []
 	roof_props = []
 	anchors = []
@@ -688,6 +694,8 @@ func generate_step_blocks() -> void:
 	for bx in blocks_per_side:
 		for bz in blocks_per_side:
 			_build_block(bx, bz, bx == plaza_i and bz == plaza_i)
+	_build_park_elder_seats() ## (T-137) AFTER the block loop, in PARK_BLOCKS order,
+	## so the plaza ring keeps elder_spots 0-7 and the park benches take 8-11.
 	_build_cafe_spots() ## T-031 — after the block loop, from the buildings[] records.
 
 
@@ -1396,6 +1404,33 @@ func _build_park_trees(center: Vector3, district: int) -> void:
 		_add_mm("tree_crown", _box_xf(base + Vector3.UP * crown_y, crown_size))
 
 
+## The four park elder seats (T-137): ONE pinned, zero-RNG bench per T-135
+## park at the fixed (0, 0, +3) offset from the block center, facing the
+## center (yaw 0 - the elder's forward is -basis.z), via the ordinary
+## `_add_bench` recipe (seat-top bread spot, `_counts.benches` bookkeeping)
+## with its fingerprint entry suppressed (`pin_fingerprint = false`): the
+## ticket mandates zero `_fp` entries so every cross-version fingerprint pin
+## stays byte-identical, and the deviation is recorded in the T-137 ticket.
+## Each bench's seat is appended to `elder_spots` (indices 8-11, one per park
+## in `PARK_BLOCKS` order, so districts 0,1,2,3 in order) with its
+## `district_of` in `elder_seat_districts`. Zero RNG draws of any stream.
+## Placement margins (re-measured, the `city_park_trees_present` re-measure):
+## the bench crumb sits 2.00 m XZ from the nearest tree - d1's (0, +5) axial
+## tree vs the (0, +3) crumb - still green on the >= 2.0 m leg (the ticket
+## sketch's "4.24 m" measured the corner trees only; d1's axial tree pins the
+## true worst), and >= 6.7 m from every lamp/bin/bread-ring position (worst
+## ring spot ~9.37 m).
+func _build_park_elder_seats() -> void:
+	for park: Vector2i in PARK_BLOCKS:
+		var center := _block_center(park.x, park.y)
+		var pos := center + Vector3(0.0, 0.0, 3.0)
+		_add_bench(pos, 0.0, false)
+		elder_spots.append(Transform3D(
+				Basis(Vector3.UP, 0.0),
+				Vector3(pos.x, block_slab_height + 0.60, pos.z)))
+		elder_seat_districts.append(district_of(park.x, park.y))
+
+
 ## One district anchor (T-091, restyled per district by T-136 — the D-A fork):
 ## the four-tier post at `center` (a block center) wears its district's
 ## signature — d0 the movie marquee (blade-green shaft, cream letter
@@ -1741,10 +1776,13 @@ func _build_plaza(center: Vector3) -> void:
 		## Elder seat (T-020): the same bench, recorded as a pure-layout spot —
 		## position on the seat top (slab + 0.60, the `_add_bench` math), yaw =
 		## the bench's own. No RNG: appending here never touches the layout
-		## stream, so the fingerprints stay byte-identical.
+		## stream, so the fingerprints stay byte-identical. (T-137) The plaza
+		## seats carry the sentinel migration district -1 - the plaza is the
+		## center, not district 0's block, so EVERY park differs from it.
 		elder_spots.append(Transform3D(
 				Basis(Vector3.UP, ang + PI * 0.5),
 				Vector3(pos.x, block_slab_height + 0.60, pos.z)))
+		elder_seat_districts.append(-1)
 	for corner: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
 		_add_lamp(center + Vector3(corner.x * 9.8, 0.0, corner.y * 9.8))
 		## (T-104) The bins keep the diagonal azimuths but sit radially OUTSIDE
@@ -1820,7 +1858,7 @@ func _build_block_props(center: Vector3, district: int, is_plaza: bool) -> void:
 ## --- props (visual via MultiMesh, collision via a small static body) ------
 
 
-func _add_bench(pos: Vector3, yaw: float) -> void:
+func _add_bench(pos: Vector3, yaw: float, pin_fingerprint: bool = true) -> void:
 	var base := Vector3(pos.x, block_slab_height, pos.z)
 	var xf := Transform3D(Basis(Vector3.UP, yaw), base)
 	bread_spots.append(base + Vector3(0.0, 0.60, 0.0)) ## Seat top — crumb sits on the bench (T-005).
@@ -1830,7 +1868,8 @@ func _add_bench(pos: Vector3, yaw: float) -> void:
 	_add_mm("bench_leg", xf * _box_xf(Vector3(0.75, 0.25, 0.0), Vector3(0.1, 0.5, 0.44)))
 	_add_collider("Props", Vector3(1.8, 0.55, 0.5), base + Vector3(0.0, 0.275, 0.0), yaw)
 	_counts.benches += 1
-	_fp.append(["bench", base.x, base.z, yaw])
+	if pin_fingerprint:
+		_fp.append(["bench", base.x, base.z, yaw])
 
 
 func _add_lamp(pos: Vector3) -> void:
