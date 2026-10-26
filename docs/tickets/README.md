@@ -259,6 +259,24 @@ different district's bench, walking there — T-137, waits behind both.
 | T-136 | [District theming: four dressed quadrants, one signature silhouette each](T-136-district-theming.md) | worldbuilding | 4 | 3 | done |
 | T-137 | [The grandpa shuffle: elders relocate after a share, walking there themselves](T-137-elder-migration.md) | worldbuilding | 3 | 2 | done |
 
+## People rig — owner ask (2026-10-26)
+
+Post-T-137 the elders' baked pose-swap figures read as a different people
+model next to the tourists, and the owner dictated the fix: all humans on
+one model, all rigged reasonably, walking at least sort of realistically,
+sized appropriately against the furniture. Discovery in the ticket: NO human
+is rigged at runtime today — T-124 shipped everyone as static pose bakes
+(`animation/import=false`); the pack's live 53-joint rig and animation
+library have been thrown away at import ever since. T-138 turns the rig on
+for every human, retires the bake tool's people half, grows everyone to
+adult scale against the furniture (capsule and the splat-read pins grow with
+it), and keeps the T-078 trust-arm and T-137 migration contracts passing
+UNTOUCHED as the tripwire. Pipeline per the T-124 precedent.
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-138 | [One people rig: every human on the live Quaternius skeleton — real walks, sits, adult scale](T-138-one-people-rig.md) | visual-design | 4 | 3 | proposed |
+
 ## Suggested build order
 
 *(Historical — the M1 sequencing note below predates the sweep and M2; every
