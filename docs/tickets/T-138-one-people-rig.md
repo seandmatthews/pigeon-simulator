@@ -283,6 +283,27 @@ excluded (cars remain baked). This amends the ticket's "third-party pack
 sources stay excluded" line: it can only hold for the pack whose contents
 are not the game's own people source.
 
+**Round 1 review fix (2026-10-26).** The reviewer caught a visible
+regression the first commit shipped: the record above claims "the elder
+raises only the near right", but `show_rigid_arms(false)` hid BOTH of the
+elder's rigid arms (the near right included — the import emits no skinned
+right arm), and `set_arm_pose` early-returned on invisible nodes — the
+elder rendered ONE-ARMED and the T-078 trust raise was a visual no-op,
+while the suite stayed green because the T-078 scenarios read the
+`_arm_raise` member and the new scenario pinned the broken layout instead
+of catching it. Reproduced red-before with a headless probe
+(`arm_skinned_l=true arm_l_rigid=false arm_r_rigid=false`; driving
+`_arm_raise = 1.0` through the real `_animate` path moved the near hand
+−0.002 m; tourist control +0.768 m). Fix: the near RIGHT arm is rigid and
+visible for BOTH citizens (it serves the tourist's panic raise / foam
+finger AND the elder's trust arm); only the tourist shows the extra rigid
+left; `set_arm_pose` no longer skips invisible nodes. `people_on_one_rig`
+now also reads the raise GEOMETRICALLY through the real path — staging the
+T-078 share beat (`_arm_left`) and requiring `hand_r_slot` world Y to lift
+> 0.4 m as `_arm_raise` reaches 0.95 — which fails the one-armed layout by
+construction. Red-before probe: delta −0.002 m; after the fix: the near arm
+visible and the hand lifts 0.820 → 1.589 m (+0.770); FULL suite 158/158.
+
 **Gates run in this change-set.** Gate 1 (`--import` clean, 120-frame boot
 clean; `--check-only` on touched scripts shows only the pre-existing
 autoload-identifier artifact — proven identical on the untouched HEAD
@@ -304,12 +325,14 @@ print). Explicitly re-run green:
 `restart_resets_run`, `people_on_one_rig` (new). Gate 2: autoplay
 `AUTOPLAY DONE ok=true restart=true` (135 fps, 0 script errors) + the web
 export above. Gate 3 agent grabs in `.captures/t138_rig/`:
-`elder1_seated.png` (the cardigan'd, white-haired grandpa seated on his
-bench in the sit clip, the pigeon grounded in front),
 `tourist_walking.png` (a visitor mid-stride across a crosswalk — real clip
-stride), `scale_table_bench_door.png` (a pedestrian beside café table,
-bench and doors reading adult). The walking-grandpa and side-by-side
+stride) and `scale_table_bench_door.png` (a pedestrian beside café table,
+bench and doors reading adult) stand post-fix; `elder1_seated_preround1.png`
+is retained as RED evidence — the seated grandpa as the first commit shipped
+him, ONE-ARMED (the round-1 review bug; the fixed near arm and its raise are
+proven geometrically, see the round-1 note above, not yet re-grabbed). The
+walking-grandpa, the raised trust arm in frame, and the side-by-side
 [screenshot] lines stay open for the reviewer's pass (the pilot's share
-flow needs favor ≥ 4, which a fresh pilot run cannot stage; the walk
-behavior itself is machine-proven by the migration scenarios and the
-rate-matched clip pin).
+flow needs favor ≥ 4, which a fresh pilot run cannot stage; the walk and
+raise behavior are machine-proven by the migration scenarios, the
+rate-matched clip pin and the new geometric raise leg).

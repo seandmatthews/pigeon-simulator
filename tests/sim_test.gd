@@ -8152,15 +8152,37 @@ func _scenario_people_on_one_rig() -> void:
 		rig_ok = rig_ok and model.get_meta("source_pack", "") \
 				== "quaternius-universal-base-characters" \
 				and model.get_meta("license", "") == "CC0"
-	## Citizens arm differently on the SAME rig: the tourist raises both rigid
-	## arms (the skinned ArmL hides), the elder keeps the skinned far arm.
+	## Citizens arm differently on the SAME rig: the near RIGHT arm is rigid
+	## and visible for both citizens (the tourist's panic raise / foam finger
+	## and the elder's T-078 trust arm drive the same node); the tourist alone
+	## shows the rigid left, the elder's far arm rides the skinned ArmL.
 	var arms_ok := true
 	var t_rig: PeopleRig = tourist.get_node("Visual")
 	var e_rig: PeopleRig = elder.get_node("Visual")
 	arms_ok = arms_ok and t_rig.arm_l_rigid.visible and t_rig.arm_r_rigid.visible \
 			and not t_rig.arm_skinned_l.visible
-	arms_ok = arms_ok and not e_rig.arm_l_rigid.visible and not e_rig.arm_r_rigid.visible \
-			and e_rig.arm_skinned_l.visible
+	arms_ok = arms_ok and e_rig.arm_r_rigid.visible and e_rig.arm_skinned_l.visible \
+			and not e_rig.arm_l_rigid.visible
+	## And the trust raise is a GEOMETRIC fact, read through the real path
+	## (`_arm_raise` -> `_animate` -> rig): the near hand lifts from the sit
+	## pose to the raised aim. The T-078 scenarios read the member, which a
+	## visual no-op (an invisible or skipped arm) would not catch — the
+	## round-1 review's one-armed elder failed exactly here.
+	var e_skel := e_rig.find_child("Skeleton3D", true, false) as Skeleton3D
+	for _settle in 30:
+		elder._physics_process(1.0 / 60.0)
+		e_rig.anim.advance(1.0 / 60.0)
+		e_skel.force_update_all_bone_transforms()
+	var hand_base: float = e_rig.hand_r_slot.global_position.y
+	elder._arm_left = 0.5 ## The share beat — the meter's own target-1.0 path.
+	for _raise in 30:
+		elder._physics_process(1.0 / 60.0)
+		e_rig.anim.advance(1.0 / 60.0)
+		e_skel.force_update_all_bone_transforms()
+		if elder._arm_raise >= 0.95:
+			break
+	arms_ok = arms_ok and elder._arm_raise >= 0.95 \
+			and e_rig.hand_r_slot.global_position.y - hand_base > 0.4
 	tourist.free()
 	elder.free()
 

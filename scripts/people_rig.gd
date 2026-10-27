@@ -197,16 +197,18 @@ func play_clip(clip: String, rate: float = 1.0, blend: float = CLIP_BLEND) -> vo
 ## --- arms ---------------------------------------------------------------------
 
 
-## The citizen layout: the tourist raises both rigid arms (the skinned ArmL
-## hides — no doubled geometry); the elder leaves both rigids hidden and the
-## skinned ArmL rides the clips (the far arm), raising only the near right.
+## The citizen layout: the near RIGHT arm is rigid and visible for BOTH
+## citizens — the tourist's panic raise / foam finger and the elder's T-078
+## trust arm drive the same node. The tourist additionally shows the rigid
+## left (and hides the skinned ArmL — no doubled geometry); the elder keeps
+## the skinned ArmL riding the clips (the far arm) and the rigid left hidden.
 func show_rigid_arms(shown: bool) -> void:
 	if arm_skinned_l != null:
 		arm_skinned_l.visible = not shown
 	if arm_l_rigid != null:
 		arm_l_rigid.visible = shown
 	if arm_r_rigid != null:
-		arm_r_rigid.visible = shown
+		arm_r_rigid.visible = true
 
 
 ## Eases `arm` between the clip's own swing (raise 0 → the node rides the
@@ -216,7 +218,7 @@ func show_rigid_arms(shown: bool) -> void:
 ## swings a raised arm about the body's right axis (the fist shake).
 func set_arm_pose(arm: int, raise: float, shake: float = 0.0) -> void:
 	var node := arm_l_rigid if arm == ARM_L else arm_r_rigid
-	if node == null or not node.visible:
+	if node == null:
 		return
 	if raise <= 0.0 and is_zero_approx(shake):
 		node.transform = Transform3D.IDENTITY
