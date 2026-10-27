@@ -19,17 +19,25 @@ row) — CC0 permits modification, no attribution required, given anyway.
 | assets/third-party/opengameart/distant_chatter_loop.ogg | "Crowd Shouting/Speaking Ambience" (crowd_shouting) by StarNinjas — https://opengameart.org/content/crowd-shoutingspeaking-ambience (made into a seamless 27 s loop with a 2.5 s head-tail crossfade, RMS-normalized) | CC0 |
 | assets/third-party/kenney/bread_peck.ogg | "Impact Sounds" (impactSoft_medium_000) by Kenney — https://kenney.nl/assets/impact-sounds (pitched up ~25%, trimmed, peak-normalized) | CC0 |
 
-## Models (T-124)
+## Models (T-124, rigged since T-138)
 
-The game scenes never reference these packs directly: `tools/bake_people_cars.gd`
-derives the flat-tinted part meshes under `assets/generated/models/` from them
-(skeleton-posed + skinned at Universal Animation Library clip frames for the
-people; colormap color-role split for the car). The derived meshes carry the
-source pack, pose clip and license as metadata.
+**People** ride the pack's LIVE rig since T-138: `scenes/people_rig.tscn`
+instances the imported `base_character.glb` directly — the import script
+`tools/import_people_rig.gd` keeps the 53-joint skeleton and the six
+whitelisted Universal Animation Library clips (the banned death/hit clips
+are removed at import and ship nowhere) and splits the flat-tinted per-part
+meshes in the imported scene itself. Nothing is derived to disk for humans
+anymore — the old `tools/bake_people_cars.gd` people half and the generated
+`assets/generated/models/people/` pose bakes are retired.
+
+**Cars** stay baked (they are not humans): `tools/bake_people_cars.gd`
+(cars half only) derives the flat-tinted meshes under
+`assets/generated/models/cars/`. The derived meshes carry the source pack
+and license as metadata.
 
 | Asset | Source | License |
 | ----- | ------ | ------- |
-| assets/third-party/quaternius/base_character.glb | "Universal Base Characters Kit" by Quaternius — https://quaternius.itch.io/universal-base-characters (rigged character with the Universal Animation Library clips; imported MESH-ONLY — `animation/import=false`, the death clips are banned by T-124 and ship nowhere). See LICENSE.txt in the same folder. | CC0 |
+| assets/third-party/quaternius/base_character.glb | "Universal Base Characters Kit" by Quaternius — https://quaternius.itch.io/universal-base-characters (rigged character with the Universal Animation Library clips; imported LIVE via `tools/import_people_rig.gd` — skeleton, per-part skinned meshes and the six whitelisted clips ship; the banned death/hit clips are removed at import and exist nowhere in the packed game). See LICENSE.txt in the same folder. | CC0 |
 | assets/third-party/kenney/carkit/sedan.glb + Textures/colormap.png | "Car Kit" (3.1) by Kenney — https://kenney.nl/assets/car-kit (sedan variant + shared colormap; LICENSE.txt alongside) | CC0 |
 
 ## Generated in-house (T-123)

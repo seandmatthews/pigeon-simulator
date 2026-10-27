@@ -275,7 +275,7 @@ UNTOUCHED as the tripwire. Pipeline per the T-124 precedent.
 
 | ID | Ticket | Category | Value | Risk | Status |
 | -- | ------ | -------- | ----- | ---- | ------ |
-| T-138 | [One people rig: every human on the live Quaternius skeleton — real walks, sits, adult scale](T-138-one-people-rig.md) | visual-design | 4 | 3 | proposed |
+| T-138 | [One people rig: every human on the live Quaternius skeleton — real walks, sits, adult scale](T-138-one-people-rig.md) | visual-design | 4 | 3 | done |
 
 ## Suggested build order
 

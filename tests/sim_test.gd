@@ -236,7 +236,7 @@ func _run_scenarios() -> void:
 	await _scenario_citizen_classes_spawn_deterministic() ## T-113 — the class multiset is a seeded law on both rigs.
 	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
 	await _scenario_civilian_palette_reserved() ## T-121 — the reservation law + the grown flag, bare value pins.
-	await _scenario_people_and_cars_swapped() ## T-124 — the Quaternius/Kenney visual swap pinned at the pack seam.
+	await _scenario_people_on_one_rig() ## T-138 — the one rigged people source, whitelist-pruned clips, adult scale, rate-matched walks.
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
 	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
@@ -5971,9 +5971,9 @@ func _scenario_tourist_splat() -> void:
 ## its stroll loop (never frozen), a drop released 4 m above the predicted
 ## impact — the autoplay formula, live flat position + live flat velocity × the
 ## 0.8165 s a 4 m fall takes at poop.gd's `fall_gravity` 12 — CONNECTS through
-## the 0.30 collider (contact reach 0.30 + 0.25 capsule = 0.55 m): splatted
-## fires, the tourist panics. The same drop aimed 1.5 m lateral of the
-## prediction does NOT — 0.95 m of clean margin outside the reach keeps the
+## the 0.30 collider (contact reach 0.30 + 0.28 capsule = 0.58 m, the T-138
+## grown capsule): splatted fires, the tourist panics. The same drop aimed 1.5 m lateral of the
+## prediction does NOT — 0.92 m of clean margin outside the reach keeps the
 ## lead a skill, not a shotgun: the stray drop may splat the ground, but no
 ## event targets the tourist and the mood never reaches PANIC. And the
 ## criterion's own bar — 0.4 m lateral, inside the reach — connects again.
@@ -6043,7 +6043,7 @@ func _scenario_poop_hits_tourist_within_lead_window() -> void:
 	var strays := _splat_events.size() - events_after_lead
 	## Half-way arm — the acceptance bar itself: the same drop 0.4 m lateral of
 	## the prediction must STILL connect (the criterion's "≤ 0.4 m lateral aim
-	## error" — under the 0.55 m contact reach). The stray left the tourist
+	## error" — under the 0.58 m contact reach). The stray left the tourist
 	## calm and strolling, so the live re-read needs no panic burn-out here.
 	_seat_mid_leg(tourist)
 	await _wait_frames(3)
@@ -7895,10 +7895,11 @@ func _pairing_reads(tourist: Tourist) -> bool:
 
 
 ## The foam finger points straight up and breaks the head line: its top edge
-## sits ≥ 0.15 m above the 1.27 m head sphere (research orientation fact 1).
+## sits ≥ 0.15 m above the 1.7507 m adult head top (research orientation
+## fact 1; re-derived for T-138's grown envelope — head and mitt grew together).
 func _mitt_reads_up(tourist: Tourist) -> bool:
 	var vertical: bool = tourist._mitt.global_transform.basis.y.y >= 0.95
-	var above: bool = tourist._mitt.to_global(Vector3(0.0, 0.25, 0.0)).y >= 1.42
+	var above: bool = tourist._mitt.to_global(Vector3(0.0, 0.25, 0.0)).y >= 1.90
 	return vertical and above
 
 
@@ -8112,47 +8113,151 @@ func _scenario_civilian_palette_reserved() -> void:
 					palette.size(), worst_gold, worst_black, flag_ok, banner_top])
 
 
-## T-124: the people-and-cars swap pinned at the pack seam. Every pedestrian
-## and car VISUAL mesh is a generated derivative of the imported CC0 packs
-## (Quaternius Universal Base Character for people, Kenney Car Kit for the
-## sedan) stamped with its source pack, pose clip and license; the imported
-## scenes instantiate MESH-ONLY (the animation import is off, so the banned
-## death clips do not exist in the packed game at all); the walk figure poses
-## at the Idle clip frame and the elder at the Sitting_Idle clip (the seated
-## read); the physics shapes are byte-identical (the parity contract); and
-## every tintable part carries a surface material for the per-class
-## overrides to duplicate. A revert to primitive visuals, a pack swap, or an
-## animation-import regression fails here.
-func _scenario_people_and_cars_swapped() -> void:
+## T-138: the one people rig, pinned at the pack seam. Both citizens instance
+## the ONE shared rigged scene (`scenes/people_rig.tscn`, a PeopleRig) whose
+## Model is the imported Quaternius pack, pruned at import to the six-clip
+## whitelist (the banned `Rig|Death*`/`Rig|Hit_*` clips exist nowhere in the
+## packed game — the T-124 audit survives); the imported scene carries the
+## live 53-joint skeleton with skinned Body/Legs/ArmL parts (the T-113
+## per-class `material_override` surfaces) and the rigid head/arm mount
+## parts; the tourist raises the rigid arms and hides the skinned left, the
+## elder keeps the skinned far arm riding the clips; the figure is
+## adult-scaled (head top 1.7507 m over feet at 0, probe-measured) with the
+## splat capsule grown to match (r 0.28 / h 1.75 at y 0.875); the walk clip
+## plays rate-matched to the move speed (clip stride law — feet don't skate);
+## and the cars stay baked (the Kenney legs kept verbatim from
+## `people_and_cars_swapped`). A revert to a pose bake, a whitelist leak or a
+## scale drift fails here.
+func _scenario_people_on_one_rig() -> void:
 	var tourist_scene := load("res://scenes/tourist.tscn") as PackedScene
 	var elder_scene := load("res://scenes/elder.tscn") as PackedScene
 	var car_scene := load("res://scenes/car.tscn") as PackedScene
 	var scenes_ok := tourist_scene != null and elder_scene != null and car_scene != null
 
-	## Pedestrian parts: Quaternius-derived, walk/sit pose clips, materials.
-	var people_ok := scenes_ok
+	## The shared rigged scene: both citizens instance it; its Model is the
+	## imported pack; the import stamped source/whitelist metadata. Both are
+	## added to the tree first — the rig's parts resolve in _ready.
+	var rig_ok := scenes_ok
 	var tourist := tourist_scene.instantiate() as Node3D
-	for part_path in ["Visual/Body", "Visual/Head", "Visual/ArmL", "Visual/ArmR",
-			"Visual/Legs"]:
-		var mi := tourist.get_node_or_null(part_path) as MeshInstance3D
-		people_ok = people_ok and _is_pack_mesh(mi,
-				"quaternius-universal-base-characters", "Rig|Idle")
-	var torso_mat: Material = (tourist.get_node("Visual/Body") as MeshInstance3D) \
-			.mesh.surface_get_material(0)
-	var arm_mat: Material = (tourist.get_node("Visual/ArmL") as MeshInstance3D) \
-			.mesh.surface_get_material(0)
-	people_ok = people_ok and torso_mat is StandardMaterial3D \
-			and arm_mat is StandardMaterial3D ## The _ready() override duplication source.
-	tourist.free()
 	var elder := elder_scene.instantiate() as Node3D
-	for part_path in ["Visual/Torso", "Visual/Head", "Visual/ArmNear", "Visual/ArmFar",
-			"Visual/Legs"]:
-		var mi := elder.get_node_or_null(part_path) as MeshInstance3D
-		people_ok = people_ok and _is_pack_mesh(mi,
-				"quaternius-universal-base-characters", "Rig|Sitting_Idle")
+	add_child(tourist)
+	add_child(elder)
+	for citizen: Node3D in [tourist, elder]:
+		var rig: Node = citizen.get_node("Visual")
+		rig_ok = rig_ok and rig.get_script() == PeopleRig \
+				and (rig as Node3D).scene_file_path == "res://scenes/people_rig.tscn"
+		var model: Node3D = rig.get_node("Model")
+		rig_ok = rig_ok and model.scene_file_path \
+				== "res://assets/third-party/quaternius/base_character.glb"
+		rig_ok = rig_ok and model.get_meta("source_pack", "") \
+				== "quaternius-universal-base-characters" \
+				and model.get_meta("license", "") == "CC0"
+	## Citizens arm differently on the SAME rig: the near RIGHT arm is rigid
+	## and visible for both citizens (the tourist's panic raise / foam finger
+	## and the elder's T-078 trust arm drive the same node); the tourist alone
+	## shows the rigid left, the elder's far arm rides the skinned ArmL.
+	var arms_ok := true
+	var t_rig: PeopleRig = tourist.get_node("Visual")
+	var e_rig: PeopleRig = elder.get_node("Visual")
+	arms_ok = arms_ok and t_rig.arm_l_rigid.visible and t_rig.arm_r_rigid.visible \
+			and not t_rig.arm_skinned_l.visible
+	arms_ok = arms_ok and e_rig.arm_r_rigid.visible and e_rig.arm_skinned_l.visible \
+			and not e_rig.arm_l_rigid.visible
+	## And the trust raise is a GEOMETRIC fact, read through the real path
+	## (`_arm_raise` -> `_animate` -> rig): the near hand lifts from the sit
+	## pose to the raised aim. The T-078 scenarios read the member, which a
+	## visual no-op (an invisible or skipped arm) would not catch — the
+	## round-1 review's one-armed elder failed exactly here.
+	var e_skel := e_rig.find_child("Skeleton3D", true, false) as Skeleton3D
+	for _settle in 30:
+		elder._physics_process(1.0 / 60.0)
+		e_rig.anim.advance(1.0 / 60.0)
+		e_skel.force_update_all_bone_transforms()
+	var hand_base: float = e_rig.hand_r_slot.global_position.y
+	elder._arm_left = 0.5 ## The share beat — the meter's own target-1.0 path.
+	for _raise in 30:
+		elder._physics_process(1.0 / 60.0)
+		e_rig.anim.advance(1.0 / 60.0)
+		e_skel.force_update_all_bone_transforms()
+		if elder._arm_raise >= 0.95:
+			break
+	arms_ok = arms_ok and elder._arm_raise >= 0.95 \
+			and e_rig.hand_r_slot.global_position.y - hand_base > 0.4
+	tourist.free()
 	elder.free()
 
-	## Car parts: Kenney-derived paint/glass/trim/lights + one shared wheel.
+	## The imported pack itself: whitelist-pruned clips, live skeleton, the
+	## skinned + rigid parts, every tintable part carrying a material.
+	var pack := load("res://assets/third-party/quaternius/base_character.glb") as PackedScene
+	var whitelist_ok := pack != null
+	var pack_inst := pack.instantiate() if pack != null else null
+	if pack_inst != null:
+		var ap := pack_inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		var skel := pack_inst.find_child("Skeleton3D", true, false) as Skeleton3D
+		whitelist_ok = whitelist_ok and ap != null and skel != null and skel.get_bone_count() == 53
+		var clip_list := ap.get_animation_list()
+		var expected: Array[String] = PeopleRig.CLIPS_WHITELIST
+		whitelist_ok = whitelist_ok and clip_list.size() == expected.size()
+		for clip_name in expected:
+			whitelist_ok = whitelist_ok and clip_name in clip_list
+		for clip_name in clip_list:
+			whitelist_ok = whitelist_ok and not "death" in String(clip_name).to_lower() \
+					and not "hit" in String(clip_name).to_lower()
+		for part_name in ["Body", "Legs", "ArmL", "HeadRigid", "ArmLRigid", "ArmRRigid"]:
+			var part := pack_inst.find_child(part_name, true, false) as MeshInstance3D
+			whitelist_ok = whitelist_ok and part != null \
+					and part.mesh.surface_get_material(0) is StandardMaterial3D \
+					and part.mesh.get_meta("source_pack", "") \
+							== "quaternius-universal-base-characters"
+		var body := pack_inst.find_child("Body", true, false) as MeshInstance3D
+		whitelist_ok = whitelist_ok and body != null and body.skin != null \
+				and body.skin.get_bind_count() == 53
+		pack_inst.free()
+
+	## The adult envelope, measured live: a strolling tourist's head bone sits
+	## at the probe-pinned adult line (head top 1.7507 m over feet at 0).
+	var envelope_ok := true
+	var walker: Tourist = tourist_scene.instantiate()
+	walker.path = PackedVector3Array([Vector3(4500.0, 0.0, 4500.0),
+			Vector3(4506.0, 0.0, 4500.0)])
+	add_child(walker)
+	await _wait_frames(6)
+	var w_rig: PeopleRig = walker.get_node("Visual")
+	var w_skel := w_rig.find_child("Skeleton3D", true, false) as Skeleton3D
+	if w_skel != null:
+		var head_i := w_skel.find_bone("DEF-head")
+		var head_y := (w_skel.global_transform * w_skel.get_bone_global_pose(head_i)).origin.y
+		## Head bone 1.5126 (unscaled probe) → adult: +0.2526 bone-to-top.
+		envelope_ok = envelope_ok and absf(head_y + PeopleRig.HEAD_BONE_TO_TOP \
+				* PeopleRig.ADULT_SCALE - PeopleRig.ADULT_HEAD_TOP) < 0.02
+	var rate_ok := w_rig.anim.current_animation == PeopleRig.CLIP_WALK \
+			and absf(w_rig.anim.speed_scale - PeopleRig.walk_rate(walker.walk_speed)) < 0.02
+	## The rate law itself: speed × clip seconds / clip stride (1.3 m/s → ≈ 1.309).
+	rate_ok = rate_ok and absf(PeopleRig.walk_rate(1.3) - 1.3 * PeopleRig.WALK_SECONDS \
+			/ PeopleRig.WALK_STRIDE) < 0.001
+	walker.free()
+
+	## Physics parity, re-derived for the grown capsule: it is the splat
+	## surface, so it grew WITH the visual; the car box is untouched.
+	var tourist_shape := tourist_scene.instantiate() as Node3D
+	var capsule := (tourist_shape.get_node("Shape") as CollisionShape3D).shape \
+			as CapsuleShape3D
+	var capsule_ok := capsule != null and is_equal_approx(capsule.radius, 0.28) \
+			and is_equal_approx(capsule.height, 1.75) \
+			and is_equal_approx((tourist_shape.get_node("Shape") as CollisionShape3D) \
+					.position.y, 0.875)
+	tourist_shape.free()
+	var elder_shape := elder_scene.instantiate() as Node3D
+	var e_capsule := (elder_shape.get_node("Shape") as CollisionShape3D).shape \
+			as CapsuleShape3D
+	capsule_ok = capsule_ok and e_capsule != null \
+			and is_equal_approx(e_capsule.radius, 0.28) \
+			and is_equal_approx(e_capsule.height, 1.75) \
+			and is_equal_approx((elder_shape.get_node("Shape") as CollisionShape3D) \
+					.position.y, 0.875)
+	elder_shape.free()
+
+	## Cars stay baked (they are not humans): the Kenney legs, verbatim.
 	var car := car_scene.instantiate() as Node3D
 	var car_ok := true
 	for part_path in ["Visual/Body", "Visual/Glass", "Visual/Trim", "Visual/Lights"]:
@@ -8168,35 +8273,6 @@ func _scenario_people_and_cars_swapped() -> void:
 	car_ok = car_ok and paint_mesh != null \
 			and paint_mesh.surface_get_material(0) is StandardMaterial3D
 	car.free()
-
-	## The imported packs: present, instantiable, MESH-ONLY.
-	var packs_ok := true
-	var base := load("res://assets/third-party/quaternius/base_character.glb") as PackedScene
-	packs_ok = packs_ok and base != null
-	if base != null:
-		var base_inst := base.instantiate()
-		packs_ok = packs_ok and base_inst.find_children("*", "AnimationPlayer", true, false) \
-				.is_empty() ## animation/import=false — NO clips ship (death clips banned).
-		packs_ok = packs_ok and not base_inst.find_children("*", "Skeleton3D", true, false) \
-				.is_empty() ## The rig itself still imports (re-bake source).
-		base_inst.free()
-	var sedan := load("res://assets/third-party/kenney/carkit/sedan.glb") as PackedScene
-	packs_ok = packs_ok and sedan != null
-	if sedan != null:
-		var sedan_inst := sedan.instantiate()
-		packs_ok = packs_ok and sedan_inst.find_children("*", "MeshInstance3D", true, false) \
-				.size() == 5 ## body + four wheels.
-		sedan_inst.free()
-
-	## Physics parity: the shapes are the contract, byte-identical.
-	var tourist_shape := (tourist_scene.instantiate() as Node3D)
-	var capsule := (tourist_shape.get_node("Shape") as CollisionShape3D).shape \
-			as CapsuleShape3D
-	var capsule_ok := capsule != null and is_equal_approx(capsule.radius, 0.25) \
-			and is_equal_approx(capsule.height, 1.1) \
-			and is_equal_approx((tourist_shape.get_node("Shape") as CollisionShape3D) \
-					.position.y, 0.55)
-	tourist_shape.free()
 	var car_node := car_scene.instantiate() as Node3D
 	var box := (car_node.get_node("Shape") as CollisionShape3D).shape as BoxShape3D
 	var car_shape_ok := box != null and box.size.is_equal_approx(Vector3(1.9, 1.45, 4.4)) \
@@ -8204,22 +8280,25 @@ func _scenario_people_and_cars_swapped() -> void:
 					.position.y, 0.725)
 	car_node.free()
 
-	## The banned clips are referenced nowhere in the swap's scenes or scripts.
+	## The banned clips are referenced nowhere in the rig's scenes, scripts,
+	## the import script or the spawners.
 	var death_ok := true
 	for text_path in ["res://scenes/tourist.tscn", "res://scenes/elder.tscn",
-			"res://scenes/car.tscn", "res://scripts/tourist.gd", "res://scripts/elder.gd",
-			"res://scripts/car.gd", "res://scripts/tourist_spawner.gd",
-			"res://scripts/car_spawner.gd", "res://scripts/elder_spawner.gd"]:
+			"res://scenes/people_rig.tscn", "res://scenes/car.tscn",
+			"res://scripts/tourist.gd", "res://scripts/elder.gd",
+			"res://scripts/people_rig.gd", "res://scripts/car.gd",
+			"res://scripts/tourist_spawner.gd", "res://scripts/car_spawner.gd",
+			"res://scripts/elder_spawner.gd", "res://tools/import_people_rig.gd"]:
 		var f := FileAccess.open(text_path, FileAccess.READ)
 		death_ok = death_ok and f != null \
 				and not f.get_as_text().to_lower().contains("death")
 
-	_check("people_and_cars_swapped",
-			scenes_ok and people_ok and car_ok and packs_ok and capsule_ok
-					and car_shape_ok and death_ok,
-			"scenes=%s people=%s car=%s packs(mesh-only)=%s capsule=%s box=%s no_death=%s" % [
-					scenes_ok, people_ok, car_ok, packs_ok, capsule_ok, car_shape_ok,
-					death_ok])
+	_check("people_on_one_rig",
+			scenes_ok and rig_ok and arms_ok and whitelist_ok and envelope_ok
+					and rate_ok and capsule_ok and car_ok and car_shape_ok and death_ok,
+			"scenes=%s rig=%s arms=%s whitelist=%s envelope=%s rate=%s capsule=%s cars=%s box=%s no_death=%s" % [
+					scenes_ok, rig_ok, arms_ok, whitelist_ok, envelope_ok, rate_ok,
+					capsule_ok, car_ok, car_shape_ok, death_ok])
 
 
 ## True when the node is a MeshInstance3D whose mesh is a generated derivative
