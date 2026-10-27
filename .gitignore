@@ -38,3 +38,6 @@ addons/godot_mcp/
 # SSH host/user/password must never be committed. Also guarded locally by
 # .git/info/exclude, so a revert of this line still leaves the file untracked.
 .env.deploy
+
+# Python bytecode (pilot helper imports)
+__pycache__/

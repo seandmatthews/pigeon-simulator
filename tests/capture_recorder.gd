@@ -36,6 +36,14 @@ var _frame: int = 0
 var _title_stamps: int = 0
 var _connected: Dictionary = {}
 var _holds: Dictionary = {}
+## Frame-step state (see the command docs above): ticks left in the current
+## step window and whether one is running — zero/false unless commanded.
+## Presses that arrived while frozen wait here; they press on the first
+## running tick (an is_action_just_pressed consumer can only see a press made
+## on a tick the player actually processed, and a frozen tree ticks nothing).
+var _step_frames_left: int = 0
+var _step_active: bool = false
+var _pending_presses: Array[Dictionary] = []
 ## PIGEON_PERF=1 adds an engine-monitor block to the state stream every 30
 ## frames (fps, script times, draw calls, nodes, physics-active) — the
 ## measurement stream for perf work (T-018); default sessions are unchanged.
@@ -144,12 +152,49 @@ func _physics_process(_delta: float) -> void:
 		DisplayServer.window_set_title("Pigeon pilot %s" % _session)
 	if _state_file == null:
 		return
+	## Deferred presses (made while frozen) flush on the first running tick —
+	## the tree is live here, so is_action_just_pressed consumers see the press
+	## the same tick it happened, before the step countdown runs.
+	if not get_tree().paused and not _pending_presses.is_empty():
+		for cmd in _pending_presses:
+			_execute_press(cmd, int(cmd.get("frames", 1)))
+		_pending_presses.clear()
 	_pilot_step()
+	## The step window: N ticks of world time, then back into the freeze —
+	## this node processes through pause (ALWAYS), so the countdown runs even
+	## while the tree is frozen and the re-pause lands on the tick the window
+	## ends. One tick of the window is the tick the step command itself ran in.
+	if _step_active and _step_frames_left > 0:
+		_step_frames_left -= 1
+		if _step_frames_left <= 0:
+			_step_active = false
+			get_tree().paused = true
 	_frame += 1
 	_state_file.store_line(JSON.stringify(_snapshot()))
 	if _frame % 30 == 0:
 		_state_file.flush()
 		_events_file.flush()
+
+
+## One press-and-hold, from a live command or the deferred queue: registers
+## the hold so the release lands `frames` ticks later, and presses now (the
+## caller guarantees the tree is running — just_pressed consumers tick here).
+func _execute_press(cmd: Dictionary, frames: int) -> void:
+	if cmd.has("key"):
+		var key_name := String(cmd["key"])
+		var keycode := OS.find_keycode_from_string(key_name)
+		if keycode == KEY_NONE:
+			_log_event("pilot_bad_key", {"key": key_name})
+			return
+		_send_key(keycode, true)
+		_holds["key:%s" % key_name] = {"frames": frames, "keycode": keycode}
+		_log_event("pilot_key", {"key": key_name, "frames": frames})
+	else:
+		var action := String(cmd.get("action", ""))
+		if action != "" and frames > 0:
+			Input.action_press(action)
+			_holds["action:%s" % action] = {"frames": frames, "keycode": 0}
+			_log_event("pilot_press", {"action": action, "frames": frames})
 
 
 ## Pilot channel: an external driver drops one-shot command files named
@@ -159,6 +204,16 @@ func _physics_process(_delta: float) -> void:
 ## Command formats: {"action": "flap", "frames": 7} (hold N physics frames),
 ## {"key": "Space", "frames": 2} (a real InputEventKey for menu screens),
 ## {"quit": true}. Holds can overlap.
+## Frame-step debugging (owner ask, 2026-10-27): {"pause": true} freezes the
+## whole tree, {"step": N} unpauses for exactly N physics ticks and
+## re-pauses, {"resume": true} leaves pause for good. This node is
+## PROCESS_MODE_ALWAYS, so commands keep flowing while frozen — the world only
+## advances when a step says so. Action holds queued in the SAME command file
+## as the step press on the first running tick (a hold sent while frozen is
+## DEFERRED, not dropped — it presses on the first tick that actually runs;
+## queue-then-step is the intended protocol). The step window pads ~4 ticks
+## of engine pause-rebuild lag, so the world advances ~N ticks per step.
+## step is refused while unpaused; the quit command works from pause.
 func _pilot_step() -> void:
 	var dir := DirAccess.open(_pilot_dir)
 	if dir == null:
@@ -187,22 +242,44 @@ func _pilot_step() -> void:
 				_state_file.flush()
 				get_tree().quit()
 				return
+			if cmd.get("pause", false):
+				_step_frames_left = 0
+				_step_active = false
+				get_tree().paused = true
+				_log_event("pilot_pause", {})
+				continue
+			if cmd.get("resume", false):
+				_step_frames_left = 0
+				_step_active = false
+				get_tree().paused = false
+				_log_event("pilot_resume", {})
+				continue
+			var steps := int(cmd.get("step", 0))
+			if steps > 0:
+				if get_tree().paused:
+					_step_active = true
+					## +4: the scene tree hands PAUSABLE nodes their first live
+					## tick ~2-3 recorder ticks after the unpause flip (measured
+					## live: step at t, first player motion at t+44 ms), so the
+					## raw window would close before the world ever advanced.
+					## The pad is dead time, not world time.
+					_step_frames_left = steps + 4
+					get_tree().paused = false
+					_log_event("pilot_step", {"frames": steps})
+				else:
+					_log_event("pilot_step_ignored", {"frames": steps})
+				continue
 			var frames := int(cmd.get("frames", 1))
-			if cmd.has("key"):
-				var key_name := String(cmd["key"])
-				var keycode := OS.find_keycode_from_string(key_name)
-				if keycode == KEY_NONE:
-					_log_event("pilot_bad_key", {"key": key_name})
+			if cmd.has("key") or cmd.has("action"):
+				if get_tree().paused:
+					## Frozen: defer, don't drop. A press made now lands on a
+					## tick the player never processes (is_action_just_pressed
+					## keys off the press tick) and expires unheard — park it
+					## for the first running tick instead.
+					_pending_presses.append(cmd)
+					_log_event("pilot_press_deferred", {"cmd": cmd})
 					continue
-				_send_key(keycode, true)
-				_holds["key:%s" % key_name] = {"frames": frames, "keycode": keycode}
-				_log_event("pilot_key", {"key": key_name, "frames": frames})
-			else:
-				var action := String(cmd.get("action", ""))
-				if action != "" and frames > 0:
-					Input.action_press(action)
-					_holds["action:%s" % action] = {"frames": frames, "keycode": 0}
-					_log_event("pilot_press", {"action": action, "frames": frames})
+				_execute_press(cmd, frames)
 	for name_key in _holds.keys():
 		var hold: Dictionary = _holds[name_key]
 		var left := int(hold["frames"]) - 1

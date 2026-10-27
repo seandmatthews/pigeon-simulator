@@ -26,6 +26,12 @@ Pilot commands (one JSON object per line):
   {"action": "flap", "frames": 7}   hold an input action N physics frames
   {"key": "Space", "frames": 2}     a real InputEventKey (menus react to this)
   {"quit": true}                    end the session
+  {"pause": true}                   freeze the whole tree (frame-step mode)
+  {"step": 30}                      advance exactly 30 physics ticks, re-freeze
+  {"resume": true}                  leave pause — normal play
+
+Step mode: queue action holds in the SAME file as the step so they press on
+the first stepped tick (a hold sent while frozen decays unspent).
 
 Exit codes: 0 ok · 2 bad usage/owner alive · 3 game died on boot · 4 timeout.
 """

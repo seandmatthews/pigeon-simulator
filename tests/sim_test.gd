@@ -17,6 +17,7 @@ const POOP_RETICLE_SCENE: PackedScene = preload("res://scenes/poop_reticle.tscn"
 const MENU_SCENE: PackedScene = preload("res://scenes/menu.tscn")
 const TOUCH_SCENE: PackedScene = preload("res://scenes/touch_controls.tscn") ## (T-119) Driven with synthetic screen contacts, never by poking its methods.
 const CAR_SCENE: PackedScene = preload("res://scenes/car.tscn") ## (T-134) Hand-staged stop-protocol cars.
+const RECORDER_SCRIPT := preload("res://tests/capture_recorder.gd") ## (T-140) Driven in session mode for the frame-step scenario.
 
 ## (T-119) The shipped non-builtin InputMap set. The touch layer must add
 ## NOTHING — `touch_layer_desktop_inert` reads the live InputMap against this
@@ -308,6 +309,7 @@ func _run_scenarios() -> void:
 	await _scenario_stepped_boot_pins() ## T-129 — the stepped city boot: ordered slices, ms trace, the sync rig defaults, the web diet.
 	await _scenario_web_handoff_single_screen() ## T-131 — the web handoff shows ONE warming screen: the shell covers it, the note stands down.
 	await _scenario_pilot_time_scale() ## T-132 — the pilot's --time-scale slows the world, not the frames; flagless boots stay 1.0.
+	await _scenario_pilot_frame_step() ## T-140 — pause/step/resume + deferred presses, driven through a real recorder in session mode.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -8872,6 +8874,108 @@ func _accumulate_game_time(scale: float) -> float:
 		acc += get_physics_process_delta_time()
 	Engine.time_scale = 1.0
 	return acc
+
+
+## --- scenarios (T-140 pilot frame-step) --------------------------------------
+
+var _pilot_cmd_seq := 0 ## Unique suffix for the frame-step scenario's command files.
+
+## The T-140 frame-step contract, driven through a REAL CaptureRecorder in
+## session mode (a scratch `simtest_step` session dir under the gitignored
+## .captures/ — swept later by pilot.py clean) plus a pausable probe node whose
+## _physics_process — by definition — only runs on live ticks: it counts them
+## and latches whether the flap action was ever pressed VISIBLE TO THE GAME.
+## Legs: a step refused while unpaused (pilot_step_ignored, tree stays live);
+## pause freezes the probe dead; {"step":30} advances ~30 live ticks and
+## re-freezes (the window's +4 pad absorbs the measured 2-3-tick unpause lag —
+## the tree hands PAUSABLE nodes their first live tick a few recorder ticks
+## after the flip, so a raw window would close before the world moved at all);
+## and a press queued in the SAME command file as the step is DEFERRED onto the
+## first live tick — a press made while frozen would expire unheard
+## (is_action_just_pressed is one tick wide and a paused player never ticks).
+## Restores the unpaused tree and both env vars however this leg ends.
+func _scenario_pilot_frame_step() -> void:
+	get_tree().paused = false
+	var saved_session := OS.get_environment("PIGEON_PILOT_SESSION")
+	var saved_images := OS.get_environment("PIGEON_IMAGE_INTERVAL")
+	OS.set_environment("PIGEON_PILOT_SESSION", "simtest_step")
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", "0")
+	var recorder: Node = RECORDER_SCRIPT.new()
+	var probe := _make_frame_step_probe()
+	add_child(recorder)
+	add_child(probe)
+	await _wait_frames(3)
+	var pilot_dir := "res://.captures/session_simtest_step"
+	## Refusal leg: a step while UNPAUSED is ignored and pauses nothing.
+	_drop_pilot_cmd(pilot_dir, '{"step":10}')
+	await _wait_frames(4)
+	var events := _read_pilot_events(pilot_dir)
+	var refuse_ok: bool = events.has("pilot_step_ignored") and not get_tree().paused
+	## Freeze leg: pause stops the probe's live ticks entirely.
+	_drop_pilot_cmd(pilot_dir, '{"pause":true}')
+	await _wait_frames(3)
+	var freeze_ok: bool = get_tree().paused
+	var ticks0: int = int(probe.get("ticks"))
+	await _wait_frames(10)
+	freeze_ok = freeze_ok and int(probe.get("ticks")) == ticks0
+	## Step leg: ~30 live ticks inside the padded window, then re-frozen.
+	_drop_pilot_cmd(pilot_dir, '{"step":30}')
+	await _wait_frames(40)
+	var stepped: int = int(probe.get("ticks")) - ticks0
+	var step_ok: bool = get_tree().paused and stepped >= 26 and stepped <= 35
+	## Deferral leg: input + step in ONE command file — the press lands on the
+	## window's first live tick (the 30-frame hold outlives the live tail, so
+	## the probe cannot miss it by luck; a frozen-press regression never
+	## reaches a live tick and the latch stays false).
+	_drop_pilot_cmd(pilot_dir, '{"action":"flap","frames":30}\n{"step":20}')
+	await _wait_frames(35)
+	var defer_ok: bool = bool(probe.get("saw_flap")) and get_tree().paused
+	get_tree().paused = false
+	recorder.queue_free()
+	probe.queue_free()
+	OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
+	await _wait_frames(2)
+	_check("pilot_frame_step",
+			refuse_ok and freeze_ok and step_ok and defer_ok,
+			"refuse=%s freeze=%s step=%s (live ticks %d of 30) defer=%s" % [
+					refuse_ok, freeze_ok, step_ok, stepped, defer_ok])
+
+
+## The frame-step probe: a pausable Node whose only job is counting its own
+## physics ticks (it runs exactly when the world does — never while frozen)
+## and latching whether the flap action was pressed during any of them. Built
+## from an inline GDScript so the harness needs no extra file.
+func _make_frame_step_probe() -> Node:
+	var script := GDScript.new()
+	script.source_code = "extends Node\nvar ticks := 0\nvar saw_flap := false\n\nfunc _physics_process(_delta: float) -> void:\n\tticks += 1\n\tif Input.is_action_pressed(\"flap\"):\n\t\tsaw_flap = true\n"
+	script.reload()
+	var probe := Node.new()
+	probe.set_script(script)
+	return probe
+
+
+## Drops one pilot command file into `dir` (the recorder consumes and deletes
+## these oldest-first; multiple lines in one file run in the same pass).
+func _drop_pilot_cmd(dir: String, text: String) -> void:
+	_pilot_cmd_seq += 1
+	var f := FileAccess.open("%s/pilot_cmd_simtest_%d.jsonl" % [dir, _pilot_cmd_seq],
+			FileAccess.WRITE)
+	if f != null:
+		f.store_string(text + "\n")
+
+
+## The event names logged so far in a session dir's events.jsonl.
+func _read_pilot_events(dir: String) -> Dictionary:
+	var out := {}
+	var f := FileAccess.open(dir + "/events.jsonl", FileAccess.READ)
+	if f == null:
+		return out
+	while not f.eof_reached():
+		var parsed: Variant = JSON.parse_string(f.get_line())
+		if typeof(parsed) == TYPE_DICTIONARY and parsed.has("ev"):
+			out[parsed["ev"]] = true
+	return out
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------

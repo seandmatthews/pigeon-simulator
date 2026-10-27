@@ -207,6 +207,7 @@ tickets land — every feature that can be machine-checked gets a scenario here:
 | stepped_boot_pins | the T-129 stepped boot pinned at four seams: the city slices callable IN ORDER on a bare rig (`generate_step_ground` → `generate_step_blocks` → `generate_step_finish`) reproduce the synchronous build byte-for-byte — fingerprint equal to both a sync twin and the standing harness city, `bread_spots`/`bread_spot_kinds`/`last_report`/`spawn_point` equal — and the T-033 fast path rides the ground slice (second call on a standing build returns false with `build_count` untouched); the defaults pin read off a bare `main.tscn` instantiate: `stepped_boot` true (the game default), `boot_paint_frames` 1, the diet exports at their tuned values (2048 / 3), `City.hold_generate` and all five spawners' `staged_boot` set by the scene file itself; the MOUNT decides the path — a Main added as a direct child of the tree root (the `change_scene_to_file` spot) boots STEPPED (`boot_trace` exactly the ordered 8 phases city_ground → city_blocks → city_visuals → spawn_cars → spawn_tourists → spawn_bread → spawn_elders → spawn_cafes, every ms ≥ 0, `boot_finished` fired, the pin-city fingerprint, tourists/bread/cars populated, a forced foreign-seed rebuild re-seeding them through the newly wired `regenerated` — restarts keep working — and the pigeon unfrozen, grounded on the corridor within 2 m), while the harness's ordinary instanced-Main pattern boots SYNC (exactly one `sync_boot` trace entry) — the defaults that keep every existing scenario green untouched; and the web warm-up diet, both branches through the T-126 `Game.web_override` seam: a stepped game boot on the desktop branch moves nothing (msaa and the steps cap read live off the engine, exactly as captured), the forced-web branch halves the directional shadow atlas (pinned through the diet's applied record — this engine build exposes only the setter), kills MSAA and caps `Engine.max_physics_steps_per_frame` (read live), all restored after | T-129 |
 | web_handoff_single_screen | the T-131 single-warming-screen contract: the Fly-press handoff's branch decision lives behind menu.gd's `_web_loader_covers_handoff()` and pins both ways through the T-126 `Game.web_override` seam on the REAL menu scene — the forced-web branch covers the handoff with the export shell's loader (true; the shell's identical navy/words made the T-129 double paint) and desktop does not (false — its one-frame WarmupNote is the feedback there), while `%WarmupNote` exists and stays hidden AT REST on BOTH branches (a note shown outside the desktop handoff — the double-screen bug's shape — fails); `_start_run` itself is never driven headless, it ends in `change_scene_to_file` and would swap the harness's own scene (the T-097 never-feed-flap rule), so the on-screen single-screen judgement is the hosted-web Gate 3 line below | T-131 |
 | pilot_time_scale_flag | the T-132 agent slow-mo contract: the flagless boot this very process ran stands at `Engine.time_scale` 1.0 (normal launches — and every other gate scenario here — run exactly that path), the parse seam's truth table holds through the REAL `Game.pilot_time_scale` autoload function (the `--time-scale=` user arg beats the `PIGEON_TIME_SCALE` env; absent, garbage, NaN, negative, zero, above-ceiling and below-floor values all resolve 1.0, so a mistyped flag can never silently mean something), and the rate contract is measured the way the game lives it — the SAME 60 physics frames accumulated from the harness node's own delta run 1.0 game-second at scale 1.0 and ≈0.1 (tolerance 0.05–0.2) at scale 0.1, per the 2026-10-22 binary probe (tick rate never changes in either pacing, every delta scales), with the restore to 1.0 re-pinned so no later scenario inherits a slow world | T-132 |
+| pilot_frame_step | the T-140 frame-step contract, driven through a REAL CaptureRecorder in session mode (scratch `simtest_step` dir) plus a pausable inline-script probe whose `_physics_process` only runs on live ticks: it counts them and latches whether `flap` was ever pressed visible to the game. Four legs: a `{"step":N}` while UNPAUSED is refused (`pilot_step_ignored` logged, tree stays live); `{"pause":true}` freezes the probe dead (tick delta exactly 0 over 10 recorder frames); `{"step":30}` advances 26-35 live ticks (the +4-tick window pad absorbs the measured 2-3-tick unpause lag — a raw-window revert lands ~0 and fails) and re-freezes; and a flap hold queued in the SAME command file as the step latches `saw_flap` true — the deferral that lets queue-then-step work, where a press made while frozen would expire unheard one tick wide. The tree and both env vars are restored however the leg ends | T-140 |
 
 ## Gate 2 — Autoplay smoke test (run before marking any gameplay ticket done)
 
@@ -290,6 +291,56 @@ For interactive agent play sessions — including several running at once — us
 the pilot harness (`python tests/tools/pilot.py start|send|state|shot|stop …`,
 sessions isolated under `.captures/session_<id>/`); see AGENTS.md →
 "Agent play: pilot harness" (T-014).
+
+### Frame-step agent play (T-140 — how the 2026-10-27 beat-the-game run worked)
+
+The pilot channel also drives **frame-step mode**, proven end-to-end the day it
+landed by an agent run that won the game (favor 100 → "THE TOWN IS YOURS!", 17
+car splats, score 510 — 2026-10-27, sessions `slowwin1`/`slowwin4`). Where
+T-132's `--time-scale` slows the world for real-time play, frame-step makes
+agent play **turn-based** — the fix for "the game is still too fast for you":
+
+- **`{"pause": true}`** freezes the whole tree; **`{"step": N}`** advances ~N
+  physics ticks and re-freezes; **`{"resume": true}`** returns to real time.
+  `state`/`shot` (OS grab) read the frozen world freely — screenshots show the
+  T-105 reticle painting its **exact** predicted impact while paused, which is
+  the aiming tool. Input queued while frozen is **deferred onto the first
+  running tick** — the protocol is *queue-then-step* (input and `step` lines in
+  the SAME command file press together on the first live tick).
+- **Gotchas paid for live:** the tree's PAUSABLE nodes only start ticking ~2-3
+  recorder ticks after the unpause flip (the window carries a +4-tick pad — a
+  raw window closes before the world moves at all); a press made while frozen
+  without deferral expires unheard (`is_action_just_pressed` is one tick wide);
+  a command file's lines all execute on the SAME tick (holds overlap — sequence
+  across separate sends); `events.jsonl`/`state.jsonl` `t_ms` is ENGINE time —
+  never compare it to wall-clock; the newest state line can be mid-write (read
+  the last COMPLETE one). Godot's yaw convention: `forward = (-sin yaw, -cos
+  yaw)` — yaw 0 = north (−Z), ±π = south.
+- **Helpers** (`tests/tools/`): `pilot_nav.py` (`state` — last-complete-line
+  read; `goto X Z --face YAW` — verified waddle navigation; NO obstacle
+  avoidance, route around cars in legs) and `pilot_splat.py` (the parked-
+  visitor-car grind worked example). Session scratch like `w.py`/`grind.py`
+  patterns live in `.captures/session_*/` (gitignored).
+- **The 2026-10-27 win recipe**, for reproducing or re-verifying the economy:
+  read the rules first (`game.gd` favor table, `hunger.gd` drain, `player.gd`
+  flight) → boot → pause → scout by cross-referencing `state`'s `cars`/`crumbs`
+  lists (a ground crumb ~1.6 m off a parked car = the tailgate offset → a
+  VISITOR car) → confirm class colors by screenshot (state carries no class) →
+  parked VISITOR cars are re-splattable +6 fountains (cars never flee, no
+  per-target dedup — 2026-10-27 owner note: possibly TOO effective, see
+  IDEAS.md B-6) → per splat: stand 8.2 m out on the road, full-power hop,
+  **release the poop at arc apex** (the drop inherits the pigeon's velocity —
+  release timing is the whole aim: ±0.1 s = ±2 m of impact) → alternate
+  north/south attack points so each landing is a 4-5 m walk from the next shot
+  → book favor from the `car_splatted`/`crumb_eaten` event stream by FILE LINE
+  OFFSET (never wall-clock) and confirm the HUD ("Favor: n / 100") by
+  screenshot.
+- **Verifying a new feature agent-side:** pause → read state + screenshot
+  (frozen) → act via deferred input + step windows → read `events.jsonl` for
+  the feature's pilot event (the T-095/T-137 precedent: new mechanics get a
+  state-stream field or event so this loop can see them) → record the Gate 3
+  line. If a feature is only observable mid-frame, step small (1-5 ticks) and
+  screenshot each stage.
 
 ## Web export (T-118 — run when touching export/platform config)
 

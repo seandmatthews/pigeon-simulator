@@ -229,6 +229,21 @@ debug tooling; direct-loop eligible per the T-116 precedent.
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-132 | [Slow-mo for agent play: a pilot `--time-scale` flag that slows the world, not the frames](T-132-agent-time-scale.md) | tooling | 3 | 1 | done (Gate 3 pending) |
 
+## Agent play tooling — frame step (owner ask 2026-10-27)
+
+Mid-playtest the owner steered: even at T-132's 0.1× the game is too fast to
+aim in — make it frame by frame, advancing only when the agent is ready. The
+pilot channel gained pause/step/resume commands plus deferred presses (input
+queued while frozen fires on the first running tick), making agent play
+turn-based. Proven the same day by an agent run that WON the game (favor 100,
+17 car splats, the T-115 victory screen). The economy observation that the
+parked-visitor-car fountain may be too easy is an open IDEAS.md B-6 question,
+not a defect.
+
+| ID | Ticket | Category | Value | Risk | Status |
+| -- | ------ | -------- | ----- | ---- | ------ |
+| T-140 | [Frame-step agent play: pilot pause/step/resume + deferred presses](T-140-pilot-frame-step.md) | tooling | 4 | 1 | done |
+
 ## Feel — slower bird, bigger city (owner pick 2026-10-22)
 
 [B-20](../IDEAS.md) forked three ways (cap-only / quartet / full ×0.8); the

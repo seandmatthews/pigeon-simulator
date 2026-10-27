@@ -320,6 +320,13 @@ M2 decision — flipping it is a conscious re-decision, which is fine).
   visitor splats climb harder.
 - **(iii) Score-side bump only** — leave favor alone, pedestrian score
   100 → 150.
+- **(iv) Per-target favor dedup / diminishing re-splats** (owner question,
+  2026-10-27) — an agent won the game by re-splatting ONE parked visitor car
+  17 times (cars never flee, splats never dedup — the frame-step run in
+  VERIFICATION.md; the owner's friend found the same route on a phone). If
+  that reads too easy, capping or diminishing per-target favor is the knob —
+  it would also push players at the pedestrian game. Open question, no
+  decision made.
 
 Any weighting change is one economy pass gated by `sim_test` (favor_max 100 is
 value-locked there; the deltas re-derive). HUD changes coordinate with T-120
