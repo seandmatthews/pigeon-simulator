@@ -1,7 +1,7 @@
 # T-138 — One people rig: every human on the live Quaternius skeleton — real walks, sits, adult scale
 
 - **Milestone:** People rig (owner ask 2026-10-26, dictated after noticing the
-  elder/tourist visual gap post-T-137) · **Status:** doing ·
+  elder/tourist visual gap post-T-137) · **Status:** done 2026-10-27 ·
   **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-124 (the base character, landed), T-137 (the elder walk
   states this rig must serve, landed)
@@ -150,10 +150,15 @@ elder-contract scenarios as the explicit must-pass-unchanged tripwire.
       green (0 failures).
 - [x] (Gate 2) autoplay green + web export re-run with the pck byte delta
       recorded against T-124's baseline; third-party sources still excluded.
-- [ ] [screenshot] A tourist and an elder side by side read as the same
+- [x] [screenshot] A tourist and an elder side by side read as the same
       kind of person; a walking grandpa reads as natural as a strolling
       tourist; a human next to a bench, a shop door and a café table reads
       adult-appropriately sized.
+      *(ACCEPTED by reviewer sign-off 2026-10-27 — the reviewer played the
+      fixed build and judged the framings live; the agent grabs in
+      `.captures/t138_rig/` back the read, with
+      `elder1_seated_preround1.png` retained as the red record of the
+      round-1 bug the sign-off build fixes.)*
 
 ## Verification
 
@@ -330,9 +335,9 @@ stride) and `scale_table_bench_door.png` (a pedestrian beside café table,
 bench and doors reading adult) stand post-fix; `elder1_seated_preround1.png`
 is retained as RED evidence — the seated grandpa as the first commit shipped
 him, ONE-ARMED (the round-1 review bug; the fixed near arm and its raise are
-proven geometrically, see the round-1 note above, not yet re-grabbed). The
-walking-grandpa, the raised trust arm in frame, and the side-by-side
-[screenshot] lines stay open for the reviewer's pass (the pilot's share
-flow needs favor ≥ 4, which a fresh pilot run cannot stage; the walk and
-raise behavior are machine-proven by the migration scenarios, the
-rate-matched clip pin and the new geometric raise leg).
+proven geometrically, see the round-1 note above, not yet re-grabbed).
+**ACCEPTED by reviewer sign-off 2026-10-27** — the reviewer played the
+fixed build (the raised trust arm and the walking grandpa judged live) and
+read the code; the screenshot lines are ticked on that sign-off and the
+machine arms remain pinned by the migration scenarios, the rate-matched
+clip pin and the geometric raise leg.
