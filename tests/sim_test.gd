@@ -237,6 +237,7 @@ func _run_scenarios() -> void:
 	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
 	await _scenario_civilian_palette_reserved() ## T-121 — the reservation law + the grown flag, bare value pins.
 	await _scenario_people_on_one_rig() ## T-138 — the one rigged people source, whitelist-pruned clips, adult scale, rate-matched walks.
+	await _scenario_citizen_parts_world_scale() ## T-139 — every citizen part stays human-sized (the ×100 arm regression tripwire).
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
 	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
@@ -8299,6 +8300,40 @@ func _scenario_people_on_one_rig() -> void:
 			"scenes=%s rig=%s arms=%s whitelist=%s envelope=%s rate=%s capsule=%s cars=%s box=%s no_death=%s" % [
 					scenes_ok, rig_ok, arms_ok, whitelist_ok, envelope_ok, rate_ok,
 					capsule_ok, car_ok, car_shape_ok, death_ok])
+
+
+## T-139 — every citizen part is HUMAN-sized. The import split must keep the
+## partition vertices in the mannequin's bind space: the first T-138 cut
+## baked the shared `arm_l` build into the main bone's meter frame, and the
+## skinned ArmL — wearing the full bind skin, which assumes mannequin space —
+## rendered ×100 as ~85 m slabs through the world (the owner's "enormous
+## blobs"; tourists hid the mesh, only elders showed it). This walks a live
+## tourist rig's six parts and caps each one's world AABB: correct parts
+## measure ≤ 0.86 m (the rigid arms), the ×100 corruption measured 85.8 m,
+## so a 3 m cap holds the fix with order-of-magnitude margin. The stated
+## AABB of the skinned parts understates their skinned render (they sit in
+## the pack's 1/100 bind space, as Body/Legs always have) — the cap is on
+## the stated box, which is what the import's space bug inflates.
+func _scenario_citizen_parts_world_scale() -> void:
+	var tourist_scene := load("res://scenes/tourist.tscn") as PackedScene
+	var rig_inst: Node3D = tourist_scene.instantiate()
+	add_child(rig_inst)
+	var rig: PeopleRig = rig_inst.get_node("Visual")
+	var ok := rig != null
+	var worst := 0.0
+	for part_name in ["Body", "Legs", "ArmL", "HeadRigid", "ArmLRigid", "ArmRRigid"]:
+		var part := (rig.find_child(part_name, true, false) if rig != null
+				else null) as MeshInstance3D
+		if part == null or part.mesh == null:
+			ok = false
+			continue
+		var world_aabb: AABB = part.global_transform * part.mesh.get_aabb()
+		worst = maxf(worst, maxf(maxf(world_aabb.size.x, world_aabb.size.y),
+				world_aabb.size.z))
+		ok = ok and worst < 3.0
+	rig_inst.free()
+	_check("citizen_parts_world_scale", ok,
+			"worst part world AABB %.3f m (< 3.0)" % worst)
 
 
 ## True when the node is a MeshInstance3D whose mesh is a generated derivative

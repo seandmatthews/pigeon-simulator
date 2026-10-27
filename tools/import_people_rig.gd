@@ -213,8 +213,7 @@ func _partition_and_emit(skel: Skeleton3D, mannequin: MeshInstance3D,
 			for idx: int in [a, b, c]:
 				if not remap.has(idx):
 					remap[idx] = (build["verts"] as PackedVector3Array).size()
-					_append_vertex(build, arrays, idx, bones[idx], skel, accum,
-							bind_global, scale, part)
+					_append_vertex(build, arrays, idx)
 			new_indices.append(remap[a])
 			new_indices.append(remap[b])
 			new_indices.append(remap[c])
@@ -248,25 +247,19 @@ func _surface_build(per_part: Dictionary, part: String, surface: int,
 
 
 ## Appends one vertex to a part build (read-modify-write: packed arrays in
-## Dictionaries copy on assignment). Skinned parts (body/legs/arm_l) copy the
-## arrays verbatim (the bone index space is global); rigid parts re-express
-## the vertex in their main bone's BIND frame: at bind every vertex renders
-## at its authored spot, so the frame transform is exactly the main bone's
-## bind pose (`P_bind(main)⁻¹ = skin bind pose`), scaled to meters.
-func _append_vertex(build: Dictionary, arrays: Array, idx: int, dom_bone: int,
-		skel: Skeleton3D, accum: Transform3D, bind_global: Dictionary,
-		scale: float, part: String) -> void:
+## Dictionaries copy on assignment). EVERY part's vertices copy the arrays
+## verbatim — the mannequin's bind skin assumes that space, and the skinned
+## parts (body/legs/arm_l) ride it directly. The rigid parts' bake into their
+## main bone's bind frame happens at EMISSION time (`_emit_rigid`), never
+## here: `arm_l` feeds BOTH the skinned ArmL and the rigid ArmLRigid, and a
+## bake at partition time corrupted the skinned arm with meter-space
+## vertices — it rendered ×100 as ~85 m slabs (T-139).
+func _append_vertex(build: Dictionary, arrays: Array, idx: int) -> void:
 	var verts: PackedVector3Array = build["verts"]
-	var normals: PackedVector3Array = build["normals"]
-	if RIGID_MAIN_BONES.has(part):
-		var main_bp: Transform3D = bind_global[skel.find_bone(RIGID_MAIN_BONES[part])]
-		verts.append(main_bp * arrays[Mesh.ARRAY_VERTEX][idx] * scale)
-		var n_xf: Basis = main_bp.basis.inverse().transposed()
-		normals.append((n_xf * arrays[Mesh.ARRAY_NORMAL][idx]).normalized())
-	else:
-		verts.append(arrays[Mesh.ARRAY_VERTEX][idx])
-		normals.append(arrays[Mesh.ARRAY_NORMAL][idx])
+	verts.append(arrays[Mesh.ARRAY_VERTEX][idx])
 	build["verts"] = verts
+	var normals: PackedVector3Array = build["normals"]
+	normals.append(arrays[Mesh.ARRAY_NORMAL][idx])
 	build["normals"] = normals
 	var uv_src: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
 	if uv_src != null:
@@ -347,14 +340,27 @@ func _emit_rigid(skel: Skeleton3D, per_part: Dictionary, accum: Transform3D,
 		mount_name: String, visible: bool) -> void:
 	var list: Array = per_part[key]
 	## Merge all surfaces into one (verts/normals/indices — flat color, no
-	## UVs/skin needed on rigid parts).
+	## UVs/skin needed on rigid parts), baking each verbatim partition vertex
+	## into the main bone's BIND frame (meters — the frame the mount's
+	## 0.01-scale Frame expects): at bind every vertex renders at its
+	## authored spot, so the frame transform is exactly the main bone's bind
+	## pose (`P_bind(main)` from the skin), scaled to meters. The bake lives
+	## HERE, not at partition time: `arm_l` also feeds the skinned ArmL,
+	## whose bind skin assumes mannequin space (the T-139 ×100 lesson).
+	var main_bone: String = RIGID_MAIN_BONES[key]
+	var main_bp: Transform3D = bind_global[skel.find_bone(main_bone)]
+	var n_xf: Basis = main_bp.basis.inverse().transposed()
 	var verts := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var indices := PackedInt32Array()
 	for build: Dictionary in list:
 		var base := verts.size()
-		verts.append_array(build["verts"])
-		normals.append_array(build["normals"])
+		var bverts: PackedVector3Array = build["verts"]
+		for i in bverts.size():
+			verts.append(main_bp * bverts[i] * scale)
+		var bnormals: PackedVector3Array = build["normals"]
+		for j in bnormals.size():
+			normals.append((n_xf * bnormals[j]).normalized())
 		for idx: int in build["indices"]:
 			indices.append(base + idx)
 	var arrays := []
@@ -370,7 +376,6 @@ func _emit_rigid(skel: Skeleton3D, per_part: Dictionary, accum: Transform3D,
 	mesh.set_meta("source_file", SOURCE_FILE)
 	mesh.set_meta("license", LICENSE)
 
-	var main_bone: String = RIGID_MAIN_BONES[key]
 	var mi := MeshInstance3D.new()
 	mi.name = mesh_name
 	mi.mesh = mesh
