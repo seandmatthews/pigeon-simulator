@@ -18,6 +18,22 @@ const SITTER_SEATS: Array[Vector3] = [Vector3(0.72, 0.0, 0.0), Vector3(-0.72, 0.
 ## Facing yaw per seat — each sitter turns inward toward the table.
 const SITTER_YAWS: Array[float] = [PI * 0.5, -PI * 0.5]
 
+## (T-142) The crowd wears the ONE people model: the import bakes the pack's
+## `Rig|Sitting_Idle` pose into static meshes (SitBake/SitBody|SitLegs|SitHead
+## inside the shared rig scene, hidden) and this spawner harvests them for
+## its MultiMesh batch — the T-094 perf law keeps live rigs out of the café,
+## and sitters never move, so the pose bakes once at import instead.
+## Probe-measured seated constants (adult, rig-root space — the same
+## measurement family as the elder's SEAT_SINK, tools/probe_sit_geometry.gd):
+## the pose's DEF-hips BONE rides 0.5179 above the rig root, and the stool
+## top is the sitter_seat box's top face (center 0.42 + half 0.03). The
+## instance sinks so the hips rest on the stool; the pose's feet (0.0873
+## above the clip floor) land ~0.02 above the pavement.
+const PEOPLE_RIG_SCENE := "res://scenes/people_rig.tscn"
+const SIT_HIPS_Y := 0.5179
+const SITTER_SEAT_TOP := 0.45
+const SIT_ROOT_Y := SITTER_SEAT_TOP - SIT_HIPS_Y
+
 ## Collider boxes — exactly the retired scenes' shapes: the table's
 ## 0.9 × 0.72 × 0.9 bench collider at (0, 0.36, 0) on the spot, each sitter's
 ## 0.44 × 0.78 × 0.34 body at (0, 0.42, 0) on its seat transform.
@@ -28,15 +44,20 @@ const SITTER_SHAPE_OFFSET := Vector3(0.0, 0.42, 0.0)
 
 ## The keys whose instances carry per-sitter shirt colors (the tourist
 ## palette); every other key wears its fixed scene color on a flat material.
-const SHIRT_KEYS: Array[String] = ["sitter_torso", "sitter_arm"]
+const SHIRT_KEYS: Array[String] = ["sit_body"]
 
-## The retired scenes' fixed material colors (T-031) — wood, metal, skin,
-## hair, trousers — reused verbatim on the flat materials.
+## (T-142) The baked sit meshes, harvested once per populate from the rig
+## scene ("sit_body"/"sit_legs"/"sit_head" → Mesh). The `sit_hair` key keeps
+## the retired box (the pack mannequin is bald); its offset derives from the
+## baked head's own AABB at populate time.
+var _sit_meshes: Dictionary = {}
+
+## The retired scenes' fixed material colors (T-031) — wood, metal, hair —
+## reused verbatim on the flat materials. (T-142) The sitters' skin and
+## trousers colors live in the import's baked-mesh materials now.
 const WOOD := Color(0.55, 0.38, 0.24)
 const METAL := Color(0.25, 0.26, 0.28)
-const SKIN := Color(0.87, 0.68, 0.55)
 const HAIR := Color(0.3, 0.21, 0.15)
-const TROUSERS := Color(0.42, 0.38, 0.36)
 
 @export_group("Wiring")
 @export var city_path: NodePath
@@ -59,9 +80,9 @@ var sitters_body: StaticBody3D
 var visuals_root: Node3D
 
 ## One record per seated sitter, in build order: which spot seats it, which
-## seat of that spot, and its MultiMesh instance ordinal (torso uses the
-## ordinal directly; arms and thighs use 2 × ordinal for the left piece and
-## 2 × ordinal + 1 for the right). Tests read these.
+## seat of that spot, and its MultiMesh instance ordinal (every sit key uses
+## the ordinal directly — one instance per sitter since T-142). Tests read
+## these.
 var sitters: Array[Dictionary] = []
 
 ## The visual queues the last populate fed into the MultiMeshes: per key, the
@@ -104,8 +125,8 @@ func shirt_color(spot_index: int, seat: int) -> Color:
 	return Tourist.SHIRT_PALETTE[(spot_index + seat) % Tourist.SHIRT_PALETTE.size()]
 
 
-## One batched visual by its key ("sitter_torso", "sitter_arm", …) — tests
-## read the torso/arm MultiMeshes off these.
+## One batched visual by its key ("sit_body", "sit_legs", "sit_hair", …) —
+## tests read the sit/furniture MultiMeshes off these.
 func visual(key: String) -> MultiMeshInstance3D:
 	return visuals_root.get_node(key.to_pascal_case()) as MultiMeshInstance3D
 
@@ -124,6 +145,7 @@ func _populate() -> void:
 	_clear_batch()
 	if city == null:
 		return
+	_sit_meshes = _harvest_sit_meshes()
 	visuals_root = Node3D.new()
 	visuals_root.name = "CafeVisuals"
 	add_child(visuals_root)
@@ -142,22 +164,45 @@ func _populate() -> void:
 					Basis(Vector3.UP, SITTER_YAWS[seat]), SITTER_SEATS[seat])
 			_queue_mm(queues, "sitter_seat", sitter_xf.translated_local(Vector3(0.0, 0.42, 0.0)))
 			_queue_mm(queues, "sitter_post", sitter_xf.translated_local(Vector3(0.0, 0.21, 0.0)))
-			_queue_mm(queues, "sitter_torso", sitter_xf.translated_local(Vector3(0.0, 0.75, 0.0)),
-					shirt_color(spot_i, seat))
-			_queue_mm(queues, "sitter_head", sitter_xf.translated_local(Vector3(0.0, 1.14, 0.0)))
-			_queue_mm(queues, "sitter_hair", sitter_xf.translated_local(Vector3(0.0, 1.24, 0.015)))
-			_queue_mm(queues, "sitter_arm", sitter_xf.translated_local(Vector3(0.27, 0.7, 0.0)),
-					shirt_color(spot_i, seat))
-			_queue_mm(queues, "sitter_arm", sitter_xf.translated_local(Vector3(-0.27, 0.7, 0.0)),
-					shirt_color(spot_i, seat))
-			_queue_mm(queues, "sitter_thigh", sitter_xf.translated_local(Vector3(0.11, 0.5, -0.24)))
-			_queue_mm(queues, "sitter_thigh", sitter_xf.translated_local(Vector3(-0.11, 0.5, -0.24)))
+			## (T-142) The sitter: the baked seated figure, hips on the stool.
+			var sit_root: Transform3D = sitter_xf.translated_local(Vector3(0.0, SIT_ROOT_Y, 0.0))
+			_queue_mm(queues, "sit_body", sit_root, shirt_color(spot_i, seat))
+			_queue_mm(queues, "sit_legs", sit_root)
+			_queue_mm(queues, "sit_head", sit_root)
+			_queue_mm(queues, "sit_hair", sit_root.translated_local(_hair_offset()))
 			_add_shape(sitters_body, SITTER_SHAPE_SIZE,
 					sitter_xf.translated_local(SITTER_SHAPE_OFFSET))
 			sitters.append({"spot": spot_i, "seat": seat, "instance": sitter_i})
 			sitter_i += 1
 	_mm_queues = queues
 	_spawn_visuals(queues)
+
+
+## (T-142) Harvests the import's baked seated meshes from the ONE people
+## scene. Missing bake (the glb not re-imported) leaves the crowd collider-
+## correct but invisible — the `cafe_sitters_on_the_rig` scenario fails loud.
+func _harvest_sit_meshes() -> Dictionary:
+	var out := {}
+	var rig: Node3D = (load(PEOPLE_RIG_SCENE) as PackedScene).instantiate()
+	var bake := rig.find_child("SitBake", true, false) as Node3D
+	if bake == null:
+		push_warning("CafeSpawner: no SitBake in the people rig — re-import the pack glb (T-142)")
+	else:
+		for mi: MeshInstance3D in bake.get_children():
+			out["sit_" + mi.name.to_lower().trim_prefix("sit")] = mi.mesh
+	rig.free()
+	return out
+
+
+## (T-142) The hair box's offset over the sitter root, derived from the
+## baked head's own AABB: centered on the head, sunk 3 cm past the scalp
+## line so the flat bottom reads as hair, not a hovering slab.
+func _hair_offset() -> Vector3:
+	var head_mesh: Mesh = _sit_meshes.get("sit_head")
+	if head_mesh == null:
+		return Vector3(0.0, SIT_ROOT_Y + 1.4, 0.0) ## Bake missing — keep the box out of the ground.
+	var ab := head_mesh.get_aabb()
+	return Vector3(ab.get_center().x, ab.end.y + 0.02 - 0.05, ab.get_center().z)
 
 
 ## Frees the previous batch (if any): detached immediately so the rebuild can
@@ -231,9 +276,12 @@ func _spawn_visuals(queues: Dictionary) -> void:
 		visuals_root.add_child(node)
 
 
-## The batch's meshes — exactly the retired scenes' primitives and materials:
+## The batch's meshes — the baked people meshes for the sit keys (T-142,
+## materials stamped at import), the retired furniture primitives otherwise:
 ## shirt-tinted keys take a vertex-color albedo, the rest a flat scene color.
 func _visual_mesh(key: String) -> Mesh:
+	if _sit_meshes.has(key):
+		return _sit_meshes[key]
 	var mesh: Mesh
 	var mat := StandardMaterial3D.new()
 	match key:
@@ -261,36 +309,11 @@ func _visual_mesh(key: String) -> Mesh:
 			mesh = box
 			mat.albedo_color = METAL
 			mat.roughness = 0.9
-		"sitter_torso":
+		"sit_hair":
 			var box := BoxMesh.new()
-			box.size = Vector3(0.44, 0.56, 0.28)
-			mesh = box
-			mat.vertex_color_use_as_albedo = true
-			mat.roughness = 0.9
-		"sitter_head":
-			var sphere := SphereMesh.new()
-			sphere.radius = 0.15
-			sphere.height = 0.3
-			mesh = sphere
-			mat.albedo_color = SKIN
-			mat.roughness = 0.9
-		"sitter_hair":
-			var box := BoxMesh.new()
-			box.size = Vector3(0.32, 0.11, 0.32)
+			box.size = Vector3(0.28, 0.1, 0.3)
 			mesh = box
 			mat.albedo_color = HAIR
-			mat.roughness = 1.0
-		"sitter_arm":
-			var box := BoxMesh.new()
-			box.size = Vector3(0.08, 0.32, 0.08)
-			mesh = box
-			mat.vertex_color_use_as_albedo = true
-			mat.roughness = 0.9
-		"sitter_thigh":
-			var box := BoxMesh.new()
-			box.size = Vector3(0.16, 0.11, 0.38)
-			mesh = box
-			mat.albedo_color = TROUSERS
 			mat.roughness = 1.0
 	mesh.material = mat
 	return mesh

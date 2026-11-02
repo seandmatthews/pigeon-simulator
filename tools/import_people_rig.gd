@@ -54,6 +54,16 @@ const SOURCE_PACK := "quaternius-universal-base-characters"
 const SOURCE_FILE := "res://assets/third-party/quaternius/base_character.glb"
 const LICENSE := "CC0"
 
+## (T-142) The café crowd's seated bake: the SAME model as the live rig,
+## posed once at `Rig|Sitting_Idle` and emitted as hidden static meshes the
+## `CafeSpawner` batches (the T-094 perf law keeps live rigs out of the
+## café; sitters never move, so a static pose bake is the honest shape).
+## The adult factor is the runtime Model scale (`scenes/people_rig.tscn`) —
+## the bake must agree with it or the café crowd is mis-sized; the
+## `cafe_sitters_on_the_rig` scenario pins the baked envelope against drift.
+const ADULT_SCALE := 0.982
+const SIT_CLIP := "Rig|Sitting_Idle"
+
 ## Bone-name groups (Quaternius Rigify-style DEF- names — the T-124 bake's
 ## exact partition rules, arms split by the .L/.R suffix).
 const HEAD_BONES: Array[String] = ["DEF-head", "DEF-neck"]
@@ -99,7 +109,8 @@ func _post_import(scene: Node) -> Object:
 	var accum := _accum_xform(scene, skel)
 	var bind_global := _bind_globals(skel, mannequin)
 
-	_partition_and_emit(skel, mannequin, accum, bind_global)
+	var per_part := _partition_and_emit(skel, mannequin, accum, bind_global)
+	_bake_seated(scene, skel, ap, per_part, accum, bind_global)
 	_prune_clips(ap)
 	_stamp_meta(scene)
 	mannequin.get_parent().remove_child(mannequin)
@@ -177,7 +188,7 @@ func _part_of(bone_name: String) -> String:
 ## the Skeleton3D. Rigid parts (head/arms) are re-authored in their main
 ## bone's BIND frame (scaled to meters) under BoneAttachment3D mounts.
 func _partition_and_emit(skel: Skeleton3D, mannequin: MeshInstance3D,
-		accum: Transform3D, bind_global: Dictionary) -> void:
+		accum: Transform3D, bind_global: Dictionary) -> Dictionary:
 	var scale := absf(accum.basis.get_scale().x) ## The import's ×100.
 	var per_part := {} ## part -> Array (per source surface) of build Dictionaries.
 	for s in mannequin.mesh.get_surface_count():
@@ -231,6 +242,7 @@ func _partition_and_emit(skel: Skeleton3D, mannequin: MeshInstance3D,
 			"arm_l", "ArmLRigid", "ArmLMount", false)
 	_emit_rigid(skel, per_part, accum, bind_global, scale,
 			"arm_r", "ArmRRigid", "ArmRMount", false)
+	return per_part
 
 
 func _surface_build(per_part: Dictionary, part: String, surface: int,
@@ -424,6 +436,175 @@ func _emit_rigid(skel: Skeleton3D, per_part: Dictionary, accum: Transform3D,
 ## The ban audit, enforced where it counts: everything outside the whitelist
 ## is removed from the library BEFORE the scene is saved — the banned clips
 ## exist nowhere in the packed game.
+## --- the café crowd's seated bake (T-142) ------------------------------------
+
+
+## Computes the posed bone globals (skeleton space) for one sampled moment
+## of `clip_name` — BY HAND, out of local track values. The import context
+## has no tree: `AnimationPlayer.advance()` never processes and Skeleton3D's
+## pose caches never flush (measured 2026-11-02 — posed writes left
+## `get_bone_global_pose` at rest), so the chain is computed directly: local
+## poses default to the bone rest, the clip's absolute tracks overwrite
+## them, and globals chain parent→child. The retired T-124 bake avoided all
+## this by running in a live SceneTree; the import cannot.
+func _posed_globals(skel: Skeleton3D, ap: AnimationPlayer, clip_name: String,
+		time: float) -> Array[Transform3D]:
+	var count := skel.get_bone_count()
+	var local_pos: Array[Vector3] = []
+	var local_rot: Array[Quaternion] = []
+	var local_scl: Array[Vector3] = []
+	local_pos.resize(count)
+	local_rot.resize(count)
+	local_scl.resize(count)
+	for b in count:
+		var rest := skel.get_bone_rest(b)
+		local_pos[b] = rest.origin
+		local_rot[b] = rest.basis.get_rotation_quaternion()
+		local_scl[b] = rest.basis.get_scale()
+	var a := ap.get_animation(clip_name)
+	var applied := 0
+	for t in a.get_track_count():
+		var path := a.track_get_path(t)
+		if path.get_subname_count() < 1:
+			continue
+		var bone := skel.find_bone(path.get_subname(path.get_subname_count() - 1))
+		if bone < 0:
+			continue
+		applied += 1
+		match a.track_get_type(t):
+			Animation.TYPE_POSITION_3D:
+				local_pos[bone] = a.position_track_interpolate(t, time)
+			Animation.TYPE_ROTATION_3D:
+				local_rot[bone] = a.rotation_track_interpolate(t, time)
+			Animation.TYPE_SCALE_3D:
+				local_scl[bone] = a.scale_track_interpolate(t, time)
+	print("BAKE pose %s: %d/%d tracks applied" % [clip_name, applied,
+			a.get_track_count()])
+	var globals: Array[Transform3D] = []
+	globals.resize(count)
+	var chains: Array[Transform3D] = []
+	chains.resize(count)
+	var done: Array[bool] = []
+	done.resize(count)
+	for b in count:
+		_globals_for(skel, b, local_pos, local_rot, local_scl, chains, done)
+	return chains
+
+
+## Memoized parent→child pose chaining (bone indices do not promise
+## parent-before-child order).
+func _globals_for(skel: Skeleton3D, b: int, local_pos: Array[Vector3],
+		local_rot: Array[Quaternion], local_scl: Array[Vector3],
+		chains: Array[Transform3D], done: Array[bool]) -> Transform3D:
+	if b < 0:
+		return Transform3D.IDENTITY
+	if done[b]:
+		return chains[b]
+	var local := Transform3D(Basis(local_rot[b]) * Basis.from_scale(local_scl[b]),
+			local_pos[b])
+	var out := _globals_for(skel, skel.get_bone_parent(b), local_pos, local_rot,
+			local_scl, chains, done) * local
+	chains[b] = out
+	done[b] = true
+	return out
+
+
+## Skins the shirt parts (body + both arms), the legs and the head through
+## the `Rig|Sitting_Idle` pose into THREE static meshes, emitted as HIDDEN
+## children (`SitBake/SitBody|SitLegs|SitHead`) of the imported scene in the
+## rig-root space at the adult scale — the CafeSpawner harvests them for its
+## MultiMesh batch (the T-094 law: batched scenery, no live rigs; sitters
+## never move, so the pose is baked once here and never at runtime). The
+## vertex math is the standard skinning chain through the POSED globals —
+## `posed(b) × bind⁻¹(b)` per weight — then out through the root-chain
+## transform (`accum`, the ×100 import scale) and the adult factor. The
+## names deliberately avoid the live parts' (a `Body` sibling would poison
+## the rig's `_find_part("Body")` lookups).
+func _bake_seated(scene: Node, skel: Skeleton3D, ap: AnimationPlayer,
+		per_part: Dictionary, accum: Transform3D, bind_global: Dictionary) -> void:
+	if not ap.has_animation(SIT_CLIP):
+		push_error("people rig import: sit clip missing — the café bake is skipped")
+		return
+	var posed_bones := _posed_globals(skel, ap, SIT_CLIP, 1.0 / 30.0)
+	var posed := {}
+	for b in posed_bones.size():
+		posed[b] = posed_bones[b]
+	var shirt := StandardMaterial3D.new()
+	shirt.vertex_color_use_as_albedo = true ## The MultiMesh per-instance tint channel (the box crowd's mechanism).
+	shirt.roughness = 0.9
+	var bake_root := Node3D.new()
+	bake_root.name = "SitBake"
+	bake_root.visible = false ## Scenery for the spawner's MultiMeshes — never rendered by the live rigs.
+	scene.add_child(bake_root)
+	bake_root.owner = scene
+	_emit_bake_node(bake_root, "SitBody",
+			_bake_mesh([per_part["body"], per_part["arm_l"], per_part["arm_r"]],
+					posed, bind_global, accum), shirt)
+	_emit_bake_node(bake_root, "SitLegs",
+			_bake_mesh([per_part["legs"]], posed, bind_global, accum),
+			_flat_mat(MAT_DENIM))
+	_emit_bake_node(bake_root, "SitHead",
+			_bake_mesh([per_part["head"]], posed, bind_global, accum),
+			_flat_mat(MAT_SKIN))
+
+
+## Skins one set of partition builds through the posed skeleton into one
+## static ArrayMesh (all surfaces merged, mannequin units → root metres ×
+## the adult factor).
+func _bake_mesh(part_lists: Array, posed: Dictionary, bind_global: Dictionary,
+		accum: Transform3D) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var indices := PackedInt32Array()
+	var accum_rot := accum.basis.get_rotation_quaternion()
+	for list: Array in part_lists:
+		for build: Dictionary in list:
+			var base := verts.size()
+			var bverts: PackedVector3Array = build["verts"]
+			var bnormals: PackedVector3Array = build["normals"]
+			var bbones: PackedInt32Array = build["bones"]
+			var bweights: PackedFloat32Array = build["weights"]
+			for i in bverts.size():
+				var v := Vector3.ZERO
+				var n := Vector3.ZERO
+				for k in 4:
+					var w: float = bweights[i * 4 + k]
+					if w > 0.0:
+						var b: int = bbones[i * 4 + k]
+						var m: Transform3D = posed[b] * bind_global[b]
+						v += (m * bverts[i]) * w
+						n += (m.basis * bnormals[i]) * w
+				verts.append((accum * v) * ADULT_SCALE)
+				normals.append((accum_rot * n).normalized())
+			for idx: int in build["indices"]:
+				indices.append(base + idx)
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+## One hidden MeshInstance3D under SitBake carrying the baked mesh, its
+## material and the stamped metadata the café scenario reads.
+func _emit_bake_node(bake_root: Node3D, node_name: String, mesh: ArrayMesh,
+		mat: StandardMaterial3D) -> void:
+	for s in mesh.get_surface_count():
+		mesh.surface_set_material(s, mat)
+	mesh.set_meta("source_pack", SOURCE_PACK)
+	mesh.set_meta("source_file", SOURCE_FILE)
+	mesh.set_meta("license", LICENSE)
+	mesh.set_meta("pose_clip", SIT_CLIP)
+	var mi := MeshInstance3D.new()
+	mi.name = node_name
+	mi.mesh = mesh
+	bake_root.add_child(mi)
+	mi.owner = bake_root.owner
+
+
 func _prune_clips(ap: AnimationPlayer) -> void:
 	for lib_name in ap.get_animation_library_list():
 		var lib := ap.get_animation_library(lib_name)

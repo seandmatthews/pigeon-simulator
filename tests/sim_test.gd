@@ -240,6 +240,7 @@ func _run_scenarios() -> void:
 	await _scenario_people_on_one_rig() ## T-138 — the one rigged people source, whitelist-pruned clips, adult scale, rate-matched walks.
 	await _scenario_citizen_parts_world_scale() ## T-139 — every citizen part stays human-sized (the ×100 arm regression tripwire).
 	await _scenario_elder_seats_on_the_bench() ## T-141 — the seated elder lands on the bench (the sink/hunch/hair composite).
+	await _scenario_cafe_sitters_on_the_rig() ## T-142 — the café crowd wears the baked one-people model.
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
 	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
@@ -3453,8 +3454,7 @@ func _scenario_city_cafe_tables() -> void:
 	await _wait_frames(4)
 	var tables_body: StaticBody3D = spawner.tables_body
 	var sitters_body: StaticBody3D = spawner.sitters_body
-	var torso_mm: MultiMeshInstance3D = spawner.visual("sitter_torso")
-	var arm_mm: MultiMeshInstance3D = spawner.visual("sitter_arm")
+	var body_mm: MultiMeshInstance3D = spawner.visual("sit_body") ## (T-142) The baked-people crowd — one instance per sitter.
 	var seated: bool = tables_body != null and sitters_body != null \
 			and tables_body.get_child_count() == spots.size()
 	var layers_ok: bool = tables_body != null and sitters_body != null \
@@ -3471,7 +3471,8 @@ func _scenario_city_cafe_tables() -> void:
 				_city.to_global((spots[i] as Transform3D).origin + Vector3(0.0, 0.36, 0.0))) < 0.01
 		## The sitter side: count by the pure even/odd rule, then each seat's
 		## shape on its seat transform and its shirt off the instance colors —
-		## torso at the sitter's own ordinal, arms at 2× and 2×+1.
+		## the baked body at the sitter's own ordinal (T-142: one instance per
+		## sitter on every sit key).
 		count_ok_rig = count_ok_rig and spawner.sitter_count(i) == (2 if i % 2 == 0 else 1)
 		for seat in spawner.sitter_count(i):
 			var rec: Dictionary = spawner.sitters[total_sitters]
@@ -3484,22 +3485,19 @@ func _scenario_city_cafe_tables() -> void:
 							_city.to_global(sitter_xf * CafeSpawner.SITTER_SHAPE_OFFSET)) < 0.01
 			var expected: Color = Tourist.SHIRT_PALETTE[(i + seat) % Tourist.SHIRT_PALETTE.size()]
 			shirts_ok = shirts_ok \
-					and spawner.instance_color("sitter_torso", total_sitters).is_equal_approx(expected) \
-					and spawner.instance_color("sitter_arm", total_sitters * 2).is_equal_approx(expected) \
-					and spawner.instance_color("sitter_arm", total_sitters * 2 + 1).is_equal_approx(expected)
+					and spawner.instance_color("sit_body", total_sitters).is_equal_approx(expected)
 			total_sitters += 1
-	## The batch is complete: one shape and one record per sitter, the torso
-	## MultiMesh carrying one instance per sitter and the arm key one per arm
-	## (anchoring the queue indices above to the live MultiMeshes), and the
-	## even/odd total: 100 tables → 50 even × 2 + 50 odd × 1 = 150 sitters —
-	## `n + ceil(n/2)` (T-135's shrunken pool made the count ODD; the old
-	## `n + n/2` floor form only held for even counts, the same law stated
-	## exactly, never weakened).
+	## The batch is complete: one shape and one record per sitter, the body
+	## MultiMesh carrying one instance per sitter (anchoring the queue
+	## indices above to the live MultiMeshes), and the even/odd total:
+	## 100 tables → 50 even × 2 + 50 odd × 1 = 150 sitters — `n + ceil(n/2)`
+	## (T-135's shrunken pool made the count ODD; the old `n + n/2` floor
+	## form only held for even counts, the same law stated exactly, never
+	## weakened).
 	count_ok_rig = count_ok_rig \
 			and sitters_body.get_child_count() == total_sitters \
 			and spawner.sitters.size() == total_sitters \
-			and torso_mm.multimesh.instance_count == total_sitters \
-			and arm_mm.multimesh.instance_count == 2 * total_sitters \
+			and body_mm.multimesh.instance_count == total_sitters \
 			and total_sitters == awnings + (awnings + 1) / 2
 	## A grounded pigeon waddles up and perches beside table 0 …
 	var seat0: Vector3 = _city.to_global((spots[0] as Transform3D).origin)
@@ -8386,6 +8384,65 @@ func _scenario_elder_seats_on_the_bench() -> void:
 	_check("elder_seats_on_the_bench", sink_ok and hips_ok and feet_ok and hair_ok,
 			"hips bone seat+%+.3f (want +0.105), feet slab+%+.3f, hair lift %+.3f, sink %.3f" % [
 				hips, feet + 0.60, hair_lift, sink_applied])
+
+
+## (T-142) The café crowd wears the ONE people model: every sit key renders
+## the import's baked seated meshes (metadata-stamped source pack, CC0,
+## `pose_clip == Rig|Sitting_Idle` — the same pose the elders hold, so the
+## two crowds read as one species), one instance per sitter on every key,
+## `sit_body` tinted by the unchanged tourist-palette law, the retired box
+## keys absent (swap tripwire), and the baked figure measures human — the
+## seated body spans roughly the probe's seated envelope, which also pins
+## the bake's adult scale against drift from the rig's 0.982 Model factor.
+func _scenario_cafe_sitters_on_the_rig() -> void:
+	var spawner := CafeSpawner.new()
+	spawner.city = _city
+	add_child(spawner)
+	await _wait_frames(4)
+	var total := 0
+	for i in _city.cafe_spots.size():
+		total += spawner.sitter_count(i)
+	var keys_ok := true
+	for key in ["sit_body", "sit_legs", "sit_head", "sit_hair"]:
+		var mm := spawner.visual(key)
+		keys_ok = keys_ok and mm != null and mm.multimesh != null \
+				and mm.multimesh.instance_count == total
+	var stamped_ok := true
+	for key in ["sit_body", "sit_legs", "sit_head"]:
+		var mm := spawner.visual(key)
+		var mesh: Mesh = mm.multimesh.mesh
+		stamped_ok = stamped_ok and mesh.get_meta("source_pack", "") \
+				== "quaternius-universal-base-characters" \
+				and mesh.get_meta("license", "") == "CC0" \
+				and str(mesh.get_meta("pose_clip", "")) == "Rig|Sitting_Idle"
+	var swap_ok := spawner.visual("sitter_torso") == null \
+			and spawner.visual("sitter_arm") == null \
+			and spawner.visual("sitter_head") == null \
+			and spawner.visual("sitter_thigh") == null
+	var shirts_ok := true
+	var si := 0
+	for i in _city.cafe_spots.size():
+		for seat in spawner.sitter_count(i):
+			var expected: Color = Tourist.SHIRT_PALETTE[(i + seat) % Tourist.SHIRT_PALETTE.size()]
+			shirts_ok = shirts_ok \
+					and spawner.instance_color("sit_body", si).is_equal_approx(expected)
+			si += 1
+	var body_ab: AABB = spawner.visual("sit_body").multimesh.mesh.get_aabb()
+	var legs_ab: AABB = spawner.visual("sit_legs").multimesh.mesh.get_aabb()
+	## The seated body: hips-to-head-top torso (probe: ~0.46..1.15 in root
+	## space) and legs reaching from the clip floor up to the hips — standing
+	## geometry (feet −0.013, hips 0.95, the no-op pose this bake shipped
+	## with twice) measures a 0.95 m legs AABB and fails the legs cap.
+	var human_ok := body_ab.size.y > 0.5 and body_ab.size.y < 0.9 \
+			and body_ab.position.y > 0.3 and body_ab.position.y < 0.6 \
+			and legs_ab.size.y > 0.5 and legs_ab.size.y < 0.75 \
+			and legs_ab.position.y > -0.1 and legs_ab.position.y < 0.1
+	spawner.free()
+	_check("cafe_sitters_on_the_rig", keys_ok and stamped_ok and swap_ok
+			and shirts_ok and human_ok,
+			"sitters=%d keys=%s stamped=%s swapped=%s shirts=%s human=%s (body %.2f..%.2f legs %.2f..%.2f)" % [
+				total, keys_ok, stamped_ok, swap_ok, shirts_ok, human_ok,
+				body_ab.position.y, body_ab.end.y, legs_ab.position.y, legs_ab.end.y])
 
 
 ## True when the node is a MeshInstance3D whose mesh is a generated derivative

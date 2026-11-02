@@ -33,6 +33,8 @@ func _process(_delta: float) -> bool:
 		_measure_clip_geometry()
 	elif _frame == 40:
 		_measure_elder_seated()
+	elif _frame == 41:
+		_measure_sit_bake()
 		return true
 	return false
 
@@ -77,6 +79,23 @@ func _measure_clip_geometry() -> void:
 	anim.seek(sit.length * 0.5, true)
 	_skeleton(_rig).force_update_all_bones()
 	print("Rig|Idle mid (0.83 s):      %s" % _bone_line(_rig))
+
+
+## (T-142) The café crowd's baked seated meshes: AABBs in rig-root space so
+## the spawner's placement constants come from measurement, not guesses.
+func _measure_sit_bake() -> void:
+	print("=== SitBake harvest (adult, rig-root space) ===")
+	var rig: Node3D = (load(RIG_SCENE) as PackedScene).instantiate()
+	var bake := rig.find_child("SitBake", true, false) as Node3D
+	if bake == null:
+		print("SitBake MISSING — the import bake did not run")
+		return
+	var skeleton := _skeleton(rig)
+	for mi: MeshInstance3D in bake.get_children():
+		var ab: AABB = mi.mesh.get_aabb()
+		print("%s: aabb pos=%s size=%s  surfaces=%d  clip=%s" % [mi.name, ab.position,
+				ab.size, mi.mesh.get_surface_count(), mi.mesh.get_meta("pose_clip", "")])
+	rig.free()
 
 
 func _measure_elder_seated() -> void:
