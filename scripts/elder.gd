@@ -8,10 +8,10 @@ extends CharacterBody3D
 ## banks nothing, a brief walk-away doesn't wipe progress. At `trust_needed`
 ## the elder shares: `crumbs_per_share` ordinary T-005 crumbs tossed to the
 ## pavement in front of them through `BreadSpawner.drop_crumb()`, then a long
-## `share_cooldown` — a friend, not an infinite buffet. The near arm is the
-## trust meter (T-078): it eases up with the banked trust while the pigeon
-## hangs out, stays down through the share cooldown even though trust has
-## already refilled, and sweeps up for the share beat.
+## `share_cooldown` — a friend, not an infinite buffet. (T-144) The T-078
+## trust arm is RETIRED — the elders' hands ride the clips like every other
+## citizen's; trust and the cooldown are invisible bookkeeping now, and the
+## share itself is the feedback.
 ## Since T-137 (the grandpa shuffle) the elder is a CharacterBody3D (the
 ## tourist's body config) that MIGRATES after every share: the spawner
 ## reserves a different-district bench (a deterministic hash of the run seed
@@ -27,10 +27,9 @@ extends CharacterBody3D
 ## `Rig|Walk` clip rate-matched to the 0.8 m/s pace, RISING/ARRIVING play the
 ## library's stand-up/sit-down transition clips, SEATED holds `Rig|Sitting_Idle`
 ## with the figure sunk so the sit pose's hips rest on the 0.60 m bench seat.
-## The near trust arm is the rig's rigid right arm on its BoneAttachment3D —
-## `_arm_raise` drives it exactly as it drove the static part (T-078); the
-## far arm rides the skinned clips. The bob and the bench-hunch comedy layer
-## stay.
+## The near arm is the rig's rigid right arm in the cardigan sleeve riding
+## its bone; the far arm rides the skinned clips. The bob and the
+## bench-hunch comedy layer stay.
 
 ## Fired on every share — the spawner relays it as `bread_shared` (the
 ## CaptureRecorder's `elder_bread_shared` event listens there).
@@ -86,10 +85,6 @@ const SEAT_SINK := -0.399
 @export var toss_spread: float = 0.4 ## Sideways spread (m) — crumbs alternate left/right of the facing line.
 @export var share_cooldown: float = 25.0 ## Seconds the elder ignores the pigeon after sharing.
 
-@export_group("Beat")
-@export var arm_raise_seconds: float = 0.5 ## How long the near arm stays up after a share.
-@export var arm_raise_rate: float = 8.0 ## 1/s the arm sweeps up and back down.
-
 @export_group("Shuffle") ## (T-137) The grandpa shuffle — slower than every tourist.
 @export var walk_speed: float = 0.8 ## Shuffle pace along the route legs (m/s) — the tourists stroll at 1.3.
 @export var walk_turn_rate: float = 4.0 ## 1/s yaw easing toward the current leg — slower hips than the tourist's 7.0.
@@ -120,9 +115,6 @@ var share_count: int = 0
 
 var _trust: float = 0.0
 var _cooldown_left: float = 0.0
-var _arm_left: float = 0.0
-var _arm_target: float = 0.0 ## Where the arm eases toward this frame — the share beat, the cooldown or the banked trust (T-078).
-var _arm_raise: float = 0.0 ## 0 = arm down, 1 = arm up.
 var _state: State = State.SEATED
 var _dest_seat: int = -1
 var _route := PackedVector3Array() ## Global waypoints; `_route_cross[i]` marks the leg ARRIVING at i a road crossing.
@@ -188,16 +180,6 @@ func _physics_process(delta: float) -> void:
 				_share()
 		else:
 			_trust = maxf(_trust - trust_decay * delta, 0.0)
-	## The arm IS the trust meter (T-078): the post-share beat keeps the
-	## target at 1.0; after it the cooldown pins the arm down ("not now")
-	## even though trust refills to `trust_needed` during it, company raises
-	## it with the banked trust, and absence lowers it again.
-	if _arm_left > 0.0:
-		_arm_target = 1.0
-	elif _cooldown_left > 0.0 or not present:
-		_arm_target = 0.0
-	else:
-		_arm_target = _trust / trust_needed
 	match _state:
 		State.RISING:
 			_rising_tick(delta)
@@ -233,7 +215,6 @@ func _pigeon_present() -> bool:
 func _share() -> void:
 	_cooldown_left = share_cooldown
 	_trust = 0.0
-	_arm_left = arm_raise_seconds
 	share_count += 1
 	if bread_spawner == null:
 		push_warning("Elder has no BreadSpawner — the shared bread is lost.")
@@ -601,19 +582,15 @@ func _face(dir: Vector3, delta: float, rate: float) -> void:
 	rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-rate * delta))
 
 
-## Cosmetic layer (T-138): the near arm eases toward `_arm_target` at
-## `arm_raise_rate` — the share beat first, then the trust meter (T-078) —
-## driven through the rig's raised-arm aim exactly as it drove the static
-## part; plus (T-137) the shamble: a bob sine scaled by the pace fraction
+## Cosmetic layer (T-138, arm drive retired by T-144): the near arm carries
+## no pose write at all — it rides its bone with the clip swing; the
+## `set_arm_pose` raised-arm aim is the tourists' panic raise now — plus
+## (T-137) the shamble: a bob sine scaled by the pace fraction
 ## while walking, and the torso easing upright off the bench hunch mid-route.
 ## The clip layer follows the state machine: Sitting_Idle seated, the
 ## stand-up/sit-down transitions on RISING/ARRIVING (paced to
 ## `rise_seconds`), the rate-matched Walk shuffle, Idle at the curb.
 func _animate(delta: float) -> void:
-	if _arm_left > 0.0:
-		_arm_left -= delta
-	_arm_raise = move_toward(_arm_raise, _arm_target, arm_raise_rate * delta)
-	_visual.set_arm_pose(PeopleRig.ARM_R, _arm_raise)
 	var hspeed := Vector2(velocity.x, velocity.z).length()
 	if _state == State.WALKING and hspeed > 0.05:
 		_phase += bob_rate * delta

@@ -2877,23 +2877,12 @@ func _scenario_elder_shares_bread_after_hangout() -> void:
 	var parked := _player.is_grounded and _player.position.distance_to(park) < 0.5
 	await _wait_frames(130) ## ~2.2 s of company banks ~2 trust.
 	var banked: float = elder._trust
-	## T-078: the arm IS the trust meter — part-raised mid-hangout and still
-	## creeping up as trust grows toward `trust_needed`.
-	var raise_banked: float = elder._arm_raise
-	await _wait_frames(10)
-	var raise_later: float = elder._arm_raise
-	var arm_meters_trust := banked > 1.5 and raise_banked > 0.2 and raise_banked < 0.9 \
-			and raise_later > raise_banked
+	## (T-144) The T-078 arm meter is retired — the hangout's read is the
+	## bank alone; the share itself is the feedback.
 	var away := park + Vector3(6.0, 0.0, 0.0) ## Outside the 3.0 m zone, still on the plaza.
 	await _set_up(true, away, Vector3.ZERO)
 	await _await_grounded(90)
-	var raise_absent_max := -1.0
-	for _i in 30: ## ~0.7 s alone decays it but must not wipe it — and from frame 10 on
-		## (the part-raised pose needs ~5 frames to ease down) the arm never rises.
-		await get_tree().physics_frame
-		if _i >= 10:
-			raise_absent_max = maxf(raise_absent_max, elder._arm_raise)
-	var arm_down_while_away := raise_absent_max <= 0.0
+	await _wait_frames(30) ## ~0.7 s alone decays it but must not wipe it.
 	var decayed: float = elder._trust
 	await _set_up(true, park, Vector3.ZERO)
 	await _await_grounded(90)
@@ -2907,11 +2896,10 @@ func _scenario_elder_shares_bread_after_hangout() -> void:
 	## crumbs_per_share` favor left the balance at the share.
 	var spend_ok: bool = Game.favor == 8 - Game.elder_loaf_cost * elder.crumbs_per_share
 	## (T-137) The share now launches the shuffle: the elder departs to a
-	## park seat reserved BEFORE he stood. The arm still pins DOWN through the
-	## cooldown while the pigeon stays parked (the T-078 law that survives),
-	## trust cannot re-pin once he is walking (accrual is seated-only), and
-	## the vacated bench shows in the seat book.
-	var arm_cooldown_pins := still_parked and elder._arm_raise < 0.1 \
+	## park seat reserved BEFORE he stood. The cooldown still holds while the
+	## pigeon stays parked, trust cannot re-pin once he is walking (accrual
+	## is seated-only), and the vacated bench shows in the seat book.
+	var cooldown_shuffle_ok := still_parked \
 			and elder._cooldown_left > 0.0 and elder._trust < elder.trust_needed \
 			and elder._state != Elder.State.SEATED and elder.current_seat >= 8
 	var live := 0
@@ -2926,11 +2914,10 @@ func _scenario_elder_shares_bread_after_hangout() -> void:
 	_check("elder_shares_bread_after_hangout",
 			parked and banked > 1.5 and decayed > 0.1 and decayed < banked - 0.5
 					and shared_once and live >= 2 and ordinary and spend_ok
-					and arm_meters_trust and arm_down_while_away and arm_cooldown_pins,
-			"parked=%s trust %.2f→%.2f decay, relays %d, live crumbs in reach %d, ordinary=%s, spend 8→%d ok=%s, arm %.2f→%.2f rising, absent max %.2f, post-share arm %.2f at trust %.2f" % [
+					and cooldown_shuffle_ok,
+			"parked=%s trust %.2f→%.2f decay, relays %d, live crumbs in reach %d, ordinary=%s, spend 8→%d ok=%s, cooldown+shuffle ok=%s" % [
 					parked, banked, decayed, _bread_shared.size(), live, ordinary,
-					Game.favor, spend_ok, raise_banked, raise_later, raise_absent_max,
-					elder._arm_raise, elder._trust])
+					Game.favor, spend_ok, cooldown_shuffle_ok])
 	spawner.free()
 	(rig[1] as Node).free()
 
@@ -8156,8 +8143,8 @@ func _scenario_people_on_one_rig() -> void:
 				and model.get_meta("license", "") == "CC0"
 	## Citizens arm differently on the SAME rig: the near RIGHT arm is rigid
 	## and visible for both citizens (the tourist's panic raise / foam finger
-	## and the elder's T-078 trust arm drive the same node); the tourist alone
-	## shows the rigid left, the elder's far arm rides the skinned ArmL.
+	## drives the same node); the tourist alone shows the rigid left, the
+	## elder's far arm rides the skinned ArmL.
 	var arms_ok := true
 	var t_rig: PeopleRig = tourist.get_node("Visual")
 	var e_rig: PeopleRig = elder.get_node("Visual")
@@ -8165,26 +8152,17 @@ func _scenario_people_on_one_rig() -> void:
 			and not t_rig.arm_skinned_l.visible
 	arms_ok = arms_ok and e_rig.arm_r_rigid.visible and e_rig.arm_skinned_l.visible \
 			and not e_rig.arm_l_rigid.visible
-	## And the trust raise is a GEOMETRIC fact, read through the real path
-	## (`_arm_raise` -> `_animate` -> rig): the near hand lifts from the sit
-	## pose to the raised aim. The T-078 scenarios read the member, which a
-	## visual no-op (an invisible or skipped arm) would not catch — the
-	## round-1 review's one-armed elder failed exactly here.
+	## And the elder's hands stay DOWN (T-144 retired the T-078 trust arm):
+	## the near rigid arm carries NO pose drive — after stepping the elder's
+	## own `_animate` its basis stays the identity (it rides its bone with
+	## the clip swing). A reinstated meter's world-aimed `set_arm_pose` write
+	## would tilt the basis away — this catches it structurally.
 	var e_skel := e_rig.find_child("Skeleton3D", true, false) as Skeleton3D
 	for _settle in 30:
 		elder._physics_process(1.0 / 60.0)
 		e_rig.anim.advance(1.0 / 60.0)
 		e_skel.force_update_all_bone_transforms()
-	var hand_base: float = e_rig.hand_r_slot.global_position.y
-	elder._arm_left = 0.5 ## The share beat — the meter's own target-1.0 path.
-	for _raise in 30:
-		elder._physics_process(1.0 / 60.0)
-		e_rig.anim.advance(1.0 / 60.0)
-		e_skel.force_update_all_bone_transforms()
-		if elder._arm_raise >= 0.95:
-			break
-	arms_ok = arms_ok and elder._arm_raise >= 0.95 \
-			and e_rig.hand_r_slot.global_position.y - hand_base > 0.4
+	arms_ok = arms_ok and e_rig.arm_r_rigid.basis.is_equal_approx(Basis.IDENTITY)
 	tourist.free()
 	elder.free()
 

@@ -295,6 +295,7 @@ UNTOUCHED as the tripwire. Pipeline per the T-124 precedent.
 | T-141 | [Fix the seated elder: hips buried in the bench, hunch fold, floating hair](T-141-elder-seated-pose.md) | visual-design | 4 | 2 | done |
 | T-142 | [The café sitters wear the one people model: seated-pose bakes replace the box crowd](T-142-cafe-sitters-new-model.md) | visual-design | 4 | 2 | done |
 | T-143 | [The stop signs read red: give the red face real relief over the border](T-143-stop-sign-red-face.md) | visual-design | 4 | 1 | done |
+| T-144 | [The elders keep their hands down: retire the T-078 trust arm](T-144-retire-the-elder-trust-arm.md) | gameplay | 3 | 2 | done |
 
 ## Suggested build order
 
