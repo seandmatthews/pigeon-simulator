@@ -89,7 +89,7 @@ const RAISE_TILT := -0.1974
 ## Head prop placement: the mount slot's world-space correction runs once the
 ## Idle pose has landed (frame 1); props then sit at this lift above the
 ## corrected head-top line (m, adult scale).
-const HEAD_PROP_LIFT := 0.04
+const HEAD_PROP_LIFT := -0.05 ## (T-145) The slot rides the head MESH's top, sunk 0.05: a head-prop box wider than the dome then wraps the skull's upper quarter as a band (the classic low-poly hair/cap read) instead of perching on the crown point with sky under its edges.
 
 @export_group("Slots")
 @export var head_prop_lift: float = HEAD_PROP_LIFT ## Head props' lift above the corrected head top.
@@ -123,32 +123,25 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _mounts_settled:
 		return
-	## Frame 1: the Idle pose has landed — pin the head slot to the real
-	## adult head top (the bind-space slot is close but not world-exact) and
-	## align mounted head props to the body yaw (the bone frame is neither
-	## world-aligned nor meter-scaled).
+	## Frame 1: pin the head slot to the head MESH's own bind-frame top and
+	## give head props the RAW bone frame. (T-145) The T-138 correction
+	## pinned WORLD Y (and XZ) at the BONE — but the head mesh's visual
+	## center rides ~0.07 m forward of the bone (the face), so every head
+	## prop mounted ~0.07 m behind the skull and read as a plank hovering
+	## off the crown. HeadTop hangs under HeadRigid, whose mesh is authored
+	## in the same bind frame — pinning the slot to that AABB tracks the
+	## exact mesh in every pose. And the props take the bone frame IDENTITY
+	## (no yaw leveling): the T-138 `_align_prop_yaw` stripped the head
+	## bone's pitch, so a level box sat on a nodded skull with sky under its
+	## back edge — the owner's hair confirmation came on the raw frame, where
+	## the prop pitches with the head and stays glued.
 	_mounts_settled = true
-	if head_slot != null:
-		var frame := head_slot.get_parent() as Node3D
-		var bone_world := frame.global_transform * Vector3.ZERO
-		var slot_world := head_slot.global_transform.origin
-		var want := Vector3(bone_world.x,
-				bone_world.y + HEAD_BONE_TO_TOP * ADULT_SCALE + head_prop_lift,
-				bone_world.z)
-		head_slot.position += frame.global_transform.basis.inverse() \
-				* (want - slot_world)
+	if head_slot != null and head_rigid != null and head_rigid.mesh != null:
+		var ab := head_rigid.mesh.get_aabb()
+		head_slot.position = Vector3(ab.get_center().x,
+				ab.end.y + head_prop_lift, ab.get_center().z)
 		for prop: Node3D in _head_props:
-			_align_prop_yaw(prop, frame)
-
-
-## Aligns a head prop's basis to the body yaw (a one-time compensation — the
-## prop then rides the rigid head; the head bone's idle sway is invisible).
-func _align_prop_yaw(prop: Node3D, frame: Node3D) -> void:
-	var fwd := -global_transform.basis.z
-	fwd.y = 0.0
-	var yaw := Basis(Vector3.UP, atan2(-fwd.x, -fwd.z))
-	prop.basis = Basis(frame.global_transform.basis.orthonormalized() \
-			.get_rotation_quaternion().inverse()) * yaw
+			prop.basis = Basis.IDENTITY
 
 
 ## Finds an imported part/mount by name anywhere under the instance.
@@ -256,7 +249,7 @@ func mount_prop(prop: Node3D, mount: Mount) -> void:
 	if mount == Mount.HEAD:
 		_head_props.append(prop)
 		if _mounts_settled:
-			_align_prop_yaw(prop, slot.get_parent() as Node3D)
+			prop.basis = Basis.IDENTITY ## (T-145) The raw bone frame — pitch rides along.
 	## (The mitt needs no extra rotation: its +Y matches the arm mesh's long
 	## axis, so a raised foam finger reads straight up.)
 

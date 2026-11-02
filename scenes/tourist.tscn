@@ -18,7 +18,7 @@ size = Vector3(0.34, 0.71, 0.09)
 
 [sub_resource type="BoxMesh" id="Mesh_cap"]
 material = SubResource("Mat_gold")
-size = Vector3(0.46, 0.16, 0.46)
+size = Vector3(0.3, 0.1, 0.3)
 
 [sub_resource type="SphereShape3D" id="Shape_buzz"]
 radius = 2.6
