@@ -8315,14 +8315,17 @@ func _scenario_citizen_parts_world_scale() -> void:
 			"worst part world AABB %.3f m (< 3.0)" % worst)
 
 
-## (T-141) The seated elder lands ON the bench. With the real `_animate`
-## layer settled (sink eased in, `Rig|Sitting_Idle` playing), the DEF-hips
-## BONE rides ~0.105 above the seat top — the glute kisses the 0.60 m seat
-## plane; the T-138 child-scale derivation put the bone AT the seat (glute
-## ~0.16 into the slab). The feet never pass below the pavement (the pack's
-## sit pose dangles them ~0.29 — the accepted read), and the hair prop sits
-## on the scalp, not floating above the head. The constants are value-locked
-## (the T-110 precedent) so the composite cannot silently re-drift;
+## (T-141, sink re-derived by T-146 from the owner's after-screenshot) The
+## seated elder lands IN the bench: the DEF-hips BONE rides ~0.04 above the
+## seat top — the sit clip's near-horizontal THIGHS (the mass that meets
+## the bench) rest ON the 0.60 m seat and the glute settles 0.01-0.02 into
+## the slab; the T-141 glute-line target (+0.105) left the thighs ~0.07
+## high and a gap under the pelvis, and the T-138 child-scale derivation
+## put the bone AT the seat (glute ~0.16 into the slab). The feet never
+## pass below the pavement (the pack's sit pose dangles them — the accepted
+## read), and the hair prop sits on the scalp, not floating above the head.
+## The constants are value-locked (the T-110 precedent) so the composite
+## cannot silently re-drift;
 ## `tools/probe_sit_geometry.gd` re-derives them from the pack clips.
 func _scenario_elder_seats_on_the_bench() -> void:
 	var elder_scene := load("res://scenes/elder.tscn") as PackedScene
@@ -8352,15 +8355,15 @@ func _scenario_elder_seats_on_the_bench() -> void:
 	var hair_lift: float = hair.global_position.y - elder.global_position.y \
 			- (head + PeopleRig.HEAD_BONE_TO_TOP * PeopleRig.ADULT_SCALE)
 	var sink_ok: bool = absf(rig.position.y - Elder.SEAT_SINK) < 0.01 \
-			and absf(Elder.SEAT_SINK - (-0.399)) < 0.005 \
+			and absf(Elder.SEAT_SINK - (-0.465)) < 0.005 \
 			and absf(Elder.HUNCH_SEATED - 0.04) < 0.005
-	var hips_ok := hips > 0.07 and hips < 0.14
+	var hips_ok := hips > 0.00 and hips < 0.08
 	var feet_ok := feet + 0.60 >= -0.01 ## Root sits 0.60 above the slab (the spot contract).
 	var hair_ok := hair != null and hair_lift > -0.05 and hair_lift < 0.10
 	var sink_applied: float = rig.position.y ## Read before the rig dies with its parent.
 	elder.free()
 	_check("elder_seats_on_the_bench", sink_ok and hips_ok and feet_ok and hair_ok,
-			"hips bone seat+%+.3f (want +0.105), feet slab+%+.3f, hair lift %+.3f, sink %.3f" % [
+			"hips bone seat+%+.3f (want +0.04), feet slab+%+.3f, hair lift %+.3f, sink %.3f" % [
 				hips, feet + 0.60, hair_lift, sink_applied])
 
 

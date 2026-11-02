@@ -297,6 +297,7 @@ UNTOUCHED as the tripwire. Pipeline per the T-124 precedent.
 | T-143 | [The stop signs read red: give the red face real relief over the border](T-143-stop-sign-red-face.md) | visual-design | 4 | 1 | done |
 | T-144 | [The elders keep their hands down: retire the T-078 trust arm](T-144-retire-the-elder-trust-arm.md) | gameplay | 3 | 2 | done |
 | T-145 | [Head props hug the skull: the elder's hair (and the tourist cap) still read as floating planks](T-145-head-props-hug-the-skull.md) | visual-design | 3 | 1 | done |
+| T-146 | [The elder sits IN the bench: thighs rest on the seat, no more clipping](T-146-elder-sits-in-the-bench.md) | visual-design | 4 | 1 | done |
 
 ## Suggested build order
 
