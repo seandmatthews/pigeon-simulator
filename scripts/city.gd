@@ -178,7 +178,7 @@ const STOP_SIGN_ACROSS := 0.75 ## Red octagon across flats (m) — the research 
 const STOP_SIGN_BAR := 0.31 ## One bar's short side (m) — 0.75·(√2−1) rounded; the four-bar union is the regular octagon.
 const STOP_SIGN_BORDER_ACROSS := 0.81 ## White border octagon across flats (m) — reads ≈ 0.03 m of border all around.
 const STOP_SIGN_BORDER_BAR := 0.34 ## Border bar short side (m).
-const STOP_SIGN_THICKNESS := 0.036 ## Red bar thickness (m) — sits proud of the 0.03 border on both faces.
+const STOP_SIGN_THICKNESS := 0.086 ## (T-143) Red bar thickness (m) — sits ~0.028 proud of the 0.03 border on both faces. The T-134 0.036 (0.003 proud) put the two layers near-coplanar, and the renderer interleaved them at gameplay distances: every sign read white with hairline red seams (probe-verified correct transforms; the relief, not the layout, was the defect).
 const SIGN_BORDER_THICKNESS := 0.03 ## White border/plaque/speed-face thickness (m).
 const ALL_WAY_PLAQUE_SIZE := Vector3(0.42, 0.14, 0.03) ## Blank white plaque below the octagon (the T-090 blank-signboard convention).
 const SPEED_SIGN_SIZE := Vector3(0.45, 0.6, 0.03) ## White portrait rectangle (m) — the Southbridge photo's shape, no legend.
@@ -1260,8 +1260,10 @@ func _queue_stop_line(node: Vector2i, dir: int) -> void:
 ## octagon and its white border each read as the union of FOUR equal bars per
 ## layer (the only unit-box recipe that draws a real 8-sided sign — the
 ## two-square union is a 4-sided square, a 4-sided diamond, or a 16-sided
-## blob at every size ratio), red 0.006 m prouder than the border on both
-## faces, with the blank ALL-WAY plaque below.
+## blob at every size ratio), red ~0.028 m prouder than the border on both
+## faces (T-143: real relief — the T-134 0.003 read as a white sign with
+## hairline red seams at gameplay distances), with the blank ALL-WAY plaque
+## below.
 func _queue_stop_sign(node: Vector2i, dir: int) -> void:
 	var a := ROUTE_DIR_VECS[dir]
 	var r := right_of_dir(dir)

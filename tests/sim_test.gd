@@ -7534,7 +7534,7 @@ func _scenario_intersection_furniture() -> void:
 	matched_signs.resize(expected_signs.size())
 	matched_signs.fill(false)
 	var per_sign_angles := {} ## Vector3 center -> {angle: count} per layer.
-	for pair: Array in [["stop_sign", 0.75, 0.31, 0.036], ["stop_sign_border", 0.81, 0.34, 0.03]]:
+	for pair: Array in [["stop_sign", 0.75, 0.31, 0.086], ["stop_sign_border", 0.81, 0.34, 0.03]]:
 		var key: String = pair[0]
 		var across_len: float = pair[1]
 		var bar_len: float = pair[2]

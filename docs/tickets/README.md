@@ -294,6 +294,7 @@ UNTOUCHED as the tripwire. Pipeline per the T-124 precedent.
 | T-139 | [Fix the elder's giant far arm: the import split baked the skinned arm's vertices ×100](T-139-arm-mesh-space-fix.md) | visual-design | 5 | 2 | done |
 | T-141 | [Fix the seated elder: hips buried in the bench, hunch fold, floating hair](T-141-elder-seated-pose.md) | visual-design | 4 | 2 | done |
 | T-142 | [The café sitters wear the one people model: seated-pose bakes replace the box crowd](T-142-cafe-sitters-new-model.md) | visual-design | 4 | 2 | done |
+| T-143 | [The stop signs read red: give the red face real relief over the border](T-143-stop-sign-red-face.md) | visual-design | 4 | 1 | done |
 
 ## Suggested build order
 
