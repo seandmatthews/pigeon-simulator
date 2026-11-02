@@ -239,6 +239,7 @@ func _run_scenarios() -> void:
 	await _scenario_civilian_palette_reserved() ## T-121 — the reservation law + the grown flag, bare value pins.
 	await _scenario_people_on_one_rig() ## T-138 — the one rigged people source, whitelist-pruned clips, adult scale, rate-matched walks.
 	await _scenario_citizen_parts_world_scale() ## T-139 — every citizen part stays human-sized (the ×100 arm regression tripwire).
+	await _scenario_elder_seats_on_the_bench() ## T-141 — the seated elder lands on the bench (the sink/hunch/hair composite).
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
 	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
@@ -8336,6 +8337,55 @@ func _scenario_citizen_parts_world_scale() -> void:
 	rig_inst.free()
 	_check("citizen_parts_world_scale", ok,
 			"worst part world AABB %.3f m (< 3.0)" % worst)
+
+
+## (T-141) The seated elder lands ON the bench. With the real `_animate`
+## layer settled (sink eased in, `Rig|Sitting_Idle` playing), the DEF-hips
+## BONE rides ~0.105 above the seat top — the glute kisses the 0.60 m seat
+## plane; the T-138 child-scale derivation put the bone AT the seat (glute
+## ~0.16 into the slab). The feet never pass below the pavement (the pack's
+## sit pose dangles them ~0.29 — the accepted read), and the hair prop sits
+## on the scalp, not floating above the head. The constants are value-locked
+## (the T-110 precedent) so the composite cannot silently re-drift;
+## `tools/probe_sit_geometry.gd` re-derives them from the pack clips.
+func _scenario_elder_seats_on_the_bench() -> void:
+	var elder_scene := load("res://scenes/elder.tscn") as PackedScene
+	var elder := elder_scene.instantiate() as Node3D
+	elder.position = Vector3(50.0, 0.0, 50.0) ## Bare space; the root y IS the seat top by the spot contract.
+	add_child(elder)
+	var rig: PeopleRig = elder.get_node("Visual")
+	var skel := rig.find_child("Skeleton3D", true, false) as Skeleton3D
+	for _settle in 90: ## 1.5 s: the sink eases to full in ~0.5 s of physics time.
+		elder._physics_process(1.0 / 60.0)
+		rig.anim.advance(1.0 / 60.0)
+		skel.force_update_all_bone_transforms()
+	## Two real frames: the BoneAttachment3D mounts lag the skeleton within a
+	## synchronous block (they catch up on the skeleton's next processing
+	## pass), and the rig's frame-1 head-mount correction runs on _process —
+	## both are live-game states this measurement must not read early.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var bone_world_y := func(bone_name: String) -> float:
+		var idx := skel.find_bone(bone_name)
+		return (skel.global_transform * skel.get_bone_global_pose(idx)).origin.y
+	var hips: float = bone_world_y.call("DEF-hips") - elder.global_position.y
+	var feet: float = minf(bone_world_y.call("DEF-foot.L"),
+			bone_world_y.call("DEF-foot.R")) - elder.global_position.y
+	var head: float = bone_world_y.call("DEF-head") - elder.global_position.y
+	var hair := rig.find_child("Hair", true, false) as MeshInstance3D
+	var hair_lift: float = hair.global_position.y - elder.global_position.y \
+			- (head + PeopleRig.HEAD_BONE_TO_TOP * PeopleRig.ADULT_SCALE)
+	var sink_ok: bool = absf(rig.position.y - Elder.SEAT_SINK) < 0.01 \
+			and absf(Elder.SEAT_SINK - (-0.399)) < 0.005 \
+			and absf(Elder.HUNCH_SEATED - 0.04) < 0.005
+	var hips_ok := hips > 0.07 and hips < 0.14
+	var feet_ok := feet + 0.60 >= -0.01 ## Root sits 0.60 above the slab (the spot contract).
+	var hair_ok := hair != null and hair_lift > -0.05 and hair_lift < 0.10
+	var sink_applied: float = rig.position.y ## Read before the rig dies with its parent.
+	elder.free()
+	_check("elder_seats_on_the_bench", sink_ok and hips_ok and feet_ok and hair_ok,
+			"hips bone seat+%+.3f (want +0.105), feet slab+%+.3f, hair lift %+.3f, sink %.3f" % [
+				hips, feet + 0.60, hair_lift, sink_applied])
 
 
 ## True when the node is a MeshInstance3D whose mesh is a generated derivative

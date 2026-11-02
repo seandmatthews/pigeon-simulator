@@ -60,13 +60,19 @@ const SKIN := Color(0.87, 0.68, 0.55) ## Same skin family as the tourists (T-007
 const HAIR := Color(0.78, 0.78, 0.75) ## Gray/white hair — the elder giveaway.
 const SEAT_HEIGHT := 0.60 ## Bench seat top above the slab — the `_add_bench` math.
 const CRUMB_LIFT := 0.06 ## Tossed crumbs rest at the same height as bread-spot ring crumbs.
-const HUNCH_SEATED := 0.18 ## The bench hunch (the `_ready` pose).
+const HUNCH_SEATED := 0.04 ## (T-141) A whisper of the grandpa slump — the T-020 primitive-era 0.18 folded the whole rigged figure forward off the real sit clip (its root pitch also sank the hips 0.067; the sink below is derived WITH this pitch).
 const HUNCH_WALKING := 0.06 ## Nearly upright mid-shuffle — "upright, bobbing" (T-137).
-## (T-138) The seated sink: the rig plays the pack's sit clip with its hips
-## 0.531 m above the rig root (probe-measured, adult scale 0.982), so the
-## figure sinks this far to rest the hips on the 0.60 m seat plane with a
-## 0.02 lip.
-const SEAT_SINK := -0.511
+## (T-141) The seated sink: the pack's sit clip holds its DEF-hips BONE
+## 0.5179 m above the rig root (probe-measured, adult scale 0.982), and the
+## seat-contact point is the glute underside ~0.105 below that bone on the
+## 1.75 m adult figure — NOT the bone itself (the T-138 −0.511 derivation
+## treated the bone as the contact, a child-scale habit from the retired
+## 1.22 m bake, and buried the pelvis ~0.16 into the slab). Sinking
+## −0.399 with the 0.04 hunch (its root pitch drops the hips a measured
+## 0.0136) lands the hips bone at seat + 0.105: glute kisses the 0.60 m
+## seat plane. Feet follow to ~0.29 above the pavement — the pack's sit
+## pose is built for a ~0.45 m chair; the dangle is the accepted read.
+const SEAT_SINK := -0.399
 
 @export_group("Trust")
 @export var proximity_radius: float = 3.0 ## PresenceZone radius (m) around the bench.
@@ -613,8 +619,12 @@ func _animate(delta: float) -> void:
 		_phase += bob_rate * delta
 		_visual.position.y = _sink + bob_height * minf(hspeed / walk_speed, 1.5) * sin(_phase)
 	else:
-		_visual.position.y = _sink + move_toward(
-				_visual.position.y - _sink, 0.0, bob_height * delta)
+		## (T-141) The bob's leftover closes at least as fast as the sink
+		## itself eases — at the bare bob rate the 0.399 m sink took ~11 s to
+		## reach the visual, so the elder hovered above the seat long after
+		## ARRIVING landed him.
+		_visual.position.y = _sink + move_toward(_visual.position.y - _sink, 0.0,
+				maxf(bob_height, absf(SEAT_SINK) * hunch_rate) * delta)
 	var want_hunch: float = HUNCH_SEATED \
 			if (_state == State.SEATED or _state == State.ARRIVING) else HUNCH_WALKING
 	_visual.rotation.x = move_toward(_visual.rotation.x, want_hunch, hunch_rate * delta)

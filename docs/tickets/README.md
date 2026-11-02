@@ -292,6 +292,7 @@ UNTOUCHED as the tripwire. Pipeline per the T-124 precedent.
 | -- | ------ | -------- | ----- | ---- | ------ |
 | T-138 | [One people rig: every human on the live Quaternius skeleton — real walks, sits, adult scale](T-138-one-people-rig.md) | visual-design | 4 | 3 | done |
 | T-139 | [Fix the elder's giant far arm: the import split baked the skinned arm's vertices ×100](T-139-arm-mesh-space-fix.md) | visual-design | 5 | 2 | done |
+| T-141 | [Fix the seated elder: hips buried in the bench, hunch fold, floating hair](T-141-elder-seated-pose.md) | visual-design | 4 | 2 | done |
 
 ## Suggested build order
 
