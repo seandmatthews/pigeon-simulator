@@ -33,34 +33,52 @@ var _points: int = 0
 var _multiplier: int = 1
 var _pos: Vector3 = Vector3.ZERO
 var _style: bool = false ## (T-038) The fast/low dive bonus applied to this hit.
+var _prefix: String = "" ## (T-151) The class word prepended verbatim ("" = bare legacy form).
+var _tint: Color = Color(1.0, 1.0, 1.0, 1.0) ## (T-151) The favor tint (white = no claim).
 
 
 ## "+100" or "+100 ×2" — the ticket's popup format; static so tests can
 ## assert it without instancing the 3D node. (T-038) The style flag appends
 ## the STYLE tag in both multiplier shapes: "+150 STYLE" / "+150 ×2 STYLE";
-## unstyled output stays byte-identical.
-static func format_text(points: int, multiplier: int, style: bool = false) -> String:
+## unstyled output stays byte-identical. (T-151) `prefix` is prepended
+## VERBATIM — the caller carries any trailing space, so the empty default
+## keeps every legacy form byte-identical ("+150", "+150 ×2", "+150 STYLE",
+## "+150 ×2 STYLE"); the popup says nothing beyond the word it is handed.
+static func format_text(points: int, multiplier: int, style: bool = false,
+		prefix: String = "") -> String:
 	var tag := " STYLE" if style else ""
 	if multiplier > 1:
-		return "+%d ×%d%s" % [points, multiplier, tag]
-	return "+%d%s" % [points, tag]
+		return "%s+%d ×%d%s" % [prefix, points, multiplier, tag]
+	return "%s+%d%s" % [prefix, points, tag]
 
 
 ## Stores the payload; _ready applies it and runs the float+fade tween.
-func setup(points: int, multiplier: int, pos: Vector3, style: bool = false) -> void:
+## (T-151) `tint` rides the same hit — the favor gold/red Main composes from
+## the stashed delta; the no-op white default keeps every un-claimed popup
+## rendering exactly as before, and a styled hit keeps its STYLE gold over
+## any favor tint.
+func setup(points: int, multiplier: int, pos: Vector3, style: bool = false,
+		prefix: String = "", tint: Color = Color(1.0, 1.0, 1.0, 1.0)) -> void:
 	_points = points
 	_multiplier = multiplier
 	_pos = pos
 	_style = style
+	_prefix = prefix
+	_tint = tint
 
 
 func _ready() -> void:
 	add_to_group("score_popups") ## The restart flow (T-010) clears popups mid-float.
 	global_position = _pos
-	label.text = format_text(_points, _multiplier, _style)
+	label.text = format_text(_points, _multiplier, _style, _prefix)
 	if _style:
 		## (T-038) Tint the RGB only — the fade below owns the alpha channel.
 		label.modulate = STYLE_COLOR
+	else:
+		## (T-151) The favor tint; the default is the label's own white, so
+		## the no-op case renders byte-as-before and the fade below still owns
+		## the alpha channel.
+		label.modulate = _tint
 	## (T-059) Stagger chained popups: every valid earlier popup still alive in
 	## the group (never this one) adds one rise_step to the rise target, capped
 	## at 4. Deterministic — plain group counting, no RNG. Self-cleaning: freed

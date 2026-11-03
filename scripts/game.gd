@@ -299,6 +299,19 @@ func add_favor(delta: int) -> void:
 ## included — the visitor vehicle is the jackpot and the superfan pays the
 ## same on foot or on wheels. Books through add_favor and returns the delta.
 func splat_favor(kind: CitizenClass.Kind, vehicle: bool) -> int:
+	var delta := splat_favor_delta(kind, vehicle)
+	add_favor(delta)
+	return delta
+
+
+## (T-151) The pure table half of splat_favor — the delta a splat of this
+## class WOULD book, without booking it. Exposed so Main can stage the hit
+## readouts' favor tint before the synchronous add_*_hit → hit_scored chain
+## fires, while the real booking (and any victory it triggers) stays exactly
+## where it has always been: after the score book, so the game-over screen
+## opens with the tourist/car counters already counting the in-flight splat.
+## One table, one source of truth — splat_favor() runs this same lookup.
+func splat_favor_delta(kind: CitizenClass.Kind, vehicle: bool) -> int:
 	var delta: int
 	match kind:
 		CitizenClass.Kind.VISITOR:
@@ -307,7 +320,6 @@ func splat_favor(kind: CitizenClass.Kind, vehicle: bool) -> int:
 			delta = favor_superfan_splat
 		_:
 			delta = favor_civilian_car_splat if vehicle else favor_civilian_splat
-	add_favor(delta)
 	return delta
 
 

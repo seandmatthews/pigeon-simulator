@@ -1,6 +1,6 @@
 # T-151 — Name the class on every hit readout
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** —
 - **Refs:** T-113/T-114 (class + favor tables, landed) · T-121's owner misread —
   *"Sometimes a car is just yellow and its wheels are black but it's not a
@@ -95,26 +95,26 @@ T-121 Gate 3 aerial check is still pending owner eyes.
 
 ## Acceptance criteria
 
-- [ ] (Gate 1b) On the all-visitor rig through the real Main chain, the
+- [x] (Gate 1b) On the all-visitor rig through the real Main chain, the
       spawned popup's `%Text` reads `"Visitor +100"` (gold tint) and
       `%ComboStrip` reads `"Visitor +100"` — on today's tree they read bare
       `"+100"` / `"Tourist +100"` (red-before, real).
-- [ ] (Gate 1b) All-civilian tourist → `"Civilian +100"` red-tinted (−1);
+- [x] (Gate 1b) All-civilian tourist → `"Civilian +100"` red-tinted (−1);
       parked civilian car → `"Civilian car +30"` red-tinted (−2); parked
       visitor car → `"Visitor car +30"` gold-tinted (+6); superfan →
       `"Superfan +100"` red-tinted (−8); the strip wording matches the
       popup's in every leg.
-- [ ] (Gate 1b) A synthetic `Game.add_tourist_hit` on a fresh Main renders
+- [x] (Gate 1b) A synthetic `Game.add_tourist_hit` on a fresh Main renders
       the bare `"+100"` — no class word (the class-free entry claims
       nothing; `score_popup_chain_stagger` stays green untouched).
-- [ ] (Gate 1b) `format_text`/`setup` with the empty prefix produce
+- [x] (Gate 1b) `format_text`/`setup` with the empty prefix produce
       byte-identical legacy forms — `score_popup_style_tag_format` green
       untouched.
-- [ ] (Gate 1b) The starved zero-splat breakdown stays exactly
+- [x] (Gate 1b) The starved zero-splat breakdown stays exactly
       `"Tourists splatted: 0    Cars splatted: 0"`; a run with real splats
       appends the per-class split; the victory register carries it before
       the Favor total.
-- [ ] The strip clears to empty AND the rest tint after
+- [x] The strip clears to empty AND the rest tint after
       `combo_strip_seconds`; `restart_run()` resets the stash (no stale
       class across runs).
 
@@ -133,3 +133,31 @@ presentation-only, no scoring change. Gate 3: [screenshot] a visitor-car
 jackpot popup + strip read gold `"Visitor car +30"` at typical flight
 distance; [screenshot] a civilian friendly-fire reads red; [screenshot] the
 game-over screen shows the class split — owner eyes, recorded here.
+
+## Landed (2026-11-03)
+
+All six acceptance criteria machine-verified: Gate 1 (import exit 0, boot
+exit 0, no error lines beyond the accepted godot_mcp teardown line) and
+Gate 1b full suite 165 PASS / 0 FAIL, exit 0 (was 164 scenarios; this ticket
+adds `hit_feedback_names_the_class`), including the re-pinned
+`combo_strip_reports_last_hit` (class word derived from each emitted node's
+own `citizen_class`) and `favor_max_ends_run_victory` (exact victory
+breakdown `"Cars splatted: 1 (visitor 1)    Favor: <max>"`; the starved
+zero-run pin untouched and green). Gate 2 autoplay run green on the branch
+build.
+
+Implementation note (declared-deviation, one line): the favor tint cannot be
+captured from `Game.splat_favor`'s return in time for the hit's OWN popup —
+that call runs after the synchronous `hit_scored` chain, and calling it
+before the score book instead makes a favor-maxing splat open the victory
+screen with its own tourist/car count not yet booked (the first run caught
+this: `favor_max_ends_run_victory victory=false` on `Cars splatted: 0
+(visitor 1)`). Fix: `Game.splat_favor_delta()` — the pure table half of
+`splat_favor`, same match, no booking — stages the stash before the score
+chain; the real `splat_favor` call keeps its T-147 place after it and its
+return is re-captured. One table, one source of truth; no signal change. The
+new scenario pins tint AND booked-favor exactness on every leg, so a table
+divergence fails the gate.
+
+Gate 3 screenshots: PENDING owner eyes (the three lines live in
+VERIFICATION.md's Gate 3 checklist, unchecked).

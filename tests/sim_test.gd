@@ -244,6 +244,7 @@ func _run_scenarios() -> void:
 	await _scenario_cafe_sitters_on_the_rig() ## T-142 — the café crowd wears the baked one-people model.
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
 	await _scenario_splat_favor_once_per_target() ## T-147 — favor books ONCE per target; repeats honk and score but add zero.
+	await _scenario_hit_feedback_names_the_class() ## T-151 — the hit readouts name the class, tint with the booked favor and split the breakdown.
 	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
 	await _scenario_favor_max_ends_run_victory() ## T-115 — the ceiling ends the run as a victory through the real main scene; starvation coexists in one Main.
@@ -9586,6 +9587,226 @@ func _scenario_splat_favor_once_per_target() -> void:
 					_score_events.size()])
 
 
+## --- scenario (T-151 the hit readouts name the class) -----------------------
+
+
+## The first living tourist of `kind` on the spawner's rig — the class-leg
+## target finder for the hit-feedback scenario (the share knobs are forced
+## single-class first, so this always hits; null means the rig lied).
+func _first_tourist_of_class(spawner: TouristSpawner, kind: CitizenClass.Kind) -> Tourist:
+	for tourist in spawner.living_tourists():
+		if tourist.citizen_class == kind:
+			return tourist
+	return null
+
+
+## The first PARKED car of `kind` — the parked filter the T-114/T-147 car legs
+## use (a traffic car in motion is nobody's staged target).
+func _first_parked_car_of_class(spawner: CarSpawner, kind: CitizenClass.Kind) -> Car:
+	for car in spawner.living_cars():
+		if car.mode == Car.Mode.PARKED and car.citizen_class == kind:
+			return car
+	return null
+
+
+## The hit feedback chain names WHICH class paid (T-151), through the REAL
+## main scene (the `splat_favor_follows_citizen_class` instanced-Main pattern,
+## pigeon held airborne so no elder trust can bank and no crumb can feed — the
+## only favor movements are the driven ones): share-knob single-class rigs +
+## `_populate()`, then the duck-typed `on_splatted` relay at a REAL living
+## node. Every class leg reads the spawned popup through the `score_popups`
+## group inside its 1.2 s lifetime (the score_popup chain recipe) — exact text
+## ("Visitor +100" / "Civilian car +30" / …) AND tint (gold
+## `MainGame.FAVOR_GAIN_COLOR` on a booked gain, red `FAVOR_LOSS_COLOR` on a
+## loss, asserted against the exports' signs, never literals) — and the HUD
+## `%ComboStrip`'s wording matches the popup's in every leg, its tint riding
+## the same hit. The synthetic `Game.add_tourist_hit` legs (on the FRESH Main,
+## and again after restart_run()) read the bare "+100" — the class-free entry
+## claims no class, and the red-before tree read "Tourist +100" / bare "+100".
+## The strip expiry leg waits out `combo_strip_seconds` and reads BOTH the
+## text and the tint cleared (the favor tint never outlives its hit). The
+## class-split leg starves the run via the `drain_per_second` compression
+## (the T-010 recipe) and reads the breakdown's EXACT per-class split from
+## the tally this scenario drove (" (visitor 2 · civilian 2 · superfan 1)",
+## counts matching Game.tourist_hits/car_hits); the victory-form ordering
+## (split before the Favor total) is pinned exact by the re-pinned
+## favor_max_ends_run_victory row.
+func _scenario_hit_feedback_names_the_class() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(-6500.0, 0.0, 6500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	var pigeon: Player = main_game.player
+	var tourists: TouristSpawner = main_game.get_node("TouristSpawner") as TouristSpawner
+	var cars: CarSpawner = main_game.get_node("CarSpawner") as CarSpawner
+	var hover: Vector3 = main_game.city.to_local(main_game.city.spawn_point) \
+			+ Vector3(0.0, 60.0, 0.0)
+	pigeon.reset_flight(hover) ## Airborne for the whole scenario — no trust, no crumbs eaten.
+	await _wait_frames(6)
+	var strip: Label = main_game.combo_strip
+	var rest_color: Color = strip.get_theme_color("font_color") ## The scene's T-019 fill.
+	var popup_by_text := func(text: String) -> ScorePopup:
+		for node in get_tree().get_nodes_in_group("score_popups"):
+			var found := node as ScorePopup
+			if found != null and found.label.text == text:
+				return found
+		return null
+	## The synthetic entry on a FRESH Main claims nothing: bare "+100", no
+	## tint (the red-before tree read "Tourist +100" on the strip — the stale
+	## default kind — and still bare "+100" on the popup).
+	Game.add_tourist_hit(main_game.city.spawn_point)
+	await _wait_frames(2)
+	var bare_popup: ScorePopup = popup_by_text.call("+100")
+	var bare_ok: bool = bare_popup != null \
+			and bare_popup.label.modulate == Color(1.0, 1.0, 1.0, 1.0) \
+			and strip.text == "+100" \
+			and strip.get_theme_color("font_color").is_equal_approx(rest_color)
+	main_game.player.grounding_changed.emit(true) ## Zero the chain the synthetic opened — every class leg below pays ×1.
+	## Class legs, each: force the single-class rig → _populate() → splat ONE
+	## real living node through the relay → read popup + strip (word, tint,
+	## and the favor the tint claims).
+	var favor_before: int = Game.favor
+	tourists.visitor_share = 1.0
+	tourists.superfan_share = 0.0
+	tourists._populate()
+	await _wait_frames(2)
+	var v_tourist := _first_tourist_of_class(tourists, CitizenClass.Kind.VISITOR)
+	var visitor_ok := v_tourist != null
+	if v_tourist != null:
+		v_tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
+		favor_before += Game.favor_visitor_splat
+		await _wait_frames(2)
+		var popup: ScorePopup = popup_by_text.call("Visitor +100")
+		visitor_ok = popup != null \
+				and popup.label.modulate.is_equal_approx(MainGame.FAVOR_GAIN_COLOR) \
+				and strip.text == "Visitor +100" \
+				and strip.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_GAIN_COLOR) \
+				and Game.favor == favor_before
+	main_game.player.grounding_changed.emit(true)
+	favor_before = Game.favor
+	tourists.visitor_share = 0.0
+	tourists.superfan_share = 0.0
+	tourists._populate()
+	await _wait_frames(2)
+	var c_tourist := _first_tourist_of_class(tourists, CitizenClass.Kind.CIVILIAN)
+	var civilian_ok := c_tourist != null
+	if c_tourist != null:
+		c_tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
+		favor_before += Game.favor_civilian_splat
+		await _wait_frames(2)
+		var popup: ScorePopup = popup_by_text.call("Civilian +100")
+		civilian_ok = popup != null \
+				and popup.label.modulate.is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
+				and strip.text == "Civilian +100" \
+				and strip.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
+				and Game.favor == favor_before
+	main_game.player.grounding_changed.emit(true)
+	favor_before = Game.favor
+	tourists.visitor_share = 0.0
+	tourists.superfan_share = 1.0
+	tourists._populate()
+	await _wait_frames(2)
+	var s_tourist := _first_tourist_of_class(tourists, CitizenClass.Kind.SUPERFAN)
+	var superfan_ok := s_tourist != null
+	if s_tourist != null:
+		s_tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
+		favor_before += Game.favor_superfan_splat
+		await _wait_frames(2)
+		var popup: ScorePopup = popup_by_text.call("Superfan +100")
+		superfan_ok = popup != null \
+				and popup.label.modulate.is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
+				and strip.text == "Superfan +100" \
+				and strip.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
+				and Game.favor == favor_before
+	main_game.player.grounding_changed.emit(true)
+	favor_before = Game.favor
+	cars.visitor_share = 0.0
+	cars.superfan_share = 0.0
+	cars._populate()
+	await _wait_frames(2)
+	var cc_car := _first_parked_car_of_class(cars, CitizenClass.Kind.CIVILIAN)
+	var civilian_car_ok := cc_car != null
+	if cc_car != null:
+		cc_car.on_splatted(Vector3(0.0, -5.0, 0.0))
+		favor_before += Game.favor_civilian_car_splat
+		await _wait_frames(2)
+		var popup: ScorePopup = popup_by_text.call("Civilian car +30")
+		civilian_car_ok = popup != null \
+				and popup.label.modulate.is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
+				and strip.text == "Civilian car +30" \
+				and strip.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
+				and Game.favor == favor_before
+	main_game.player.grounding_changed.emit(true)
+	favor_before = Game.favor
+	cars.visitor_share = 1.0
+	cars.superfan_share = 0.0
+	cars._populate()
+	await _wait_frames(2)
+	var vc_car := _first_parked_car_of_class(cars, CitizenClass.Kind.VISITOR)
+	var visitor_car_ok := vc_car != null
+	if vc_car != null:
+		vc_car.on_splatted(Vector3(0.0, -5.0, 0.0))
+		favor_before += Game.favor_visitor_car_splat
+		await _wait_frames(2)
+		var popup: ScorePopup = popup_by_text.call("Visitor car +30")
+		visitor_car_ok = popup != null \
+				and popup.label.modulate.is_equal_approx(MainGame.FAVOR_GAIN_COLOR) \
+				and strip.text == "Visitor car +30" \
+				and strip.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_GAIN_COLOR) \
+				and Game.favor == favor_before
+	var legs_ok := visitor_ok and civilian_ok and superfan_ok \
+			and civilian_car_ok and visitor_car_ok
+	## The strip expiry: ~2.5 s of game time clears the text AND the tint back
+	## to the scene's T-019 fill (held airborne the whole wait).
+	for _i in 165: ## combo_strip_seconds 2.5 at the fixed 60 Hz + margin.
+		pigeon.reset_flight(hover)
+		await get_tree().physics_frame
+	var strip_expired: bool = strip.text == "" \
+			and strip.get_theme_color("font_color").is_equal_approx(rest_color)
+	## The class-split leg: starve the run with the tally live — the
+	## breakdown carries the EXACT split this scenario drove, counts matching
+	## the Game books (the fresh synthetic + three real tourists = 4, the two
+	## real cars = 2; the tally holds visitor 2 · civilian 2 · superfan 1).
+	var drain_default: float = Game.hunger.drain_per_second
+	Game.hunger.drain_per_second = 60.0 ## Time-compressed starvation.
+	var screen: GameOverScreen = main_game.game_over_screen
+	var starved := false
+	for _i in 600: ## 10 s budget.
+		await get_tree().physics_frame
+		if get_tree().paused and screen.is_open:
+			starved = true
+			break
+	var split_ok: bool = starved \
+			and screen.breakdown_label.text \
+					== "Tourists splatted: %d    Cars splatted: %d (visitor 2 · civilian 2 · superfan 1)" % [
+							Game.tourist_hits, Game.car_hits]
+	Game.hunger.drain_per_second = drain_default ## Put the autoload's clock back.
+	var breakdown_at_read: String = screen.breakdown_label.text ## Read before the free below.
+	## The restart: the stash (kind, class, delta, tally) joins the reset —
+	## today's tree never reset `_last_hit_kind`, so a post-restart synthetic
+	## hit inherited the stale word; the fixed tree claims nothing.
+	main_game.restart_run()
+	var stash_cleared: bool = strip.text == "" \
+			and strip.get_theme_color("font_color").is_equal_approx(rest_color)
+	Game.add_tourist_hit(main_game.city.spawn_point)
+	await _wait_frames(2)
+	var post_popup: ScorePopup = popup_by_text.call("+100")
+	var restart_ok: bool = stash_cleared and post_popup != null \
+			and post_popup.label.modulate == Color(1.0, 1.0, 1.0, 1.0) \
+			and strip.text == "+100"
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	get_tree().paused = false ## Never leak a pause into later scenarios.
+	_check("hit_feedback_names_the_class",
+			bare_ok and legs_ok and strip_expired and split_ok and restart_ok,
+			"bare=%s legs v=%s c=%s s=%s cc=%s vc=%s strip_expired=%s split=%s restart=%s (breakdown '%s')" % [
+					bare_ok, visitor_ok, civilian_ok, superfan_ok,
+					civilian_car_ok, visitor_car_ok, strip_expired, split_ok,
+					restart_ok, breakdown_at_read])
+
+
 ## --- scenario (T-116 the meter names the prize) ------------------------------
 
 
@@ -10228,7 +10449,8 @@ func _scenario_game_over_screen() -> void:
 ## ONE real parked visitor car driven through Main's relay — favor reads
 ## EXACTLY `favor_max` (the clamp in the real chain), the tree pauses, the
 ## score screen opens in the VICTORY register (title, gold dim, note, the
-## run's real splat counts plus the favor total) while hunger stands — this
+## run's real splat counts plus the per-class split before the favor total,
+## the T-151 re-pin) while hunger stands — this
 ## ending is NOT starvation — and Esc stays locked; a further splat books
 ## nothing past the clamp and fires no second `favor_maxed`. Coexistence: a
 ## direct `hunger.game_over` emit with the victory screen up changes NOTHING
@@ -10279,9 +10501,11 @@ func _scenario_favor_max_ends_run_victory() -> void:
 			and screen.dim_rect.color.is_equal_approx(screen.victory_dim) \
 			and screen.victory_note.visible \
 			and screen.breakdown_label.text \
-					== "Tourists splatted: 0    Cars splatted: 1    Favor: %d" % Game.favor_max \
+					== "Tourists splatted: 0    Cars splatted: 1 (visitor 1)    Favor: %d" % Game.favor_max \
 			and not Game.hunger.game_over_emitted and Game.hunger.value > 0.0 \
-			and pause_menu.locked
+			and pause_menu.locked ## (T-151) The split rides before the Favor total; the leg's own
+	## class filter (parked VISITOR car) makes the "(visitor 1)" word a
+	## construction guarantee, not a seed gamble.
 	## The latch is one-shot: a further splat books nothing past the clamp.
 	var second_car: Car = null
 	for car in cars.living_cars():
@@ -11863,14 +12087,15 @@ func _find_hit_marker_on(body: Node) -> OneShotBurst:
 ## tourists/cars picked off the spawners, tourist_splatted / car_splatted
 ## emitted straight, so the full handler → Game → hit_scored chain runs with no
 ## physics. Assertions: the strip sits under the pointer block with the T-019
-## outline treatment and starts empty; a tourist splat reads "Tourist +100",
-## the chained second one "Tourist +200 ×2", and a car splat after a landing
-## replaces it with "Car +30"; every hit spawns a hit_marker.tscn burst ON the
-## hit body (parent + position asserted, found via the group like
-## juice_splat_burst_fires) that cleans itself up; the strip clears itself
-## after combo_strip_seconds of game time and stays cleared; one more hit then
-## restart_run() proves the restart clear mid-display (_scenario_restart_resets
-## itself stays untouched).
+## outline treatment and starts empty; a tourist splat reads "<Class> +100",
+## the chained second one "<Class> +200 ×2", and a car splat after a landing
+## replaces it with "<Class> car +30" — the class word derived from each
+## EMITTED NODE's own citizen_class (T-151 re-pin: seed-robust, never a
+## literal); every hit spawns a hit_marker.tscn burst ON the hit body (parent +
+## position asserted, found via the group like juice_splat_burst_fires) that
+## cleans itself up; the strip clears itself after combo_strip_seconds of game
+## time and stays cleared; one more hit then restart_run() proves the restart
+## clear mid-display (_scenario_restart_resets itself stays untouched).
 func _scenario_combo_strip_reports_last_hit() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
@@ -11911,8 +12136,9 @@ func _scenario_combo_strip_reports_last_hit() -> void:
 	main_game.car_spawner.car_splatted.emit(cars[0])
 	var text_c := strip.text
 	var marker_c: OneShotBurst = _find_hit_marker_on(cars[0])
-	var texts_ok: bool = text_a == "Tourist +100" and text_b == "Tourist +200 ×2" \
-			and text_c == "Car +30"
+	var texts_ok: bool = text_a == "%s +100" % CitizenClass.label(tourists[0].citizen_class) \
+			and text_b == "%s +200 ×2" % CitizenClass.label(tourists[1].citizen_class) \
+			and text_c == "%s car +30" % CitizenClass.label(cars[0].citizen_class) ## (T-151) The word from the node's own class.
 	var markers_ok: bool = marker_a != null and marker_c != null and at_hit \
 			and _count_effects("hit_marker.tscn") == before + 3
 	## Game-time expiry: ~3.1 s at the fixed 60 Hz pace clears the strip and it
@@ -11926,7 +12152,7 @@ func _scenario_combo_strip_reports_last_hit() -> void:
 	## clear mid-display.
 	Game.on_grounding_changed(true)
 	main_game.car_spawner.car_splatted.emit(cars[0])
-	var refilled := strip.text == "Car +30"
+	var refilled := strip.text == "%s car +30" % CitizenClass.label(cars[0].citizen_class) ## (T-151) Same node, same derived word.
 	main_game.restart_run()
 	var restart_cleared := strip.text == ""
 	main_game.free()
