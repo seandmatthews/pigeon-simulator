@@ -125,7 +125,7 @@ exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 | T-117 | [20% more WASD: the owner responsiveness pass](T-117-wasd-20-percent.md) | flight-control | 4 | 2 | done |
 | T-134 | [American four-way stops: multi-block routes, right-of-way, blinker tells and stop-sign props](T-134-four-way-stops.md) | worldbuilding | 4 | 3 | done |
 | T-147 | [Favor pays once per target; spent cars churn out of the fleet at the recycle radius](T-147-favor-once-per-target.md) | worldbuilding | 4 | 3 | done |
-| T-148 | [Haze the skyline ring: apron monoliths dissolve into the horizon](T-148-skyline-haze.md) | visual-design | 4 | 1 | proposed |
+| T-148 | [Haze the skyline ring: apron monoliths dissolve into the horizon](T-148-skyline-haze.md) | visual-design | 4 | 1 | doing |
 | T-149 | [Visitor cars get a roof-level tell: the class reads from the dive](T-149-visitor-roof-topper.md) | visual-design | 4 | 2 | proposed |
 | T-150 | [Soften the bead juice: dust billows, splat splash flattens](T-150-soften-bead-juice.md) | visual-design | 3 | 1 | proposed |
 | T-151 | [Name the class on every hit readout](T-151-hit-feedback-names-the-class.md) | ui-ux | 4 | 2 | proposed |

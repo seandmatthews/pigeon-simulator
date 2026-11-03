@@ -4324,6 +4324,14 @@ func _scenario_city_apron_rim() -> void:
 ## rebuild reproduces both instance sets byte-identically; and the fingerprint
 ## still equals the cross-version pins (see `_scenario_city_apron_rim`).
 ##
+## T-148 adds the haze check beside the layout check: every queued
+## `Skyline`/`SkylineTall` instance color is the district shade lerped toward
+## `SKYLINE_HAZE` (main.tscn's `sky_horizon_color`) by the tower's normalized
+## band radius × `SKYLINE_HAZE_MAX` — the deterministic chain replayed off the
+## City's own consts and roll helper (never literals), each expected color
+## joined to the queue the tall roll selects, compared element-wise against the
+## queued colors (per-channel < 0.001).
+##
 ## Transform source: the queues that feed the two MultiMeshes
 ## (`MultiMesh.get_instance_transform` reads back identity headless — the
 ## `city_crosswalks_present` note).
@@ -4398,6 +4406,66 @@ func _scenario_city_horizon_skyline() -> void:
 	var skyline_data := "SIM DATA city_horizon_skyline: total=%d tall=%d inner=%.0f outer=%.0f fingerprint=%d" % [
 			total, tall_xfs.size(), inner, outer, fp_first]
 	print(skyline_data)
+	## --- T-148 haze leg: the ring dissolves toward the sky-horizon color ------
+	## Every queued skyline color is the district shade lerped toward
+	## `SKYLINE_HAZE` by the tower's normalized band radius × `SKYLINE_HAZE_MAX`.
+	## The deterministic chain is replayed with the CITY's own consts and roll
+	## helper (never literals, so a Gate 3 retune re-derives this gate), and each
+	## expected color joins the queue the tall roll selects — each key's
+	## `_visuals` array is an i-ordered subsequence of the global chain. The
+	## standing city is the default-seed rebuild the layout leg above left up.
+	var expected_skyline_colors: Array[Color] = []
+	var expected_tall_colors: Array[Color] = []
+	var skyline_band := outer - inner
+	for i in _city.SKYLINE_COUNT:
+		var haze_radius: float = inner \
+				+ _city._skyline_roll(i, _city.SKYLINE_SALT_RADIUS) * skyline_band
+		var radius_norm := clampf((haze_radius - inner) / skyline_band, 0.0, 1.0)
+		var haze_angle: float = _city._skyline_roll(i, _city.SKYLINE_SALT_ANGLE) * TAU
+		var haze_tall: bool = _city._skyline_roll(i, _city.SKYLINE_SALT_CLASS) \
+				< float(_city.SKYLINE_TALL_TARGET) / float(_city.SKYLINE_COUNT)
+		var haze_palette: Array = _city.DISTRICT_PALETTES[
+				int(haze_angle / (PI * 0.5)) % 4]
+		var haze_base := (haze_palette[i % haze_palette.size()] as Color).darkened(
+				0.3 + _city._skyline_roll(i, _city.SKYLINE_SALT_SHADE) * 0.15)
+		var expected := haze_base.lerp(_city.SKYLINE_HAZE,
+				radius_norm * _city.SKYLINE_HAZE_MAX)
+		if haze_tall:
+			expected_tall_colors.append(expected)
+		else:
+			expected_skyline_colors.append(expected)
+	var haze_ok := true
+	var haze_detail := ""
+	var expected_by_key := {
+			"skyline": expected_skyline_colors,
+			"skyline_tall": expected_tall_colors,
+	}
+	for haze_key: String in ["skyline", "skyline_tall"]:
+		var want: Array = expected_by_key[haze_key]
+		var got: Array = (_city._visuals[haze_key].colors as Array) \
+				if _city._visuals.has(haze_key) else []
+		if got.size() != want.size():
+			haze_ok = false
+			haze_detail += "%s count %d != %d " % [haze_key, got.size(), want.size()]
+			continue
+		for c in want.size():
+			var got_color := got[c] as Color
+			var want_color: Color = want[c]
+			var drift := maxf(maxf(absf(got_color.r - want_color.r),
+					absf(got_color.g - want_color.g)),
+					maxf(absf(got_color.b - want_color.b),
+					absf(got_color.a - want_color.a)))
+			if drift >= 0.001:
+				haze_ok = false
+				haze_detail += "%s[%d] drift %.4f got %s want %s " % [
+						haze_key, c, drift, got_color, want_color]
+				break
+	_check("city_skyline_haze", haze_ok,
+			"queued colors off the lerped chain: %s" % haze_detail)
+	var haze_data := "SIM DATA city_skyline_haze: haze=%s max=%.2f skyline=%d tall=%d" % [
+			_city.SKYLINE_HAZE, _city.SKYLINE_HAZE_MAX,
+			expected_skyline_colors.size(), expected_tall_colors.size()]
+	print(haze_data)
 
 
 ## Park trees (T-030): four per park block at the fixed (±5, ±5) offsets —

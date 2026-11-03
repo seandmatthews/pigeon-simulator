@@ -386,6 +386,15 @@ const SKYLINE_SALT_CLASS := 307
 const SKYLINE_SALT_HEIGHT := 401
 const SKYLINE_SALT_WIDTH := 503
 const SKYLINE_SALT_SHADE := 601
+## (T-148) The haze the skyline ring dissolves into: `scenes/main.tscn`'s
+## `sky_horizon_color` (ProceduralSkyMaterial) — keep the two in sync when
+## retuning either. Each tower's district shade lerps toward this by its
+## normalized band radius times `SKYLINE_HAZE_MAX` (the outer edge's blend
+## weight; inner towers get ~0), so the apron monoliths read as horizon haze
+## instead of landable foreground buildings. Color-only: no RNG draw, no `_fp`
+## entry, no layout change.
+const SKYLINE_HAZE := Color(0.85, 0.8, 0.7)
+const SKYLINE_HAZE_MAX := 0.85
 
 ## Plaza landmark layout (T-029): a bronze pigeon on a limestone plinth at the
 ## exact center of the spawn plaza — the square's heart, the one fixed volume
@@ -923,10 +932,13 @@ func _skyline_roll(i: int, salt: int) -> float:
 ## clamped). Heights 15-60 m with the `skyline_tall` landmarks at 40-60, XZ
 ## footprints 6-18 m, muted DISTRICT_PALETTES members darkened() 0.30-0.45 —
 ## the tower's angle quadrant picks its district family, so the ring reads as
-## the city's wider surroundings. Box origins sit at height/2: the apron top
+## the city's wider surroundings, each shade lerped toward `SKYLINE_HAZE` by
+## its normalized band radius (T-148) so the outer ring dissolves into the
+## horizon. Box origins sit at height/2: the apron top
 ## is y 0, the towers rise from the grass. Zero RNG draws from any stream,
 ## zero `_fp` entries, zero colliders (visual-only, the T-017 decision);
-## pinned by the `city_horizon_skyline` scenario.
+## pinned by the `city_horizon_skyline` scenario (layout) and its
+## `city_skyline_haze` check (instance colors).
 func _build_skyline() -> void:
 	var half := city_span * 0.5
 	var inner := half + ground_extra * 0.3
@@ -944,6 +956,14 @@ func _build_skyline() -> void:
 		var palette: Array = DISTRICT_PALETTES[int(angle / (PI * 0.5)) % 4]
 		var shade: Color = (palette[i % palette.size()] as Color).darkened(
 				0.3 + _skyline_roll(i, SKYLINE_SALT_SHADE) * 0.15)
+		## (T-148) The haze dissolve: blend the shade toward `SKYLINE_HAZE` by
+		## the tower's normalized radius across the band — inner towers keep
+		## (nearly) their grounded district color, the outer edge sits at
+		## `SKYLINE_HAZE_MAX` toward the sky-horizon haze. Pure post-roll math:
+		## re-reads this tower's already-drawn radius, adds no RNG draw and no
+		## `_fp` entry, so the fingerprint pins stay byte-identical.
+		var radius_norm := clampf((radius - inner) / (outer - inner), 0.0, 1.0)
+		shade = shade.lerp(SKYLINE_HAZE, radius_norm * SKYLINE_HAZE_MAX)
 		_add_mm("skyline_tall" if tall else "skyline",
 				_box_xf(pos, Vector3(width, height, width)), shade)
 
