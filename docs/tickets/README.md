@@ -125,6 +125,13 @@ exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 | T-117 | [20% more WASD: the owner responsiveness pass](T-117-wasd-20-percent.md) | flight-control | 4 | 2 | done |
 | T-134 | [American four-way stops: multi-block routes, right-of-way, blinker tells and stop-sign props](T-134-four-way-stops.md) | worldbuilding | 4 | 3 | done |
 | T-147 | [Favor pays once per target; spent cars churn out of the fleet at the recycle radius](T-147-favor-once-per-target.md) | worldbuilding | 4 | 3 | done |
+| T-148 | [Haze the skyline ring: apron monoliths dissolve into the horizon](T-148-skyline-haze.md) | visual-design | 4 | 1 | proposed |
+| T-149 | [Visitor cars get a roof-level tell: the class reads from the dive](T-149-visitor-roof-topper.md) | visual-design | 4 | 2 | proposed |
+| T-150 | [Soften the bead juice: dust billows, splat splash flattens](T-150-soften-bead-juice.md) | visual-design | 3 | 1 | proposed |
+| T-151 | [Name the class on every hit readout](T-151-hit-feedback-names-the-class.md) | ui-ux | 4 | 2 | proposed |
+| T-152 | [Teach the color code where the favor rule already lives](T-152-teach-the-color-code.md) | ui-ux | 3 | 1 | proposed |
+| T-153 | [Attribute the favor delta to its cause](T-153-favor-note-names-the-cause.md) | ui-ux | 3 | 2 | proposed |
+| T-154 | [Retire the amber civilian shirt — the last gold hue-twin](T-154-retire-amber-civilian-shirt.md) | ui-ux | 3 | 2 | proposed |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since
