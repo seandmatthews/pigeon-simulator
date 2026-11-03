@@ -4327,11 +4327,16 @@ func _scenario_city_apron_rim() -> void:
 ##
 ## T-148 adds the haze check beside the layout check: every queued
 ## `Skyline`/`SkylineTall` instance color is the district shade lerped toward
-## `SKYLINE_HAZE` (main.tscn's `sky_horizon_color`) by the tower's normalized
-## band radius × `SKYLINE_HAZE_MAX` — the deterministic chain replayed off the
+## `SKYLINE_HAZE` (main.tscn's `sky_horizon_color`) by `maxf(SKYLINE_HAZE_MIN,
+## the tower's normalized band radius × SKYLINE_HAZE_MAX)` (the T-155 floor) —
+## the deterministic chain replayed off the
 ## City's own consts and roll helper (never literals), each expected color
 ## joined to the queue the tall roll selects, compared element-wise against the
-## queued colors (per-channel < 0.001).
+## queued colors (per-channel < 0.001). T-155 adds the floor check beside it:
+## the applied weight per tower is derived by projecting the stored color onto
+## the base→`SKYLINE_HAZE` segment and asserted inside
+## [SKYLINE_HAZE_MIN − 0.001, SKYLINE_HAZE_MAX + 0.001], with the ring maximum
+## still reaching `SKYLINE_HAZE_MAX` − 0.05 (the band keeps its grade).
 ##
 ## Transform source: the queues that feed the two MultiMeshes
 ## (`MultiMesh.get_instance_transform` reads back identity headless — the
@@ -4409,7 +4414,9 @@ func _scenario_city_horizon_skyline() -> void:
 	print(skyline_data)
 	## --- T-148 haze leg: the ring dissolves toward the sky-horizon color ------
 	## Every queued skyline color is the district shade lerped toward
-	## `SKYLINE_HAZE` by the tower's normalized band radius × `SKYLINE_HAZE_MAX`.
+	## `SKYLINE_HAZE` by `maxf(SKYLINE_HAZE_MIN, the tower's normalized band
+	## radius × SKYLINE_HAZE_MAX)` (the T-155 floor adopted here in the same
+	## change-set — an un-floored replay would fail against the floored builder).
 	## The deterministic chain is replayed with the CITY's own consts and roll
 	## helper (never literals, so a Gate 3 retune re-derives this gate), and each
 	## expected color joins the queue the tall roll selects — each key's
@@ -4430,7 +4437,8 @@ func _scenario_city_horizon_skyline() -> void:
 		var haze_base := (haze_palette[i % haze_palette.size()] as Color).darkened(
 				0.3 + _city._skyline_roll(i, _city.SKYLINE_SALT_SHADE) * 0.15)
 		var expected := haze_base.lerp(_city.SKYLINE_HAZE,
-				radius_norm * _city.SKYLINE_HAZE_MAX)
+				maxf(_city.SKYLINE_HAZE_MIN,
+						radius_norm * _city.SKYLINE_HAZE_MAX))
 		if haze_tall:
 			expected_tall_colors.append(expected)
 		else:
@@ -4467,6 +4475,86 @@ func _scenario_city_horizon_skyline() -> void:
 			_city.SKYLINE_HAZE, _city.SKYLINE_HAZE_MAX,
 			expected_skyline_colors.size(), expected_tall_colors.size()]
 	print(haze_data)
+	## --- T-155 haze floor leg: every applied blend weight is floored ---------
+	## The builder stores `C = B.lerp(SKYLINE_HAZE, w_applied)`; this leg derives
+	## `w_applied` per tower by projecting the stored color onto the B→SKYLINE_HAZE
+	## segment (the dot-product ratio recovers the lerp weight within float error
+	## without re-implementing the builder's formula, so a Gate 3 retune of either
+	## const re-derives this gate instead of desyncing it), then asserts every
+	## weight inside [SKYLINE_HAZE_MIN − 0.001, SKYLINE_HAZE_MAX + 0.001] AND the
+	## ring maximum ≥ SKYLINE_HAZE_MAX − 0.05 (the floor must not flatten the band
+	## into a uniform wash — outer towers keep their near-full dissolve). The
+	## chain is replayed per global `i` exactly as the haze leg above does, and
+	## each derived weight pairs 1:1 with the stored queue the tall roll selects.
+	var floor_w_min := INF
+	var floor_w_max := -INF
+	var floor_audited := 0
+	var floor_ok := true
+	var floor_detail := ""
+	var floor_seen_plain := 0
+	var floor_seen_tall := 0
+	for i in _city.SKYLINE_COUNT:
+		var floor_radius: float = inner \
+				+ _city._skyline_roll(i, _city.SKYLINE_SALT_RADIUS) * skyline_band
+		var floor_angle: float = _city._skyline_roll(i, _city.SKYLINE_SALT_ANGLE) * TAU
+		var floor_tall: bool = _city._skyline_roll(i, _city.SKYLINE_SALT_CLASS) \
+				< float(_city.SKYLINE_TALL_TARGET) / float(_city.SKYLINE_COUNT)
+		var floor_palette: Array = _city.DISTRICT_PALETTES[
+				int(floor_angle / (PI * 0.5)) % 4]
+		var base_color := (floor_palette[i % floor_palette.size()] as Color).darkened(
+				0.3 + _city._skyline_roll(i, _city.SKYLINE_SALT_SHADE) * 0.15)
+		var stored: Array = []
+		var c := 0
+		if floor_tall:
+			stored = (_city._visuals["skyline_tall"].colors as Array) \
+					if _city._visuals.has("skyline_tall") else []
+			c = floor_seen_tall
+			floor_seen_tall += 1
+		else:
+			stored = (_city._visuals["skyline"].colors as Array) \
+					if _city._visuals.has("skyline") else []
+			c = floor_seen_plain
+			floor_seen_plain += 1
+		if c >= stored.size():
+			floor_ok = false
+			floor_detail += "%s[%d] missing stored color " % [
+					"skyline_tall" if floor_tall else "skyline", c]
+			continue
+		var got_color := stored[c] as Color
+		var haze_h := _city.SKYLINE_HAZE
+		var b_vec := Vector3(base_color.r, base_color.g, base_color.b)
+		var h_vec := Vector3(haze_h.r, haze_h.g, haze_h.b)
+		var c_vec := Vector3(got_color.r, got_color.g, got_color.b)
+		var segment := h_vec - b_vec
+		## Guard: a base within 1e-6 of the haze makes the segment degenerate —
+		## fail loudly here rather than divide by the near-zero denominator.
+		if segment.length() < 1e-6:
+			floor_ok = false
+			floor_detail += "%s[%d] degenerate base==haze " % [
+					"skyline_tall" if floor_tall else "skyline", c]
+			continue
+		var w := segment.dot(c_vec - b_vec) / segment.dot(segment)
+		floor_w_min = minf(floor_w_min, w)
+		floor_w_max = maxf(floor_w_max, w)
+		floor_audited += 1
+		if w < _city.SKYLINE_HAZE_MIN - 0.001 or w > _city.SKYLINE_HAZE_MAX + 0.001:
+			floor_ok = false
+			floor_detail += "%s[%d] weight %.4f outside [%.3f, %.3f] " % [
+					"skyline_tall" if floor_tall else "skyline", c, w,
+					_city.SKYLINE_HAZE_MIN - 0.001, _city.SKYLINE_HAZE_MAX + 0.001]
+	if floor_audited != _city.SKYLINE_COUNT:
+		floor_ok = false
+		floor_detail += "audited %d != %d towers " % [floor_audited, _city.SKYLINE_COUNT]
+	if floor_w_max < _city.SKYLINE_HAZE_MAX - 0.05:
+		floor_ok = false
+		floor_detail += "ring max %.4f < %.3f (band flattened) " % [
+				floor_w_max, _city.SKYLINE_HAZE_MAX - 0.05]
+	_check("city_skyline_haze_floor", floor_ok,
+			"projected weights off the base→haze segment: %s" % floor_detail)
+	var floor_data := "SIM DATA city_skyline_haze_floor: min=%.4f max=%.4f band=[%.2f, %.2f] audited=%d" % [
+			floor_w_min, floor_w_max, _city.SKYLINE_HAZE_MIN, _city.SKYLINE_HAZE_MAX,
+			floor_audited]
+	print(floor_data)
 
 
 ## Park trees (T-030): four per park block at the fixed (±5, ±5) offsets —
