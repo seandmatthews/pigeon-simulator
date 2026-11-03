@@ -217,6 +217,7 @@ func _run_scenarios() -> void:
 	await _scenario_reticle_frozen_pin_matches_damped_fall() ## T-105 — bare rig, direct instantiation, no Main alive.
 	await _scenario_reticle_main_lifecycle() ## T-105 — real-Main rig, the T-077 parked pattern.
 	await _scenario_reticle_live_refresh_lock() ## T-110 — the tuned live cadence, bare-rig value lock.
+	await _scenario_reticle_pin_names_the_target() ## T-158 — the tell: the pin names its target, beside the reticle rows.
 	await _scenario_poop_ready_indicator_tracks_cooldown() ## T-077 — unpaused tree, no live Main, like the poop block.
 	await _scenario_coach_hint_shows_until_first_hit() ## T-060 — after the T-077 rig: owns one instanced Main in its own space, leaves the stretch as it found it.
 	await _scenario_tourists_walk()
@@ -2305,7 +2306,9 @@ func _damped_impact(p0: Vector3, v0: Vector3, gravity: float, horizon: float) ->
 
 
 ## The reticle's current albedo alpha — read through the one duplicated
-## material the dim write drives, via the Ring mesh's override.
+## material the dim write drives, via the Ring mesh's override. Since the
+## T-158 two-material split the Ring carries its OWN duplicated material and
+## the dim write hits its alpha too, so this read survives unchanged.
 func _reticle_alpha(reticle: PoopReticle) -> float:
 	var ring := reticle.get_node_or_null("Ring") as MeshInstance3D
 	if ring == null:
@@ -2314,6 +2317,37 @@ func _reticle_alpha(reticle: PoopReticle) -> float:
 	if mat == null:
 		return -1.0
 	return mat.albedo_color.a
+
+
+## (T-158) The reticle ring's current albedo RGB — the tell's tint channel,
+## read through the Ring's own material override on the `_reticle_alpha`
+## pattern (the tell tints rgb only; alpha stays the dim logic's).
+func _reticle_ring_rgb(reticle: PoopReticle) -> Color:
+	var ring := reticle.get_node_or_null("Ring") as MeshInstance3D
+	if ring == null:
+		return Color(-1.0, -1.0, -1.0)
+	var mat := ring.material_override as StandardMaterial3D
+	if mat == null:
+		return Color(-1.0, -1.0, -1.0)
+	return Color(mat.albedo_color.r, mat.albedo_color.g, mat.albedo_color.b)
+
+
+## (T-158) Scenario-side precondition probe: does ANY citizen-classed body sit
+## under `point` — the same citizen layers (npc | vehicle), the same duck-typed
+## `citizen_class` read, reimplemented INDEPENDENTLY of the reticle so the
+## neutral leg's "no body → neutral" claim is conditioned, never vacuous.
+func _classed_body_under(point: Vector3) -> bool:
+	var params := PhysicsShapeQueryParameters3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 1.0
+	params.shape = sphere
+	params.transform = Transform3D(Basis.IDENTITY, point)
+	params.collision_mask = 12
+	for hit in get_world_3d().direct_space_state.intersect_shape(params, 16):
+		var body: Object = hit["collider"]
+		if body != null and body.get("citizen_class") != null:
+			return true
+	return false
 
 
 ## The poop target reticle (T-105) — the aiming-contract leg, bare rig. The
@@ -2531,6 +2565,157 @@ func _scenario_reticle_live_refresh_lock() -> void:
 	_check("reticle_live_refresh_30hz",
 			is_equal_approx(hz, 30.0) and ticks == 2,
 			"hz=%.1f ticks=%d (want 30.0 / 2)" % [hz, ticks])
+
+
+## (T-158) The reticle's TARGET TELL — the pin names what stands under it
+## before the drop, in the post-hit readout's own color code. On the
+## `reticle_main_lifecycle` rig (instanced Main in its own space, the T-077
+## reset_flight-per-frame hover hold) with the share-knob single-class tourist
+## rig (the `hit_feedback_names_the_class` pattern) and ONE tourist re-placed
+## AT the freshly-read pin point each frame — the pin must have a body under it
+## per frame — the nudged ~0.01 m/frame hold keeps the changed-value guard
+## re-marching on the 2-tick cadence, so the tell query refreshes per
+## re-march. Legs: the ring rgb reads the tell gold over the all-visitor rig
+## (with the class word "Visitor" lit above the pin), the tell red over the
+## all-civilian rig, and the scene-neutral rgb with the placed body freed and
+## every other tourist swept clear — the neutral claim conditioned by a
+## scenario-side same-mask sphere probe (`_classed_body_under`) asserting NO
+## citizen-classed body under the pin on the very frame the neutral rgb is
+## read. The frozen leg taps ONE real drop with the visitor body still under
+## the pin: the ring stays neutral and the word hidden while `is_frozen` (the
+## freeze forces neutral in lock_to and the frozen march never queries), and
+## only relights into the tell after the splat returns the reticle to live.
+## Read through `_reticle_ring_rgb` on the `_reticle_alpha` pattern — the
+## two-material split keeps the dim write on the ring's own material, which the
+## three pre-existing reticle rows re-run against untouched.
+func _scenario_reticle_pin_names_the_target() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO) ## Park the bare pigeon grounded…
+	await _await_grounded(90) ## …so the tap cannot fire through it.
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(5500.0, 0.0, 5500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	await _wait_frames(4)
+	var pigeon: Player = main_game.player
+	var reticle: PoopReticle = main_game.poop_reticle
+	var tourists: TouristSpawner = main_game.get_node("TouristSpawner") as TouristSpawner
+	var word: Label3D = reticle.get_node_or_null("ClassWord") as Label3D
+	var gain_color: Color = Color(reticle.tell_gain_color.r,
+			reticle.tell_gain_color.g, reticle.tell_gain_color.b)
+	var loss_color: Color = Color(reticle.tell_loss_color.r,
+			reticle.tell_loss_color.g, reticle.tell_loss_color.b)
+	## The neutral rgb is the SCENE value — read off the Ring mesh's own
+	## material, never a duplicated literal (the reticle reads it the same way).
+	var ring_node := reticle.get_node_or_null("Ring") as MeshInstance3D
+	var neutral_color := Color(-1.0, -1.0, -1.0)
+	if ring_node != null and ring_node.mesh != null:
+		var scene_mat := ring_node.mesh.surface_get_material(0) as StandardMaterial3D
+		if scene_mat != null:
+			neutral_color = Color(scene_mat.albedo_color.r,
+					scene_mat.albedo_color.g, scene_mat.albedo_color.b)
+	var spawn_local: Vector3 = main_game.city.to_local(main_game.city.spawn_point)
+	var hover: Vector3 = spawn_local + Vector3(0.0, 10.0, 0.0)
+	var visitor_word: String = CitizenClass.label(CitizenClass.Kind.VISITOR)
+	## --- the gain leg: all-visitor rig, one tourist re-placed AT the pin ----
+	tourists.visitor_share = 1.0
+	tourists.superfan_share = 0.0
+	tourists._populate()
+	await _wait_frames(2)
+	var tourist: Tourist = _first_tourist_of_class(tourists, CitizenClass.Kind.VISITOR)
+	var gain_ok: bool = tourist != null and word != null
+	var gain_seen := false
+	var i := 0
+	while gain_ok and i < 45 and not gain_seen:
+		pigeon.reset_flight(hover + Vector3(0.01 * float(i), 0.0, 0.0)) ## Hover hold, nudged — the guard re-marches.
+		await get_tree().physics_frame
+		if reticle.visible and is_instance_valid(tourist):
+			tourist.global_position = reticle.global_position ## The body rides the freshly-read pin.
+		if _reticle_ring_rgb(reticle).is_equal_approx(gain_color) \
+				and word.visible and word.text == visitor_word:
+			gain_seen = true
+		i += 1
+	gain_ok = gain_ok and gain_seen
+	## --- the frozen leg: one real tap, visitor body still under the pin ----
+	await _tap("poop")
+	await _wait_frames(2) ## lock_to fires mid-step; the frozen march runs the next physics frame.
+	var frozen_seen := false
+	var frozen_neutral := true
+	var j := 0
+	while j < 25 and reticle.is_frozen and is_instance_valid(tourist):
+		pigeon.reset_flight(hover + Vector3(0.01 * float(45 + j), 0.0, 0.0))
+		await get_tree().physics_frame
+		tourist.global_position = reticle.global_position ## The body stays under the committed pin.
+		frozen_seen = true
+		if not _reticle_ring_rgb(reticle).is_equal_approx(neutral_color) or word.visible:
+			frozen_neutral = false ## A frozen pin claimed a target — the commit may miss it.
+		j += 1
+	var frozen_ok: bool = frozen_seen and frozen_neutral
+	## --- the splat returns live; the tell relights only after that ----------
+	var drop_gone := false
+	var k := 0
+	while k < 240 and not drop_gone:
+		pigeon.reset_flight(hover + Vector3(0.01 * float(k % 30), 0.0, 0.0)) ## Hold; the cooldown being wiped is fine — no more taps.
+		await get_tree().physics_frame
+		if reticle.visible and is_instance_valid(tourist):
+			tourist.global_position = reticle.global_position
+		if get_tree().get_nodes_in_group("poops").is_empty():
+			drop_gone = true
+		k += 1
+	var relit := false
+	var l := 0
+	while l < 30 and not relit and is_instance_valid(tourist):
+		pigeon.reset_flight(hover + Vector3(0.01 * float(l), 0.0, 0.0))
+		await get_tree().physics_frame
+		if reticle.visible and is_instance_valid(tourist):
+			tourist.global_position = reticle.global_position
+		if not reticle.is_frozen \
+				and _reticle_ring_rgb(reticle).is_equal_approx(gain_color) \
+				and word.visible and word.text == visitor_word:
+			relit = true
+		l += 1
+	## --- the loss leg: all-civilian rig under the same pin ------------------
+	tourists.visitor_share = 0.0
+	tourists.superfan_share = 0.0
+	tourists._populate() ## Frees the visitor rig (queue_free), re-seeds single-class.
+	await _wait_frames(2)
+	var civilian: Tourist = _first_tourist_of_class(tourists, CitizenClass.Kind.CIVILIAN)
+	var loss_ok: bool = civilian != null
+	var loss_seen := false
+	var m := 0
+	while loss_ok and m < 45 and not loss_seen:
+		pigeon.reset_flight(hover + Vector3(0.01 * float(m), 0.0, 0.0))
+		await get_tree().physics_frame
+		if reticle.visible and is_instance_valid(civilian):
+			civilian.global_position = reticle.global_position
+		if _reticle_ring_rgb(reticle).is_equal_approx(loss_color):
+			loss_seen = true
+		m += 1
+	loss_ok = loss_ok and loss_seen
+	## --- the neutral leg: the rig freed, the pin over NO classed body -------
+	if is_instance_valid(civilian):
+		civilian.queue_free()
+	for far_tourist in tourists.living_tourists(): ## Sweep everyone clear — the claim under test is "no body → neutral".
+		far_tourist.global_position += Vector3(500.0, 0.0, 0.0)
+	await _wait_frames(2) ## The queue_free lands; the next re-march clears the loss tint.
+	var neutral_ok := false
+	var n := 0
+	while n < 60 and not neutral_ok:
+		pigeon.reset_flight(hover + Vector3(0.01 * float(n), 0.0, 0.0))
+		await get_tree().physics_frame
+		if _reticle_ring_rgb(reticle).is_equal_approx(neutral_color) and not word.visible:
+			## Conditioned, never vacuous: the scenario's own probe must find NO
+			## citizen-classed body under the pin on the very frame read.
+			neutral_ok = not _classed_body_under(reticle.global_position)
+		n += 1
+	## --- cleanup, the reticle_main_lifecycle pattern -------------------------
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("reticle_pin_names_the_target",
+			gain_ok and frozen_ok and drop_gone and relit and loss_ok and neutral_ok,
+			"gain=%s frozen=%s drop_gone=%s relit=%s loss=%s neutral=%s" % [
+					gain_ok, frozen_ok, drop_gone, relit, loss_ok, neutral_ok])
 
 
 ## The F readiness glyph (T-077), through the REAL main scene: airborne with a
