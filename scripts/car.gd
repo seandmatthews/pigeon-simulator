@@ -145,6 +145,19 @@ var pace: float = 1.0 ## Per-car speed factor (0.9–1.15) so traffic spreads ou
 ## spawner's `honk_count` stays splat-relay-only: patience honks ride HERE
 ## and never reach the DONE line (T-134 Gate 2 contract).
 var honk_count: int = 0
+## (T-147) The once-per-target favor book: true after this car's FIRST splat
+## of the run. Two readers — Main's `_on_car_splatted` gates ONLY the
+## `Game.splat_favor` call on it (a repeat splat still honks, still scores and
+## still chains, but books zero favor — including the negatives: a second hit
+## on a civilian adds 0, not another −2), and CarSpawner's `_recycle_far`
+## reads it as despawn eligibility (a spent car beyond the recycle radius
+## churns out of the fleet through `_replace_car` instead of teleporting back
+## to a curb to be farmed again). Set by `on_splatted` AFTER its
+## `splatted.emit` — the order is load-bearing: Godot signals are synchronous,
+## so the relay chain (spawner → Main) runs DURING the emit and reads the flag
+## false exactly on the first splat; that read IS the whole gate (pinned by
+## the `splat_favor_once_per_target` Gate 1b scenario).
+var splatted_once: bool = false
 ## The armed blinker side: −1 left / 0 none / +1 right — readable by the
 ## harness and the pilot (the splat-planning tell).
 var blinker: int = 0
@@ -640,10 +653,17 @@ func _face(dir: Vector3, delta: float) -> void:
 
 ## Poop hit (T-006 duck-typed convention): honk and fire the score event.
 ## Cars don't flee — per pillar 2 they honk, and the drive goes on (the sim
-## harness proves it). The stop state rides through untouched.
+## harness proves it). The stop state rides through untouched. (T-147) Every
+## splat also spends the target: `splatted_once` flips AFTER the emit —
+## deliberate, see the field's docstring.
 func on_splatted(_impact_velocity: Vector3) -> void:
 	honk()
 	splatted.emit(self)
+	## (T-147) AFTER the emit, deliberately — Godot signals are synchronous, so
+	## Main's favor gate runs during the line above and reads false exactly on
+	## the first splat. Setting this before the emit would silently kill
+	## first-splat favor (the `splat_favor_once_per_target` scenario pins it).
+	splatted_once = true
 
 
 ## The horn: a bright flash on the body plus the honk itself (T-012 wires the

@@ -203,7 +203,11 @@ func _refresh_watched() -> void:
 ## queues. Since T-128 every rejoin point also passes the sightline gate (a
 ## gated draw walks its own first leg, then the band — light blocks first; the
 ## free drawn point stands as the documented least-bad fallback), so recycled
-## cars drive into view instead of popping.
+## cars drive into view instead of popping. (T-147) The far list partitions:
+## a car carrying `splatted_once` is despawn-eligible — it churns out of the
+## fleet through `_replace_car` instead of teleporting back to a curb to be
+## farmed again — while every never-splatted far car takes the teleport arms
+## below byte-identical.
 func _recycle_far() -> void:
 	var anchor := _anchor_flat()
 	var far: Array[Car] = []
@@ -215,7 +219,14 @@ func _recycle_far() -> void:
 	var blocks := _blocks_in_band(anchor)
 	if blocks.is_empty():
 		return
-	for car in far:
+	## (T-147) The duplicate iterates safely while `_replace_car` lands its
+	## `_cars` swaps mid-loop; a spent car whose replacement has no
+	## gate-passing placement this scan stays put — the next 0.5 s scan retries.
+	var pending: Array[Car] = far.duplicate()
+	for car in pending:
+		if car.splatted_once:
+			_replace_car(car)
+			continue
 		var block: Vector3 = _pick_recycle_block(blocks)
 		if car.mode == Car.Mode.PARKED:
 			if not _recycle_parked_to(car, block, blocks):
@@ -230,6 +241,79 @@ func _recycle_far() -> void:
 			## else: least-bad — the drawn rejoin stands (in view, documented).
 			car.start_route(placement.pos, placement.points, placement.entries,
 					city.to_global(block), _block_centers_cache, placement.end)
+
+
+## (T-147) Swaps one despawn-eligible far car for a FRESH splat-fresh node —
+## the churn that keeps the favor economy renewable: the spent car is already
+## beyond `recycle_radius` (out of reach) and a fresh like-for-like car takes
+## its fleet slot, entering off-screen. The replacement's identity is
+## like-for-like, zero RNG: `citizen_class`, `body_color` (civilians keep
+## their palette paint, visitors keep their black↔gold paint direction —
+## `Car._ready` re-reads the stored color, no new roll) and `pace` carry over,
+## `_assign_tailgate` re-hands the cooler + bread service by class — every
+## mid-run count stays stable (the 14 + 12 fleet, the class multiset, the
+## roundi(target_parked × visitor_share) parked-visitor tailgate crumbs)
+## without touching the populate-scoped `_begin_class_quota` machinery.
+## Placement is strict-gate, NO least-bad fallback — an in-view stage for a
+## REPLACEMENT is a pop: parked entries use the strict finders only
+## (`_offscreen_spot` on the drawn block, else `_offscreen_band_spot`) and
+## traffic entries re-check the gate after `_route_rejoin` before falling to
+## the `_offscreen_route_rejoin` band scan. Place-then-free, never starve:
+## only a RESOLVED placement adds the fresh node, stages it, lands the
+## `_cars` swap and tears the spent car down (`release_tailgate()` first —
+## the `_populate` free-loop precedent, so a parked visitor's crumb never
+## orphans — then `queue_free()`; its stop-ledger state releases in its own
+## `_exit_tree`). With no gate-passing placement this scan the staged node
+## (if any) frees, the spent car stays (the fleet count never dipped), and
+## the next 0.5 s scan retries. True when the swap landed.
+func _replace_car(spent: Car) -> bool:
+	var blocks := _blocks_in_band(_anchor_flat())
+	if blocks.is_empty():
+		return false
+	var fresh: Car = car_scene.instantiate()
+	fresh.citizen_class = spent.citizen_class
+	fresh.body_color = spent.body_color
+	fresh.pace = spent.pace
+	_assign_tailgate(fresh)
+	fresh.traffic = traffic_ctrl ## (T-134) Null when the protocol hatch is off.
+	var block: Vector3 = _pick_recycle_block(blocks)
+	var placed := false
+	if spent.mode == Car.Mode.PARKED:
+		var spot: Dictionary = _offscreen_spot(city.parking_spots(block))
+		if spot.is_empty():
+			var band := _offscreen_band_spot(blocks)
+			if not band.is_empty():
+				block = band["block"]
+				spot = band["spot"]
+		if not spot.is_empty():
+			add_child(fresh) ## Before park_at — the crumb drop needs the tree.
+			fresh.park_at(city.to_global(spot.pos), spot.yaw, city.to_global(block))
+			placed = true
+	else:
+		var placement := _route_rejoin(block, fresh, true)
+		if not _sightline_ok(placement.pos):
+			var scan := _offscreen_route_rejoin(blocks, fresh)
+			if not scan.is_empty():
+				block = scan.block
+				placement = scan.placement
+			else:
+				placement = {} ## No gate-passing rejoin anywhere — keep the spent car.
+		if not placement.is_empty():
+			add_child(fresh)
+			fresh.start_route(placement.pos, placement.points, placement.entries,
+					city.to_global(block), _block_centers_cache, placement.end)
+			placed = true
+	if not placed:
+		fresh.free()
+		return false
+	## The fresh node stands — wire the relays and land the swap.
+	fresh.route_exhausted.connect(_on_route_exhausted)
+	fresh.splatted.connect(_on_car_splatted)
+	_cars.erase(spent)
+	_cars.append(fresh)
+	spent.release_tailgate()
+	spent.queue_free()
+	return true
 
 
 ## `_pick_block`'s fallback pool for a far-from-every-block anchor: the whole
