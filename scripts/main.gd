@@ -164,6 +164,24 @@ var hud_warning_tier: int = 0 ## The hunger warning band the bar currently shows
 var _hunger_percent_shown: int = -1
 var _pulse_phase: float = 0.0 ## Game-time phase of the tier flash — advanced only while a tier pulses.
 var _last_hit_kind: String = "" ## (T-040) "Tourist"/"Car", stashed by the splat handlers — hit_scored carries points but not the target kind.
+## (T-151) The last splat's citizen class and the favor it booked. hit_scored
+## keeps its exact 4-arg payload (three harness listeners use 4-arg lambdas),
+## so Main carries the class through — popup word, strip word, favor tint —
+## from the node it already had in hand at splat time. Only read while
+## `_last_hit_kind` is set: an empty kind is the synthetic Game.add_*_hit
+## path, and those class-free entries claim no class and no tint.
+var _last_hit_class: CitizenClass.Kind = CitizenClass.Kind.CIVILIAN
+var _last_hit_favor_delta: int = 0 ## (T-151) Game.splat_favor's return for the last splat — 0 when the T-147 gate skipped the call or no splat happened yet.
+## (T-151) Per-class splat tally for the game-over split — every splat counts
+## (matching tourist_hits/car_hits, repeats included), keyed on Kind. Cleared
+## with the HUD stash in restart_run(), so a fresh run's breakdown claims no
+## stale split.
+var _splat_class_tally: Dictionary = {}
+## (T-151) The combo strip's at-rest fill — the T-019 white the SCENE carries,
+## captured in _ready and restored when the strip clears or restarts, so the
+## favor tint never outlives its hit even if the scene retunes the fill.
+var _combo_strip_rest_color: Color = Color(1.0, 1.0, 1.0, 0.75)
+var _combo_strip_tint_shown: Color = Color(1.0, 1.0, 1.0, 0.75) ## (T-151) The strip tint last written — the T-055 write-only-on-change guard for the color half.
 var _combo_strip_left: float = 0.0 ## (T-040) Game-time seconds left before the strip clears; 0 = at rest, empty.
 var _return_fade_phase: float = -1.0 ## (T-087) <0 idle; 0..return_fade_seconds while the return fade runs — game time, like the tier pulse.
 var _home_note_phase: float = 0.0 ## (T-087, folded from T-100) Game-time seconds the note has shown; advanced only while visible.
@@ -190,6 +208,8 @@ var _drew_bread_target: bool = false
 
 func _ready() -> void:
 	$Sun.rotation_degrees = Vector3(-50.0, -30.0, 0.0)
+	_combo_strip_rest_color = combo_strip.get_theme_color("font_color") ## (T-151) The scene's own T-019 fill — the tint the strip restores to.
+	_combo_strip_tint_shown = _combo_strip_rest_color
 	player.grounding_changed.connect(_on_grounding_changed)
 	player.grounding_changed.connect(Game.on_grounding_changed) ## Landing ends the combo.
 	player.pooped.connect(_on_player_pooped) ## Release conditions feed the style bonus.
@@ -383,6 +403,7 @@ func _process(delta: float) -> void:
 		if _combo_strip_left <= 0.0:
 			_combo_strip_left = 0.0
 			combo_strip.text = ""
+			_show_strip_tint(_combo_strip_rest_color) ## (T-151) The favor tint never outlives its hit.
 	if _return_fade_phase >= 0.0: ## (T-087) The return fade runs in game time like the tier pulse —
 		_return_fade_phase += delta ## deterministic under --fixed-fps, frozen with a paused world.
 		if _return_fade_phase >= return_fade_seconds:
@@ -656,13 +677,26 @@ func _on_off_world_reset(from: Vector3) -> void:
 ## target: the gate reads the node's own `splatted_once` — false exactly on
 ## the first splat (the flag is set after the synchronous emit returns — the
 ## order is the whole gate, see Tourist.splatted_once) — so repeats keep the
-## score, the marker and the panic but book zero favor.
+## score, the marker and the panic but book zero favor. (T-151) The class and
+## the booked favor delta ride the same stash: the delta is staged from
+## Game.splat_favor_delta — the SAME pure table splat_favor itself runs —
+## before add_tourist_hit, so the synchronous hit_scored chain composes this
+## hit's popup and strip with the tint already known. The real splat_favor
+## call stays AFTER the score book (order unchanged from T-147): a favor
+## climb that ends the run opens the score screen with the counters already
+## counting THIS splat.
 func _on_tourist_splatted(tourist: Tourist) -> void:
 	_last_hit_kind = "Tourist"
+	_last_hit_class = tourist.citizen_class ## (T-151) Read here already — now it reaches the readouts.
+	_splat_class_tally[tourist.citizen_class] = \
+			int(_splat_class_tally.get(tourist.citizen_class, 0)) + 1 ## (T-151) Every splat counts.
+	var books_favor: bool = not tourist.splatted_once ## (T-147) First splat only — repeats book 0.
+	_last_hit_favor_delta = Game.splat_favor_delta(tourist.citizen_class, false) \
+			if books_favor else 0
 	_spawn_hit_marker(tourist) ## The ring marks WHICH body took the hit (T-040).
 	Game.add_tourist_hit(tourist.global_position)
-	if not tourist.splatted_once: ## (T-147) First splat only — repeats book 0.
-		Game.splat_favor(tourist.citizen_class, false)
+	if books_favor:
+		_last_hit_favor_delta = Game.splat_favor(tourist.citizen_class, false)
 
 
 ## Car splats feed the Game autoload's table (30 base — the cheap target,
@@ -673,13 +707,22 @@ func _on_tourist_splatted(tourist: Tourist) -> void:
 ## `splatted_once` — false exactly on the first splat (the flag is set after
 ## the synchronous relay chain returns — the order is the whole gate, see
 ## Car.splatted_once) — so re-splatting a parked car keeps the honk, the
-## score and the combo but books zero favor, both signs.
+## score and the combo but books zero favor, both signs. (T-151) Class +
+## delta + tally as on the tourist path: the tint's delta stages from the
+## shared pure table before the score chain fires; the real booking stays
+## after it, so a victory opened by this very splat reads complete counters.
 func _on_car_splatted(car: Car) -> void:
 	_last_hit_kind = "Car"
+	_last_hit_class = car.citizen_class ## (T-151)
+	_splat_class_tally[car.citizen_class] = \
+			int(_splat_class_tally.get(car.citizen_class, 0)) + 1 ## (T-151) Every splat counts.
+	var books_favor: bool = not car.splatted_once ## (T-147) First splat only — repeats book 0.
+	_last_hit_favor_delta = Game.splat_favor_delta(car.citizen_class, true) \
+			if books_favor else 0
 	_spawn_hit_marker(car) ## The ring marks WHICH body took the hit (T-040).
 	Game.add_car_hit(car.global_position)
-	if not car.splatted_once: ## (T-147) First splat only — repeats book 0.
-		Game.splat_favor(car.citizen_class, true)
+	if books_favor:
+		_last_hit_favor_delta = Game.splat_favor(car.citizen_class, true)
 
 
 ## The hit marker (T-040): a one-shot ring burst at the hit point, parented to
@@ -696,16 +739,74 @@ func _spawn_hit_marker(target: Node3D) -> void:
 ## the combo escalates (fired from _process). (T-040) It also composes the HUD
 ## combo strip — kind + points, " ×N" once chained — the "what/worth" line that
 ## outlives the world popup's short life on screen. (T-038) The style flag
-## rides along too: the popup tags and tints styled payouts.
+## rides along too: the popup tags and tints styled payouts. (T-151) The
+## splat's class NAMES the readout — "Visitor +100" / "Civilian car +30" —
+## and the favor it booked tints both the popup and the strip (gold gains,
+## red losses, the at-rest colors at 0). The signal keeps its exact 4-arg
+## payload, so the class comes from the stash the splat handlers set; an
+## empty kind — the synthetic Game.add_tourist_hit / add_car_hit entries —
+## composes the bare legacy form claiming no class and no tint. A styled
+## popup keeps its STYLE gold (score_popup.gd wins over the favor tint).
 func _on_hit_scored(points: int, multiplier: int, pos: Vector3, style: bool) -> void:
+	var prefix := _last_hit_class_prefix()
+	var popup_tint := Color(1.0, 1.0, 1.0, 1.0)
+	var strip_tint := _combo_strip_rest_color
+	if _last_hit_favor_delta > 0:
+		popup_tint = FAVOR_GAIN_COLOR
+		strip_tint = FAVOR_GAIN_COLOR
+	elif _last_hit_favor_delta < 0:
+		popup_tint = FAVOR_LOSS_COLOR
+		strip_tint = FAVOR_LOSS_COLOR
 	var popup: ScorePopup = SCORE_POPUP_SCENE.instantiate()
-	popup.setup(points, multiplier, pos, style)
+	popup.setup(points, multiplier, pos, style, prefix, popup_tint)
 	add_child(popup)
 	player.chase_camera.add_shake(hit_shake)
-	combo_strip.text = "%s +%d" % [_last_hit_kind, points]
+	combo_strip.text = "%s+%d" % [prefix, points]
 	if multiplier >= 2:
 		combo_strip.text += " ×%d" % multiplier
 	_combo_strip_left = combo_strip_seconds
+	_show_strip_tint(strip_tint)
+
+
+## (T-151) The class word the last splat's readouts open with — "Visitor ",
+## "Civilian car " (the prefix carries its own trailing space) — or "" when
+## the stash is empty: the synthetic add_*_hit entries render the bare legacy
+## forms, claiming no class. Composed from the kind stash the T-040 chain
+## already keeps; the ticket's own word list, spelled by CitizenClass.label.
+func _last_hit_class_prefix() -> String:
+	if _last_hit_kind.is_empty():
+		return ""
+	var word := CitizenClass.label(_last_hit_class)
+	if _last_hit_kind == "Car":
+		return "%s car " % word
+	return "%s " % word
+
+
+## (T-151) The combo strip's favor tint — gold gains, red losses, the scene's
+## T-019 fill at rest — guarded so idle frames never touch the Control (the
+## T-055 write-only-on-change pattern).
+func _show_strip_tint(tint: Color) -> void:
+	if _combo_strip_tint_shown != tint:
+		_combo_strip_tint_shown = tint
+		combo_strip.add_theme_color_override("font_color", tint)
+
+
+## (T-151) The game-over split from Main's own per-class splat tally — every
+## splat counts (matching tourist_hits/car_hits), fixed visitor → civilian →
+## superfan order, e.g. " (visitor 1 · civilian 2)". Empty when nothing was
+## splatted: the zero-splat breakdown keeps its legacy form byte-identical.
+func _compose_class_split() -> String:
+	if _splat_class_tally.is_empty():
+		return ""
+	var parts := PackedStringArray()
+	for kind in [CitizenClass.Kind.VISITOR, CitizenClass.Kind.CIVILIAN,
+			CitizenClass.Kind.SUPERFAN]:
+		if _splat_class_tally.has(kind):
+			parts.append("%s %d" % [CitizenClass.label(kind).to_lower(),
+					_splat_class_tally[kind]])
+	if parts.is_empty():
+		return ""
+	return " (%s)" % " · ".join(parts)
 
 
 ## (T-114) The favor meter's driver: every `Game.favor_changed` re-writes the
@@ -754,7 +855,8 @@ func _on_game_over() -> void:
 	_run_ended = true
 	pause_menu.locked = true
 	game_over_screen.open(Game.score, Game.high_score,
-			Game.tourist_hits, Game.car_hits, Game.record_beaten)
+			Game.tourist_hits, Game.car_hits, Game.record_beaten,
+			_compose_class_split()) ## (T-151) The run's per-class splat split rides along.
 	print("HUNGER: game over — signal fired at zero")
 
 
@@ -770,7 +872,8 @@ func _on_favor_maxed() -> void:
 	_run_ended = true
 	pause_menu.locked = true
 	game_over_screen.open_victory(Game.score, Game.high_score,
-			Game.tourist_hits, Game.car_hits, Game.favor, Game.record_beaten)
+			Game.tourist_hits, Game.car_hits, Game.favor, Game.record_beaten,
+			_compose_class_split()) ## (T-151) The split lands before the Favor total.
 
 
 ## In-place fresh run (T-010): zeroes the autoload state, regenerates the SAME
@@ -796,6 +899,11 @@ func restart_run() -> void:
 	## cooldown, so the next tick drives the right state.
 	combo_strip.text = "" ## (T-040) A fresh run starts with no last hit on the strip.
 	_combo_strip_left = 0.0
+	_show_strip_tint(_combo_strip_rest_color) ## (T-151) …and no favor tint mid-display.
+	_last_hit_kind = "" ## (T-151) The stash joins the HUD reset — it never did before, so a
+	_last_hit_class = CitizenClass.Kind.CIVILIAN ## post-restart synthetic hit inherited the old run's
+	_last_hit_favor_delta = 0 ## class word; now it claims nothing, like a fresh Main.
+	_splat_class_tally.clear() ## (T-151) A fresh run's breakdown claims no stale split.
 	_return_fade_phase = -1.0 ## (T-087) A fresh run never inherits a mid fade or a stale note.
 	return_fade.color.a = 0.0
 	home_note.visible = false

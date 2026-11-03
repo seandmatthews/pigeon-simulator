@@ -45,24 +45,29 @@ func _ready() -> void:
 
 
 ## Opens the screen over a frozen run. `beaten` highlights a freshly raised
-## record. The labels carry the numbers the sim harness asserts.
-func open(score: int, high_score: int, tourist_hits: int, car_hits: int, beaten: bool) -> void:
-	_open(score, high_score, tourist_hits, car_hits, beaten, false, 0)
+## record. The labels carry the numbers the sim harness asserts. (T-151)
+## `class_split` — Main's per-class splat tally, e.g. " (visitor 1 · civilian
+## 2)" — appends to the breakdown at its register's slot; the empty default
+## keeps the legacy form byte-identical (a no-splat run claims no split).
+func open(score: int, high_score: int, tourist_hits: int, car_hits: int, beaten: bool,
+		class_split: String = "") -> void:
+	_open(score, high_score, tourist_hits, car_hits, beaten, false, 0, class_split)
 
 
 ## (T-115) Opens the screen in the victory register — the ceiling moment.
 ## `favor` (always the clamped `Game.favor_max` on a real win) joins the
 ## breakdown; the title, dim and note switch to the victory dressing. Same
-## freeze contract as open().
+## freeze contract as open(). (T-151) `class_split` lands BEFORE the favor
+## total in the victory form.
 func open_victory(score: int, high_score: int, tourist_hits: int, car_hits: int,
-		favor: int, beaten: bool) -> void:
-	_open(score, high_score, tourist_hits, car_hits, beaten, true, favor)
+		favor: int, beaten: bool, class_split: String = "") -> void:
+	_open(score, high_score, tourist_hits, car_hits, beaten, true, favor, class_split)
 
 
 ## The shared open core: both registers write EVERY mode-dependent property —
 ## neither relies on scene defaults — so no register leaks across restarts.
 func _open(score: int, high_score: int, tourist_hits: int, car_hits: int,
-		beaten: bool, victory: bool, favor: int) -> void:
+		beaten: bool, victory: bool, favor: int, class_split: String = "") -> void:
 	is_open = true
 	visible = true
 	get_tree().paused = true
@@ -73,11 +78,11 @@ func _open(score: int, high_score: int, tourist_hits: int, car_hits: int,
 	dim_rect.color = victory_dim if victory else STARVED_DIM
 	victory_note.visible = victory
 	if victory:
-		breakdown_label.text = "Tourists splatted: %d    Cars splatted: %d    Favor: %d" % [
-				tourist_hits, car_hits, favor]
+		breakdown_label.text = "Tourists splatted: %d    Cars splatted: %d%s    Favor: %d" % [
+				tourist_hits, car_hits, class_split, favor]
 	else:
-		breakdown_label.text = "Tourists splatted: %d    Cars splatted: %d" % [
-				tourist_hits, car_hits]
+		breakdown_label.text = "Tourists splatted: %d    Cars splatted: %d%s" % [
+				tourist_hits, car_hits, class_split]
 	new_record_label.visible = beaten
 	var again := get_node_or_null("%AgainButton") as Button
 	if again != null:

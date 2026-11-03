@@ -128,7 +128,7 @@ exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 | T-148 | [Haze the skyline ring: apron monoliths dissolve into the horizon](T-148-skyline-haze.md) | visual-design | 4 | 1 | proposed |
 | T-149 | [Visitor cars get a roof-level tell: the class reads from the dive](T-149-visitor-roof-topper.md) | visual-design | 4 | 2 | proposed |
 | T-150 | [Soften the bead juice: dust billows, splat splash flattens](T-150-soften-bead-juice.md) | visual-design | 3 | 1 | proposed |
-| T-151 | [Name the class on every hit readout](T-151-hit-feedback-names-the-class.md) | ui-ux | 4 | 2 | proposed |
+| T-151 | [Name the class on every hit readout](T-151-hit-feedback-names-the-class.md) | ui-ux | 4 | 2 | done |
 | T-152 | [Teach the color code where the favor rule already lives](T-152-teach-the-color-code.md) | ui-ux | 3 | 1 | proposed |
 | T-153 | [Attribute the favor delta to its cause](T-153-favor-note-names-the-cause.md) | ui-ux | 3 | 2 | proposed |
 | T-154 | [Retire the amber civilian shirt — the last gold hue-twin](T-154-retire-amber-civilian-shirt.md) | ui-ux | 3 | 2 | proposed |
