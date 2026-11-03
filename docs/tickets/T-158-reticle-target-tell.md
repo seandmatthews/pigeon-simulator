@@ -1,6 +1,6 @@
 # T-158 — Give the poop reticle a target tell: name what the pin is on before the drop
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** ui-ux · **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-105 (the reticle, done) · T-151 (the favor colors + class-named readouts, done)
 - **Refs:** T-121's owner misread — *"Sometimes a car is just yellow and its
   wheels are black but it's not a black/yellow target car"*
@@ -98,7 +98,7 @@ gain, red = favor loss (`main.gd:37-38`, rendered by `_on_hit_scored`).
 
 ## Acceptance criteria
 
-- [ ] (Gate 1b) New scenario `reticle_pin_names_the_target` on the
+- [x] (Gate 1b) New scenario `reticle_pin_names_the_target` on the
       `reticle_main_lifecycle` rig (`tests/sim_test.gd:2414-2516`, instanced
       Main in its own space, the T-077 reset_flight-per-frame hover hold,
       nudged ~0.01 m per frame so the changed-value guard re-marches on the
@@ -109,13 +109,13 @@ gain, red = favor loss (`main.gd:37-38`, rendered by `_on_hit_scored`).
       over an all-civilian rig, and the scene-neutral rgb with the rig freed
       — read through a `_reticle_ring_rgb` helper on the
       `_reticle_alpha` pattern (`tests/sim_test.gd:2309-2316`).
-- [ ] (Gate 1b) The frozen leg: one real tap with the visitor body still
+- [x] (Gate 1b) The frozen leg: one real tap with the visitor body still
       under the pin → the ring albedo stays neutral while `is_frozen`, and
       only relights into the tell after the splat returns the reticle to live.
-- [ ] (Gate 1b) The existing reticle rows re-run green untouched in the same
+- [x] (Gate 1b) The existing reticle rows re-run green untouched in the same
       suite pass — `reticle_frozen_pin_matches_damped_fall`,
       `reticle_main_lifecycle`, `reticle_live_refresh_30hz` (their reads are
-      pin geometry + alpha; the two-material split must keep the dim write on
+      pin geometry + alpha; the two-material split keeps the dim write on
       the ring's material).
 - [ ] (Gate 3) [screenshot] Pilot grab: reticle over a parked visitor car
       reads gold with the class word at flight height; over a civilian
@@ -131,3 +131,30 @@ Gate 2 unaffected (presentation-only; no tuning constants outside the new
 exports). Gate 3: the screenshot legs above plus the feel lines — is the
 tell readable at lob range, does the gold/red ring steal attention from the
 pin itself, does the class word clutter the aim picture.
+
+## Landed (2026-11-03)
+
+The three Gate 1b criteria machine-verified on the branch build: Gate 1
+import exit 0 and boot exit 0 (no error lines beyond the accepted godot_mcp
+teardown line), Gate 1b full suite 0 failure(s) exit 0 with all four reticle
+rows PASS — `reticle_frozen_pin_matches_damped_fall`, `reticle_main_lifecycle`,
+`reticle_live_refresh_30hz` untouched, plus the new `reticle_pin_names_the_target`
+(gain gold + "Visitor" word over the all-visitor rig; frozen stays neutral
+through the real tap and relights gold after the splat; loss red over the
+all-civilian rig; neutral rgb with the body freed, the claim conditioned by
+the scenario-side `_classed_body_under` probe). Gate 2 autoplay green
+(`AUTOPLAY DONE ok=true restart=true`, 132 fps). Two red-before probes prove
+the scenario's teeth: with the tell query disabled the new row FAILs on
+exactly the gain/relit/loss legs (frozen/neutral staging legs stay true);
+with `lock_to`'s neutral force removed it FAILs on exactly the frozen leg.
+
+Tuned values are the exports as ticketed: `tell_body_mask` 12 (npc+vehicle),
+`tell_query_radius` 1.0 m, `tell_gain_color`/`tell_loss_color` byte-equal to
+`MainGame.FAVOR_GAIN_COLOR`/`FAVOR_LOSS_COLOR`, the ring on its own scene
+material (`Mat_ring`, same values as `Mat_reticle`), and the `%ClassWord`
+Label3D at 48 px × 0.005 pixel_size (≈ 0.24 m glyphs — the ~12 px HUD read at
+typical flight height), billboarded 0.5 m above the ring with the T-019-style
+black outline.
+
+Gate 3 screenshots + feel lines: PENDING owner eyes (the two lines live in
+VERIFICATION.md's Gate 3 checklist, unchecked).
