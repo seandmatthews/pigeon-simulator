@@ -124,7 +124,8 @@ func _measure_elder_seated() -> void:
 	var head_rigid := visual.find_child("HeadRigid", true, false) as MeshInstance3D
 	if head_rigid != null and head_rigid.mesh != null:
 		var ab: AABB = head_rigid.mesh.get_aabb()
-		print("HeadRigid mesh AABB size=%s  (bind-frame metres — the hair prop must fit this)" % ab.size)
+		print("HeadRigid mesh AABB pos=%s size=%s end=%s (bind-frame metres)" % [
+			ab.position, ab.size, ab.end])
 	## The hunch's own hip drop, measured at the candidate values: the sink
 	## must be derived WITH the hunch contribution, not on top of it.
 	var hips0 := _bone_y(visual, "DEF-hips")
@@ -139,3 +140,47 @@ func _measure_elder_seated() -> void:
 	var feet_y := minf(_bone_y(visual, "DEF-foot.L"), _bone_y(visual, "DEF-foot.R"))
 	print("COMPOSITE: hips %.4f above the elder root (= seat top), feet %.4f above it" % [
 		hips_y, feet_y])
+
+
+## (T-145 debugging) The head-prop mount chain, world transforms in the
+## seated composite: bone vs slot vs mesh corners vs the hair, so the
+## render's floating read can be reconciled with the numbers.
+func _measure_mount_chain() -> void:
+	print("=== mount chain (seated composite) ===")
+	var visual: Node3D = _elder.get_node("Visual")
+	var sink: float = _elder.get("SEAT_SINK")
+	visual.position.y = sink
+	visual.rotation.x = _elder.get("HUNCH_SEATED")
+	var sit: AnimationPlayer = visual.find_child("AnimationPlayer", true, false)
+	sit.play("Rig|Sitting_Idle", 0.0)
+	sit.seek(0.5, true)
+	var skeleton := _skeleton(visual)
+	var wait := 3
+	while wait > 0:
+		await process_frame
+		wait -= 1
+	var head_rigid := visual.find_child("HeadRigid", true, false) as MeshInstance3D
+	var head_slot := visual.find_child("HeadTop", true, false) as Node3D
+	var hair := visual.find_child("Hair", true, false) as Node3D
+	var head_idx := skeleton.find_bone("DEF-head")
+	var bone_w := skeleton.global_transform * skeleton.get_bone_global_pose(head_idx)
+	print("head BONE world origin=%s" % bone_w)
+	print("HeadMount world origin=%s" % (visual.find_child("HeadMount", true, false)
+			as Node3D).global_position)
+	print("HeadRigid world origin=%s  scale=%s" % [head_rigid.global_position,
+			head_rigid.global_transform.basis.get_scale()])
+	var ab := head_rigid.mesh.get_aabb()
+	print("mesh AABB pos=%s end=%s" % [ab.position, ab.end])
+	for corner_name in ["top-center", "top-front", "top-back"]:
+		var local := Vector3.ZERO
+		if corner_name == "top-center":
+			local = Vector3(ab.get_center().x, ab.end.y, ab.get_center().z)
+		elif corner_name == "top-front":
+			local = Vector3(ab.get_center().x, ab.end.y, ab.position.z)
+		else:
+			local = Vector3(ab.get_center().x, ab.end.y, ab.end.z)
+		print("mesh %s world=%s" % [corner_name, head_rigid.global_transform * local])
+	print("slot local=%s world=%s" % [head_slot.position, head_slot.global_position])
+	print("hair world=%s  (local %s under %s)" % [hair.global_position,
+			hair.position, hair.get_parent().name])
+	quit()
