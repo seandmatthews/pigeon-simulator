@@ -70,6 +70,18 @@ var carries_finger: bool = false ## Whether the raised right hand carries the go
 var pace: float = 1.0 ## Per-tourist speed factor (0.85–1.2) so groups walk loosely.
 ## Flinches taken so far — evidence for tests and the autoplay DONE line.
 var buzz_count: int = 0
+## (T-147) The once-per-target favor book: true after this tourist's FIRST
+## splat of the run. Main's `_on_tourist_splatted` gates ONLY the
+## `Game.splat_favor` call on it — a repeat splat still yelps, still panics
+## and still scores, but books zero favor (including the negatives: a second
+## hit on a superfan adds 0, not another −8). Set by `on_splatted` AFTER its
+## `splatted.emit` — the order is load-bearing: Godot signals are
+## synchronous, so Main's handler runs DURING the emit and reads the flag
+## false exactly on the first splat; that read IS the whole gate (pinned by
+## the `splat_favor_once_per_target` Gate 1b scenario). The tourist spawner's
+## teleport-recycle moves the SAME node, so a spent tourist stays spent
+## through `recycle_to` — there is no fleet churn on the pedestrian side.
+var splatted_once: bool = false
 
 var _panic_left: float = 0.0
 var _panic_dir := Vector3.RIGHT
@@ -151,7 +163,9 @@ func _physics_process(delta: float) -> void:
 ## Poop hit (T-006 duck-typed convention): panic away from where the dropping
 ## came from — the horizontal mirror of its impact velocity — and raise the
 ## score event for whoever listens. A straight drop has no horizontal mirror,
-## so any direction is "away".
+## so any direction is "away". (T-147) Every splat also spends the target:
+## `splatted_once` flips AFTER the emit — deliberate, see the field's
+## docstring.
 func on_splatted(impact_velocity: Vector3) -> void:
 	var away := Vector3(-impact_velocity.x, 0.0, -impact_velocity.z)
 	if away.length() < 0.5:
@@ -161,6 +175,11 @@ func on_splatted(impact_velocity: Vector3) -> void:
 	_panic_left = panic_seconds
 	_shouted = false ## The indignant shout waits for the fist shake (T-012).
 	splatted.emit(self)
+	## (T-147) AFTER the emit, deliberately — Godot signals are synchronous, so
+	## Main's favor gate runs during the line above and reads false exactly on
+	## the first splat. Setting this before the emit would silently kill
+	## first-splat favor (the `splat_favor_once_per_target` scenario pins it).
+	splatted_once = true
 	Sfx.play_at("yelp", global_position) ## The hit itself earns a yelp (T-012).
 	if Game.tourist_hits % 2 == 0: ## (T-123) Every other splat earns the pigeon a smug coo.
 		Sfx.play("coo_smug")

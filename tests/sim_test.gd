@@ -228,6 +228,7 @@ func _run_scenarios() -> void:
 	await _scenario_car_splat_honk()
 	await _scenario_traffic_recycle_keeps_flow() ## T-089 — the recycle insertion path must not clot a ring.
 	await _scenario_cars_recycle() ## T-054 — the end-to-end timer-driven car recycle closes its contract.
+	await _scenario_spent_car_despawn_replacement() ## T-147 — spent cars churn out of the fleet at the recycle radius; never-splatted cars keep the reuse contract.
 	await _scenario_traffic_spawns_offscreen() ## T-128 — the sightline gate: traffic enters by driving.
 	await _scenario_traffic_routes_multi_block() ## T-134 — routes replace the ring loops underneath the fleet contracts.
 	await _scenario_four_way_stop_right_of_way() ## T-134 — the stop ladder at one staged node.
@@ -242,6 +243,7 @@ func _run_scenarios() -> void:
 	await _scenario_elder_seats_on_the_bench() ## T-141 — the seated elder lands on the bench (the sink/hunch/hair composite).
 	await _scenario_cafe_sitters_on_the_rig() ## T-142 — the café crowd wears the baked one-people model.
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
+	await _scenario_splat_favor_once_per_target() ## T-147 — favor books ONCE per target; repeats honk and score but add zero.
 	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
 	await _scenario_favor_max_ends_run_victory() ## T-115 — the ceiling ends the run as a victory through the real main scene; starvation coexists in one Main.
@@ -6625,6 +6627,174 @@ func _scenario_cars_recycle() -> void:
 	spawner.free()
 
 
+## --- scenario (T-147 the despawn churn) --------------------------------------
+
+
+## The spent-car churn (T-147), on the `cars_recycle_around_player` rig (real
+## City + CarSpawner, the anchor pinned by grounding the bird on the plaza
+## first) plus a BreadSpawner for the tailgate leg (the T-114 pattern): one
+## parked VISITOR car and one traffic car are splatted (the duck-typed
+## `on_splatted` entry — a bare rig, no Main favor wiring), the pigeon
+## teleports ~120 m west (the T-054 recipe — close enough that band blocks
+## remain), and `_recycle_far` is called DIRECTLY (the
+## `citizen_classes_spawn_deterministic` recycle-leg pattern). The no-pop leg
+## first: with the gate forced to reject every candidate
+## (`spawn_avoid_cone_deg` 180.0 — the in-window arm needs dot ≤ −1, exact
+## anti-parallelism — plus `spawn_sightline_max` raised past `recycle_radius`
+## to close the ≥ max pass arm, since placement never stages beyond the
+## radius; scenario-side staging only, the shipped 55°/80.0 gate code is
+## untouched) the spent far cars SURVIVE the scan — not freed, positions
+## untouched, the fleet count never dipped. Then with the gate restored the
+## same scan replaces both: the spent nodes are FREED (absent from
+## `living_cars()`, invalid), the fleet still reads exactly
+## `target_moving + target_parked` with the 14/12 mode mix, the whole fleet's
+## class|paint|pace identity multiset is UNCHANGED (like-for-like, zero RNG —
+## the replacements carry the freed cars' `citizen_class`, `body_color` and
+## `pace`), every replacement passes `_sightline_ok` and is splat-fresh
+## (`splatted_once == false`), and every never-splatted car is STILL THE SAME
+## INSTANCE with at least one provably teleported — the reuse contract
+## survives for unspent cars. The tailgate books stay clean: the spent parked
+## visitor's crumb released-then-re-dropped, the parked-visitor count and the
+## favor-marked crumb count both re-read roundi(target_parked × visitor_share)
+## = 5 after the churn, and the bread service holds exactly `target_count`
+## living crumbs.
+func _scenario_spent_car_despawn_replacement() -> void:
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var bread := BreadSpawner.new()
+	bread.city = _city
+	bread.respawn_interval = 60.0 ## No top-ups inside the scenario.
+	add_child(bread)
+	await _wait_frames(4)
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	spawner.bread_spawner = bread ## The harness assigns directly (the T-114 pattern).
+	add_child(spawner)
+	await _wait_frames(6) ## Populate + the deferred tailgate dressing pass.
+	var crumbs_before_churn := bread.living_crumbs().size() ## Seeded budget + the tailgate drops riding on top (bare-rig budgeting).
+	var spent_parked: Car = null
+	var spent_traffic: Car = null
+	for car in spawner.living_cars():
+		if spent_parked == null and car.mode == Car.Mode.PARKED \
+				and car.citizen_class == CitizenClass.Kind.VISITOR:
+			spent_parked = car
+		elif spent_traffic == null and car.mode == Car.Mode.TRAFFIC:
+			spent_traffic = car
+	if spent_parked == null or spent_traffic == null:
+		_check("spent_car_despawn_replacement", false,
+				"spent_parked=%s spent_traffic=%s" % [
+						spent_parked != null, spent_traffic != null])
+		spawner.free()
+		bread.free()
+		return
+	spent_parked.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The duck-typed entry the drop calls.
+	spent_traffic.on_splatted(Vector3(0.0, -5.0, 0.0))
+	var spent_parked_id := spent_parked.get_instance_id()
+	var spent_traffic_id := spent_traffic.get_instance_id()
+	## Identity rows — class|paint|pace per car; the like-for-like carry makes
+	## the whole fleet's multiset survive the churn byte-identically.
+	var ids_before: Array[int] = []
+	var identities_before: Array[String] = []
+	var kept_ids: Array[int] = [] ## Never-splatted cars — the reuse contract's set.
+	var kept_positions := {} ## id -> global position, for the moved read.
+	for car in spawner.living_cars():
+		var row := "%d|%s|%.9f" % [car.citizen_class, car.body_color.to_html(), car.pace]
+		ids_before.append(car.get_instance_id())
+		identities_before.append(row)
+		if car != spent_parked and car != spent_traffic:
+			kept_ids.append(car.get_instance_id())
+			kept_positions[car.get_instance_id()] = car.global_position
+	## --- Leg A: the no-pop leg — the gate rejects EVERY candidate ------------
+	spawner.spawn_avoid_cone_deg = 180.0
+	spawner.spawn_sightline_max = 200.0
+	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
+	await _wait_frames(2)
+	var parked_pos_before := spent_parked.global_position
+	spawner._recycle_far() ## Direct — the citizen_classes recycle-leg pattern.
+	await _wait_frames(2)
+	var survived := spawner.living_cars().size() \
+			== spawner.target_moving + spawner.target_parked \
+			and is_instance_valid(spent_parked) and is_instance_valid(spent_traffic) \
+			and spent_parked.global_position.distance_to(parked_pos_before) < 0.01
+	## --- Leg B: the cone restored — the same scan replaces both spent cars ---
+	spawner.spawn_avoid_cone_deg = 55.0
+	spawner.spawn_sightline_max = 80.0
+	spawner._recycle_far()
+	await _wait_frames(4) ## The queue_free flush and the fresh nodes' first frames.
+	var after: Array[Car] = spawner.living_cars()
+	var traffic_n := 0
+	var parked_n := 0
+	var ids_after: Array[int] = []
+	var identities_after: Array[String] = []
+	var fresh_cars: Array[Car] = []
+	for car in after:
+		ids_after.append(car.get_instance_id())
+		identities_after.append("%d|%s|%.9f" % [car.citizen_class,
+				car.body_color.to_html(), car.pace])
+		if car.mode == Car.Mode.TRAFFIC:
+			traffic_n += 1
+		else:
+			parked_n += 1
+		if not ids_before.has(car.get_instance_id()):
+			fresh_cars.append(car)
+	var count_ok := after.size() == spawner.target_moving + spawner.target_parked \
+			and traffic_n == spawner.target_moving and parked_n == spawner.target_parked
+	var freed_ok := not ids_after.has(spent_parked_id) \
+			and not ids_after.has(spent_traffic_id) \
+			and not is_instance_valid(spent_parked) and not is_instance_valid(spent_traffic)
+	identities_before.sort()
+	identities_after.sort()
+	var like_for_like := identities_before == identities_after
+	var gate_ok := fresh_cars.size() == 2
+	var fresh_fresh := true
+	for car in fresh_cars:
+		gate_ok = gate_ok and spawner._sightline_ok(car.global_position)
+		fresh_fresh = fresh_fresh and not car.splatted_once
+	## The reuse contract: every never-splatted car is STILL THE SAME INSTANCE,
+	## and at least one provably teleported onto the new band (the unspent
+	## teleport path ran right beside the churn).
+	var kept_kept := true
+	var moved_kept := 0
+	for id in kept_ids:
+		kept_kept = kept_kept and ids_after.has(id)
+	for car in after:
+		if not kept_positions.has(car.get_instance_id()):
+			continue
+		if car.global_position.distance_to(
+				kept_positions[car.get_instance_id()]) > 10.0:
+			moved_kept += 1
+	var reuse_ok := kept_kept and moved_kept > 0
+	## --- Leg C: the tailgate books stay clean --------------------------------
+	var parked_visitors := 0
+	for car in after:
+		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
+			parked_visitors += 1
+	var tailgates := 0
+	for crumb in bread.living_crumbs():
+		if crumb.favor_delta == Game.favor_steal_visitor:
+			tailgates += 1
+	var quota := roundi(float(spawner.target_parked) * spawner.visitor_share)
+	## The books stay clean: the released tailgate crumb is erased from the
+	## bread service's list (never orphaned) and the fresh visitor's re-drop
+	## replaces it — the total living crumb count is EXACTLY what the populate
+	## staged (the seeded budget + the tailgate crumbs riding on top; on a bare
+	## rig that is target_count + the quota, and the churn must not move it).
+	var tailgate_ok := parked_visitors == quota and tailgates == quota \
+			and bread.living_crumbs().size() == crumbs_before_churn
+	_check("spent_car_despawn_replacement",
+			survived and count_ok and freed_ok and like_for_like and gate_ok
+					and fresh_fresh and reuse_ok and tailgate_ok,
+			"survived=%s count %d (traffic %d, parked %d, want %d/%d) freed=%s like_for_like=%s gate=%s fresh=%s reuse=%s (moved %d/%d) tailgates %d/%d quota %d crumbs %d/%d" % [
+					survived, after.size(), traffic_n, parked_n,
+					spawner.target_moving, spawner.target_parked, freed_ok,
+					like_for_like, gate_ok, fresh_fresh, reuse_ok, moved_kept,
+					kept_ids.size(), tailgates, parked_visitors, quota,
+					bread.living_crumbs().size(), crumbs_before_churn])
+	spawner.free()
+	bread.free()
+
+
 ## --- scenarios (T-128 the sightline gate) -----------------------------------
 
 
@@ -9217,6 +9387,135 @@ func _scenario_splat_favor_follows_citizen_class() -> void:
 					boot_ok, synthetic_silent, visitor_ok, civilian_ok, superfan_ok,
 					landing_ok, visitor_car_ok, civilian_car_ok, rest_ok, gain_ok,
 					expired_ok, loss_ok, restart_ok, final_text])
+
+
+## --- scenario (T-147 favor pays once per target) ------------------------------
+
+
+## The once-per-target favor book (T-147), through the REAL main scene (the
+## instanced-Main pattern, pigeon held airborne so no elder trust can bank and
+## no crumb can feed — the only favor movements are the driven ones): one real
+## parked VISITOR car off the shipped populate splatted TWICE via `on_splatted`
+## moves `Game.favor` by EXACTLY `favor_visitor_car_splat` ONCE (asserted
+## against the export, never a literal) while `Game.car_hits` reads 2 and the
+## caught `hit_scored` chain pays BOTH hits (×1 then ×2 — score farming stays
+## alive by design); the second splat still honks (`honk_count == 2` on the
+## car AND the spawner's splat-relay counter — rude, not broken). One real
+## tourist splatted twice pays its own class delta once (the export map) and
+## `Game.tourist_hits` reads 2. A parked CIVILIAN car splatted twice books
+## −`favor_civilian_car_splat` exactly once — the second adds 0, no negative
+## bleed (the uniform rule, both signs). A synthetic `Game.add_tourist_hit`
+## stays favor-silent (the T-114 pin, re-asserted). Cleanup matches the T-114
+## sibling. The emit-order pin rides every leg: each first splat pays through
+## the gate that reads `splatted_once == false` DURING the synchronous emit —
+## a regression that moves the set before the emit silently zeroes
+## first-splat favor and fails `*_once` here.
+func _scenario_splat_favor_once_per_target() -> void:
+	Game.save_path = SIM_SAVE_PATH
+	Game.reset_run()
+	var main_game: MainGame = MAIN_SCENE.instantiate()
+	main_game.position = Vector3(-6500.0, 0.0, -6500.0) ## Own space, clear of every other instanced Main.
+	add_child(main_game)
+	var pigeon: Player = main_game.player
+	var tourists: TouristSpawner = main_game.get_node("TouristSpawner") as TouristSpawner
+	var cars: CarSpawner = main_game.get_node("CarSpawner") as CarSpawner
+	var hover: Vector3 = main_game.city.to_local(main_game.city.spawn_point) \
+			+ Vector3(0.0, 60.0, 0.0)
+	pigeon.reset_flight(hover) ## Airborne for the whole scenario — no trust, no crumbs eaten.
+	await _wait_frames(6)
+	_score_events.clear()
+	Game.hit_scored.connect(_on_test_hit_scored)
+	var expected := 0
+	## The parked VISITOR car: pays once, honks and scores on both.
+	var visitor_car: Car = null
+	for car in cars.living_cars():
+		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
+			visitor_car = car
+			break
+	if visitor_car == null:
+		_check("splat_favor_once_per_target", false,
+				"no parked VISITOR car in the shipped populate")
+		Game.hit_scored.disconnect(_on_test_hit_scored)
+		main_game.free()
+		Game.hunger.player = null
+		Game.reset_run()
+		return
+	expected += Game.favor_visitor_car_splat
+	visitor_car.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The duck-typed entry the drop calls.
+	var visitor_once := Game.favor == expected and Game.car_hits == 1 \
+			and visitor_car.honk_count == 1 and visitor_car.splatted_once
+	visitor_car.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The SAME car again.
+	var visitor_repeat := Game.favor == expected and Game.car_hits == 2 \
+			and visitor_car.honk_count == 2 and cars.honk_count == 2
+	## One real tourist: pays its own class delta once, then 0.
+	var tourist: Tourist = tourists.living_tourists()[0]
+	var tourist_delta: int
+	match tourist.citizen_class:
+		CitizenClass.Kind.VISITOR:
+			tourist_delta = Game.favor_visitor_splat
+		CitizenClass.Kind.SUPERFAN:
+			tourist_delta = Game.favor_superfan_splat
+		_:
+			tourist_delta = Game.favor_civilian_splat
+	expected += tourist_delta
+	tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
+	var tourist_once := Game.favor == expected and Game.tourist_hits == 1 \
+			and tourist.splatted_once
+	tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
+	var tourist_repeat := Game.favor == expected and Game.tourist_hits == 2
+	## The parked CIVILIAN car: the negative books once — no bleed on repeats.
+	var civilian_car: Car = null
+	for car in cars.living_cars():
+		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.CIVILIAN:
+			civilian_car = car
+			break
+	if civilian_car == null:
+		_check("splat_favor_once_per_target", false,
+				"no parked CIVILIAN car in the shipped populate")
+		Game.hit_scored.disconnect(_on_test_hit_scored)
+		main_game.free()
+		Game.hunger.player = null
+		Game.reset_run()
+		return
+	expected += Game.favor_civilian_car_splat
+	civilian_car.on_splatted(Vector3(0.0, -5.0, 0.0))
+	var civilian_once := Game.favor == expected and Game.car_hits == 3
+	civilian_car.on_splatted(Vector3(0.0, -5.0, 0.0))
+	var civilian_repeat := Game.favor == expected and Game.car_hits == 4
+	## The synthetic scoring entry stays favor-silent (the T-060 coach leg's
+	## call — the harness stages it, it must never book favor).
+	Game.add_tourist_hit(main_game.city.spawn_point)
+	var synthetic_silent := Game.favor == expected and Game.tourist_hits == 3
+	## The combo chain paid every hit: visitor car ×1 then ×2 (BOTH car hits in
+	## the chain), the tourist pair ×3/×4, the civilian pair ×5/×6, the
+	## synthetic entry the ×7 — seven events, no style (reset_run() re-staled
+	## the release age beyond the window).
+	var chain_ok: bool = _score_events.size() == 7 \
+			and _score_events[0].points == Game.car_points \
+			and _score_events[0].multiplier == 1 \
+			and _score_events[1].points == Game.car_points * 2 \
+			and _score_events[1].multiplier == 2 \
+			and _score_events[3].points == Game.tourist_points * 4 \
+			and _score_events[3].multiplier == 4
+	Game.hit_scored.disconnect(_on_test_hit_scored)
+	var final_favor: int = Game.favor ## Everything below reads before the free.
+	var final_car_hits: int = Game.car_hits
+	var final_tourist_hits: int = Game.tourist_hits
+	var final_car_honks: int = visitor_car.honk_count
+	var final_relay_honks: int = cars.honk_count
+	main_game.free()
+	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
+	Game.reset_run()
+	_check("splat_favor_once_per_target",
+			visitor_once and visitor_repeat and tourist_once and tourist_repeat
+					and civilian_once and civilian_repeat and synthetic_silent
+					and chain_ok,
+			"visitor once=%s repeat=%s (honks car %d relay %d, hits %d, favor %d) · tourist once=%s repeat=%s (hits %d, delta %+d) · civilian once=%s repeat=%s · synthetic-silent=%s · chain=%s (%d events)" % [
+					visitor_once, visitor_repeat, final_car_honks,
+					final_relay_honks, final_car_hits, final_favor,
+					tourist_once, tourist_repeat, final_tourist_hits, tourist_delta,
+					civilian_once, civilian_repeat, synthetic_silent, chain_ok,
+					_score_events.size()])
 
 
 ## --- scenario (T-116 the meter names the prize) ------------------------------

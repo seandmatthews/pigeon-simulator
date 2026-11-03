@@ -652,23 +652,34 @@ func _on_off_world_reset(from: Vector3) -> void:
 ## (T-114) The splat also books the per-class favor delta — deliberately a
 ## separate call beside the score call, NOT a changed add_*_hit signature: the
 ## harness stages synthetic `Game.add_tourist_hit` calls (the T-060 coach leg)
-## and those must stay favor-silent.
+## and those must stay favor-silent. (T-147) The favor call is ONCE per
+## target: the gate reads the node's own `splatted_once` — false exactly on
+## the first splat (the flag is set after the synchronous emit returns — the
+## order is the whole gate, see Tourist.splatted_once) — so repeats keep the
+## score, the marker and the panic but book zero favor.
 func _on_tourist_splatted(tourist: Tourist) -> void:
 	_last_hit_kind = "Tourist"
 	_spawn_hit_marker(tourist) ## The ring marks WHICH body took the hit (T-040).
 	Game.add_tourist_hit(tourist.global_position)
-	Game.splat_favor(tourist.citizen_class, false)
+	if not tourist.splatted_once: ## (T-147) First splat only — repeats book 0.
+		Game.splat_favor(tourist.citizen_class, false)
 
 
 ## Car splats feed the Game autoload's table (30 base — the cheap target,
 ## DESIGN pillar 3); the popup spawns from the hit_scored event. Same kind
 ## stash and marker as the tourist path (T-040). (T-114) The car's own class
-## books the vehicle favor delta — the visitor car is the jackpot.
+## books the vehicle favor delta — the visitor car is the jackpot. (T-147)
+## The favor call is ONCE per target: the gate reads the node's own
+## `splatted_once` — false exactly on the first splat (the flag is set after
+## the synchronous relay chain returns — the order is the whole gate, see
+## Car.splatted_once) — so re-splatting a parked car keeps the honk, the
+## score and the combo but books zero favor, both signs.
 func _on_car_splatted(car: Car) -> void:
 	_last_hit_kind = "Car"
 	_spawn_hit_marker(car) ## The ring marks WHICH body took the hit (T-040).
 	Game.add_car_hit(car.global_position)
-	Game.splat_favor(car.citizen_class, true)
+	if not car.splatted_once: ## (T-147) First splat only — repeats book 0.
+		Game.splat_favor(car.citizen_class, true)
 
 
 ## The hit marker (T-040): a one-shot ring burst at the hit point, parented to

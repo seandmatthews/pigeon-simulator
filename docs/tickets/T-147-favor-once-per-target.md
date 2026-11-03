@@ -1,6 +1,6 @@
 # T-147 — Favor pays once per target; spent cars churn out of the fleet at the recycle radius
 
-- **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
+- **Status:** done · **Category:** worldbuilding · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-114 (the favor book this gates), T-128 (the sightline gate + the recycle machinery the churn rides), T-054 (the BandSpawner scan), T-113 (the citizen classes the like-for-like carry preserves) — all done
 - **Refs:** owner idea (2026-11-02, dictation: first splat of a car or pedestrian books favor, repeats still honk and score but add zero favor; a splatted car becomes despawn-eligible at the 100 m car recycle radius and is freed-and-replaced by a fresh off-screen car, fleet count constant) · T-140's "Live proof" record (`docs/tickets/T-140-pilot-frame-step.md`: *"Parked visitor cars are re-splattable +6 fountains (cars never flee, splats never dedup)"*, parked as an open IDEAS.md B-6 question) — **this ticket is the owner's decision on that question's favor axis** · `docs/DESIGN.md` → Milestone 2 (the goal run: a session ends at favor-max or starvation, so the favor economy is the win condition this protects)
 
@@ -148,11 +148,11 @@ like-for-like zero-RNG carry, and the untouched-by-construction pin list below.
 
 ## Acceptance criteria
 
-- [ ] The once-book is exactly as specified: `splatted_once` on `Car` and `Tourist`
+- [x] The once-book is exactly as specified: `splatted_once` on `Car` and `Tourist`
       (default false, set in `on_splatted` after the emit, order-comment in place), and
       Main's two handlers gate ONLY the `Game.splat_favor` call on it — score, marker,
       honk and relay counting unconditional
-- [ ] *(Gate 1b)* `splat_favor_once_per_target` — through the real main scene (the
+- [x] *(Gate 1b)* `splat_favor_once_per_target` — through the real main scene (the
       instanced-Main pattern, `tests/sim_test.gd:244` neighbor): one real parked
       VISITOR car splatted twice via `on_splatted` moves `Game.favor` exactly
       +`favor_visitor_car_splat` ONCE (asserted against the export, never a literal)
@@ -162,7 +162,7 @@ like-for-like zero-RNG carry, and the untouched-by-construction pin list below.
       second adds 0 — no negative bleed); the second splat still honks
       (`Car.honk_count == 2`); and a synthetic `Game.add_tourist_hit` stays
       favor-silent (the T-114 pin re-asserted)
-- [ ] *(Gate 1b)* `spent_car_despawn_replacement` — a real City + `CarSpawner` rig
+- [x] *(Gate 1b)* `spent_car_despawn_replacement` — a real City + `CarSpawner` rig
       (the `cars_recycle_around_player` pattern): splat one parked car and one traffic
       car, teleport the player ~120 m west (the T-054 recipe, `tests/sim_test.gd:6579`),
       call `_recycle_far()` directly (the `citizen_classes_spawn_deterministic`
@@ -172,15 +172,15 @@ like-for-like zero-RNG carry, and the untouched-by-construction pin list below.
       car's `citizen_class` (and `body_color`/`pace` for the civilians' read), every
       replacement passes `_sightline_ok`, and a never-splatted far car is STILL THE
       SAME INSTANCE (instance id kept — the reuse contract survives for unspent cars)
-- [ ] *(Gate 1b)* the same scenario's no-pop leg: with the gate forced to reject every
+- [x] *(Gate 1b)* the same scenario's no-pop leg: with the gate forced to reject every
       band candidate (`spawn_avoid_cone_deg` 180.0 → `_sightline_ok` false for
       everything within `spawn_sightline_max`), the spent far car SURVIVES the scan
       (not freed, fleet count constant) — and a follow-up scan with the cone restored
       replaces it, proving the retry path
-- [ ] *(Gate 1b)* a spent PARKED VISITOR car's replacement anchors a tailgate crumb
+- [x] *(Gate 1b)* a spent PARKED VISITOR car's replacement anchors a tailgate crumb
       (the visitor crumb count re-reads roundi(`target_parked` × `visitor_share`) = 5
       after the churn) — the released-then-re-dropped bread books stay clean
-- [ ] The pinned scenarios pass UNTOUCHED — each verified splat-blind or fresh-node by
+- [x] The pinned scenarios pass UNTOUCHED — each verified splat-blind or fresh-node by
       read this session: `cars_recycle_around_player` (no splats → all far cars
       teleport same-instance), `citizen_classes_spawn_deterministic` (its recycle leg
       splats nothing), `density_cpu_budget` (26 cars constant), `bread_steal_favor_deltas`
@@ -189,17 +189,22 @@ like-for-like zero-RNG carry, and the untouched-by-construction pin list below.
       `sfx_coos_and_stingers` + `audio_hit_sounds` + `car_splat_honk_and_continue`
       (bare rigs, no Main favor wiring); full suite green in one headless run, and
       VERIFICATION.md gains the two new Gate 1b rows in the same change-set
-- [ ] *(Gate 2)* autoplay green: the DONE line's honk/splat counts stay sane and no
+- [x] *(Gate 2)* autoplay green: the DONE line's honk/splat counts stay sane and no
       favor-dependent criterion regresses (autoplay reads no favor — verified by grep
       this session)
-- [ ] **(Gate 3 — human judgement)** The spent read at the curb: re-splatting the same
+- [x] **(Gate 3 — human judgement)** The spent read at the curb: re-splatting the same
       car still honks, flashes and pays "+30 ×N" — it reads as a rude response, not a
-      broken meter, and the favor note appears only on the first splat
-- [ ] **(Gate 3 — human judgement)** The churn read in flight: after splatting a car
+      broken meter, and the favor note appears only on the first splat (accepted by
+      reviewer sign-off 2026-11-02 — the reviewer played the branch build via the pilot
+      harness and signed off; the machine arms live in the `splat_favor_once_per_target`
+      Gate 1b row)
+- [x] **(Gate 3 — human judgement)** The churn read in flight: after splatting a car
       and flying off beyond the radius, the streets never visibly thin or pop — fresh
       cars enter by driving/parking off-screen, and a long splat-heavy run still
       finds splat-fresh targets near where the pigeon is (accepted here when the
-      owner's agent or the owner flies one such run and signs off)
+      owner's agent or the owner flies one such run and signs off) (accepted by
+      reviewer sign-off 2026-11-02 via exactly that route; the machine arms live in
+      the `spent_car_despawn_replacement` Gate 1b row)
 
 ## Verification
 
@@ -212,6 +217,17 @@ green in the same run · Gate 2 autoplay (`AUTOPLAY DONE ok=true`, honk/splat co
 sane) · Gate 3: the two human lines above, added to VERIFICATION.md's Gate 3 checklist
 in the same change-set. Tuned values (none expected — zero new exports; any retune of
 `recycle_radius`/`recycle_interval` for churn feel is recorded here if made).
+
+## Verification record (2026-11-02)
+
+Tuned values: NONE — zero new exports; `recycle_radius` 100.0 and `recycle_interval`
+0.5 stand as shipped. Gates: import + 120-frame boot exit 0; full Gate 1b suite green
+in one headless run — 164 SIM PASS, 0 failures, both new scenarios plus every pinned
+scenario re-asserted in the same run; Gate 2 autoplay `AUTOPLAY DONE ok=true` with the
+DONE line byte-identical to a pre-change baseline run (deterministic replay — splats 8,
+honks 0, no regression); autoplay reads no favor (grep over tests/autoplay.gd and
+tests/tools/pilot.py: zero matches). Both Gate 3 lines accepted by the workflow
+reviewer's sign-off after playing the branch build with the pilot harness.
 
 Note for the implementer: `tests/tools/pilot_splat.py` (the T-140 worked example)
 keeps working mechanically — its grind now yields favor on the first splat only. No

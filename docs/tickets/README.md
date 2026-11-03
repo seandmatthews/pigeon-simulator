@@ -124,7 +124,7 @@ exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 | T-116 | [The meter names the prize: the favor row shows the ceiling and the HUD states the win](T-116-favor-meter-names-the-prize.md) | ui-ux | 4 | 1 | done |
 | T-117 | [20% more WASD: the owner responsiveness pass](T-117-wasd-20-percent.md) | flight-control | 4 | 2 | done |
 | T-134 | [American four-way stops: multi-block routes, right-of-way, blinker tells and stop-sign props](T-134-four-way-stops.md) | worldbuilding | 4 | 3 | done |
-| T-147 | [Favor pays once per target; spent cars churn out of the fleet at the recycle radius](T-147-favor-once-per-target.md) | worldbuilding | 4 | 3 | proposed |
+| T-147 | [Favor pays once per target; spent cars churn out of the fleet at the recycle radius](T-147-favor-once-per-target.md) | worldbuilding | 4 | 3 | done |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since
