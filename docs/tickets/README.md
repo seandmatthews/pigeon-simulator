@@ -132,6 +132,13 @@ exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 | T-152 | [Teach the color code where the favor rule already lives](T-152-teach-the-color-code.md) | ui-ux | 3 | 1 | proposed |
 | T-153 | [Attribute the favor delta to its cause](T-153-favor-note-names-the-cause.md) | ui-ux | 3 | 2 | proposed |
 | T-154 | [Retire the amber civilian shirt — the last gold hue-twin](T-154-retire-amber-civilian-shirt.md) | ui-ux | 3 | 2 | proposed |
+| T-155 | [Floor the skyline-ring haze: inner monoliths must read as backdrop](T-155-skyline-haze-floor.md) | visual-design | 4 | 1 | proposed |
+| T-156 | [Fog the far field into the sky-horizon color](T-156-far-field-fog.md) | visual-design | 3 | 2 | proposed |
+| T-157 | [Give the splat burst a value that survives white paint](T-157-splat-contrast-on-white-paint.md) | visual-design | 3 | 1 | proposed |
+| T-158 | [Give the poop reticle a target tell: name what the pin is on before the drop](T-158-reticle-target-tell.md) | ui-ux | 4 | 2 | proposed |
+| T-159 | [The starved game-over screen should carry the favor goal it ignored all run](T-159-starved-screen-favor-line.md) | ui-ux | 3 | 2 | proposed |
+| T-160 | [Mark a spent target on repeat hits: "favor paid" on the readout](T-160-favor-paid-suffix.md) | ui-ux | 3 | 2 | proposed |
+| T-161 | [Separate the bread crumb from the yellow lane paint — the first verb misreads](T-161-crumb-vs-lane-paint.md) | ui-ux | 3 | 1 | proposed |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since
