@@ -1,6 +1,6 @@
 # T-148 — Haze the skyline ring: apron monoliths dissolve into the horizon
 
-- **Milestone:** Sweep backlog · **Status:** proposed · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 1
+- **Milestone:** Sweep backlog · **Status:** done · **Category:** visual-design · **Value (1-5):** 4 · **Risk (1-5):** 1
 - **Depends on:** T-088 (done — the rim + skyline pass this retunes)
 
 ## What
@@ -32,10 +32,10 @@ Evidence (sweep-1 visual-design captures, `.captures/` in the visual-design-s1 w
 
 ## Acceptance criteria
 
-- [ ] Every queued skyline instance's color is the district shade lerped toward `SKYLINE_HAZE` by `radius_norm * SKYLINE_HAZE_MAX`: inner-band towers keep (nearly) their grounded district color, outer-band towers sit at up to `SKYLINE_HAZE_MAX` blend weight toward the haze (Gate 1b, new `city_skyline_haze` leg — red-before: the current tree stores the un-lerped shade)
-- [ ] The ring's layout is untouched: the existing `city_horizon_skyline` count/placement/size/visual-only arms stay green, and the fingerprint pins hold (foreign `1411023184`, default `1103197745`, same-seed rebuild byte-identical)
-- [ ] [screenshot] From cruise height at the rim, the outer ring reads as horizon haze — no hard-edged slab silhouettes casting ground shadows at the skyline (Gate 3)
-- [ ] [screenshot] Inner-band towers still read as a distant city, not fog-eaten: the dissolve is graded across the band, not a uniform wash (Gate 3)
+- [x] Every queued skyline instance's color is the district shade lerped toward `SKYLINE_HAZE` by `radius_norm * SKYLINE_HAZE_MAX`: inner-band towers keep (nearly) their grounded district color, outer-band towers sit at up to `SKYLINE_HAZE_MAX` blend weight toward the haze (Gate 1b, new `city_skyline_haze` leg — red-before: the current tree stores the un-lerped shade)
+- [x] The ring's layout is untouched: the existing `city_horizon_skyline` count/placement/size/visual-only arms stay green, and the fingerprint pins hold (foreign `1411023184`, default `1103197745`, same-seed rebuild byte-identical)
+- [ ] [screenshot] From cruise height at the rim, the outer ring reads as horizon haze — no hard-edged slab silhouettes casting ground shadows at the skyline (Gate 3 — pending human playtest; agent evidence: `.captures/t2028_rim/inward_ring.png`, `outward_ring.png`, `outward_far.png`, `tangent_ring.png` — pale towers blending into the sky-horizon cream at the rim, no dark slab silhouettes)
+- [ ] [screenshot] Inner-band towers still read as a distant city, not fog-eaten: the dissolve is graded across the band, not a uniform wash (Gate 3 — pending human playtest; agent evidence: `.captures/t2028_rim/inward_ring.png` — near inner-band towers keep readable district color while far outer towers wash toward the haze, one frame showing the grade)
 
 ## Verification
 
@@ -47,3 +47,44 @@ Evidence (sweep-1 visual-design captures, `.captures/` in the visual-design-s1 w
   - Full suite green after; red-before observed by running the leg on the untouched tree (the leg fails while every existing arm passes).
 - **Gate 2:** autoplay smoke, unchanged.
 - **Gate 3:** the two [screenshot] lines above, flown at the rim on the landed build; the tuned `SKYLINE_HAZE_MAX` recorded in this ticket.
+
+## Tuned values (landed 2026-11-03)
+
+- `SKYLINE_HAZE := Color(0.85, 0.8, 0.7)` — exactly `scenes/main.tscn`'s
+  `sky_horizon_color`; the const's comment points there so the two stay in
+  sync.
+- `SKYLINE_HAZE_MAX := 0.85` — the shipped default from the ticket (a tower at
+  the band's outer edge blends 85% toward the haze; inner towers get ~0). The
+  Gate 3 human pass may retune it — the `city_skyline_haze` leg reads the
+  consts live, so a retune re-derives the gate instead of breaking it.
+
+## Verification (2026-11-03)
+
+- **Gate 1:** `Godot_v4.7.2-stable_win64_console.exe --headless --path . --import`
+  → exit 0, only the documented accepted "33 resources still in use at exit"
+  line (the provisioned `addons/godot_mcp/` plugin at headless teardown, per
+  VERIFICATION.md's tooling notice); `--quit-after 120` boot → exit 0, zero
+  ERROR lines.
+- **Gate 1b:** new `city_skyline_haze` check inside `_scenario_city_horizon_skyline`
+  (the existing `city_horizon_skyline` check and its arms untouched). Red-before
+  observed with the haze consts defined but `_build_skyline` still un-lerped
+  (the leg reads the consts, so they must exist to compile — the builder, the
+  only behavior the ticket changes, was untouched): **164 `SIM PASS`, exactly
+  one `SIM FAIL city_skyline_haze`** (`skyline[0] drift 0.0598 got (0.6011,
+  0.5602, 0.4645, 1.0) want (0.661, 0.6178, 0.5211, 1.0)` — the stored un-lerped
+  shade), `SIM SUMMARY: 1 failure(s)`, exit 1. After the lerp: **165 `SIM PASS`,
+  0 failures, exit 0** (`SIM DATA city_skyline_haze: haze=(0.85, 0.8, 0.7, 1.0)
+  max=0.85 skyline=58 tall=6`; `SIM DATA city_horizon_skyline: … fingerprint=
+  1103197745` — the cross-version pins byte-identical, as the ticket's no-RNG /
+  no-`_fp` claim requires).
+- **Gate 2:** `godot --path . res://tests/autoplay.tscn` → exit 0,
+  `AUTOPLAY DONE ok=true … restart=true` (fps 134), no SCRIPT ERROR lines.
+- **Gate 3:** pending human playtest — the two [screenshot] lines stay open in
+  VERIFICATION.md's checklist. Agent evidence captured on the landed build via
+  the pilot harness (`--time-scale 0.1`): `.captures/t2028_rim/inward_ring.png`
+  (the vista: city + rim hedge + the graded ring — near inner-band towers keep
+  district color, far outer towers wash into the horizon cream),
+  `outward_ring.png` / `outward_far.png` (band towers pale against the sky,
+  soft-edged), `tangent_ring.png` (inside the band: muted, dusty towers, no
+  dark silhouettes). Sky shadows still exist (color-only change — the sun is
+  untouched); at skyline distance they do not read.
