@@ -236,6 +236,7 @@ func _run_scenarios() -> void:
 	await _scenario_crosswalk_yield_holds_and_releases() ## T-134 — pedestrian priority at the padded bands.
 	await _scenario_patience_pass_unsticks() ## T-134 — the T-089 pigeon-wall repro closes: honk once, pass, re-arm.
 	await _scenario_turn_signals_blink_before_turns() ## T-134 — the splat-planning tell.
+	await _scenario_car_blinkers_sit_on_the_body() ## T-162 — the lamps sit on the paint body.
 	await _scenario_citizen_classes_spawn_deterministic() ## T-113 — the class multiset is a seeded law on both rigs.
 	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
 	await _scenario_civilian_palette_reserved() ## T-121 — the reservation law + the grown flag, bare value pins.
@@ -7835,6 +7836,114 @@ func _scenario_turn_signals_blink_before_turns() -> void:
 			"turn leg ok=%s · straight leg: ever armed=%s committed=%s passed=%s" % [
 					turn_ok, not straight_ok, straight_committed, straight_passed])
 	await _t134_clear_cars([car])
+
+
+## (T-162) The blinkers sit ON the body — the `cafe_sitters_on_the_rig`
+## mesh-probe family. A bare CAR_SCENE instance (the traffic-null escape
+## hatch) keeps all four Blink nodes at their unchanged `Visual/Blink*` paths,
+## dark at rest, in the research's sedan-lens class (≤ 0.20 z × ≤ 0.07 y ×
+## ≤ 0.05 x — no 0.3 m slabs) — and each lamp box, built from its BoxMesh size
+## + node transform in Visual space, INTERSECTS at least one paint-mesh
+## triangle at its station (same x-side, |z| within the lamp's z ± margin).
+## The intersection is a Sutherland–Hodgman clip of the triangle polygon
+## against the box's six planes — vertex-inside-box alone cannot see
+## flat-quad interiors (the paint mesh samples quads only at their corners),
+## so a hovering lamp free of vertices could never pass. Red-before (recorded
+## in the ticket): the pre-T-162 scene transforms (±0.85, 0.82, ∓1.95) clear
+## the nearest paint vertex by 0.094 m (front) / 0.117 m (rear) and fail all
+## four intersection legs.
+func _scenario_car_blinkers_sit_on_the_body() -> void:
+	var car: Car = CAR_SCENE.instantiate()
+	car.mode = Car.Mode.PARKED
+	car.position = Vector3(60.0, 0.0, 60.0) ## Bare space — the rig alone under test.
+	add_child(car)
+	var visual := car.get_node("Visual") as Node3D
+	var paint := visual.get_node("Body") as MeshInstance3D
+	var arrays := paint.mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var paths_ok := true
+	var rest_ok := true
+	var lens_ok := true
+	var sit_ok := true
+	var lens_reads := ""
+	var hit_reads := ""
+	for lamp_name in ["BlinkFL", "BlinkFR", "BlinkRL", "BlinkRR"]:
+		var lamp := car.get_node(NodePath("Visual/" + lamp_name)) as MeshInstance3D
+		paths_ok = paths_ok and lamp != null
+		rest_ok = rest_ok and lamp != null and not lamp.visible
+		var lens := lamp.mesh as BoxMesh
+		lens_ok = lens_ok and lens != null and lens.size.z <= 0.20 \
+				and lens.size.y <= 0.07 and lens.size.x <= 0.05
+		lens_reads += "%s(%.3f, %.3f, %.3f) " % [lamp_name, lens.size.x, lens.size.y,
+				lens.size.z]
+		## The lamp AABB in Visual space from its BoxMesh size + node transform.
+		var xf: Transform3D = visual.global_transform.affine_inverse() \
+				* lamp.global_transform
+		var center := xf.origin
+		var half: Vector3 = lens.size * 0.5
+		var hits := 0
+		for t in range(0, indices.size(), 3):
+			var a := verts[indices[t]]
+			var b := verts[indices[t + 1]]
+			var c := verts[indices[t + 2]]
+			## Station band: same x-side as the lamp, |z| within the lamp's
+			## z ± margin (0.25 m — the station's neighborhood).
+			if signf(a.x) != signf(center.x) or signf(b.x) != signf(center.x) \
+					or signf(c.x) != signf(center.x):
+				continue
+			if absf(a.z) > absf(center.z) + 0.25 \
+					and absf(b.z) > absf(center.z) + 0.25 \
+					and absf(c.z) > absf(center.z) + 0.25:
+				continue
+			if absf(a.z) < absf(center.z) - 0.25 \
+					and absf(b.z) < absf(center.z) - 0.25 \
+					and absf(c.z) < absf(center.z) - 0.25:
+				continue
+			var tri_min := a.min(b).min(c)
+			var tri_max := a.max(b).max(c)
+			if tri_min.x > center.x + half.x or tri_max.x < center.x - half.x \
+					or tri_min.y > center.y + half.y or tri_max.y < center.y - half.y \
+					or tri_min.z > center.z + half.z or tri_max.z < center.z - half.z:
+				continue
+			if _clip_triangle_into_box(a, b, c, center, half):
+				hits += 1
+		sit_ok = sit_ok and hits >= 1
+		hit_reads += "%s=%d " % [lamp_name, hits]
+	car.queue_free()
+	await _wait_frames(2)
+	_check("car_blinkers_sit_on_the_body", paths_ok and rest_ok and lens_ok and sit_ok,
+			"paths=%s rest=%s lens=%s sit(hits≥1)=%s · %s· %s" % [
+					paths_ok, rest_ok, lens_ok, sit_ok, lens_reads, hit_reads])
+
+
+## Sutherland–Hodgman clip of a triangle polygon against an axis-aligned box's
+## six planes — true when the polygon survives with ≥ 3 vertices (a real
+## overlap, not a vertex graze). The T-162 lamp-intersection test's engine.
+func _clip_triangle_into_box(a: Vector3, b: Vector3, c: Vector3,
+		box_center: Vector3, half: Vector3) -> bool:
+	var poly := PackedVector3Array([a, b, c])
+	for axis in 3:
+		var box_min: float = box_center[axis] - half[axis]
+		var box_max: float = box_center[axis] + half[axis]
+		for plane in 2:
+			## plane 0 keeps p >= box_min (nrm +axis) · plane 1 keeps p <= box_max (nrm −axis).
+			var sgn := 1.0 if plane == 0 else -1.0
+			var plane_d := sgn * (box_min if plane == 0 else box_max)
+			var out := PackedVector3Array()
+			for i in poly.size():
+				var p1 := poly[i]
+				var p2 := poly[(i + 1) % poly.size()]
+				var d1 := sgn * p1[axis] - plane_d
+				var d2 := sgn * p2[axis] - plane_d
+				if d1 >= 0.0:
+					out.append(p1)
+				if (d1 >= 0.0) != (d2 >= 0.0):
+					out.append(p1 + (p2 - p1) * (-d1 / (d2 - d1)))
+			poly = out
+			if poly.is_empty():
+				return false
+	return poly.size() >= 3
 
 
 ## T-134 — the routes premise at fleet scale, protocol live: with the pigeon

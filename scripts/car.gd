@@ -162,6 +162,19 @@ var splatted_once: bool = false
 ## harness and the pilot (the splat-planning tell).
 var blinker: int = 0
 
+## (T-162) Corner seeds for `_seat_blinkers`, car-local, in the BlinkFL/FR/RL/
+## RR order — hovering above the hood/deck top at each corner station (front is
+## −z), so the closest paint triangle is the surface the lens seats on. Tuning
+## latitude per the ticket; the probe measured the derived seats at
+## (±0.63, 0.72, −1.89) front / (±0.63, 0.74, +1.94) rear.
+const BLINKER_SEEDS: Array[Vector3] = [
+	Vector3(-0.63, 0.8, -1.9), Vector3(0.63, 0.8, -1.9),
+	Vector3(-0.63, 0.8, 1.95), Vector3(0.63, 0.8, 1.95),
+]
+## (T-162) How deep the lens sinks into the panel (m) — the half-buried read,
+## the `cafe_spawner.gd _hair_offset` sunk-past-the-surface precedent.
+const BLINKER_SINK := 0.015
+
 var _honk_tween: Tween
 ## On-lane rejoin point just past the corner being rounded — steering through
 ## it instead of straight at the far corner keeps the car ON its lane; a bare
@@ -225,6 +238,7 @@ func _ready() -> void:
 	var mat: StandardMaterial3D = _body_mesh.mesh.surface_get_material(0).duplicate()
 	mat.albedo_color = body_color
 	_body_mesh.material_override = mat
+	_seat_blinkers() ## (T-162) The lenses sit on the paint body — derived from the mesh.
 	match citizen_class:
 		CitizenClass.Kind.VISITOR:
 			_show_flag(CitizenClass.VISITOR_BLACK \
@@ -589,6 +603,88 @@ func _apply_blinker_meshes() -> void:
 	_blink_rl.visible = lit and left
 	_blink_fr.visible = lit and right
 	_blink_rr.visible = lit and right
+
+
+## (T-162) Seats the four blinker lenses ON the paint body: per corner, the
+## closest point on the paint TRIANGLES to a fixed corner seed (point-on-
+## triangles, not nearest-vertex — the mesh samples flat quads only at their
+## corners, so a vertex-based seat can land between quads), that triangle's
+## geometric normal flipped to face the seed (the visible side — the source
+## winding is inconsistent: the rear-quarter panel measures raw −x), and the
+## node re-positioned so the lens straddles the panel: center = hit point +
+## N × (half lens height − `BLINKER_SINK`), box axis-aligned, long axis along
+## z. The `cafe_spawner.gd _hair_offset` precedent — a future re-bake of
+## `car_paint.res` can never strand the lamps off the body again. Runs once
+## per car at `_ready`, zero per-frame cost; the scene's static transforms are
+## the measured-surface fallback kept when no triangle exists near a seed.
+func _seat_blinkers() -> void:
+	var lens := _blink_fl.mesh as BoxMesh
+	if lens == null:
+		push_warning("Car: BlinkFL mesh is not a BoxMesh — blinker seat derivation skipped")
+		return
+	var arrays := _body_mesh.mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var nodes: Array[MeshInstance3D] = [_blink_fl, _blink_fr, _blink_rl, _blink_rr]
+	var half_height := lens.size.y * 0.5
+	for i in nodes.size():
+		var seed_point := BLINKER_SEEDS[i]
+		var hit := Vector3.ZERO
+		var normal := Vector3.UP
+		var best := INF
+		for t in range(0, indices.size(), 3):
+			var a := verts[indices[t]]
+			var b := verts[indices[t + 1]]
+			var c := verts[indices[t + 2]]
+			var p := _closest_point_on_triangle(seed_point, a, b, c)
+			var d := p.distance_squared_to(seed_point)
+			if d < best:
+				best = d
+				hit = p
+				normal = (b - a).cross(c - a).normalized()
+		if best == INF:
+			push_warning("Car: no paint triangle near blinker seed %s — scene transform kept" % seed_point)
+			continue
+		if normal.dot(seed_point - hit) < 0.0:
+			normal = -normal
+		nodes[i].position = hit + normal * (half_height - BLINKER_SINK)
+
+
+## Closest point on the triangle abc to p (Ericson, Real-Time Collision
+## Detection §5.1.5) — the seat derivation's surface read.
+func _closest_point_on_triangle(p: Vector3, a: Vector3, b: Vector3,
+		c: Vector3) -> Vector3:
+	var ab := b - a
+	var ac := c - a
+	var ap := p - a
+	var d1 := ab.dot(ap)
+	var d2 := ac.dot(ap)
+	if d1 <= 0.0 and d2 <= 0.0:
+		return a
+	var bp := p - b
+	var d3 := ab.dot(bp)
+	var d4 := ac.dot(bp)
+	if d3 >= 0.0 and d4 <= d3:
+		return b
+	var vc := d1 * d4 - d3 * d2
+	if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+		var v := d1 / (d1 - d3)
+		return a + ab * v
+	var cp := p - c
+	var d5 := ab.dot(cp)
+	var d6 := ac.dot(cp)
+	if d6 >= 0.0 and d5 <= d6:
+		return c
+	var vb := d5 * d2 - d1 * d6
+	if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+		var w := d2 / (d2 - d6)
+		return a + ac * w
+	var va := d3 * d6 - d5 * d4
+	if va <= 0.0 and (d4 - d3) >= 0.0 and (d5 - d6) >= 0.0:
+		var w2 := (d4 - d3) / ((d4 - d3) + (d5 - d6))
+		return b + (c - b) * w2
+	var denom := 1.0 / (va + vb + vc)
+	return a + ab * (vb * denom) + ac * (vc * denom)
 
 
 ## The car's flat forward unit vector.
