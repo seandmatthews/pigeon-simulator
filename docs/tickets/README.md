@@ -140,6 +140,7 @@ exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 | T-160 | [Mark a spent target on repeat hits: "favor paid" on the readout](T-160-favor-paid-suffix.md) | ui-ux | 3 | 2 | proposed |
 | T-161 | [Separate the bread crumb from the yellow lane paint — the first verb misreads](T-161-crumb-vs-lane-paint.md) | ui-ux | 3 | 1 | proposed |
 | T-162 | [Mount the car blinkers on the body: the four amber lamps float off the stretched sedan's corners](T-162-blinkers-sit-on-the-body.md) | visual-design | 3 | 2 | proposed |
+| T-163 | [One seat-contact law: thighs, knees and shins clear every seat — the café stools and the elder bench](T-163-seat-contact-law.md) | visual-design | 3 | 2 | proposed |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since
