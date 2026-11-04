@@ -1,6 +1,6 @@
 # T-163 — One seat-contact law: thighs, knees and shins clear every seat — the café stools and the elder bench
 
-- **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 ·
+- **Status:** done · **Category:** visual-design · **Value (1-5):** 3 ·
   **Risk (1-5):** 2
 - **Depends on:** T-146 (the thighs-are-the-contact-mass law — hips bone at
   seat + 0.04 — that this ticket re-applies to the stool pin) · T-142 (the
@@ -163,7 +163,7 @@ next seat type is a measurement, not a fresh guess.
 
 ## Acceptance criteria
 
-- [ ] *(Gate 1b)* new `sitters_clear_their_seats` (the
+- [x] *(Gate 1b)* new `sitters_clear_their_seats` (the
       `cafe_sitters_on_the_rig` mesh-probe family, `sim_test.gd:8890`):
       - café legs — from the spawner's `_mm_queues` sit transforms plus the
         harvested `sit_legs`/`sit_body` meshes, against the stool constants
@@ -179,7 +179,7 @@ next seat type is a measurement, not a fresh guess.
         seat);
       - value locks: the landed `SIT_ROOT_Y`, `SIT_SLIDE`, `SEAT_SLIDE`
         (and `SEAT_SINK` if trimmed).
-- [ ] *(Gate 1b)* `elder_seats_on_the_bench` stays green with its lock set
+- [x] *(Gate 1b)* `elder_seats_on_the_bench` stays green with its lock set
       amended in the same change-set (the `SEAT_SLIDE` rig-z lock added;
       the hips band 0.00..0.08 re-verified — the slide is z-only);
       `cafe_sitters_on_the_rig` stays green UNCHANGED (its AABB bands are
@@ -187,10 +187,10 @@ next seat type is a measurement, not a fresh guess.
       scenarios byte-green (the root placement is untouched); FULL suite
       0 failures (`godot --headless --fixed-fps 60 --path .`
       `res://tests/sim_test.tscn`).
-- [ ] *(Gate 1)* `--import` and the 120-frame boot exit clean, zero ERROR
+- [x] *(Gate 1)* `--import` and the 120-frame boot exit clean, zero ERROR
       lines.
-- [ ] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`).
-- [ ] *(Gate 3, screenshots)* pilot-harness captures into
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`).
+- [x] *(Gate 3, screenshots)* pilot-harness captures into
       `.captures/t163_seats/`, eyes-on: (a) a café sitter reads seated ON
       the stool — thighs on the top, shins at/past the stool edge under the
       table, feet at the pavement; (b) a bench elder (plaza AND a park
@@ -220,3 +220,79 @@ seat + 0.08]; the slide magnitudes ±0.05 m and their sign, set by the probe
 lines; the sink trim within the T-146 hips band, only on the Gate 3 read.
 Everything else above is fixed. Record the landed values here (the T-134
 "Tuned values" pattern).
+
+## Tuned values (landed 2026-11-04, probe-adjudicated)
+
+- `SIT_HIPS_SEAT_LIFT := 0.08` → `SIT_ROOT_Y := SITTER_SEAT_TOP + 0.08 −
+  SIT_HIPS_Y` = **+0.0121** (bone at stool + 0.08 — the T-146 hips family
+  CAP: the probe's widened plan band measured the sitting line's min at
+  root y 0.4427, so the line-on-top point would need bone seat + 0.0824,
+  above the family; the cap lands the line at 0.4548, 5 mm above the 0.45
+  top — the same sits-ON-the-seat read the T-146 bench accepted at 20–70 mm
+  above its wood). Landed at the cap also maximizes the sole margin.
+- `SIT_SLIDE := 0.17` (probe clearing minimum at this pin: 0.163; the
+  crossing lands at root z −0.027 vs the +0.00 limit — margin 0.027).
+- `SEAT_SLIDE := −0.25` (probe clearing maximum magnitude 0.230; the
+  crossing lands at slab z −0.260 vs the −0.24 limit — margin 0.020).
+- `SEAT_SINK` −0.465 UNTRIMMED (the probe confirms the z-only slide keeps
+  the T-146 thigh-line read: 0.5690, unchanged).
+
+## Implementation record (2026-11-04)
+
+Probe first: `tools/probe_sit_geometry.gd` grew the contact-lines section —
+the three law lines on BOTH surfaces from the shipped SitBake meshes plus
+the live clip's leg-chain bones, reading the scripts' CURRENT constants so
+one instrument records red-before and green-after. RED (pre-T-163
+constants): café thigh line 0.3769 (0.073 under the top), café soles
+−0.0814, café shin crossing root z −0.043 max (inside the plan), bench shin
+crossing slab z −0.010 max (0.24 inside the footprint), bench glute +0.342
+(0.092 past the rear edge). GREEN (landed constants): every line passes —
+café thigh 0.4548, café soles −0.0014, café crossing −0.027 max, bench
+thigh 0.5690, bench crossing −0.260 max, bench glute +0.092 — and the
+probe's slab census (vertices sunk deeper than the accepted 0.02 settle
+inside either seat) reads ZERO on both surfaces, forward leg and folded leg
+alike.
+
+Café re-pin + slide: the sit_root instances (and their inert SITTER_SHAPE
+colliders) translate to `sitter_xf.translated_local(0, SIT_ROOT_Y,
+−SIT_SLIDE)`; the stool/table transforms stay; the feet comment re-derived
+in BOTH terms (the foot BONE rides +0.0994 above the pavement, the visible
+SOLE −0.0014 — at the pavement). Bench slide: `SEAT_SLIDE` −0.25 rides the
+same eased `_animate` composite as the sink (`_slide`, move_toward at
+`hunch_rate · |SEAT_SLIDE|`, applied while SEATED/ARRIVING, back to 0
+otherwise); the ROOT stays byte-exact on the spot.
+
+Machine checks: `sitters_clear_their_seats` (new, registered in
+`_run_scenarios`) locks the per-sitter queued sit_root against its own
+queued stool (origin-exact, both facings, all 150 sitters), the collider
+slide, the six mesh lines and the five value locks;
+`elder_seats_on_the_bench` grew the `SEAT_SLIDE` rig-z lock and re-verifies
+the hips band; `city_cafe_tables_present`'s sitter-collider assertion
+re-derived to the slid offset (the T-146 lock-amendment precedent — the
+ticket mandates the collider slide). FULL suite: 169 `SIM PASS`, 0
+failures. Gate 1 import + 120-frame boot clean (the one accepted godot_mcp
+teardown line); Gate 2 autoplay `ok=true restart=true`.
+
+**Gate 3 captures** (`.captures/t163_seats/`, pilot harness, live seed
+20260928): `cafe_sitter_side.png` + `cafe_sitter_34.png` — the sitter
+seated ON the stool, thighs on the top, shins past the stool's front edge
+under the tabletop, soles at the pavement; `plaza_elder_34.png` (plaza
+ring) + `park_elder_34.png` / `park_elder_rear.png` / `park_elder_side.png`
+(the migrated park bench, spot 10 — the deterministic first-share roll) —
+seated IN the bench, shins descending in front of the front face, knees at
+the edge, glute ON the wood; the T-146 contact read survives on both.
+
+## Field note: the sit clip's folded far leg (recorded, outside the law's lines)
+
+The pack's `Rig|Sitting_Idle` pose is ASYMMETRIC: the LEFT leg hangs
+forward (the shin the law clears past the front face), the RIGHT leg is
+FOLDED — knee tucked back at pose z +0.129, foot pulled back to +0.265
+resting at clip-floor height (probe bone dump). Its calf crosses the seat
+slab's y-band at mid-plan for ANY rigid dial (the slide moves the seat's
+plan with the figure). Measured outcome at the landed dials: on the BENCH
+the folded calf only grazes the accepted-settle band (census: 0 vertices
+deeper than 0.02 — invisible, and present in the accepted T-146 render);
+on the STOOL the slide's plan shift also clears it at the mesh level
+(census 0). The probe keeps the census line so any future seat change
+re-measures it. If the owner ever reads the folded-leg contact as broken
+rigging, the fix is a pose variant (the ticket's last resort), not a dial.

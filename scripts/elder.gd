@@ -74,6 +74,21 @@ const HUNCH_WALKING := 0.06 ## Nearly upright mid-shuffle — "upright, bobbing"
 ## feet ~0.22 above the pavement (the pack's pose is built for a ~0.45 m
 ## chair — the dangle is the accepted read).
 const SEAT_SINK := -0.465
+## (T-163, the seat-contact law) The seated fore-aft slide: a rig-VISUAL
+## offset along the figure's facing, applied while SEATED/ARRIVING and
+## eased exactly like the sink. The ROOT stays byte-exact on the spot (the
+## state machine, PresenceZone, crumb toss origin and the T-137 scenarios
+## keep their geometry). Why: the sit pose's forward shin crosses the
+## bench slab band 0.46..0.54 INSIDE the seat footprint (probe: crossing
+## slab z −0.141..−0.010 vs the front edge −0.25) — the owner's "shins
+## through the bench front face" — and the glute band rides 0.02..0.10
+## past the rear edge. Sliding the rig −0.24 along the facing puts the
+## shin crossing past the front edge (−0.250 ≤ −0.24+ε), the glute ON the
+## seat (+0.08 ≤ +0.26) and the knees at the edge, while the T-146
+## thigh-line contact read keeps its value (the slide is z-only). Probe:
+## tools/probe_sit_geometry.gd; locked by the `sitters_clear_their_seats`
+## and `elder_seats_on_the_bench` scenarios.
+const SEAT_SLIDE := -0.25
 
 @export_group("Trust")
 @export var proximity_radius: float = 3.0 ## PresenceZone radius (m) around the bench.
@@ -132,6 +147,7 @@ var _seat_target := Vector3.ZERO
 var _seat_yaw: float = 0.0
 var _phase: float = 0.0
 var _sink: float = 0.0 ## (T-138) The eased seated sink (SEAT_SINK when seated).
+var _slide: float = 0.0 ## (T-163) The eased seated fore-aft slide (SEAT_SLIDE when seated).
 var _stall_left: float = 0.5
 var _stall_pos := Vector3.ZERO
 
@@ -610,6 +626,13 @@ func _animate(delta: float) -> void:
 	var want_sink: float = SEAT_SINK \
 			if (_state == State.SEATED or _state == State.ARRIVING) else 0.0
 	_sink = move_toward(_sink, want_sink, hunch_rate * absf(SEAT_SINK) * delta)
+	## (T-163) The seat-contact slide eases to/from 0 exactly like the sink —
+	## the rig settles back into the bench while seated, re-centers on the
+	## root the moment he rises.
+	var want_slide: float = SEAT_SLIDE \
+			if (_state == State.SEATED or _state == State.ARRIVING) else 0.0
+	_slide = move_toward(_slide, want_slide, hunch_rate * absf(SEAT_SLIDE) * delta)
+	_visual.position.z = _slide
 	_sync_clip()
 
 

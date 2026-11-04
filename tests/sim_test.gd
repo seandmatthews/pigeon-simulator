@@ -243,6 +243,7 @@ func _run_scenarios() -> void:
 	await _scenario_citizen_parts_world_scale() ## T-139 — every citizen part stays human-sized (the ×100 arm regression tripwire).
 	await _scenario_elder_seats_on_the_bench() ## T-141 — the seated elder lands on the bench (the sink/hunch/hair composite).
 	await _scenario_cafe_sitters_on_the_rig() ## T-142 — the café crowd wears the baked one-people model.
+	await _scenario_sitters_clear_their_seats() ## T-163 — the one seat-contact law: thighs, knees and shins clear both surfaces.
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
 	await _scenario_splat_favor_once_per_target() ## T-147 — favor books ONCE per target; repeats honk and score but add zero.
 	await _scenario_hit_feedback_names_the_class() ## T-151 — the hit readouts name the class, tint with the booked favor and split the breakdown.
@@ -3655,9 +3656,12 @@ func _scenario_city_cafe_tables() -> void:
 			var sitter_xf: Transform3D = (spots[i] as Transform3D) * Transform3D(
 					Basis(Vector3.UP, CafeSpawner.SITTER_YAWS[seat]),
 					CafeSpawner.SITTER_SEATS[seat])
+			## (T-163) The inert body collider slides with its figure along the
+			## facing — the seat-contact law moves the whole seated mass.
 			seated = seated and rec.get("spot") == i and rec.get("seat") == seat \
 					and sitter_shape.global_position.distance_to(
-							_city.to_global(sitter_xf * CafeSpawner.SITTER_SHAPE_OFFSET)) < 0.01
+							_city.to_global(sitter_xf * (CafeSpawner.SITTER_SHAPE_OFFSET
+									+ Vector3(0.0, 0.0, -CafeSpawner.SIT_SLIDE)))) < 0.01
 			var expected: Color = Tourist.SHIRT_PALETTE[(i + seat) % Tourist.SHIRT_PALETTE.size()]
 			shirts_ok = shirts_ok \
 					and spawner.instance_color("sit_body", total_sitters).is_equal_approx(expected)
@@ -8839,6 +8843,9 @@ func _scenario_citizen_parts_world_scale() -> void:
 ## The constants are value-locked (the T-110 precedent) so the composite
 ## cannot silently re-drift;
 ## `tools/probe_sit_geometry.gd` re-derives them from the pack clips.
+## (T-163) The lock set grows the SEAT_SLIDE rig-z lock: the eased seated
+## slide rides the same visual (z-only — the hips band 0.00..0.08 is
+## re-verified against it), the root placement stays the state machine's.
 func _scenario_elder_seats_on_the_bench() -> void:
 	var elder_scene := load("res://scenes/elder.tscn") as PackedScene
 	var elder := elder_scene.instantiate() as Node3D
@@ -8869,14 +8876,21 @@ func _scenario_elder_seats_on_the_bench() -> void:
 	var sink_ok: bool = absf(rig.position.y - Elder.SEAT_SINK) < 0.01 \
 			and absf(Elder.SEAT_SINK - (-0.465)) < 0.005 \
 			and absf(Elder.HUNCH_SEATED - 0.04) < 0.005
+	## (T-163) The seat-contact slide rides the same eased composite: the rig
+	## z lands on SEAT_SLIDE while seated, the ROOT stays untouched on the
+	## spot (this elder stands at its bare position — the root placement is
+	## the state machine's). The hips band re-verifies the slide is z-only.
+	var slide_ok: bool = absf(rig.position.z - Elder.SEAT_SLIDE) < 0.01 \
+			and absf(Elder.SEAT_SLIDE - (-0.25)) < 0.005
 	var hips_ok := hips > 0.00 and hips < 0.08
 	var feet_ok := feet + 0.60 >= -0.01 ## Root sits 0.60 above the slab (the spot contract).
 	var hair_ok := hair != null and hair_lift > -0.05 and hair_lift < 0.10
 	var sink_applied: float = rig.position.y ## Read before the rig dies with its parent.
+	var slide_applied: float = rig.position.z
 	elder.free()
-	_check("elder_seats_on_the_bench", sink_ok and hips_ok and feet_ok and hair_ok,
-			"hips bone seat+%+.3f (want +0.04), feet slab+%+.3f, hair lift %+.3f, sink %.3f" % [
-				hips, feet + 0.60, hair_lift, sink_applied])
+	_check("elder_seats_on_the_bench", sink_ok and slide_ok and hips_ok and feet_ok and hair_ok,
+			"hips bone seat+%+.3f (want +0.04), feet slab+%+.3f, hair lift %+.3f, sink %.3f, slide %.3f" % [
+				hips, feet + 0.60, hair_lift, sink_applied, slide_applied])
 
 
 ## (T-142) The café crowd wears the ONE people model: every sit key renders
@@ -8936,6 +8950,131 @@ func _scenario_cafe_sitters_on_the_rig() -> void:
 			"sitters=%d keys=%s stamped=%s swapped=%s shirts=%s human=%s (body %.2f..%.2f legs %.2f..%.2f)" % [
 				total, keys_ok, stamped_ok, swap_ok, shirts_ok, human_ok,
 				body_ab.position.y, body_ab.end.y, legs_ab.position.y, legs_ab.end.y])
+
+
+## (T-163) The ONE seat-contact law, machine-checked on BOTH surfaces: the
+## seated figure's THIGHS rest on the seat top, its forward SHIN crosses the
+## seat slab's y-band past the front-edge plane, and the café soles reach
+## the pavement / the bench glute stays ON the seat. Café legs read the
+## spawner's `_mm_queues` sit transforms (the exact MultiMesh feed) plus the
+## harvested `sit_legs`/`sit_body` bake meshes against the stool constants;
+## bench legs read the SitBake bake off a settled live elder — its own
+## `_animate` composite (SEAT_SINK, HUNCH_SEATED and the T-163 SEAT_SLIDE
+## applied by the game code itself) — against the bench constants. The pose
+## measurement runs in root space, where the seat constants are yaw-free
+## (the slide puts the seat center at root z = +slide for both sitters'
+## facings — tools/probe_sit_geometry.gd measures the same lines). Value
+## locks pin the landed dials (the T-133 precedent) and the T-146 hips
+## family cap. Red-before (pre-T-163 constants, probe-recorded): the café
+## thigh line 0.377 (0.073 under the top), the café soles −0.081, the
+## café/bench shin crossings inside the footprint (max z −0.043/−0.010),
+## the bench glute +0.342 past the rear edge.
+func _scenario_sitters_clear_their_seats() -> void:
+	## --- café legs -------------------------------------------------------
+	var stool_top: float = 0.45 ## sitter_seat box top face (0.42 center + half 0.03).
+	var stool_slab_lo: float = 0.39
+	var stool_plan: float = 0.18 ## The 0.36 × 0.36 stool plan half-depth.
+	var spawner := CafeSpawner.new()
+	spawner.city = _city
+	add_child(spawner)
+	await _wait_frames(4)
+	## Every queued sit_root must carry the pin AND the slide relative to its
+	## own queued stool (both facings, every sitter — origin algebra, exact).
+	var xfs_ok := true
+	var collider_ok := true
+	var stool_xfs: Array = spawner._mm_queues["sitter_seat"].xfs
+	var sit_xfs: Array = spawner._mm_queues["sit_body"].xfs
+	for si in spawner.sitters.size():
+		var stool: Transform3D = stool_xfs[si]
+		var want_origin: Vector3 = stool.origin + (stool.basis * Vector3(
+				0.0, CafeSpawner.SIT_ROOT_Y - 0.42, -CafeSpawner.SIT_SLIDE))
+		xfs_ok = xfs_ok and (sit_xfs[si] as Transform3D).origin.is_equal_approx(want_origin)
+		## The inert SITTER_SHAPE collider slides with its figure: its offset
+		## from the stool center must be exactly the yaw-rotated slide.
+		var shape := spawner.sitters_body.get_child(si) as CollisionShape3D
+		var shape_delta: Vector3 = shape.transform.origin - stool.origin
+		collider_ok = collider_ok and absf(shape_delta.y) < 0.001 \
+				and absf(shape_delta.length() - CafeSpawner.SIT_SLIDE) < 0.001
+	## The baked pose in root space (every sitter shares the mesh; the yaws
+	## only rotate it, and the seat constants are square/yaw-free there).
+	var faces := PackedVector3Array()
+	for key: String in ["sit_legs", "sit_body"]:
+		faces.append_array(spawner.visual(key).multimesh.mesh.get_faces())
+	var root_y: float = CafeSpawner.SIT_ROOT_Y
+	var edge_front: float = CafeSpawner.SIT_SLIDE - stool_plan
+	var edge_rear: float = CafeSpawner.SIT_SLIDE + stool_plan
+	var thigh := INF
+	var shin_z_max := -INF
+	var sole := INF
+	for v in faces:
+		var wy: float = v.y + root_y ## World (sitter-frame) height of the vertex.
+		## Seat mass only: behind the knee divider (pose z >= 0), over the plan.
+		if v.z >= 0.0 and absf(v.x) <= stool_plan and v.z >= edge_front and v.z <= edge_rear:
+			thigh = minf(thigh, wy)
+		## The forward shin crossing the stool slab's y-band.
+		if v.z < -0.02 and wy >= stool_slab_lo and wy <= stool_top:
+			shin_z_max = maxf(shin_z_max, v.z)
+		sole = minf(sole, wy)
+	var thigh_ok := thigh >= stool_top - 0.01 and thigh <= stool_top + 0.05
+	var shin_ok := shin_z_max <= edge_front + 0.01
+	var sole_ok := sole >= -0.01
+	spawner.free()
+	## --- bench legs ------------------------------------------------------
+	var bench_wood_top: float = 0.54 ## The 1.8 × 0.08 × 0.5 seat wood at +0.5.
+	var bench_slab_lo: float = 0.46
+	var bench_edge: float = 0.25 ## The 0.5-deep bench slab half-depth.
+	var elder := (load("res://scenes/elder.tscn") as PackedScene).instantiate() as Node3D
+	elder.position = Vector3(50.0, 0.0, 50.0) ## The root IS the spot: slab + 0.60 by contract.
+	add_child(elder)
+	var rig: PeopleRig = elder.get_node("Visual")
+	var skel := rig.find_child("Skeleton3D", true, false) as Skeleton3D
+	for _settle in 90: ## 1.5 s: the sink AND the slide ease to full in ~0.5 s.
+		elder._physics_process(1.0 / 60.0)
+		rig.anim.advance(1.0 / 60.0)
+		skel.force_update_all_bone_transforms()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var slide_ok := absf(rig.position.z - Elder.SEAT_SLIDE) < 0.01 \
+			and absf(rig.position.y - Elder.SEAT_SINK) < 0.01
+	var bake := rig.find_child("SitBake", true, false) as Node3D
+	var bake_ok := bake != null
+	var bench_thigh := INF
+	var bench_shin_z_max := -INF
+	var bench_glute_z := -INF
+	if bake != null:
+		var to_root: Transform3D = elder.global_transform.affine_inverse()
+		for mi: MeshInstance3D in bake.get_children():
+			if mi.name.begins_with("SitHead"):
+				continue
+			var xf: Transform3D = to_root * mi.global_transform ## The live composite.
+			for v in mi.mesh.get_faces():
+				var p: Vector3 = xf * v
+				var slab_y: float = p.y + 0.60 ## The root rides the spot plane (slab + 0.60).
+				if v.z >= 0.0:
+					if absf(p.z) <= bench_edge and absf(p.x) <= 0.9:
+						bench_thigh = minf(bench_thigh, slab_y)
+					if v.y >= 0.42 and v.y <= 0.47: ## The sitting-line underside band.
+						bench_glute_z = maxf(bench_glute_z, p.z)
+				elif v.z < -0.02 and slab_y >= bench_slab_lo and slab_y <= bench_wood_top:
+					bench_shin_z_max = maxf(bench_shin_z_max, p.z)
+	var bench_thigh_ok := bench_thigh >= bench_wood_top - 0.01 \
+			and bench_thigh <= 0.60 + 0.05
+	var bench_shin_ok := bench_shin_z_max <= -bench_edge + 0.01
+	var bench_glute_ok := bench_glute_z <= bench_edge + 0.01 ## The glute ON the seat.
+	elder.free()
+	## --- value locks (the landed dials; the T-146 hips family cap) --------
+	var locks_ok := absf(CafeSpawner.SIT_HIPS_SEAT_LIFT - 0.08) < 0.0005 \
+			and absf(CafeSpawner.SIT_ROOT_Y - (CafeSpawner.SITTER_SEAT_TOP + 0.08
+					- CafeSpawner.SIT_HIPS_Y)) < 0.0005 \
+			and absf(CafeSpawner.SIT_SLIDE - 0.17) < 0.0005 \
+			and absf(Elder.SEAT_SLIDE - (-0.25)) < 0.0005 \
+			and absf(Elder.SEAT_SINK - (-0.465)) < 0.005
+	_check("sitters_clear_their_seats", xfs_ok and collider_ok and thigh_ok
+			and shin_ok and sole_ok and bake_ok and slide_ok and bench_thigh_ok
+			and bench_shin_ok and bench_glute_ok and locks_ok,
+			"cafe xfs=%s collider=%s thigh %.3f shin<=%.3f sole %+.3f | bench slide=%s thigh %.3f shin<=%.3f glute %+.3f | locks=%s" % [
+				xfs_ok, collider_ok, thigh, shin_z_max, sole,
+				slide_ok, bench_thigh, bench_shin_z_max, bench_glute_z, locks_ok])
 
 
 ## True when the node is a MeshInstance3D whose mesh is a generated derivative
