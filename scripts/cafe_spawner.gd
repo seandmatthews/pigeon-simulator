@@ -26,13 +26,34 @@ const SITTER_YAWS: Array[float] = [PI * 0.5, -PI * 0.5]
 ## Probe-measured seated constants (adult, rig-root space — the same
 ## measurement family as the elder's SEAT_SINK, tools/probe_sit_geometry.gd):
 ## the pose's DEF-hips BONE rides 0.5179 above the rig root, and the stool
-## top is the sitter_seat box's top face (center 0.42 + half 0.03). The
-## instance sinks so the hips rest on the stool; the pose's feet (0.0873
-## above the clip floor) land ~0.02 above the pavement.
+## top is the sitter_seat box's top face (center 0.42 + half 0.03).
+## (T-163, the seat-contact law) The contact mass is the THIGHS, not the
+## hips bone: the pose's sitting line (butt + thigh underside) rides
+## ~0.073-0.076 below the bone over the stool plan, so the pin dials the
+## bone to stool + 0.08 — the T-146 hips family cap (seat + 0.04..0.08;
+## the measured full-contact line-on-top point would need +0.0824, above
+## the family) — and the line lands 0.005 above the 0.45 top, the same
+## sits-ON-the-seat read the T-146 bench accepted (there 0.02-0.07 above
+## its wood). (The pre-T-146 bone-at-top pin −0.0679 buried the line 0.073
+## into the slab and the soles 0.081 under the pavement.) At the landed
+## pin the visible SOLE rests at the pavement — −0.0014, the mesh sole
+## riding 0.0135 below the foot BONE, which itself lands
+## 0.0873 + SIT_ROOT_Y = +0.099 above the pavement.
+## The forward shin still crossed the stool slab inside the plan at any
+## height, so the whole seated figure also slides SIT_SLIDE along its
+## facing (the sit_root instances AND their inert SITTER_SHAPE colliders):
+## the knees land at the table edge under the tabletop (air — the collider
+## is invisible), the shins exit past the stool's front edge, the glute
+## comes back onto the stool. Field note: the sit clip's folded far leg
+## keeps its calf clear of the slab only via the slide's plan shift
+## (probe-census-measured, recorded in the ticket, outside the law's three
+## lines).
 const PEOPLE_RIG_SCENE := "res://scenes/people_rig.tscn"
 const SIT_HIPS_Y := 0.5179
 const SITTER_SEAT_TOP := 0.45
-const SIT_ROOT_Y := SITTER_SEAT_TOP - SIT_HIPS_Y
+const SIT_HIPS_SEAT_LIFT := 0.08 ## (T-163) Bone at stool + 0.08 — the T-146 hips family cap, the closest-to-contact legal pin.
+const SIT_ROOT_Y := SITTER_SEAT_TOP + SIT_HIPS_SEAT_LIFT - SIT_HIPS_Y
+const SIT_SLIDE := 0.17 ## (T-163) Facing slide so the forward shin clears the stool's front face (probe: >= 0.163 at this pin).
 
 ## Collider boxes — exactly the retired scenes' shapes: the table's
 ## 0.9 × 0.72 × 0.9 bench collider at (0, 0.36, 0) on the spot, each sitter's
@@ -164,14 +185,18 @@ func _populate() -> void:
 					Basis(Vector3.UP, SITTER_YAWS[seat]), SITTER_SEATS[seat])
 			_queue_mm(queues, "sitter_seat", sitter_xf.translated_local(Vector3(0.0, 0.42, 0.0)))
 			_queue_mm(queues, "sitter_post", sitter_xf.translated_local(Vector3(0.0, 0.21, 0.0)))
-			## (T-142) The sitter: the baked seated figure, hips on the stool.
-			var sit_root: Transform3D = sitter_xf.translated_local(Vector3(0.0, SIT_ROOT_Y, 0.0))
+			## (T-142) The sitter: the baked seated figure, thighs on the stool.
+			## (T-163) Root at SIT_ROOT_Y and slid SIT_SLIDE along the facing —
+			## the inert body collider slides with it.
+			var sit_root: Transform3D = sitter_xf.translated_local(
+					Vector3(0.0, SIT_ROOT_Y, -SIT_SLIDE))
 			_queue_mm(queues, "sit_body", sit_root, shirt_color(spot_i, seat))
 			_queue_mm(queues, "sit_legs", sit_root)
 			_queue_mm(queues, "sit_head", sit_root)
 			_queue_mm(queues, "sit_hair", sit_root.translated_local(_hair_offset()))
 			_add_shape(sitters_body, SITTER_SHAPE_SIZE,
-					sitter_xf.translated_local(SITTER_SHAPE_OFFSET))
+					sitter_xf.translated_local(SITTER_SHAPE_OFFSET
+							+ Vector3(0.0, 0.0, -SIT_SLIDE)))
 			sitters.append({"spot": spot_i, "seat": seat, "instance": sitter_i})
 			sitter_i += 1
 	_mm_queues = queues
