@@ -55,7 +55,7 @@ emission_energy_multiplier = 1.4
 
 [sub_resource type="BoxMesh" id="Mesh_blinker"]
 material = SubResource("Mat_blinker")
-size = Vector3(0.14, 0.12, 0.3)
+size = Vector3(0.035, 0.055, 0.16)
 
 [node name="Car" type="CharacterBody3D"]
 collision_layer = 8
@@ -108,23 +108,28 @@ mesh = ExtResource("6_wheel")
 
 ; (T-134) Amber corner blinkers — front/rear x left/right, dark at rest,
 ; driven by Car._apply_blinker_meshes. Car-local: forward is -z, right is +x.
+; (T-162) The lens box is the research's sedan-lens class (0.16 long × 0.055
+; tall × 0.035 proud), and the transforms below are the MEASURED paint-surface
+; seats — the fallback Car._seat_blinkers keeps if its mesh probe finds no
+; triangle near a corner seed; at runtime the seat is re-derived from the
+; paint mesh, so these transforms only matter for a missing/degenerate bake.
 [node name="BlinkFL" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.82, -1.95)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.63, 0.721, -1.892)
 visible = false
 mesh = SubResource("Mesh_blinker")
 
 [node name="BlinkFR" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.82, -1.95)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.63, 0.721, -1.892)
 visible = false
 mesh = SubResource("Mesh_blinker")
 
 [node name="BlinkRL" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 0.82, 1.95)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.63, 0.737, 1.943)
 visible = false
 mesh = SubResource("Mesh_blinker")
 
 [node name="BlinkRR" type="MeshInstance3D" parent="Visual"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.85, 0.82, 1.95)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.63, 0.737, 1.943)
 visible = false
 mesh = SubResource("Mesh_blinker")
 

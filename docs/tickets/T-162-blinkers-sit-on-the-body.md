@@ -1,6 +1,6 @@
 # T-162 — Mount the car blinkers on the body: the four amber lamps float off the stretched sedan's corners
 
-- **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 ·
+- **Status:** done · **Category:** visual-design · **Value (1-5):** 3 ·
   **Risk (1-5):** 2
 - **Depends on:** T-124 (the Kenney-stretched paint surface the lamps must sit on)
   · T-134 (the flash tell and the four nodes this re-seats — an UNTOUCHED contract)
@@ -110,9 +110,51 @@ as an intent signal rather than a glitch, and the `_ready()` derivation makes
 the mount self-healing against future car re-bakes — the same robustness the
 café hair boxes bought in T-142.
 
+## Tuned values (landed)
+
+- **Lens box (`Mesh_blinker`, `scenes/car.tscn`):** 0.035 (x, proud) × 0.055
+  (y, tall) × 0.16 (z, long) — inside the research class; `Mat_blinker`
+  untouched (amber, emission 1.4).
+- **Corner seeds (`Car.BLINKER_SEEDS`, `scripts/car.gd`):** (±0.63, 0.80,
+  ∓1.90) front / (±0.63, 0.80, ±1.95) rear — hovering above the hood/deck top
+  at each corner so the closest paint triangle is the deck surface. The
+  ticket's draft seed (±0.72, 0.74) measured closest to the fender SIDE panels
+  with inconsistent raw winding (the rear-quarter panel reads −x) and a
+  left/right tie that seated the mirrors 1.2–1.5 cm apart; the deck seeds seat
+  the mirrors exactly.
+- **Sink (`Car.BLINKER_SINK`):** 0.015 m (mid-ticket band).
+- **Measured seats (probe + runtime):** front (±0.630, 0.721, −1.892), rear
+  (±0.630, 0.737, 1.943) — written into the scene's static transforms as the
+  push_warning fallback (the ticket's "≈ ±0.63, 0.725" estimate confirmed by
+  measurement). The deck top at the stations measures y = 0.709 (front) /
+  0.725 (rear) — the rear deck quad slopes (y 0.80 at z 1.29 down to 0.70 at
+  2.16), so the seat rides the slope, not a flat 0.70.
+- **Seat derivation:** closest point on the paint TRIANGLES (146 tris swept in
+  full — no band pre-filter needed at this mesh size), triangle geometric
+  normal flipped to face the seed (`n.dot(seed − hit) < 0` — the visible side;
+  the source winding is inconsistent), node position = hit + N × (half lens
+  height − sink), box axis-aligned, long axis z.
+
+## Verification record
+
+- **Red-before probe (run this session):** with `scenes/car.tscn` +
+  `scripts/car.gd` reverted to the pre-T-162 state (old transforms, no
+  `_seat_blinkers()`), `car_blinkers_sit_on_the_body` FAILed exactly as the
+  ticket predicted — all four intersection legs read 0 paint-triangle hits
+  (`BlinkFL=0 BlinkFR=0 BlinkRL=0 BlinkRR=0`), the lens-class leg failed
+  (0.140 × 0.120 × 0.300), and the rest of the suite stayed green
+  (`SIM SUMMARY: 1 failure(s)`).
+- **Probe instrument (throwaway, deleted after landing):** a
+  `tools/probe_blinker_seat.gd` SceneTree script in the
+  `probe_sit_geometry.gd` family measured `car_paint.res` (AABB confirmed:
+  x ±0.95, y 0.500–1.300, z −1.984–2.157, 438 verts / 146 tris; station
+  census: front max|x| 0.697 / max y 0.717, rear 0.697 / 0.700 — the ticket's
+  numbers) and validated the Sutherland–Hodgman triangle-vs-box method before
+  it went into the scenario.
+
 ## Acceptance criteria
 
-- [ ] *(Gate 1b)* new `car_blinkers_sit_on_the_body` (the
+- [x] *(Gate 1b)* new `car_blinkers_sit_on_the_body` (the
       `cafe_sitters_on_the_rig` mesh-probe family, `sim_test.gd:8890`): a bare
       `CAR_SCENE` instance (the traffic-null escape hatch) — for each of the
       four Blink nodes, build the lamp AABB from its BoxMesh size + node
@@ -122,25 +164,41 @@ café hair boxes bought in T-142.
       against the box's six planes; vertex-inside-box alone cannot see
       flat-quad interiors — the paint mesh is only 438 vertices sampled at
       quad corners). Four legs, one per corner, all true.
-- [ ] *(Gate 1b)* same scenario also pins the lens class and the rest state:
+- [x] *(Gate 1b)* same scenario also pins the lens class and the rest state:
       every Blink BoxMesh ≤ 0.20 (z) × ≤ 0.07 (y) × ≤ 0.05 (x) — no 0.3 m
       slabs — and all four nodes report `visible == false` at rest with their
       `Visual/Blink*` paths unchanged.
-- [ ] *(Gate 1b)* `turn_signals_blink_before_turns` stays green **UNCHANGED**
+- [x] *(Gate 1b)* `turn_signals_blink_before_turns` stays green **UNCHANGED**
       (`sim_test.gd:7769` reads only `car.blinker`, `car._flash_clock`,
       `car.blinker_hz` — placement-insensitive by construction; this is the
       tripwire that the tell's logic survived), and the full Gate 1b suite is
       green (`godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn`,
       0 failures).
-- [ ] *(Gate 1)* `--import` and the 120-frame boot exit clean, zero ERROR
+- [x] *(Gate 1)* `--import` and the 120-frame boot exit clean, zero ERROR
       lines.
-- [ ] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`).
-- [ ] *(Gate 3, screenshots)* eyes-on, via the pilot harness into `.captures/`:
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`).
+- [x] *(Gate 3, screenshots)* eyes-on, via the pilot harness into `.captures/`:
       (a) a resting car's corners read as body — no floating slabs anywhere in
       the fleet, parked or moving; (b) a flashing turn reads as small amber
       lenses seated on the fender/deck corners from a quartering side view;
       (c) T-134's own line re-run — the blinker tell still reads from the air
       while planning a splat on a turning car.
+      (accepted by reviewer sign-off on the landed tree — the ticket is
+      accepted as a whole; the machine arm for the tell's WHEN logic lives in
+      the `turn_signals_blink_before_turns` Gate 1b row, unchanged). What the
+      pilot record shows: (a) `.captures/t162_shots/gate3a_parked_car_corners.png`
+      (two parked cars at the plaza corner, 8–15 m, quartering: corners read
+      as body, no floating amber slabs) plus the same clean-corner read across
+      the session frame streams' moving traffic; (c) partially
+      `.captures/session_t162g3b/f00039732.png` (aerial pass, the poop
+      reticle pinned live over the road = the planning-a-splat read). The
+      lit-flash frame (b) and the full (c) pairing were never captured by the
+      agent: five pilot sessions (~3000 stream frames at 0.2 s, ~330 targeted
+      burst shots with waiting-car/queued-car/node-approach triggers, plus
+      color/transient-cell/flash-cadence/frame-diff detectors) caught no lit
+      lens in the camera cone — a turn is ~40% of routes and the flash window
+      ~2–3 s at 50% duty. The reviewer's sign-off is the eyes-on judgement
+      this line exists to carry.
 
 ## Verification
 
