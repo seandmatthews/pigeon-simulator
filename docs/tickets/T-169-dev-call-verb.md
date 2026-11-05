@@ -69,6 +69,26 @@ investigation stop needing tickets at all:
    pilot verb list gains `call` with the one-hop contract summarized
    (agents read the fence before reaching for it).
 
+**Prior art (the industry shapes this ticket copies — checked against the
+record 2026-11-05, not from taste):** Source's
+`ent_fire <target> <input> <parameter>` — in every Source game since 2004,
+behind `sv_cheats 1` — is this verb's ancestor and its strongest
+validation: a named input with a parameter on a named entity, ONE hop, no
+chaining, the most-used entity-debug tool of that ecosystem (its `!picker`
+crosshair selector is the T-168 "nearest car" idea). Unreal's
+`CheatManager` + `UFUNCTION(Exec)` is the ALLOWLIST pattern — named
+functions callable from the console, compiled out of shipping builds;
+T-168's pack is that pattern, and this verb is deliberately MORE
+permissive (reflection over a denylist) but fenced harder (debug-build
+only, one hop, denylist). Firaxis' FireTuner is the pilot-channel
+architecture at studio scale — an external process executing against the
+live game, opt-in, achievements disabled while attached (our "verbs do
+nothing in release" contract). Unity's ecosystem (RuntimeDebugAction,
+IngameDebugConsole) is registration-based dev-build invocation — the
+dispatcher pattern again. Loosening the one-hop fence therefore departs
+from ~20 years of precedent, not just this ticket's taste; it takes its
+own ticket.
+
 **No reference photos:** dev tooling; no research phase, no image opened.
 
 **Not claimed:** no expression language, no chaining, no property-set
