@@ -244,6 +244,7 @@ func _run_scenarios() -> void:
 	await _scenario_citizen_parts_world_scale() ## T-139 — every citizen part stays human-sized (the ×100 arm regression tripwire).
 	await _scenario_elder_seats_on_the_bench() ## T-141 — the seated elder lands on the bench (the sink/hunch/hair composite).
 	await _scenario_cafe_sitters_on_the_rig() ## T-142 — the café crowd wears the baked one-people model.
+	await _scenario_hair_caps_round_the_skull() ## T-164 — one fitted dome cap on every head (elder, tourist, café sitter).
 	await _scenario_sitters_clear_their_seats() ## T-163 — the one seat-contact law: thighs, knees and shins clear both surfaces.
 	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
 	await _scenario_splat_favor_once_per_target() ## T-147 — favor books ONCE per target; repeats honk and score but add zero.
@@ -9019,7 +9020,7 @@ func _scenario_cafe_sitters_on_the_rig() -> void:
 	for i in _city.cafe_spots.size():
 		total += spawner.sitter_count(i)
 	var keys_ok := true
-	for key in ["sit_body", "sit_legs", "sit_head", "sit_hair"]:
+	for key in ["sit_body", "sit_legs", "sit_head", "sit_hair_cap"]: ## (T-164) `sit_hair` → `sit_hair_cap` — still one instance per sitter.
 		var mm := spawner.visual(key)
 		keys_ok = keys_ok and mm != null and mm.multimesh != null \
 				and mm.multimesh.instance_count == total
@@ -9034,7 +9035,8 @@ func _scenario_cafe_sitters_on_the_rig() -> void:
 	var swap_ok := spawner.visual("sitter_torso") == null \
 			and spawner.visual("sitter_arm") == null \
 			and spawner.visual("sitter_head") == null \
-			and spawner.visual("sitter_thigh") == null
+			and spawner.visual("sitter_thigh") == null \
+			and spawner.visual("sit_hair") == null ## (T-164) The retired hair box joins the swap tripwire.
 	var shirts_ok := true
 	var si := 0
 	for i in _city.cafe_spots.size():
@@ -9059,6 +9061,193 @@ func _scenario_cafe_sitters_on_the_rig() -> void:
 			"sitters=%d keys=%s stamped=%s swapped=%s shirts=%s human=%s (body %.2f..%.2f legs %.2f..%.2f)" % [
 				total, keys_ok, stamped_ok, swap_ok, shirts_ok, human_ok,
 				body_ab.position.y, body_ab.end.y, legs_ab.position.y, legs_ab.end.y])
+
+
+## (T-164) One fitted dome cap on every head — SHAPE, FIT, VALUE and
+## REALIZATION laws, on the bare-rig instantiation family of
+## `citizen_classes_readable`. SHAPE (all three cap meshes): tri count ≥ 96
+## (the retired boxes carry 12) and the y-binned radial taper — the
+## top-20%-band max horizontal radius ≤ 0.75 × the base-20%-band max
+## (probe: dome 0.47 at 24×12, box 1.00 — the dome tapers, the box's
+## top-face corners keep full radius). FIT against each mount's live head
+## AABB (the rigs' HeadRigid bind AABB via `PeopleRig.head_aabb()`; the
+## café's harvested `sit_head` bake AABB): per-axis plan poke ≤ 0.01 on the
+## half-extents about the centers, rim sunk HAIR_CAP_SINK past the scalp
+## line, crown ≥ head end.y − 0.03; the rig legs pin the drop equation the
+## bands lean on (HAIR_CAP_SINK == −HEAD_PROP_LIFT − HAIR_CAP_BASE_DROP).
+## VALUE LOCKS (the T-110 precedent): SINK 0.08, HEIGHT 0.10, BASE_DROP
+## −0.03, segments 24/12. REALIZATION: each cap is a ONE-surface ArrayMesh
+## with a non-null surface-0 material — a bare SphereMesh return would land
+## its base circle 0.03 high and fail the rim band by construction. The
+## elder/tourist legs read the live `Hair`/`Cap` nodes post-_ready — each
+## node's mesh IS the offset dome (vertex-baked, no child node, no
+## re-homing), so `mesh.get_aabb()`/`get_faces()` see the drop directly;
+## the café leg reads `visual("sit_hair_cap").multimesh.mesh` plus the
+## harvested `sit_head` bake AABB and every queued cap transform (its
+## sit_root translated by head-center x, head end.y − HAIR_CAP_SINK,
+## head-center z). Red-before (ticket-recorded, probe-confirmed): the
+## shipped boxes fail SHAPE on every mount (12 tris, taper 1.00) and the
+## elder/tourist boxes fail the FIT plan leg (+0.0124/+0.0112 pokes > 0.01);
+## the café box passed FIT and failed only SHAPE — a cap must BE round,
+## not merely sit right.
+func _scenario_hair_caps_round_the_skull() -> void:
+	var locks_ok: bool = is_equal_approx(PeopleRig.HAIR_CAP_SINK, 0.08) \
+			and is_equal_approx(PeopleRig.HAIR_CAP_HEIGHT, 0.10) \
+			and is_equal_approx(PeopleRig.HAIR_CAP_BASE_DROP, -0.03) \
+			and PeopleRig.HAIR_CAP_RADIAL_SEGMENTS == 24 \
+			and PeopleRig.HAIR_CAP_RINGS == 12 \
+			and is_equal_approx(PeopleRig.HAIR_CAP_SINK,
+					-PeopleRig.HEAD_PROP_LIFT - PeopleRig.HAIR_CAP_BASE_DROP)
+	## --- the elder's white cap --------------------------------------------
+	var elder := (load("res://scenes/elder.tscn") as PackedScene).instantiate() as Node3D
+	elder.position = Vector3(60.0, 0.0, 60.0) ## Bare space; nothing else reads it.
+	add_child(elder)
+	await get_tree().process_frame ## The frame-1 head-slot correction needs one _process pass.
+	await get_tree().process_frame
+	var elder_rig: PeopleRig = elder.get_node("Visual")
+	var elder_head_ab: AABB = elder_rig.head_aabb()
+	var elder_hair := elder_rig.find_child("Hair", true, false) as MeshInstance3D
+	var elder_shape := _cap_shape_ok(elder_hair.mesh)
+	var elder_real := _cap_realization_ok(elder_hair.mesh, Color(0.78, 0.78, 0.75))
+	var elder_fit := _cap_rig_fit_ok(elder_hair, elder_head_ab)
+	var elder_base: float = _cap_rig_base(elder_hair)
+	var elder_tris := elder_hair.mesh.get_faces().size() / 3
+	var elder_taper := _cap_taper(elder_hair.mesh)
+	elder.free()
+	## --- the superfan's gold cap ------------------------------------------
+	var tourist := (load("res://scenes/tourist.tscn") as PackedScene).instantiate() as Node3D
+	tourist.position = Vector3(60.0, 0.0, 60.0)
+	add_child(tourist)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var tourist_rig: PeopleRig = tourist.get_node("Visual")
+	var tourist_head_ab: AABB = tourist_rig.head_aabb()
+	var tourist_cap := tourist_rig.find_child("Cap", true, false) as MeshInstance3D
+	var tourist_shape := _cap_shape_ok(tourist_cap.mesh)
+	var tourist_real := _cap_realization_ok(tourist_cap.mesh, Color(1.0, 0.8, 0.0))
+	var tourist_fit := _cap_rig_fit_ok(tourist_cap, tourist_head_ab)
+	var tourist_base: float = _cap_rig_base(tourist_cap)
+	var tourist_tris := tourist_cap.mesh.get_faces().size() / 3
+	var tourist_taper := _cap_taper(tourist_cap.mesh)
+	tourist.free()
+	## --- the café crowd's brown caps --------------------------------------
+	var spawner := CafeSpawner.new()
+	spawner.city = _city
+	add_child(spawner)
+	await _wait_frames(4)
+	var total := 0
+	for i in _city.cafe_spots.size():
+		total += spawner.sitter_count(i)
+	var cap_mm := spawner.visual("sit_hair_cap")
+	var cafe_keys_ok := cap_mm != null and cap_mm.multimesh != null \
+			and cap_mm.multimesh.instance_count == total \
+			and spawner.visual("sit_hair") == null
+	var cafe_mesh: Mesh = cap_mm.multimesh.mesh
+	var cafe_shape := _cap_shape_ok(cafe_mesh)
+	var cafe_real := _cap_realization_ok(cafe_mesh, CafeSpawner.HAIR)
+	var cafe_head_ab: AABB = spawner.visual("sit_head").multimesh.mesh.get_aabb()
+	var cap_ab: AABB = cafe_mesh.get_aabb()
+	## FIT in sit-root space: every queued cap xf is its sit_root translated
+	## by (head center.x, head end.y − HAIR_CAP_SINK, head center.z) — the
+	## dome's base plane lands HAIR_CAP_SINK past the scalp line and its
+	## apex at end.y − SINK + HEIGHT.
+	## FIT: per-axis plan poke, the dome base baked at 0 (the café passes
+	## base_drop 0.0 — the instance transform is the positioner), and the
+	## apex law (end.y − HAIR_CAP_SINK + HEIGHT ≥ end.y − 0.03).
+	var cafe_fit := cap_ab.size.x * 0.5 <= cafe_head_ab.size.x * 0.5 + 0.01 \
+			and cap_ab.size.z * 0.5 <= cafe_head_ab.size.z * 0.5 + 0.01 \
+			and is_equal_approx(cap_ab.position.y, 0.0) \
+			and (cafe_head_ab.end.y - PeopleRig.HAIR_CAP_SINK) + cap_ab.end.y \
+					>= cafe_head_ab.end.y - 0.03
+	var cap_xfs: Array = spawner._mm_queues["sit_hair_cap"].xfs
+	var root_xfs: Array = spawner._mm_queues["sit_body"].xfs
+	for si in spawner.sitters.size():
+		var root_xf := root_xfs[si] as Transform3D
+		var cap_xf := cap_xfs[si] as Transform3D
+		## The spawner's own float32 path, recomputed bit-for-bit (the T-163
+		## origin-algebra pattern — inverting the basis re-rounds ~5e-5 and
+		## trips is_equal_approx): origin + basis · (center.x, end.y −
+		## HAIR_CAP_SINK, center.z), basis carried unchanged.
+		var want_origin: Vector3 = root_xf.origin + root_xf.basis * Vector3(
+				cafe_head_ab.get_center().x,
+				cafe_head_ab.end.y - PeopleRig.HAIR_CAP_SINK,
+				cafe_head_ab.get_center().z)
+		cafe_fit = cafe_fit and cap_xf.origin.is_equal_approx(want_origin) \
+				and cap_xf.basis.is_equal_approx(root_xf.basis)
+	spawner.free()
+	_check("hair_caps_round_the_skull", locks_ok and elder_shape and elder_real
+			and elder_fit and tourist_shape and tourist_real and tourist_fit
+			and cafe_keys_ok and cafe_shape and cafe_real and cafe_fit,
+			"locks=%s elder(shape=%s real=%s fit=%s base %+.3f) tourist(shape=%s real=%s fit=%s base %+.3f) cafe(keys=%s shape=%s real=%s fit=%s tris e%d/t%d/c%d taper e%.2f/t%.2f/c%.2f)" % [
+				locks_ok, elder_shape, elder_real, elder_fit, elder_base,
+				tourist_shape, tourist_real, tourist_fit, tourist_base,
+				cafe_keys_ok, cafe_shape, cafe_real, cafe_fit,
+				elder_tris, tourist_tris, cafe_mesh.get_faces().size() / 3,
+				elder_taper, tourist_taper, _cap_taper(cafe_mesh)])
+
+
+## (T-164) The SHAPE law on one cap mesh: tri count ≥ 96 (the retired boxes
+## carry 12) and the y-binned radial taper ≤ 0.75.
+func _cap_shape_ok(mesh: Mesh) -> bool:
+	return mesh.get_faces().size() / 3 >= 96 and _cap_taper(mesh) <= 0.75
+
+
+## (T-164) The y-binned radial taper: the top-20%-band max horizontal
+## radius over the base-20%-band max (vertex bins over `get_faces()`, radii
+## about the mesh's own xz center). The dome tapers toward the crown; a
+## box's top-face corners keep the full radius.
+func _cap_taper(mesh: Mesh) -> float:
+	var radii := _cap_band_radii(mesh)
+	return radii.y / maxf(radii.x, 0.0001)
+
+
+## (T-164) A mesh's 20%-band max horizontal radii as [base, top]: every
+## `get_faces()` vertex binned into fifths of the mesh AABB's y-range, the
+## radius taken about the AABB's xz center.
+func _cap_band_radii(mesh: Mesh) -> Vector2:
+	var faces := mesh.get_faces()
+	var ab: AABB = mesh.get_aabb()
+	var center := Vector2(ab.get_center().x, ab.get_center().z)
+	var span := maxf(ab.size.y, 0.0001)
+	var bands: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0]
+	for v: Vector3 in faces:
+		var band := clampi(int(floor((v.y - ab.position.y) / span * 5.0)), 0, 4)
+		bands[band] = maxf(bands[band], Vector2(v.x, v.z).distance_to(center))
+	return Vector2(bands[0], bands[4])
+
+
+## (T-164) The REALIZATION law on one cap mesh: a ONE-surface ArrayMesh
+## whose surface 0 carries a non-null StandardMaterial3D in `want_color`
+## (the retired placeholder's color law rides onto the generated dome).
+func _cap_realization_ok(mesh: Mesh, want_color: Color) -> bool:
+	var am := mesh as ArrayMesh
+	if am == null or am.get_surface_count() != 1:
+		return false
+	var mat := am.surface_get_material(0) as StandardMaterial3D
+	return mat != null and mat.albedo_color.is_equal_approx(want_color)
+
+
+## (T-164) The rig FIT law in slot space: the prop rides the frame-1 slot
+## (identity basis, zero position) and the head mesh's end.y sits at
+## −head_prop_lift over the slot (people_rig.gd's pin), so in slot-local
+## terms the cap's rim must land HAIR_CAP_SINK under the head end, its
+## crown must stay past head end − 0.03, and its plan may poke the head's
+## per-axis half-extents by ≤ 0.01 (the retired box poked 0.012).
+func _cap_rig_fit_ok(prop: MeshInstance3D, head_ab: AABB) -> bool:
+	var cap_ab: AABB = prop.mesh.get_aabb()
+	var slot := prop.get_parent() as Node3D
+	var head_end_slot: float = head_ab.end.y - slot.position.y
+	var plan_ok := cap_ab.size.x * 0.5 <= head_ab.size.x * 0.5 + 0.01 \
+			and cap_ab.size.z * 0.5 <= head_ab.size.z * 0.5 + 0.01
+	return plan_ok \
+			and absf(_cap_rig_base(prop) - (head_end_slot - PeopleRig.HAIR_CAP_SINK)) <= 0.01 \
+			and prop.position.y + cap_ab.end.y >= head_end_slot - 0.03
+
+
+## (T-164) The rig cap's rim height in slot space: prop position (zero —
+## the mount law) plus the mesh's baked base.
+func _cap_rig_base(prop: MeshInstance3D) -> float:
+	return prop.position.y + prop.mesh.get_aabb().position.y
 
 
 ## (T-163) The ONE seat-contact law, machine-checked on BOTH surfaces: the

@@ -1,6 +1,6 @@
 # T-164 — Hair that is not a plank: one fitted dome cap on every head (café sitter, elder, tourist)
 
-- **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 ·
+- **Status:** done · **Category:** visual-design · **Value (1-5):** 3 ·
   **Risk (1-5):** 2
 - **Depends on:** T-145 (the mesh-pinned head mount and `HEAD_PROP_LIFT`
   law this dome hangs under — the mount stays, the mesh swaps) · T-142
@@ -173,7 +173,7 @@ T-163's probe lines made any future seat a measurement.
 
 ## Acceptance criteria
 
-- [ ] *(Gate 1b)* new `hair_caps_round_the_skull` (the bare-rig
+- [x] *(Gate 1b)* new `hair_caps_round_the_skull` (the bare-rig
       instantiation family of `citizen_classes_readable`,
       `sim_test.gd:8420`; the elder/tourist legs read the live `Hair`/`Cap`
       nodes post-`_ready` — each node's mesh IS the offset dome (the
@@ -202,7 +202,7 @@ T-163's probe lines made any future seat a measurement.
         ArrayMesh with a non-null surface-0 material (a bare SphereMesh
         return would land its base circle 0.03 high and fail the FIT leg
         by construction — the round-1 contradiction, kept impossible).
-- [ ] *(Gate 1b)* `cafe_sitters_on_the_rig` amended in the same change-set:
+- [x] *(Gate 1b)* `cafe_sitters_on_the_rig` amended in the same change-set:
       the key list (`sim_test.gd:8899`) `sit_hair` → `sit_hair_cap` (still
       one instance per sitter) and `sit_hair` joins the swap tripwire; the
       stamped/shirt/human legs untouched (`sit_hair` was never metadata-
@@ -211,17 +211,25 @@ T-163's probe lines made any future seat a measurement.
       `citizen_classes_readable` green UNCHANGED (its cap leg pins
       visibility + color, not geometry — `VERIFICATION.md:127`). FULL suite
       0 failures: `godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn`.
-- [ ] *(Gate 1)* `--import` and the 120-frame boot exit clean, zero ERROR
+- [x] *(Gate 1)* `--import` and the 120-frame boot exit clean, zero ERROR
       lines.
-- [ ] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`).
-- [ ] *(Gate 3, screenshots)* pilot-harness captures into
-      `.captures/t164_hair_caps/`, eyes-on: (a) an elder head zoom reads
-      hair-ON-skull — a rounded white cap, no flat top plane, no vertical
-      sides, no corner floating off the dome; (b) a café sitter closeup
-      reads the brown hair as a rounded cap on the seated head; (c) a
-      superfan's gold cap reads as a rounded cap, not a gold slab; (d) the
-      T-145 read survives at the 7 m zoom — no sky gap under the rim in
-      idle AND seated poses (the mount law untouched).
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`).
+- [x] *(Gate 3, screenshots)* pilot-harness captures into
+      `.captures/t164_hair_caps/` — all four read (see the round-2 record
+      for the (c) chase): (a) an elder head zoom reads hair-ON-skull — a
+      rounded white cap, no flat top plane, no vertical sides, no corner
+      floating off the dome ✓ (`elder_head_zoom_seated.png`);
+      (b) a café sitter closeup reads the brown hair as a rounded cap on the
+      seated head ✓ (`cafe_sitter_cap_primary.png` + `cafe_sitter_cap_zoom.png`,
+      the sitter's head at ~0.6 m); (c) a superfan's gold cap reads as a
+      rounded cap, not a gold slab ✓ (`superfan_cap_closeup.png` +
+      `superfan_cap_zoom.png` — the superfan at 1.4 m mid-stride, cardinal
+      torso + gold arms + gold mitt, the gold dome cap clearly rounded on the
+      skull; the class confirmed live, see the round-2 record); (d) the
+      T-145 read survives at the 7 m zoom — no sky gap under the rim ✓
+      seated (`elder_head_7m_seated.png`) and ✓ non-seated
+      (`elder_head_walking.png`, the migrating elder mid-shuffle — the
+      RISING/Walk pose the mount rides).
 
 ## Verification
 
@@ -249,3 +257,74 @@ law is fixed (max half-extent) with an allowed ±0.005 hand-trim if the rim
 ledge reads wrong on the zoom; segments may rise, never drop below
 16 radial. Record the landed values here (the T-134 "Tuned values"
 pattern).
+
+## Implementation record (2026-11-05)
+
+**Landed exactly at the ticket's literals — no tuning needed.** `HAIR_CAP_SINK`
+0.08, `HAIR_CAP_HEIGHT` 0.10, `HAIR_CAP_BASE_DROP` −0.03,
+`HAIR_CAP_RADIAL_SEGMENTS` 24 / `HAIR_CAP_RINGS` 12, radius = the head plan's
+max horizontal half-extent (no hand-trim), all five as consts on `PeopleRig`
+with the drop equation `HAIR_CAP_SINK == −HEAD_PROP_LIFT − HAIR_CAP_BASE_DROP`
+pinned by the scenario. The mounts: `elder.gd` / `tourist.gd` harvest the
+placeholder box's own material and swap the mesh via
+`PeopleRig.hair_cap_mesh(_visual.head_aabb(), PeopleRig.HAIR_CAP_BASE_DROP, …)`
+— the node origins never move. The café: `_harvest_sit_meshes` builds ONE dome
+per populate from the harvested `sit_head` bake (base_drop 0.0, the flat
+`HAIR` material law) under the new `sit_hair_cap` key; the queue line rides
+`_hair_offset()` re-sunk to `end.y − HAIR_CAP_SINK`; the retired `sit_hair`
+box arm is deleted and joins the swap tripwire.
+
+**Throwaway probe (run, recorded, deleted — the T-162 precedent).** Confirmed
+every ticket number headless before the code landed: HeadRigid bind AABB
+pos (−0.137634, −0.079802, −0.147512) end (0.137634, 0.260317, 0.110179) —
+byte-consistent; the skull's crown bands 0.240..0.260 r 0.0760 → 0.180..0.200
+r 0.1185 (the ticket's profile); the harvested `sit_head` bake AABB
+pos (−0.141687, 1.051452, 0.043914) end (0.129913, 1.398129, 0.327285);
+SphereMesh hemisphere: base circle at local y = 0, apex at +height, 4224 tris
+at default 64×32 / 624 at 24×12; the vertex-translated ArrayMesh realization
+holds AABB y −0.03..+0.07, one surface, material stamped. Taper metric
+(top-20% band max radius over base-20%, vertex bins): dome 0.468, retired
+boxes 1.000 — red-before SHAPE fail on every mount confirmed. FIT pokes
+(per-axis half-extents): rig dome −0.0010 x / +0.0078 z (pass), café dome
++0.0049 x / −0.0010 z (pass), elder/tourist box +0.0124 / +0.0112 (the
+red-before FIT fail, ticket-recorded), café box +0.0042 / +0.0083 (passes
+FIT, fails only SHAPE — the ticket's law held). One wrinkle the probes
+pinned: the generated dome's mesh AABB is ±0.1366 (the 24-segment ring
+vertices never touch the full radius), which is what keeps the rig z-poke at
++0.0078 inside the 0.01 band with no hand-trim.
+
+
+## Round-2 record (2026-11-05, the reviewer's Gate 3 (c) chase)
+
+Round 1 left (c) open: ~10 runs chased strollers by eyeball and never found
+the cardinal — the shipped `superfan_share` is 0.06, so the 18-tourist city
+holds exactly ONE superfan (`tourist_spawner.gd:24`, `roundi(18 · 0.06) = 1`),
+and eyeballing a moving crowd misses it. Round 2 made the search
+deterministic: a throwaway capture aid (the T-162 deleted-probe precedent)
+tagged each state-stream tourist row with its live `citizen_class` for one
+session, then was reverted out of the tree (`tests/capture_recorder.gd` is
+byte-identical to the committed version — `git status` clean). The
+diagnostic read the superfan's live position directly; a chase loop walked
+the pigeon to it across two runs (the 1.0x runs kept starving mid-walk — the
+hunger bar is ~3.5 wall-min at that scale — so the final approach ran at
+0.3x, the T-132 slow-world precedent, where one bar lasts ~20 wall-min) and
+the capture landed at 1.4 m: `superfan_cap_closeup.png` /
+`superfan_cap_zoom.png` — cardinal torso, gold arms, the raised gold mitt,
+and the gold dome cap rounded on the skull. The badge's class read
+(`CitizenClass.Kind.SUPERFAN`, live from the diagnostic) matches the visual
+stack, closing the round-1 loop.
+
+**Gates.** Gate 1 `--import` + 120-frame boot clean (only the documented
+accepted godot_mcp teardown line). Gate 1b full suite: 171 SIM PASS, 0
+failures — `hair_caps_round_the_skull` green (tris 624/624/624, taper
+0.47/0.47/0.47, rig rim base −0.030 slot-local, café transforms exact),
+`cafe_sitters_on_the_rig` green with the re-key, `elder_seats_on_the_bench`
+green UNCHANGED, `citizen_classes_readable` green UNCHANGED,
+`sitters_clear_their_seats` green UNCHANGED. Gate 2 autoplay `AUTOPLAY DONE
+ok=true … restart=true`. Gate 3: captures in `.captures/t164_hair_caps/` —
+(a) `elder_head_zoom_seated.png` (the white dome at ~0.7 m, pigeon on the
+bench beside him) ✓; (b) `cafe_sitter_cap_primary.png` +
+`cafe_sitter_cap_zoom.png` (the teal sitter's brown dome at ~0.6 m) ✓;
+(d) `elder_head_7m_seated.png` (7 m seated, rim on skull, no sky gap) ✓ and
+`elder_head_walking.png` (the migrating elder mid-shuffle after a real bread
+share — the non-seated pose) ✓; (c) NOT landed — see the Gate 3 checkbox.

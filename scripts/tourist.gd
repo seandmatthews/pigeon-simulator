@@ -109,6 +109,12 @@ func _ready() -> void:
 	## the head).
 	_visual.show_rigid_arms(true)
 	_visual.mount_prop(_mitt, PeopleRig.Mount.HAND_R)
+	## (T-164) The cap is the fitted dome: the placeholder box's own gold
+	## rides onto the generated mesh and the node origin never moves — the
+	## T-145 mount law is untouched, only the mesh swaps (the class tell is
+	## a rounded cap, not a gold slab). Visibility stays the class law.
+	_cap.mesh = PeopleRig.hair_cap_mesh(_visual.head_aabb(),
+			PeopleRig.HAIR_CAP_BASE_DROP, _cap.mesh.surface_get_material(0))
 	_visual.mount_prop(_cap, PeopleRig.Mount.HEAD)
 	# Per-tourist shirt material: the palette tint and later the panic flush,
 	# without touching the shared scene material. (T-113) It stays the TORSO

@@ -156,6 +156,7 @@ var _stall_pos := Vector3.ZERO
 @onready var _visual: PeopleRig = $Visual
 @onready var _torso: MeshInstance3D = _visual.body_mesh
 @onready var _cane: MeshInstance3D = $Cane
+@onready var _hair: MeshInstance3D = $Hair
 @onready var _arm_near: MeshInstance3D = _visual.arm_r_rigid
 @onready var _arm_far: MeshInstance3D = _visual.arm_skinned_l
 
@@ -167,7 +168,13 @@ func _ready() -> void:
 	## mounts on the head bone and the cane is adopted into the bob/lean
 	## container. The bench hunch is a figure pitch on the rig root.
 	_visual.show_rigid_arms(false)
-	_visual.mount_prop($Hair, PeopleRig.Mount.HEAD)
+	## (T-164) The hair is the fitted dome cap: the placeholder box's own
+	## white material rides onto the generated mesh and the node origin
+	## never moves — the T-145 mount law is untouched, only the mesh swaps
+	## (a flat-sided box on a rounded skull reads as a loaf).
+	_hair.mesh = PeopleRig.hair_cap_mesh(_visual.head_aabb(),
+			PeopleRig.HAIR_CAP_BASE_DROP, _hair.mesh.surface_get_material(0))
+	_visual.mount_prop(_hair, PeopleRig.Mount.HEAD)
 	_visual.adopt(_cane)
 	_cane.rotation.z = -0.08
 	_visual.rotation.x = HUNCH_SEATED

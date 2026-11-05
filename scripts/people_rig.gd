@@ -91,6 +91,22 @@ const RAISE_TILT := -0.1974
 ## corrected head-top line (m, adult scale).
 const HEAD_PROP_LIFT := -0.05 ## (T-145) The slot rides the head MESH's top, sunk 0.05: a head-prop box wider than the dome then wraps the skull's upper quarter as a band (the classic low-poly hair/cap read) instead of perching on the crown point with sky under its edges.
 
+## (T-164) The dome-cap law's value locks, pinned by
+## `hair_caps_round_the_skull`: every hair prop is ONE fitted dome
+## (`hair_cap_mesh`) — height HAIR_CAP_HEIGHT, its base circle baked
+## `HAIR_CAP_BASE_DROP` into the vertices on the rig mounts (the frame-1
+## slot rides end.y + HEAD_PROP_LIFT, so the rim lands at
+## end.y − HAIR_CAP_SINK and the apex at end.y + 0.02), the café instance
+## transform carrying the full HAIR_CAP_SINK over its base_drop 0.0 dome.
+## The drop equation the FIT bands lean on: HAIR_CAP_SINK ==
+## −HEAD_PROP_LIFT − HAIR_CAP_BASE_DROP (0.08 = 0.05 + 0.03) — a silent
+## const edit fails the scenario.
+const HAIR_CAP_HEIGHT := 0.10
+const HAIR_CAP_BASE_DROP := -0.03
+const HAIR_CAP_SINK := 0.08
+const HAIR_CAP_RADIAL_SEGMENTS := 24
+const HAIR_CAP_RINGS := 12
+
 @export_group("Slots")
 @export var head_prop_lift: float = HEAD_PROP_LIFT ## Head props' lift above the corrected head top.
 
@@ -261,3 +277,42 @@ func adopt(prop: Node3D) -> void:
 	if old != null:
 		old.remove_child(prop)
 	add_child(prop)
+
+
+## (T-164) The HeadRigid mesh's bind-frame AABB — the measurement every
+## head-worn prop fits to. The frame-1 pin reads the same mesh
+## (`_process`); the dome-cap generator and the rig mounts take it verbatim.
+func head_aabb() -> AABB:
+	if head_rigid == null or head_rigid.mesh == null:
+		return AABB()
+	return head_rigid.mesh.get_aabb()
+
+
+## (T-164) Builds ONE fitted hair cap for a head AABB: a squashed hemisphere
+## whose radius is the head plan's max horizontal half-extent and whose
+## height is HAIR_CAP_HEIGHT. The SphereMesh primitive cannot carry the
+## drop — `is_hemisphere` emits its base circle at local y = 0 and exposes
+## no offset channel — so the dome is realized as a ONE-surface ArrayMesh
+## with `base_drop` translated INTO the vertex arrays (normals untouched):
+## `get_aabb()`/`get_faces()` then read the sunk dome directly and the
+## mounted node's origin stays pinned (no geometry-offset channel, no extra
+## node — the T-145 mount law untouched). `material` stamps surface 0 so
+## the key keeps its color law. Probe-measured (T-164): 24×12 segments =
+## 624 tris, y-binned radial taper 0.47 (top-20% band max radius over
+## base-20%), AABB y exactly [base_drop, base_drop + HAIR_CAP_HEIGHT].
+static func hair_cap_mesh(head_aabb: AABB, base_drop: float, material: Material = null) -> ArrayMesh:
+	var dome := SphereMesh.new()
+	dome.radius = maxf(head_aabb.size.x, head_aabb.size.z) * 0.5
+	dome.height = HAIR_CAP_HEIGHT
+	dome.is_hemisphere = true
+	dome.radial_segments = HAIR_CAP_RADIAL_SEGMENTS
+	dome.rings = HAIR_CAP_RINGS
+	var arrays := dome.get_mesh_arrays()
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	for i in verts.size():
+		verts[i] = verts[i] + Vector3(0.0, base_drop, 0.0)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	var cap := ArrayMesh.new()
+	cap.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	cap.surface_set_material(0, material)
+	return cap
