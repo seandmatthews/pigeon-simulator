@@ -319,6 +319,7 @@ func _run_scenarios() -> void:
 	await _scenario_web_handoff_single_screen() ## T-131 — the web handoff shows ONE warming screen: the shell covers it, the note stands down.
 	await _scenario_pilot_time_scale() ## T-132 — the pilot's --time-scale slows the world, not the frames; flagless boots stay 1.0.
 	await _scenario_pilot_frame_step() ## T-140 — pause/step/resume + deferred presses, driven through a real recorder in session mode.
+	await _scenario_dev_hunger_lock() ## T-167 — the dev-verb family on the same pilot channel: lock/refill/unlock through _execute_dev, the gate seam, live-channel flow while frozen.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -10013,6 +10014,137 @@ func _read_pilot_events(dir: String) -> Dictionary:
 		if typeof(parsed) == TYPE_DICTIONARY and parsed.has("ev"):
 			out[parsed["ev"]] = true
 	return out
+
+
+## --- scenarios (T-167 dev hunger lock) --------------------------------------
+
+## The T-167 dev-verb contract, driven through a REAL CaptureRecorder in
+## session mode (scratch `simtest_dev` dir — swept later by pilot.py clean)
+## acting on the Game autoload's own hunger clock, the node the verbs target
+## in every live session (`Game.hunger`, reachable by name from any script).
+## `drain_per_second` is hand-raised to 60/s for the run (the ticket's
+## forced-drain leg; restored after) so a 90-tick window moves the bar ~90
+## units — a silent lock regression cannot hide in rounding. Legs:
+## (a) the unlocked drain drops the bar over 90 ticks, `hunger_lock` (driven
+##     through `_execute_dev` with an explicit dict) freezes it, and 90 more
+##     ticks read the value BIT-IDENTICAL with zero `changed` emissions — no
+##     drain, no state write, the T-075 silence guarantee holding;
+## (b) `hunger_refill` restores exactly max while locked (a refill-at-full
+##     after that is a silent no-op by the clamped setter);
+## (c) `hunger_unlock` resumes the drain;
+## (d) the gate seam: with `allowed=false` (the suite cannot flip
+##     `OS.is_debug_build()`, so tests pass the seam explicitly) every verb
+##     logs `pilot_dev_refused` and moves no state, an unknown dev verb logs
+##     `pilot_dev_unknown` and is still consumed, and a non-dev dict returns
+##     false from the seam;
+## (e) the LIVE channel: lock+refill queued through real command files land
+##     while the tree is PAUSED (the recorder is PROCESS_MODE_ALWAYS — verbs
+##     flow when frozen), the lock holds through live ticks after resume, and
+##     `hunger_unlock` from the channel releases the drain again.
+## The tree, the autoload clock and the session env are restored however the
+## legs end.
+func _scenario_dev_hunger_lock() -> void:
+	get_tree().paused = false
+	var saved_session := OS.get_environment("PIGEON_PILOT_SESSION")
+	var saved_images := OS.get_environment("PIGEON_IMAGE_INTERVAL")
+	OS.set_environment("PIGEON_PILOT_SESSION", "simtest_dev")
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", "0")
+	var hunger := Game.hunger
+	hunger.reset() ## Clean slate on the autoload clock: full bar, no latch, no flap heat.
+	var saved_drain: float = hunger.drain_per_second
+	hunger.drain_per_second = 60.0 ## The T-005 game-over scenario's time-compression precedent.
+	hunger.player = _player ## Attach the sim pigeon — the drain needs a live player.
+	var recorder: Node = RECORDER_SCRIPT.new()
+	add_child(recorder)
+	await _wait_frames(3)
+	var pilot_dir := "res://.captures/session_simtest_dev"
+	## (a) Unlocked drain, then the lock reads bit-identical across 90 ticks.
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3(0.0, 0.0, -12.0))
+	var v0: float = hunger.value
+	await _wait_frames(90)
+	var drained: float = v0 - hunger.value
+	var drain_ok: bool = drained > 10.0 ## 90 ticks at 60/s ≈ 90 units; a silent lock regression lands ≈ 0.
+	var locked_value: float = hunger.value
+	_hunger_changed_fires = 0
+	var counter := func(_v: float, _m: float) -> void: _hunger_changed_fires += 1
+	hunger.changed.connect(counter)
+	var lock_ret: bool = recorder._execute_dev({"dev": "hunger_lock"})
+	await _wait_frames(90)
+	var locked_delta: float = hunger.value - locked_value ## Captured here — the leg's bite number.
+	var silent_fires: int = _hunger_changed_fires ## Same capture point.
+	var locked_ok: bool = lock_ret and hunger.locked \
+			and hunger.value == locked_value and _hunger_changed_fires == 0
+	hunger.changed.disconnect(counter)
+	## (b) Refill while locked lands exactly on max.
+	var refill_ret: bool = recorder._execute_dev({"dev": "hunger_refill"})
+	var refill_ok: bool = refill_ret and hunger.value == hunger.max_value
+	## (c) Unlock resumes the drain.
+	var unlock_ret: bool = recorder._execute_dev({"dev": "hunger_unlock"})
+	await _wait_frames(90)
+	var resumed_drop: float = hunger.max_value - hunger.value ## The leg (c) bite number.
+	var resumed_ok: bool = unlock_ret and not hunger.locked \
+			and resumed_drop > 20.0
+	## (d) The gate seam — all synchronous, so the value reference is honest.
+	var v_ref: float = hunger.value
+	var refused_lock: bool = recorder._execute_dev({"dev": "hunger_lock"}, false)
+	var refused_refill: bool = recorder._execute_dev({"dev": "hunger_refill"}, false)
+	var refused_unlock: bool = recorder._execute_dev({"dev": "hunger_unlock"}, false)
+	var unknown_ret: bool = recorder._execute_dev({"dev": "definitely_not_a_verb"})
+	var non_dev_ret: bool = recorder._execute_dev({"key": "Space"})
+	var events := _read_pilot_events(pilot_dir)
+	var gate_ok: bool = refused_lock and refused_refill and refused_unlock \
+			and unknown_ret and not non_dev_ret \
+			and not hunger.locked and hunger.value == v_ref \
+			and events.has("pilot_dev") and events.has("pilot_dev_refused") \
+			and events.has("pilot_dev_unknown")
+	## (e) The live channel, while frozen: pause through the channel, then the
+	## dev verbs as a real command file.
+	get_tree().paused = false ## Leg (e) starts from the same unpaused base the channel expects.
+	_drop_pilot_cmd(pilot_dir, '{"pause":true}')
+	await _wait_frames(3)
+	var channel_pause_ok: bool = get_tree().paused
+	_drop_pilot_cmd(pilot_dir, '{"dev":"hunger_lock"}\n{"dev":"hunger_refill"}')
+	await _wait_frames(4)
+	var channel_verbs_ok: bool = hunger.locked and hunger.value == hunger.max_value
+	_drop_pilot_cmd(pilot_dir, '{"resume":true}')
+	await _wait_frames(3)
+	var lock_holds_live: bool = not get_tree().paused
+	await _wait_frames(30)
+	lock_holds_live = lock_holds_live and hunger.value == hunger.max_value
+	_drop_pilot_cmd(pilot_dir, '{"dev":"hunger_unlock"}')
+	await _wait_frames(3)
+	await _wait_frames(30)
+	var channel_unlock_ok: bool = not hunger.locked \
+			and hunger.max_value - hunger.value > 10.0
+	## Restore: tree, session env, and the autoload clock exactly as found.
+	get_tree().paused = false
+	recorder.queue_free()
+	hunger.player = null ## The autoload's clock outlives this scene instance (suite convention).
+	hunger.locked = false ## Never leak a dev lock into later scenarios.
+	hunger.drain_per_second = saved_drain
+	hunger.reset()
+	OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
+	await _wait_frames(2)
+	## The bite record (T-167): the unlocked leg's drop, the locked leg's
+	## bit-identity and the resumed drop, printed so the ticket can quote the
+	## measured lines (the T-155 SIM DATA precedent).
+	print(("SIM DATA dev_hunger_lock: unlocked drain over 90 ticks = %.2f "
+			+ "(drain_per_second 60/s forced), locked delta over 90 ticks = %.6f "
+			+ "(changed_fires=%d), refill-at-locked lands exactly max: %s, "
+			+ "resumed drop over 90 ticks = %.2f")
+			% [drained, locked_delta, silent_fires, refill_ok, resumed_drop])
+	_check("dev_hunger_lock",
+			drain_ok and locked_ok and refill_ok and resumed_ok and gate_ok
+					and channel_pause_ok and channel_verbs_ok and lock_holds_live
+					and channel_unlock_ok,
+			"drain=%.2f locked=%s (Δ%.6f, changed_fires=%d) refill=%s resumed=%s "
+					+ "gate=%s (ret l/r/u %s/%s/%s, unknown=%s, non_dev=%s) "
+					+ "channel pause=%s verbs=%s hold_live=%s unlock=%s" % [
+					drained, locked_ok, locked_delta, silent_fires,
+					refill_ok, resumed_ok, gate_ok, refused_lock, refused_refill,
+					refused_unlock, unknown_ret, non_dev_ret, channel_pause_ok,
+					channel_verbs_ok, lock_holds_live, channel_unlock_ok])
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------

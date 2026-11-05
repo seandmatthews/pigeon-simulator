@@ -203,7 +203,9 @@ func _execute_press(cmd: Dictionary, frames: int) -> void:
 ## out). The game executes each file oldest-first and deletes it as the ack.
 ## Command formats: {"action": "flap", "frames": 7} (hold N physics frames),
 ## {"key": "Space", "frames": 2} (a real InputEventKey for menu screens),
-## {"quit": true}. Holds can overlap.
+## {"quit": true}. Holds can overlap. Dev-verb commands — any dict carrying a
+## `dev` key, e.g. {"dev": "hunger_lock"} — belong to the dev-verb family and
+## dispatch through _execute_dev() below (T-167).
 ## Frame-step debugging (owner ask, 2026-10-27): {"pause": true} freezes the
 ## whole tree, {"step": N} unpauses for exactly N physics ticks and
 ## re-pauses, {"resume": true} leaves pause for good. This node is
@@ -269,6 +271,12 @@ func _pilot_step() -> void:
 				else:
 					_log_event("pilot_step_ignored", {"frames": steps})
 				continue
+			## (T-167) The dev family's single seam: a dict carrying `dev` is
+			## consumed here — executed, logged unknown, or refused by the gate
+			## — and never falls through to the gameplay verbs below. False
+			## means "not a dev dict"; this loop keeps reading it as before.
+			if _execute_dev(cmd):
+				continue
 			var frames := int(cmd.get("frames", 1))
 			if cmd.has("key") or cmd.has("action"):
 				if get_tree().paused:
@@ -291,6 +299,64 @@ func _pilot_step() -> void:
 			_holds.erase(name_key)
 		else:
 			hold["frames"] = left
+
+
+## --- the dev-verb family (T-167) -------------------------------------------
+##
+## Pilot verbs for agent investigation sessions — a separate family from the
+## gameplay verbs above. EVERY dev verb dispatches through _execute_dev(): it
+## is the family's one seam, extended by later tickets (T-168 verb pack,
+## T-169 call verb), never bypassed. Events: `pilot_dev` {verb, ...} on
+## success (the ack an agent reads via `pilot.py events`),
+## `pilot_dev_unknown` {verb} for an unrecognized `{"dev":...}` payload, and
+## `pilot_dev_refused` {verb} when the debug-build gate refuses execution.
+## The verbs act on the Game autoload's hunger clock (reachable by name from
+## any script) and flow while the tree is PAUSED — this node is
+## PROCESS_MODE_ALWAYS, so frozen sessions still take dev commands.
+
+
+## The family's front-door gate: dev verbs are agent tooling and exist on
+## debug builds only. CaptureRecorder ships in exports (the 2026-10-17
+## adversarial review flagged exactly this leak class), so the gate — not the
+## verb list — is the standing fix. The `allowed` default-arg seam exists
+## because the sim suite cannot flip OS.is_debug_build(): tests pass
+## `allowed=false` explicitly, the production call site passes nothing.
+func _dev_allowed() -> bool:
+	return OS.is_debug_build()
+
+
+## The single dev-verb seam. Returns TRUE when the dict belongs to the dev
+## family — any dict carrying a `dev` key is consumed here (executed, logged
+## unknown, or refused by the gate) and never re-parsed as a gameplay verb;
+## FALSE for non-dev dicts so _pilot_step() keeps reading them. Refusal
+## (allowed=false) and unknown verbs move no state.
+func _execute_dev(cmd: Dictionary, allowed: bool = _dev_allowed()) -> bool:
+	if not cmd.has("dev"):
+		return false
+	var verb := String(cmd["dev"])
+	if not allowed:
+		_log_event("pilot_dev_refused", {"verb": verb, "reason": "not_allowed"})
+		return true
+	var hunger := get_tree().root.get_node_or_null("Game/Hunger") as Hunger
+	if hunger == null:
+		_log_event("pilot_dev_refused", {"verb": verb, "reason": "no_hunger"})
+		return true
+	match verb:
+		"hunger_lock":
+			hunger.locked = true
+		"hunger_unlock":
+			hunger.locked = false
+		"hunger_refill":
+			## The clamped setter makes a refill-at-full a silent no-op
+			## broadcast (T-075); it does NOT clear the game-over latch —
+			## the lock is prevention, not revive.
+			hunger.value = hunger.max_value
+		_:
+			_log_event("pilot_dev_unknown", {"verb": verb})
+			return true
+	_log_event("pilot_dev", {"verb": verb, "locked": hunger.locked,
+			"value": snappedf(hunger.value, 0.01)})
+	return true
 
 
 ## A real key event through the input pipeline — reaches _unhandled_input
