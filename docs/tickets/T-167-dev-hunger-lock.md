@@ -1,6 +1,6 @@
 # T-167 — Dev tool 1: the hunger lock — pilot verbs freeze and refill the survival clock, so investigation sessions stop dying at the starvation ceiling
 
-- **Status:** proposed · **Category:** tooling · **Value (1-5):** 4 ·
+- **Status:** done · **Category:** tooling · **Value (1-5):** 4 ·
   **Risk (1-5):** 1
 - **Depends on:** nothing (first of the three dev-tool tickets T-167/T-168/
   T-169 — this one lands the shared dispatcher seam the other two extend)
@@ -94,29 +94,29 @@ dispatcher seam (`_execute_dev` + the debug-build gate) so the verb pack
 
 ## Acceptance criteria
 
-- [ ] `Hunger.locked` exists (default false, dev-only docstring); locked
+- [x] `Hunger.locked` exists (default false, dev-only docstring); locked
       `_physics_process` performs no drain and no state write
-- [ ] `CaptureRecorder._execute_dev(cmd, allowed = _dev_allowed())` is the
+- [x] `CaptureRecorder._execute_dev(cmd, allowed = _dev_allowed())` is the
       single dev-verb seam, gated on `OS.is_debug_build()` in production;
       `_pilot_step()` routes `{"dev":...}` dicts to it and continues on
       false (non-dev dicts unaffected)
-- [ ] The three verbs work from a live pilot session, including while the
+- [x] The three verbs work from a live pilot session, including while the
       tree is PAUSED (PROCESS_MODE_ALWAYS — verbs flow when frozen)
-- [ ] *(Gate 1b)* new `dev_hunger_lock` scenario registered in the
+- [x] *(Gate 1b)* new `dev_hunger_lock` scenario registered in the
       `_run_scenarios` block (`sim_test.gd:242` neighbors) with the four
       legs above; the full suite stays 0 failures:
       `godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn`
-- [ ] *(Gate 1b bite)* recorded when landed: with the drain forced
+- [x] *(Gate 1b bite)* recorded when landed: with the drain forced
       (or `drain_per_second` hand-raised for the run) the locked leg reads
       a bit-identical value across N ticks while the unlocked leg drops —
       both lines recorded in this ticket
-- [ ] *(Gate 1)* `godot --headless --path . --import` and the 120-frame
+- [x] *(Gate 1)* `godot --headless --path . --import` and the 120-frame
       boot exit clean, zero ERROR lines
-- [ ] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`) —
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`) —
       proves the default-off lock changes nothing for real runs
-- [ ] VERIFICATION.md Gate 1b row + AGENTS.md pilot verb list updated in
+- [x] VERIFICATION.md Gate 1b row + AGENTS.md pilot verb list updated in
       the same change-set
-- [ ] *(Gate 3)* none — pure dev tool, no player-visible change; the
+- [x] *(Gate 3)* none — pure dev tool, no player-visible change; the
       `locked` flag and the verbs are unreachable in a release export
       (verified by the allowed=false leg + the debug-build gate), so there
       is no human-judgement surface to playtest
@@ -127,3 +127,47 @@ Gate 1 (`--import` + 120-frame boot) · Gate 1b full suite with
 `dev_hunger_lock` registered and its row added to the Gate 1b table in
 `VERIFICATION.md`, plus the AGENTS.md pilot verb list · Gate 2 autoplay ·
 Gate 3 explicitly none (see the criterion above for why that is honest).
+
+## Recorded (2026-11-05, landed run)
+
+- **Gate 1b bite** (the scenario's `SIM DATA` line, `drain_per_second`
+  hand-raised to 60/s for the run, restored after — the ticket's
+  forced-drain leg):
+  `SIM DATA dev_hunger_lock: unlocked drain over 90 ticks = 90.00 (drain_per_second 60/s forced), locked delta over 90 ticks = 0.000000 (changed_fires=0), refill-at-locked lands exactly max: true, resumed drop over 90 ticks = 90.00`
+  followed by `SIM PASS dev_hunger_lock` — the unlocked leg drops 90.00
+  units while the locked leg is bit-identical (Δ 0.000000, zero `changed`
+  emissions) across the same 90 ticks, refill lands exactly max, unlock
+  resumes the 90-unit drop. Full suite: 172 passes, `SIM SUMMARY: 0
+  failure(s)`, exit 0 (the 5 `route_exhausted` CarSpawner double-connect
+  ERRORs are pre-existing suite noise — a stashed base run shows the same
+  5 lines and 0 failures).
+- **Live pilot session** (`pilot.py`, session `t167check`, real windowed
+  run): `{"ev":"pilot_dev","locked":true,"t_ms":13560,"value":97.78,"verb":"hunger_lock"}`
+  → hunger reads exactly 97.78 at frames 2451/2452 after ~15 s of real
+  play including two 120-frame flap holds (flap events fired — flap heat
+  active, bar still frozen) → `{"dev":"hunger_refill"}` → hunger 100.0 →
+  `{"pause":true}` then `{"dev":"hunger_lock"}` through the channel while
+  frozen (the queued flap press shows `pilot_press_deferred` — verbs flow
+  while the tree is PAUSED) → `{"resume":true}` → hunger still exactly
+  100.0 → `{"ev":"pilot_dev","locked":false,"t_ms":70000,"value":100.0,"verb":"hunger_unlock"}`
+  → 6 s later hunger 98.36 (the 0.45/s drain law back in charge). The
+  refusal and unknown acks from the Gate 1b leg:
+  `{"ev":"pilot_dev_refused","reason":"not_allowed","verb":"hunger_lock"}`
+  (×3 verbs) and `{"ev":"pilot_dev_unknown","verb":"definitely_not_a_verb"}`.
+- **Export-preset re-check** (the ticket's "re-verify when landing"):
+  `export_presets.cfg` is `export_filter="all_resources"` with no
+  `tests/` exclusion — CaptureRecorder does ship in exports, so the
+  `OS.is_debug_build()` gate at the family's front door is the load-bearing
+  fix, exactly as the 2026-10-17 adversarial review demanded.
+
+**Final tuned values:** none retuned — this ticket introduces no gameplay
+constants. The shipped surface is `Hunger.locked` (default `false`), the
+drain law `drain_per_second` 0.45 / `flap_drain_multiplier` 2.0 /
+`flap_heat_seconds` 0.7 / `grounded_drain_multiplier` 0.6 all untouched, and
+the Gate 1b forced-drain `60.0` is run-scoped test scaffolding (set inside
+`_scenario_dev_hunger_lock`, restored before the check).
+
+**Accepted by reviewer sign-off on the landed tree 2026-11-05** — the
+reviewer accepted T-167; the ticket flips to done in this same change-set,
+and the machine evidence above (Gate 1b bite line, live pilot session,
+export-preset re-check) is the record it signed off on.

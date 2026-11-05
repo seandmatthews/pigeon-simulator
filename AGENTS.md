@@ -129,6 +129,9 @@ python tests/tools/pilot.py start --session <your-unique-id>   # boots menu.tscn
 python tests/tools/pilot.py wait  --session <id> --scene Menu  # Menu → Main after Space
 python tests/tools/pilot.py send  --session <id> '{"key":"Space","frames":2}'
 python tests/tools/pilot.py send  --session <id> '{"action":"flap","frames":7}'
+python tests/tools/pilot.py send  --session <id> '{"dev":"hunger_lock"}'    # dev verbs: freeze the
+python tests/tools/pilot.py send  --session <id> '{"dev":"hunger_refill"}'  #   survival clock (refill to max),
+python tests/tools/pilot.py send  --session <id> '{"dev":"hunger_unlock"}'  #   then resume the drain
 python tests/tools/pilot.py state --session <id>               # last world-state JSONL line
 python tests/tools/pilot.py events --session <id> --tail 20    # what happened
 python tests/tools/pilot.py shot  --session <id>               # OS grab of that window
@@ -161,6 +164,17 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
 - **Command files are consumed-and-deleted** by the game oldest-first; queue
   several in one file by passing multiple JSON lines. `state`'s `scene` field
   drives `wait` (`Menu`, `Main`).
+- **Dev verbs — `{"dev":...}` lines (T-167).** `hunger_lock` freezes the whole
+  survival clock (drain and flap heat — the bar and the HUD just sit), so an
+  investigation session stops dying at the ≈3.7-min starvation ceiling and the
+  0.1× ~60 wall-min budget; `hunger_refill` refills to max (prevention, not
+  revive — it does NOT clear an already-fired game over); `hunger_unlock`
+  resumes the drain. Each success acks a `pilot_dev` event with the verb and
+  the resulting bar; unknown dev verbs log `pilot_dev_unknown`; debug builds
+  only — a release export refuses every verb (`pilot_dev_refused`). The verbs
+  flow while the tree is PAUSED (the recorder is PROCESS_MODE_ALWAYS). This
+  family is the discovery surface for T-168's verb pack and T-169's call
+  verb — they extend `CaptureRecorder._execute_dev`, never bypass it.
 - **`shot` vs frame PNGs:** `shot` grabs the OS window by its
   `Pigeon pilot <id>` title (works even with `--images off`); the frame stream
   is the in-process viewport. Review with `tests/review/summarize.py

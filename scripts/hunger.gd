@@ -52,6 +52,18 @@ var value: float:
 ## True once game_over has fired; stays true until reset().
 var game_over_emitted: bool = false
 
+## (T-167) Dev-only freeze on the whole survival clock: when true,
+## `_physics_process` returns before its first state write — no drain, no flap
+## heat decay, nothing — so a pilot investigation session stops dying at the
+## starvation ceiling. Default off; NEVER written by gameplay code (the only
+## writers are the pilot channel's dev verbs `hunger_lock`/`hunger_unlock`
+## through CaptureRecorder._execute_dev, refused outside debug builds), and
+## deliberately not reset() material — the lock is a session-level dev toggle,
+## not run state, so a restart inside a locked session stays locked. A locked
+## bar emits no spurious `changed` signals (nothing writes `value`), so the
+## HUD just sits (the T-075 silence guarantee).
+var locked: bool = false
+
 var _value: float
 var _flap_heat: float = 0.0
 
@@ -74,6 +86,8 @@ func attach_player(new_player: Player) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if locked: ## (T-167) Dev lock — a full freeze, flap heat included: no drain, no state write.
+		return
 	if player == null or not is_instance_valid(player):
 		return
 	_flap_heat = maxf(_flap_heat - delta, 0.0)
