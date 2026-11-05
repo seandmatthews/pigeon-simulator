@@ -68,9 +68,10 @@ const SITTER_SHAPE_OFFSET := Vector3(0.0, 0.42, 0.0)
 const SHIRT_KEYS: Array[String] = ["sit_body"]
 
 ## (T-142) The baked sit meshes, harvested once per populate from the rig
-## scene ("sit_body"/"sit_legs"/"sit_head" → Mesh). The `sit_hair` key keeps
-## the retired box (the pack mannequin is bald); its offset derives from the
-## baked head's own AABB at populate time.
+## scene ("sit_body"/"sit_legs"/"sit_head" → Mesh). (T-164) The sitter hair
+## is the `sit_hair_cap` key — ONE fitted dome built per populate from the
+## baked head's own AABB — replacing the retired `sit_hair` box (the swap
+## tripwire pins its absence).
 var _sit_meshes: Dictionary = {}
 
 ## The retired scenes' fixed material colors (T-031) — wood, metal, hair —
@@ -146,7 +147,7 @@ func shirt_color(spot_index: int, seat: int) -> Color:
 	return Tourist.SHIRT_PALETTE[(spot_index + seat) % Tourist.SHIRT_PALETTE.size()]
 
 
-## One batched visual by its key ("sit_body", "sit_legs", "sit_hair", …) —
+## One batched visual by its key ("sit_body", "sit_legs", "sit_hair_cap", …) —
 ## tests read the sit/furniture MultiMeshes off these.
 func visual(key: String) -> MultiMeshInstance3D:
 	return visuals_root.get_node(key.to_pascal_case()) as MultiMeshInstance3D
@@ -193,7 +194,10 @@ func _populate() -> void:
 			_queue_mm(queues, "sit_body", sit_root, shirt_color(spot_i, seat))
 			_queue_mm(queues, "sit_legs", sit_root)
 			_queue_mm(queues, "sit_head", sit_root)
-			_queue_mm(queues, "sit_hair", sit_root.translated_local(_hair_offset()))
+			## (T-164) The dome cap rides the same root, rim sunk HAIR_CAP_SINK
+			## past the scalp line (the retired box rode 3 cm on the
+			## box-center convention and read as a hovering slab).
+			_queue_mm(queues, "sit_hair_cap", sit_root.translated_local(_hair_offset()))
 			_add_shape(sitters_body, SITTER_SHAPE_SIZE,
 					sitter_xf.translated_local(SITTER_SHAPE_OFFSET
 							+ Vector3(0.0, 0.0, -SIT_SLIDE)))
@@ -215,19 +219,31 @@ func _harvest_sit_meshes() -> Dictionary:
 	else:
 		for mi: MeshInstance3D in bake.get_children():
 			out["sit_" + mi.name.to_lower().trim_prefix("sit")] = mi.mesh
+		## (T-164) The sitter hair cap: ONE dome per populate, fitted to the
+		## harvested head bake with base_drop 0.0 (the instance transform is
+		## the positioner), wearing the retired box's flat HAIR color law.
+		## Every sitter bakes the same head, so one mesh serves the crowd.
+		var head_mesh: Mesh = out.get("sit_head")
+		if head_mesh != null:
+			var hair_mat := StandardMaterial3D.new()
+			hair_mat.albedo_color = HAIR
+			hair_mat.roughness = 1.0
+			out["sit_hair_cap"] = PeopleRig.hair_cap_mesh(
+					head_mesh.get_aabb(), 0.0, hair_mat)
 	rig.free()
 	return out
 
 
-## (T-142) The hair box's offset over the sitter root, derived from the
-## baked head's own AABB: centered on the head, sunk 3 cm past the scalp
-## line so the flat bottom reads as hair, not a hovering slab.
+## (T-142, re-sunk T-164) The hair cap's offset over the sitter root,
+## derived from the baked head's own AABB: centered on the head, rim sunk
+## HAIR_CAP_SINK past the scalp line so the dome lands ON the skull (the
+## retired box's end.y − 0.03 was the box-center convention).
 func _hair_offset() -> Vector3:
 	var head_mesh: Mesh = _sit_meshes.get("sit_head")
 	if head_mesh == null:
-		return Vector3(0.0, SIT_ROOT_Y + 1.4, 0.0) ## Bake missing — keep the box out of the ground.
+		return Vector3(0.0, SIT_ROOT_Y + 1.4, 0.0) ## Bake missing — keep the cap out of the ground.
 	var ab := head_mesh.get_aabb()
-	return Vector3(ab.get_center().x, ab.end.y + 0.02 - 0.05, ab.get_center().z)
+	return Vector3(ab.get_center().x, ab.end.y - PeopleRig.HAIR_CAP_SINK, ab.get_center().z)
 
 
 ## Frees the previous batch (if any): detached immediately so the rebuild can
@@ -334,11 +350,7 @@ func _visual_mesh(key: String) -> Mesh:
 			mesh = box
 			mat.albedo_color = METAL
 			mat.roughness = 0.9
-		"sit_hair":
-			var box := BoxMesh.new()
-			box.size = Vector3(0.28, 0.1, 0.3)
-			mesh = box
-			mat.albedo_color = HAIR
-			mat.roughness = 1.0
+		## (T-164) The retired `sit_hair` box arm is gone — the cap key is
+		## served from `_sit_meshes` (the fitted dome built at harvest).
 	mesh.material = mat
 	return mesh

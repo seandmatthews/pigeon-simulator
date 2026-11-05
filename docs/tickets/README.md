@@ -141,7 +141,7 @@ exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 | T-161 | [Separate the bread crumb from the yellow lane paint — the first verb misreads](T-161-crumb-vs-lane-paint.md) | ui-ux | 3 | 1 | proposed |
 | T-162 | [Mount the car blinkers on the body: the four amber lamps float off the stretched sedan's corners](T-162-blinkers-sit-on-the-body.md) | visual-design | 3 | 2 | done |
 | T-163 | [One seat-contact law: thighs, knees and shins clear every seat — the café stools and the elder bench](T-163-seat-contact-law.md) | visual-design | 3 | 2 | done |
-| T-164 | [Hair that is not a plank: one fitted dome cap on every head (café sitter, elder, tourist)](T-164-rounded-hair-caps.md) | visual-design | 3 | 2 | proposed |
+| T-164 | [Hair that is not a plank: one fitted dome cap on every head (café sitter, elder, tourist)](T-164-rounded-hair-caps.md) | visual-design | 3 | 2 | done |
 | T-165 | [Ground the gait: the people-locomotion constants probe — a live census instrument, its recorded ledger, and the rate pins the suite never had](T-165-walk-constants-probe.md) | visual-design | 3 | 2 | proposed |
 | T-166 | [Traffic holds that read calm: honk etiquette, oncoming-gated passes, and a force-commit that checks the box](T-166-traffic-hold-calm.md) | worldbuilding | 4 | 3 | proposed |
 | T-167 | [Dev tool 1: the hunger lock — pilot verbs freeze and refill the survival clock](T-167-dev-hunger-lock.md) | tooling | 4 | 1 | proposed |
