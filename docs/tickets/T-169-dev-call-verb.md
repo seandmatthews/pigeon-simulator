@@ -1,6 +1,6 @@
 # T-169 — Dev tool 3: the call verb — one-hop method invocation on the running world from a JSONL line
 
-- **Status:** doing · **Category:** tooling · **Value (1-5):** 3 ·
+- **Status:** done · **Category:** tooling · **Value (1-5):** 3 ·
   **Risk (1-5):** 3
 - **Depends on:** T-167 (the `_execute_dev` seam, the `_dev_allowed()`
   debug-build gate, the `pilot_dev`/`pilot_dev_unknown` event contract);
@@ -57,15 +57,26 @@ investigation stop needing tickets at all:
      serialized as inert data), no global function calls, no arbitrary
      property writes (`set`-with-coercion would smuggle the chaining back).
    - **Denylist:** node paths resolving inside the CaptureRecorder itself
-     (no self-calls into the channel), and the methods `free` /
-     `queue_free` / `_pilot_step` — logged `pilot_call_error` if aimed
-     at. (Round-1 amendment, review-found: the fence's words already
-     excluded what these next six DO, but a name check over the first
-     three didn't stop them — `call` / `callv` / `call_deferred`
-     re-enter dispatch by name, `propagate_call` fans out to self and
-     descendants, `set` / `set_deferred` are the property write; all six
-     now denylisted and scenario-pinned.) Release exports refuse
-     everything anyway behind the T-167 `_dev_allowed()` gate.
+     (no self-calls into the channel), and Object's whole enumerable
+     write/dispatch family — logged `pilot_call_error` if aimed at.
+     (Round-1 amendment, review-found: the fence's words already excluded
+     what these methods DO, but a name check over the first three didn't
+     stop them — `call` / `callv` / `call_deferred` re-enter dispatch by
+     name, `propagate_call` fans out to self and descendants, `set` /
+     `set_deferred` are the property write. Round-2 amendment,
+     review-found: the six still weren't the family — the
+     `*-thread-safe`/`set_indexed` siblings wrote hunger and dispatched
+     live, and `set_script [null]` stripped a car's class — so the fence
+     now covers EVERYTHING that dispatches by name (`call`, `callv`,
+     `call_deferred`, `call_thread_safe`, `call_deferred_thread_group`,
+     `propagate_call`, `emit_signal`), everything that writes by property
+     name or path (`set`, `set_deferred`, `set_indexed`, `set_thread_safe`,
+     `set_deferred_thread_group`), the destructive `set_script`, and the
+     teardown trio, all scenario-pinned; deliberately NOT denied:
+     `notification`/`notify_*` (int codes — no callable payload),
+     `rpc*` (inert here — the engine refuses unconfigured RPCs, live-tried
+     in review), and the fixed-purpose config setters.) Release exports
+     refuse everything anyway behind the T-167 `_dev_allowed()` gate.
    - **Debug-build only**, inherited from T-167 — the shipped game has no
      invocation surface.
 4. **Gate 1b scenario `dev_call_verb`** (registered in the
@@ -160,9 +171,9 @@ that uses `call` without wedging the game is a Gate 3 data point.
 ## Recorded (2026-11-06, landed run)
 
 - **Gate 1b bite** (the scenario's `SIM DATA` line, `drain_per_second`
-  hand-raised to 60/s for the run and restored after — the post-round-1
+  hand-raised to 60/s for the run and restored after — the post-round-2
   run, every leg driven through the channel-real `_json_round_trip`):
-  `SIM DATA dev_call_verb: eat +10.00 (acked void-null=true), tells vec='Vector3:(1.0, 2.0, 3.0)' arr='Array:3:float' untyped='Array:2' int='int:1' np='node_path:CallProbe', defaulted=true add=true tp=true, errors node/method/arity=true/true/true(eat_errors=2) moved_nothing=true, deny direct=true escapes=6/6 no_dev_ran=true game_alive=true, refused=true no_leaked_eat=true`
+  `SIM DATA dev_call_verb: eat +10.00 (acked void-null=true), tells vec='Vector3:(1.0, 2.0, 3.0)' arr='Array:3:float' untyped='Array:2' int='int:1' np='node_path:CallProbe', cache_split=true acks=true, defaulted=true add=true tp=true, errors node/method/arity=true/true/true(eat_errors=2) moved_nothing=true, deny direct=true escapes=12/12 no_dev_ran=true game_alive=true survived=true, refused=true no_leaked_eat=true`
   followed by `SIM PASS dev_call_verb`. The reads behind each arm: the
   `Game.hunger` eat lands +10.00 exactly with the void return serialized as
   JSON null; the `[1,2,3]` array coerced into the probe's Vector3-typed
@@ -171,13 +182,17 @@ that uses `call` without wedging the game is a Gate 3 data point.
   stayed an `Array` (the tell names the element type); the channel-type
   pins read `int:1` / `node_path:CallProbe` (a bare JSON `[1]` into an
   int-typed parameter and a string into a NodePath-typed one — the
-  round-1 fix); the undershoot into `probe_defaulted` filled the 2.5
-  default while BOTH eat arity refusals logged (eat_errors=2); the
-  `/root`-path `reset_flight` landed the pigeon on target with velocity
-  exactly `Vector3.ZERO`; and every error/denylist arm refused with its
-  named code while the session continued — all six dispatch/write escapes
-  denied, no `pilot_dev` event anywhere (the propagate_call never reached
-  the recorder), Game alive, exactly one eat result ack.
+  round-1 fix); the cache-split triple (Label set_scale → Node3D
+  set_scale → label again) landed with both scale readbacks (the round-2
+  fix — a reverted name-only key fails this leg alone); the undershoot
+  into `probe_defaulted` filled the 2.5 default while BOTH eat arity
+  refusals logged (eat_errors=2); the `/root`-path `reset_flight` landed
+  the pigeon on target with velocity exactly `Vector3.ZERO`; and every
+  error/denylist arm refused with its named code while the session
+  continued — all TWELVE dispatch/write escapes denied, the probe's
+  script intact after the refused set_script, no `pilot_dev` event
+  anywhere (the propagate_call never reached the recorder), Game alive,
+  exactly one eat result ack.
 - **Engine behavior measured on 4.7.2** (a headless probe, before writing
   the verb): `root.get_node_or_null("Game.hunger")`
   returns null for a dotted path (subnames do not resolve) — hence the
@@ -198,7 +213,7 @@ that uses `call` without wedging the game is a Gate 3 data point.
   String→StringName/NodePath/Color runs (`take_node_path ["Player"]`),
   numbers→bool runs, string/bool→String and arrays→anything (integer
   vectors included) refuse, and a typed Object param accepts null.)
-- **Full suite (post-round-1):** 174 passes, `SIM SUMMARY: 0 failure(s)`,
+- **Full suite (post-round-2):** 174 passes, `SIM SUMMARY: 0 failure(s)`,
   exit 0. The remaining log ERRORs are pre-existing baseline (the
   `route_exhausted` double-connects, the cafe-sitter/hair-cap lookups, one
   car-gap line, and two Parse-JSON lines from the untouched
@@ -279,8 +294,66 @@ reopened the ticket (status back to doing) and each fix landed in the
    the ticket's §3 denylist line and the AGENTS.md fence text now state
    the full list.
 
+## Round 2 review (2026-11-06) — two defects, both fixed in the follow-up
+
+The reviewer re-played the landed verb live (sessions rv2/rv2b) and read
+the round-1 fix; each finding reopened the ticket and each fix landed in
+the round-2 `fix(tooling)` commit:
+
+1. **The denylist's family was still bigger than the round-1 six.** Live on
+   raw JSONL through `pilot.py send`: `set_indexed ["value",50.0]`,
+   `set_thread_safe`, `set_deferred_thread_group` wrote hunger
+   (99.88→50.0→40.0→30.0); `call_thread_safe ["reset"]` and
+   `call_deferred_thread_group ["reset"]` refilled to 100.0;
+   `call_thread_safe ["queue_free"]` freed a spawned car (fleet 27→26,
+   living_cars() then errored to `[]`) and — on /root/Game in a throwaway
+   session — removed the live autoload (state hunger/score None, godot.log
+   at 372 ERROR-matching lines, HUD frozen); and the round-1
+   typed-Object-accepts-null arm enabled `set_script [null]`, which
+   STRIPPED a spawned car's script (next set_blinker_forced logged
+   unknown_method, a bare CharacterBody3D left in the managed fleet). The
+   reviewer enumerated the verb's own `get_method_list` (204 entries on
+   Game.hunger) and classified the family; this repo's probe re-enumerated
+   a bare Node (196 entries) and matched it. Fix: `_CALL_DENIED_METHODS`
+   now covers the whole enumerable write/dispatch family — the round-1 six
+   plus `set_indexed`, `set_thread_safe`, `set_deferred_thread_group`,
+   `call_thread_safe`, `call_deferred_thread_group`, the destructive
+   `set_script`, and `emit_signal` (dispatch-to-callables, the same class
+   as the round-1 `call` wrap) — with the deliberate omissions documented
+   in the const: `notification`/`notify_*`/`propagate_notification` (int
+   codes, no callable payload — not arbitrary dispatch), `rpc*` (inert
+   here, live-tried: the engine refuses unconfigured RPCs), and the
+   fixed-purpose config setters (a fence over every setter would be an
+   allowlist in reverse). Scenario: the five sibling wraps + `set_script`
+   on the probe joined the deny legs (twelve wrap pairs now), the probe's
+   script proven intact after the refusal, and AGENTS.md names the family
+   rather than a point list.
+2. **The round-1 cache-split fix shipped with no re-verification path**
+   (against the ticket-loop rule: never ship a feature without a way to
+   re-verify it later). The reviewer verified the split LIVE in both
+   orders (StatsLabel set_scale then Player set_scale then the label again
+   all succeeded; set_rotation/get_rotation/get_position ran on both
+   classes; elder `_face` 3-arg and car `_face` 2-arg ran while the
+   wrong-arity cross-pairs refused) — but no suite leg pinned it, so a
+   revert to the name-only key would pass the full suite green. Fix: a
+   scenario leg drives the SAME `set_scale` name on a bare Label
+   (Vector2) → a bare Node3D (Vector3) → the LABEL AGAIN — the exact order
+   that poisoned the round-1 key — asserting all three consumed, both
+   result acks present, and the scale readbacks (`Vector2(3,3)` /
+   `Vector3(2,2,2)`) proving the landings; a reverted
+   name-only key now fails the suite while everything else stays green.
+
 **Final tuned values:** none retuned — this ticket adds no gameplay
 constants. The shipped surface is the `call` verb's behavior contract
-(resolution arms, the single Vector2/3/4 coercion rule, the denylist, the
-event names) plus the tests-only `CallProbe` (tests/call_probe.gd), whose
-methods exist to be called by the scenario and ship with `tests/`.
+(resolution arms, the single Vector2/3/4 coercion rule, the whole
+write/dispatch-family denylist, the event names) plus the tests-only
+`CallProbe` (tests/call_probe.gd), whose methods exist to be called by
+the scenario and ship with `tests/`.
+
+**Accepted by reviewer sign-off on the landed tree 2026-11-06** — the
+reviewer accepted T-169 after two review rounds (both recorded above,
+both fixed and re-gated); the ticket flips to done in this same
+change-set, and the machine evidence above (the post-round-2 Gate 1b bite
+line: 174 passes, 0 failures, escapes=12/12, cache_split=true; Gate 1
+import + 120-frame boot clean; Gate 2 autoplay ok=true restart=true) is
+the record it signed off on.

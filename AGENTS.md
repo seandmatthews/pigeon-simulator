@@ -235,16 +235,29 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
   for everything else. **Read the fence before reaching for it:** this
   is a remote procedure call, NOT a scripting console — no expression
   evaluation, no chaining on results (a returned object comes back as inert
-  text), no property writes, no global functions, and the denylist refuses
-  `free` / `queue_free` / `_pilot_step` AND Object's own dispatch/write
-  escapes — `call` / `callv` / `call_deferred` / `propagate_call` / `set` /
-  `set_deferred` — plus anything resolving inside the CaptureRecorder (the
-  round-1 review: a `{"method":"call","args":["queue_free"]}` wrap freed
-  the live Game autoload, `propagate_call` on /root reached the recorder,
-  and `set` wrote hunger — all before this list existed). Debug builds
-  only (release refuses behind the `_dev_allowed()` gate); flows while the
-  tree is paused like every dev verb. Loosening any of that is a future
-  owner ticket argued against this written line.
+  text), no property writes, no global functions, and the denylist covers
+  Object's whole enumerable WRITE/DISPATCH family, not a point list:
+  everything that dispatches by name (`call`, `callv`, `call_deferred`,
+  `call_thread_safe`, `call_deferred_thread_group`, `propagate_call`,
+  `emit_signal`), everything that writes by property name or path (`set`,
+  `set_deferred`, `set_indexed`, `set_thread_safe`,
+  `set_deferred_thread_group`), the destructive `set_script` (strips a
+  class from a live node), and the teardown `free` / `queue_free` /
+  `_pilot_step` — plus anything resolving inside the CaptureRecorder.
+  Review rounds made the family explicit: round 1 — a
+  `{"method":"call","args":["queue_free"]}` wrap freed the live Game
+  autoload and `propagate_call` on /root reached the recorder itself;
+  round 2 — the `*-thread-safe`/`set_indexed` siblings wrote hunger and
+  dispatched methods past the six, and a null `set_script` stripped a
+  car's script out of the managed fleet. Deliberately NOT denied:
+  `notification`/`notify_*` (int codes, no callable payload — not
+  arbitrary dispatch), `rpc`/`rpc_id`/`rpc_config` (inert here — the
+  engine refuses unconfigured RPCs and this game configures none), and
+  the fixed-purpose config setters (`set_name`, `set_process`, `set_meta`,
+  …) — ordinary one-hop methods. Debug builds only (release refuses
+  behind the `_dev_allowed()` gate); flows while the tree is paused like
+  every dev verb. Loosening any of that is a future owner ticket argued
+  against this written line.
 - **`shot` vs frame PNGs:** `shot` grabs the OS window by its
   `Pigeon pilot <id>` title (works even with `--images off`); the frame stream
   is the in-process viewport. Review with `tests/review/summarize.py

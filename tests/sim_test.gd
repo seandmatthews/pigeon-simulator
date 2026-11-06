@@ -10569,13 +10569,18 @@ func _scenario_dev_verb_pack() -> void:
 ##     Vector3.ZERO, an undershoot into `probe_defaulted` fills the 2.5
 ##     default (required = total − default_args.size(), and 1 ≥ 1 — the
 ##     engine fills what the method list names), a two-float call returns
-##     the numeric result through the serializer, and the CHANNEL-TYPE pins
+##     the numeric result through the serializer, the CHANNEL-TYPE pins
 ##     (round-1 review): a plain `[1]` into the probe's int-typed parameter
 ##     and a string into its NodePath-typed parameter both RUN (the parser
 ##     delivered every number as a float; the engine converts float→int and
 ##     String→NodePath — the review's set_blinker_forced/has_node calls) —
 ##     a gate that regresses to native-type-only refuses these and the
-##     tells never land;
+##     tells never land — and the CACHE-SPLIT pin (round-2 review): the
+##     same `set_scale` name on a Label (Vector2) then a bare Node3D
+##     (Vector3) then the LABEL AGAIN — exactly the order that poisoned the
+##     round-1 name-only cache key — with both scale readbacks proving all
+##     three landed (a reverted name-only key turns the third call into a
+##     type refusal while everything else stays green);
 ## (c) error paths — unknown node, unknown method, overshoot arity AND
 ##     undershoot arity each log `pilot_call_error` (unknown_node /
 ##     unknown_method / arity), the arity refusals move no state (an
@@ -10586,11 +10591,17 @@ func _scenario_dev_verb_pack() -> void:
 ##     Game autoload are refused (`denied_method`) and the autoload
 ##     SURVIVES the following frames, a call aimed at the recorder's own
 ##     node path refuses (`recorder_node` — no self-calls into the
-##     channel), `_pilot_step` aimed anywhere refuses, AND the round-1
-##     review's dispatch/write escapes all refuse too: `call` and `callv`
+##     channel), `_pilot_step` aimed anywhere refuses, AND the review-found
+##     dispatch/write escapes all refuse too — round 1: `call` and `callv`
 ##     wraps of queue_free on /root/Game, `call_deferred("reset")` and
 ##     `set("value", 50.0)` on Game.hunger, and `/root` `propagate_call`
-##     aimed at `_execute_dev` — each `denied_method`, hunger unmoved
+##     aimed at `_execute_dev`; round 2: the thread-safe/indexed siblings
+##     (`set_indexed`, `set_thread_safe`, `set_deferred_thread_group`,
+##     `call_thread_safe`, `call_deferred_thread_group` — all five wrote
+##     hunger or dispatched reset live past the round-1 six) and `set_script
+##     [null]` on the probe (stripped a car's script live, via the
+##     typed-Object-accepts-null arm), with the probe's own script proven
+##     intact after the refusal — each `denied_method`, hunger unmoved
 ##     through the following frames (a slipped deferred would land), Game
 ##     alive, and no `pilot_dev` ack anywhere in the events (the
 ##     propagate_call never reached the recorder);
@@ -10661,6 +10672,30 @@ func _scenario_dev_call_verb() -> void:
 	var np_ret: bool = recorder._execute_dev(_json_round_trip(
 			{"dev": "call", "node": probe_path, "method": "probe_node_path",
 			"args": ["CallProbe"]}))
+	## --- (b3) the cache-split pin (round-2 review): the SAME method name on
+	## TWO different native classes, driven label → Node3D → label again —
+	## exactly the order that poisoned the round-1 name-only cache key (the
+	## third call would type-refuse against the Vector3 signature the second
+	## call cached; a revert to name-only keys fails here while everything
+	## else stays green). Both readbacks pin the landing.
+	var scale_label := Label.new()
+	add_child(scale_label)
+	var scale_label_path := String(scale_label.get_path())
+	var scale_n3 := Node3D.new()
+	add_child(scale_n3)
+	var scale_n3_path := String(scale_n3.get_path())
+	var ls1_ret: bool = recorder._execute_dev(_json_round_trip(
+			{"dev": "call", "node": scale_label_path, "method": "set_scale",
+			"args": [[1.0, 1.0]]}))
+	var n3_ret: bool = recorder._execute_dev(_json_round_trip(
+			{"dev": "call", "node": scale_n3_path, "method": "set_scale",
+			"args": [[2.0, 2.0, 2.0]]}))
+	var ls2_ret: bool = recorder._execute_dev(_json_round_trip(
+			{"dev": "call", "node": scale_label_path, "method": "set_scale",
+			"args": [[3.0, 3.0]]}))
+	var cache_split: bool = ls1_ret and n3_ret and ls2_ret \
+			and scale_label.scale == Vector2(3.0, 3.0) \
+			and scale_n3.scale == Vector3(2.0, 2.0, 2.0)
 	## --- (c) error paths: unknown node / method / arity both directions ------
 	var v_ref: float = hunger.value
 	var bad_node_ret: bool = recorder._execute_dev(_json_round_trip(
@@ -10703,6 +10738,32 @@ func _scenario_dev_call_verb() -> void:
 	var wrap_prop_ret: bool = recorder._execute_dev(_json_round_trip(
 			{"dev": "call", "node": "/root", "method": "propagate_call",
 			"args": ["_execute_dev", [{"dev": "hunger_refill"}], false]}))
+	## (Round-2 review) The thread-safe/indexed SIBLINGS of the round-1 six
+	## fired live past it: set_indexed/set_thread_safe/set_deferred_thread_
+	## group wrote hunger (99.88→50.0→40.0→30.0), call_thread_safe/
+	## call_deferred_thread_group dispatched reset — and set_script [null]
+	## (enabled by the typed-Object-accepts-null arm) STRIPPED a car's
+	## script, leaving a bare CharacterBody3D in the managed fleet.
+	var wrap_setidx_ret: bool = recorder._execute_dev(_json_round_trip(
+			{"dev": "call", "node": "Game.hunger", "method": "set_indexed",
+			"args": ["value", 50.0]}))
+	var wrap_setts_ret: bool = recorder._execute_dev(_json_round_trip(
+			{"dev": "call", "node": "Game.hunger", "method": "set_thread_safe",
+			"args": ["value", 40.0]}))
+	var wrap_setdtg_ret: bool = recorder._execute_dev(_json_round_trip(
+			{"dev": "call", "node": "Game.hunger", "method": "set_deferred_thread_group",
+			"args": ["value", 30.0]}))
+	var wrap_callts_ret: bool = recorder._execute_dev(_json_round_trip(
+			{"dev": "call", "node": "Game.hunger", "method": "call_thread_safe",
+			"args": ["reset"]}))
+	var wrap_calltdg_ret: bool = recorder._execute_dev(_json_round_trip(
+			{"dev": "call", "node": "Game.hunger", "method": "call_deferred_thread_group",
+			"args": ["reset"]}))
+	var wrap_setscript_ret: bool = recorder._execute_dev(_json_round_trip(
+			{"dev": "call", "node": probe_path, "method": "set_script",
+			"args": [null]}))
+	var probe_survived: bool = probe.has_method("probe_int") \
+			and probe.get_script() != null ## A slipped set_script strips the class.
 	## The deny pins compare hunger ACROSS the wait below, and the forced
 	## 60/s drain would move the bar ~3 units over those ticks — freeze the
 	## clock for the window (the T-167 lock, released right after), so an
@@ -10786,7 +10847,9 @@ func _scenario_dev_call_verb() -> void:
 	var deny_ok: bool = free_ret and qfree_ret and self_ret and step_ret \
 			and wrap_call_ret and wrap_callv_ret and wrap_set_ret \
 			and wrap_setdef_ret and wrap_calldef_ret and wrap_prop_ret \
-			and deny_state_ok \
+			and wrap_setidx_ret and wrap_setts_ret and wrap_setdtg_ret \
+			and wrap_callts_ret and wrap_calltdg_ret and wrap_setscript_ret \
+			and probe_survived and deny_state_ok \
 			and not err_free.is_empty() and String(err_free.get("error", "")) == "denied_method" \
 			and not err_qfree.is_empty() and String(err_qfree.get("error", "")) == "denied_method" \
 			and not err_self.is_empty() and String(err_self.get("error", "")) == "recorder_node" \
@@ -10799,6 +10862,11 @@ func _scenario_dev_call_verb() -> void:
 		["/root/Game", "call"], ["/root/Game", "callv"],
 		["Game.hunger", "set"], ["Game.hunger", "set_deferred"],
 		["Game.hunger", "call_deferred"], ["/root", "propagate_call"],
+		["Game.hunger", "set_indexed"], ["Game.hunger", "set_thread_safe"],
+		["Game.hunger", "set_deferred_thread_group"],
+		["Game.hunger", "call_thread_safe"],
+		["Game.hunger", "call_deferred_thread_group"],
+		[probe_path, "set_script"],
 	]
 	var wrap_denied := 0
 	for pair in wrap_pairs:
@@ -10811,6 +10879,14 @@ func _scenario_dev_call_verb() -> void:
 		if e.get("ev", "") == "pilot_dev":
 			no_dev_ran = false
 	var fence_ok: bool = deny_ok and wrap_denied == wrap_pairs.size() and no_dev_ran
+	## The cache-split ACKs (round-2): all three set_scale calls must ack as
+	## RESULTS (a reverted name-only key turns the second/third into type
+	## errors).
+	var ack_ls1 := _find_pilot_call(events, "pilot_call_result",
+			scale_label_path, "set_scale")
+	var ack_n3 := _find_pilot_call(events, "pilot_call_result",
+			scale_n3_path, "set_scale")
+	var cache_acks: bool = not ack_ls1.is_empty() and not ack_n3.is_empty()
 	var refused_logged: bool = false
 	for e in events:
 		if e.get("ev", "") == "pilot_dev_refused" and String(e.get("verb", "")) == "call":
@@ -10825,8 +10901,10 @@ func _scenario_dev_call_verb() -> void:
 				and String(e.get("method", "")) == "eat":
 			eat_result_acks += 1
 	var no_leaked_eat: bool = eat_result_acks == 1
-	## Restore: tree, autoload clock, probe, recorder, session env — however the legs end.
+	## Restore: tree, autoload clock, probes, recorder, session env — however the legs end.
 	get_tree().paused = false
+	scale_label.queue_free()
+	scale_n3.queue_free()
 	probe.queue_free()
 	recorder.queue_free()
 	hunger.player = null ## The autoload's clock outlives this scene instance (suite convention).
@@ -10838,27 +10916,30 @@ func _scenario_dev_call_verb() -> void:
 	await _wait_frames(2)
 	## The bite record (the T-155/T-167 SIM DATA precedent): the +10 read, the
 	## coercion tells (vectors, arrays, the channel's float-into-int), the
-	## defaulted fill, the serialized sum, both arity directions and the
-	## denylist fence.
+	## cache split, the defaulted fill, the serialized sum, both arity
+	## directions and the denylist fence.
 	print(("SIM DATA dev_call_verb: eat +%.2f (acked void-null=%s), tells vec='%s' "
-			+ "arr='%s' untyped='%s' int='%s' np='%s', defaulted=%s add=%s tp=%s, "
-			+ "errors node/method/arity=%s/%s/%s(eat_errors=%d) moved_nothing=%s, "
-			+ "deny direct=%s escapes=%d/%d no_dev_ran=%s game_alive=%s, "
-			+ "refused=%s no_leaked_eat=%s")
+			+ "arr='%s' untyped='%s' int='%s' np='%s', cache_split=%s acks=%s, "
+			+ "defaulted=%s add=%s tp=%s, errors node/method/arity=%s/%s/%s"
+			+ "(eat_errors=%d) moved_nothing=%s, deny direct=%s escapes=%d/%d "
+			+ "no_dev_ran=%s game_alive=%s survived=%s, refused=%s no_leaked_eat=%s")
 			% [rose, eat_acked, vec_tell, arr_tell, untyped_tell, int_tell, np_tell,
-			def_ok, add_ok, tp_ok, not err_node.is_empty(), not err_method.is_empty(),
+			cache_split, cache_acks, def_ok, add_ok, tp_ok,
+			not err_node.is_empty(), not err_method.is_empty(),
 			not err_over.is_empty(), eat_error_count, arity_moved_nothing,
 			free_ret and qfree_ret, wrap_denied, wrap_pairs.size(), no_dev_ran,
-			is_instance_valid(Game), refused_logged, no_leaked_eat])
+			is_instance_valid(Game), probe_survived, refused_logged, no_leaked_eat])
 	var call_ok: bool = happy_ok and eat_acked and coerce_ok and stays_array \
-			and channel_types and def_ok and add_ok and tp_ok and tp_acked \
-			and errors_ok and fence_ok and refused_ok and refused_logged \
-			and no_leaked_eat
+			and channel_types and cache_split and cache_acks and def_ok and add_ok \
+			and tp_ok and tp_acked and errors_ok and fence_ok and refused_ok \
+			and refused_logged and no_leaked_eat
 	_check("dev_call_verb", call_ok,
-			("happy=%s acked=%s coerce=%s stays_array=%s channel_types=%s def=%s "
-					+ "add=%s tp=%s errors=%s fence=%s refused=%s no_leaked_eat=%s") % [
+			("happy=%s acked=%s coerce=%s stays_array=%s channel_types=%s "
+					+ "cache_split=%s def=%s add=%s tp=%s errors=%s fence=%s "
+					+ "refused=%s no_leaked_eat=%s") % [
 						happy_ok, eat_acked, coerce_ok, stays_array, channel_types,
-						def_ok, add_ok, tp_ok, errors_ok, fence_ok, refused_ok,
+						cache_split and cache_acks, def_ok, add_ok, tp_ok,
+						errors_ok, fence_ok, refused_ok,
 						refused_logged and no_leaked_eat])
 
 

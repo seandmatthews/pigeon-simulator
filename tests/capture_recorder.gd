@@ -524,20 +524,43 @@ func _dev_freeze_traffic(cmd: Dictionary) -> void:
 ## --- the T-169 call verb -----------------------------------------------------
 
 
-## (T-169, round 1 review) The denied METHOD names. The ticket's fence is
-## "one hop, no chaining, no property writes, no self-calls into the
-## channel" — and Object's own dispatch/write methods defeat a name check
-## that only covers the fence's first three names: a
+## (T-169, rounds 1–2 review) The denied METHOD names: Object's whole
+## enumerable write/dispatch family. The ticket's fence is "one hop, no
+## chaining, no property writes, no self-calls into the channel", and a
+## name check shorter than the family does not hold it — the round-1 six
+## left live siblings that the round-2 review fired on real sessions:
+## `set_indexed`/`set_thread_safe`/`set_deferred_thread_group` wrote hunger
+## (99.88→50.0→40.0→30.0), `call_thread_safe`/`call_deferred_thread_group`
+## dispatched reset (and queue_free'd a spawned car, corrupting the fleet
+## to living_cars() == []), and — enabled by the typed-Object-accepts-null
+## argument arm — `set_script [null]` STRIPPED a car's script, leaving a
+## bare CharacterBody3D in the managed fleet. Round 1's evidence: a
 ## `{"method":"call","args":["queue_free"]}` wrap FREED the live Game
-## autoload in the round-1 review (the wrap rode past `free`/`queue_free`),
-## `propagate_call` on /root fanned out into this recorder and ran a dev
-## verb (a self-call into the channel), `set` moved hunger arbitrarily (the
-## property write the ticket excludes), and `call_deferred` dispatched a
-## method on the next tick. Denied everywhere, by exact name — the fence
-## is uniform, not situational.
+## autoload, `propagate_call` on /root fanned out into this recorder and
+## ran a dev verb (a self-call into the channel), `set`/`set_deferred`
+## wrote hunger, and `call_deferred` dispatched on the next tick.
+## Denied everywhere, by exact name — the fence is uniform, not
+## situational. Deliberate omissions, classification-checked against the
+## full get_method_list enumeration (196 entries on a bare Node):
+## `notification`/`notify_*`/`propagate_notification` carry only int
+## notification codes — no callable rides on them, so they are not
+## arbitrary dispatch; `rpc`/`rpc_id`/`rpc_config` are inert in this
+## game (the engine refuses unconfigured RPCs and none are configured —
+## live-tried in the round-2 review); and the fixed-purpose config
+## setters (`set_name`, `set_process`, `set_meta`, …) are ordinary
+## one-hop methods — a fence over every setter would be an allowlist in
+## reverse.
 const _CALL_DENIED_METHODS: Array[String] = [
+	## teardown (self and others)
 	"free", "queue_free", "_pilot_step",
-	"call", "callv", "call_deferred", "propagate_call", "set", "set_deferred",
+	## dispatch by name — the engine runs what these name
+	"call", "callv", "call_deferred", "call_thread_safe",
+	"call_deferred_thread_group", "propagate_call", "emit_signal",
+	## arbitrary writes by property name/path
+	"set", "set_deferred", "set_indexed", "set_thread_safe",
+	"set_deferred_thread_group",
+	## destructive write — strips a class from a live node
+	"set_script",
 ]
 
 
@@ -560,12 +583,16 @@ const _CALL_DENIED_METHODS: Array[String] = [
 ## argue against): one hop only — no expression evaluation, no chaining
 ## on results (a returned object serializes as inert data), no property
 ## writes; denylisted are node paths resolving inside this recorder (no
-## self-calls into the channel) and _CALL_DENIED_METHODS: the teardown
-## trio plus Object's own dispatch/write escapes (`call` / `callv` /
-## `call_deferred` / `propagate_call` / `set` / `set_deferred` — see the
-## const above for what each smuggled in review). Debug builds only,
-## inherited from the _execute_dev gate — release exports refuse the verb
-## before this runs.
+## self-calls into the channel) and _CALL_DENIED_METHODS — Object's whole
+## enumerable write/dispatch family: the teardown trio, every dispatch-by-
+## name method (call/callv/call_deferred/call_thread_safe/
+## call_deferred_thread_group/propagate_call/emit_signal), every
+## arbitrary write by property name or path (set/set_deferred/set_indexed/
+## set_thread_safe/set_deferred_thread_group), and the destructive
+## set_script (see the const above for what each family smuggled in the
+## round-1/round-2 reviews, and for the classification-checked
+## omissions). Debug builds only, inherited from the _execute_dev gate —
+## release exports refuse the verb before this runs.
 func _dev_call(cmd: Dictionary) -> void:
 	var node_text := String(cmd.get("node", ""))
 	var method := String(cmd.get("method", ""))
