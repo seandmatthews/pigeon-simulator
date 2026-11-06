@@ -135,6 +135,52 @@ func living_cars() -> Array[Car]:
 	return _cars.duplicate()
 
 
+## (T-168) The dev freeze gates the spawn cadence: no recycle scan — and no
+## `_replace_car` replacement spawns — into a staged scene. The scan timer
+## holds too (the early return skips the accumulation), so `on:false` resumes
+## the old rhythm rather than firing an immediate catch-up scan.
+func _physics_process(delta: float) -> void:
+	if Car.traffic_frozen:
+		return
+	super(delta)
+
+
+## (T-168) The `spawn_car` dev verb's entry point — the implementer's read of
+## the spawn paths, recorded in the ticket: ONE car near the player through
+## the populate loop's own parked path (`_spawn_parked` — the seeded class
+## draw under a fresh 1-slot quota, the tailgate wiring, `park_at`, the splat
+## relay and the `_cars` registration), so cleanup, crosswalk yield and the
+## recycle machinery see it exactly like a populate-seeded car — no orphan
+## nodes. Placement walks the band blocks (nearest to the player first) and
+## each block's curb spots (nearest first) and takes the first FREE one; the
+## sightline gate is deliberately not consulted — it exists to keep gameplay
+## pop-in off-screen, and a dev spawn is meant to be seen. The 1-slot class
+## quota makes the draw a deterministic civilian. Returns the new car, or
+## null when city/player are missing or no curb spot anywhere in the band is
+## free (the verb logs the refusal).
+func dev_spawn_car() -> Car:
+	if city == null or player == null:
+		return null
+	var anchor := _anchor_flat()
+	var blocks := _blocks_in_band(anchor)
+	if blocks.is_empty():
+		blocks = _fallback_blocks(anchor)
+	var ordered := blocks.duplicate()
+	ordered.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+		return _center_dist(a, anchor) < _center_dist(b, anchor))
+	for block in ordered:
+		var spots := city.parking_spots(block).duplicate()
+		spots.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return _flat_dist(city.to_global(a.pos), anchor) 					< _flat_dist(city.to_global(b.pos), anchor))
+		for spot in spots:
+			var global_spot: Vector3 = city.to_global(spot.pos)
+			if _spot_taken(global_spot):
+				continue
+			_begin_class_quota(1)
+			return _spawn_parked(block, global_spot, spot.yaw, living_cars().size())
+	return null
+
+
 ## Wipes and re-seeds the whole fleet (first boot, city regeneration).
 func _populate() -> void:
 	for car in _cars:
@@ -361,7 +407,7 @@ func _spawn_traffic(block_local: Vector3, index: int) -> void:
 	_cars.append(car)
 
 
-func _spawn_parked(block_local: Vector3, pos: Vector3, yaw: float, index: int) -> void:
+func _spawn_parked(block_local: Vector3, pos: Vector3, yaw: float, index: int) -> Car:
 	var car: Car = car_scene.instantiate()
 	_assign_class(car)
 	if car.citizen_class == CitizenClass.Kind.CIVILIAN:
@@ -371,6 +417,7 @@ func _spawn_parked(block_local: Vector3, pos: Vector3, yaw: float, index: int) -
 	car.park_at(pos, yaw, city.to_global(block_local))
 	car.splatted.connect(_on_car_splatted)
 	_cars.append(car)
+	return car ## (T-168) Handed back so the dev verb can ack the spawned node.
 
 
 ## (T-114) Hands a freshly built car its tailgate state before _ready: visitor

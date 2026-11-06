@@ -320,6 +320,7 @@ func _run_scenarios() -> void:
 	await _scenario_pilot_time_scale() ## T-132 — the pilot's --time-scale slows the world, not the frames; flagless boots stay 1.0.
 	await _scenario_pilot_frame_step() ## T-140 — pause/step/resume + deferred presses, driven through a real recorder in session mode.
 	await _scenario_dev_hunger_lock() ## T-167 — the dev-verb family on the same pilot channel: lock/refill/unlock through _execute_dev, the gate seam, live-channel flow while frozen.
+	await _scenario_dev_verb_pack() ## T-168 — the starter verb pack: spawn_car/car_blinker/teleport/freeze_traffic through _execute_dev, the gate seam, ack payloads machine-checkable.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -10016,6 +10017,33 @@ func _read_pilot_events(dir: String) -> Dictionary:
 	return out
 
 
+## (T-168) Every event dict logged so far in a session dir — payload-level
+## reads (the `pilot_dev` acks' verb/node/p fields) beside the name-set
+## `_read_pilot_events`. Empty/trailing lines are skipped, so a fresh read of
+## a live file logs no parse noise.
+func _read_pilot_event_list(dir: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var f := FileAccess.open(dir + "/events.jsonl", FileAccess.READ)
+	if f == null:
+		return out
+	while not f.eof_reached():
+		var line := f.get_line()
+		if line.strip_edges().is_empty():
+			continue
+		var parsed: Variant = JSON.parse_string(line)
+		if typeof(parsed) == TYPE_DICTIONARY and parsed.has("ev"):
+			out.append(parsed)
+	return out
+
+
+## (T-168) The first `pilot_dev` ack carrying `verb` — empty when none logged.
+func _find_pilot_event(events: Array[Dictionary], verb: String) -> Dictionary:
+	for e in events:
+		if e.get("ev", "") == "pilot_dev" and String(e.get("verb", "")) == verb:
+			return e
+	return {}
+
+
 ## --- scenarios (T-167 dev hunger lock) --------------------------------------
 
 ## The T-167 dev-verb contract, driven through a REAL CaptureRecorder in
@@ -10141,10 +10169,290 @@ func _scenario_dev_hunger_lock() -> void:
 			"drain=%.2f locked=%s (Δ%.6f, changed_fires=%d) refill=%s resumed=%s "
 					+ "gate=%s (ret l/r/u %s/%s/%s, unknown=%s, non_dev=%s) "
 					+ "channel pause=%s verbs=%s hold_live=%s unlock=%s" % [
-					drained, locked_ok, locked_delta, silent_fires,
-					refill_ok, resumed_ok, gate_ok, refused_lock, refused_refill,
-					refused_unlock, unknown_ret, non_dev_ret, channel_pause_ok,
-					channel_verbs_ok, lock_holds_live, channel_unlock_ok])
+						drained, locked_ok, locked_delta, silent_fires,
+						refill_ok, resumed_ok, gate_ok, refused_lock, refused_refill,
+						refused_unlock, unknown_ret, non_dev_ret, channel_pause_ok,
+						channel_verbs_ok, lock_holds_live, channel_unlock_ok])
+
+
+## The T-168 starter verb pack, driven through a REAL CaptureRecorder in
+## session mode (scratch `simtest_pack` dir) acting on a bare rig — the T-054
+## `CarSpawner.new()` pattern over the harness city with the harness pigeon
+## pinned to the plaza anchor (the `cars_traffic` law: sub-metre anchor shifts
+## flip the band draw) — so every verb resolves the session's own rig through
+## the recorder's reversed-order `_dev_spawner`/`_dev_player` lookups. All
+## verbs fire through `_execute_dev` with explicit dicts, `allowed` default
+## (the headless sim is a debug build). Legs:
+## (a) `spawn_car` adds EXACTLY one node to the tree and one entry to the
+##     spawner's managed list — the new car's parent is the spawner (no
+##     orphan), parked at a curb, and the ack names its node path;
+## (b) `teleport` moves the player to the world target with `velocity` exactly
+##     Vector3.ZERO (the reset_flight pin) and the resolved position acked;
+## (d) `car_blinker` (run on a T-134-staged driving car whose first turn
+##     stands 40 m out — beyond the 12 m blinker lead for the whole window, so
+##     the route-driven machine reads 0 deterministically): the player
+##     teleported flat-0 overhead makes the staged car the nearest by
+##     construction; forcing the OPPOSITE side of the route-driven read
+##     proves the override (blinker == forced immediately), the pair stays
+##     solid-lit for 60 straight frames (the flash law would dark-half of
+##     them), and `on:false` zeroes the tell and hands control back — the
+##     machine recomputes 0 on its own within 10 frames, lamps dark;
+## (c) `freeze_traffic` holds EVERY traffic car bit-identical across 90 ticks
+##     (positions, stop state, waypoint index, end node — no re-pathing, no
+##     state resets), the spawner's recycle timer held exactly (the cadence
+##     gate), the fleet count stable (no replacement spawns); `on:false`
+##     resumes movement and the cadence within 96 ticks;
+## (e) the gate seam: with `allowed=false` every pack verb is consumed but
+##     moves no state (fleet, player position, blinker, the static freeze
+##     flag), an unknown dev verb is still consumed (`pilot_dev_unknown`),
+##     and the ack payloads ride `pilot_dev` events machine-checkably.
+## The tree, the static freeze, the rig, the spawner name and the session env
+## are restored however the legs end.
+func _scenario_dev_verb_pack() -> void:
+	get_tree().paused = false
+	var saved_session := OS.get_environment("PIGEON_PILOT_SESSION")
+	var saved_images := OS.get_environment("PIGEON_IMAGE_INTERVAL")
+	OS.set_environment("PIGEON_PILOT_SESSION", "simtest_pack")
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", "0")
+	Car.traffic_frozen = false ## Clean slate on the static freeze (suite convention).
+	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0),
+			Vector3.ZERO)
+	await _await_grounded(90)
+	## The cars_traffic anchor pin — the band draw hangs on the player's XZ.
+	_player.global_position = _city.position + Vector3(4.0, 0.0, 2.0) \
+			+ Vector3(0.0, _player.position.y - _city.position.y, 0.0)
+	await _wait_frames(2)
+	var recorder: Node = RECORDER_SCRIPT.new()
+	add_child(recorder)
+	await _wait_frames(3)
+	var pilot_dir := "res://.captures/session_simtest_pack"
+	## The bare rig must OWN the "CarSpawner" name for the recorder's dev
+	## resolution; a leftover rig holding it (none does today — every car
+	## spawner scenario frees its rig) is retired for the window and restored.
+	var stale := get_tree().current_scene.get_node_or_null("CarSpawner")
+	var stale_name := ""
+	if stale != null:
+		stale_name = String(stale.name)
+		stale.name = stale_name + "_retired"
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	spawner.target_moving = 3
+	spawner.target_parked = 2
+	spawner.spawn_min_dist = 0.0
+	spawner.spawn_max_dist = 30.0
+	spawner.name = "CarSpawner"
+	add_child(spawner)
+	await _wait_frames(6)
+	var fleet0 := spawner.living_cars()
+	if fleet0.size() != 5:
+		_check("dev_verb_pack", false,
+				"rig did not populate: %d cars (want 5 = 3 traffic + 2 parked)" % fleet0.size())
+		spawner.free()
+		if stale_name != "":
+			stale.name = stale_name
+		recorder.queue_free()
+		OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
+		OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
+		Car.traffic_frozen = false
+		await _wait_frames(2)
+		return
+	## --- (a) spawn_car: exactly one managed node -----------------------------
+	var tree_before := 0
+	for child in spawner.get_children():
+		if child is Car:
+			tree_before += 1
+	var spawn_ret: bool = recorder._execute_dev({"dev": "spawn_car"})
+	var fleet1 := spawner.living_cars()
+	var spawned: Car = null
+	for car in fleet1:
+		if not fleet0.has(car):
+			spawned = car
+	var tree_after := 0
+	for child in spawner.get_children():
+		if child is Car:
+			tree_after += 1
+	var spawn_ok: bool = spawn_ret and spawned != null \
+			and fleet1.size() == fleet0.size() + 1 \
+			and tree_after == tree_before + 1 \
+			and spawned.get_parent() == spawner \
+			and spawned.mode == Car.Mode.PARKED
+	## --- (b) teleport: reset_flight, velocity exactly zero -------------------
+	var tp_target := _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 30.0, 0.0)
+	var tp_ret: bool = recorder._execute_dev({"dev": "teleport", "x": tp_target.x,
+			"y": tp_target.y, "z": tp_target.z, "yaw_deg": 45.0})
+	var tp_delta: float = _player.global_position.distance_to(tp_target)
+	var tp_ok: bool = tp_ret and tp_delta < 0.001 \
+			and _player.velocity == Vector3.ZERO
+	## --- (d) car_blinker: override + release, on a deterministic staged car --
+	## The T-134 pattern: the plaza node's approach, a right turn 40 m out —
+	## beyond the 12 m blinker lead for the whole leg, so the route-driven
+	## machine reads 0 while the car drives. A bare ledger keeps it isolated
+	## from the rig's own ladder.
+	var ctrl := TrafficControl.new()
+	var staged := _t134_stage_car(_t134_node(), 0, City.ROUTE_TURN_RIGHT, 40.0, ctrl)
+	await _wait_frames(2)
+	var pre_blinker: int = staged.blinker ## Route-driven, deterministic 0.
+	var forced_side := 1 if pre_blinker <= 0 else -1 ## ALWAYS the opposite read.
+	var side_text := "right" if forced_side > 0 else "left"
+	var over := staged.global_position + Vector3(0.0, 2.5, 0.0)
+	var tp2_ret: bool = recorder._execute_dev({"dev": "teleport", "x": over.x,
+			"y": over.y, "z": over.z})
+	## Flat-0 overhead: the staged car is the nearest by construction (no other
+	## car can sit at its XZ), read synchronously in the teleport's own frame.
+	var nearest_is_staged: bool = tp2_ret \
+			and recorder._dev_nearest_car(_player) == staged
+	var blink_ret: bool = recorder._execute_dev(
+			{"dev": "car_blinker", "side": side_text, "on": true})
+	var lamps_forced := func(car: Car, side: int) -> bool:
+		if side > 0:
+			return car._blink_fr.visible and car._blink_rr.visible
+		return car._blink_fl.visible and car._blink_rl.visible
+	var lamps_dark := func(car: Car) -> bool:
+		return not car._blink_fl.visible and not car._blink_fr.visible \
+				and not car._blink_rl.visible and not car._blink_rr.visible
+	var override_ok: bool = blink_ret and staged.blinker == forced_side \
+			and staged.blinker_forced == forced_side \
+			and bool(lamps_forced.call(staged, forced_side)) \
+			and not bool(lamps_dark.call(staged)) \
+			and pre_blinker != forced_side ## The override CHANGED the read.
+	var held_frames := 0
+	for _i in 60:
+		await get_tree().physics_frame
+		if staged.blinker == forced_side \
+				and staged.blinker_forced == forced_side \
+				and bool(lamps_forced.call(staged, forced_side)):
+			held_frames += 1
+	var release_ret: bool = recorder._execute_dev(
+			{"dev": "car_blinker", "side": side_text, "on": false})
+	var released_ok: bool = release_ret and staged.blinker_forced == 0 \
+			and staged.blinker == 0 and bool(lamps_dark.call(staged))
+	await _wait_frames(10) ## The car drives ~1 m — still 25+ m from any turn.
+	var machine_ok: bool = staged.blinker_forced == 0 and staged.blinker == 0 \
+			and bool(lamps_dark.call(staged))
+	staged.queue_free() ## The _t134_clear_cars pattern.
+	await _wait_frames(3)
+	## --- (c) freeze_traffic: bit-identical hold, resumed cadence -------------
+	var frozen_cars: Array[Car] = []
+	for car in spawner.living_cars():
+		if car.mode == Car.Mode.TRAFFIC:
+			frozen_cars.append(car)
+	## One traffic car parked 130 m out — beyond the 100 m recycle radius —
+	## makes the cadence OBSERVABLE on both sides of the freeze without
+	## depending on the scan timer's phase (a timer-difference assert is
+	## fragile: the ~31-tick fire period can land the resumed timer 0.05 s
+	## from its frozen value). Frozen: the due scan is gated, so the far car
+	## STAYS far and the timer holds exactly. Resumed: the scan fires within
+	## ~31 ticks and teleports it back into the band.
+	var far_car: Car = frozen_cars[0]
+	far_car.global_position = _player.global_position + Vector3(130.0, 0.0, 0.0)
+	var pre_pos: Array[Vector3] = []
+	var pre_stops: Array[int] = []
+	var pre_idx: Array[int] = []
+	var pre_wp: Array[int] = []
+	var pre_end: Array[Vector2i] = []
+	for car in frozen_cars:
+		pre_pos.append(car.global_position)
+		pre_stops.append(car.stops.size())
+		pre_idx.append(car._stop_index)
+		pre_wp.append(car.waypoint_index)
+		pre_end.append(car.route_end_node)
+	var fleet_before_freeze := spawner.living_cars().size()
+	var timer_before: float = spawner._scan_timer
+	var freeze_ret: bool = recorder._execute_dev({"dev": "freeze_traffic", "on": true})
+	await _wait_frames(90)
+	var timer_held: bool = spawner._scan_timer == timer_before ## The cadence gate's bite number.
+	var far_held: bool = Vector2(far_car.global_position.x - _player.global_position.x,
+			far_car.global_position.z - _player.global_position.z).length() > 100.0
+	var frozen_delta := 0.0
+	var frozen_ok: bool = freeze_ret and Car.traffic_frozen \
+			and timer_held and far_held \
+			and spawner.living_cars().size() == fleet_before_freeze
+	for i in frozen_cars.size():
+		frozen_delta = maxf(frozen_delta,
+				pre_pos[i].distance_to(frozen_cars[i].global_position))
+		frozen_ok = frozen_ok and frozen_cars[i].global_position == pre_pos[i] \
+				and frozen_cars[i].stops.size() == pre_stops[i] \
+				and frozen_cars[i]._stop_index == pre_idx[i] \
+				and frozen_cars[i].waypoint_index == pre_wp[i] \
+				and frozen_cars[i].route_end_node == pre_end[i]
+	var resume_ret: bool = recorder._execute_dev({"dev": "freeze_traffic", "on": false})
+	await _wait_frames(96) ## 1.6 s — at least two scan periods; the due scan
+		## must fire and teleport the far car back into the band.
+	var moved_sum := 0.0
+	for i in frozen_cars.size():
+		moved_sum += Vector2(frozen_cars[i].global_position.x - pre_pos[i].x,
+				frozen_cars[i].global_position.z - pre_pos[i].z).length()
+	var far_returned: bool = Vector2(far_car.global_position.x - _player.global_position.x,
+			far_car.global_position.z - _player.global_position.z).length() < 100.0
+	var resumed_ok: bool = resume_ret and not Car.traffic_frozen \
+			and moved_sum > 0.1 and far_returned
+	## --- (e) the gate seam: refused pack verbs move no state -----------------
+	var fleet_before_ref := spawner.living_cars().size()
+	var ref_pos := _player.global_position
+	var ref_car: Car = spawner.living_cars()[0]
+	var ref_blinker: int = ref_car.blinker
+	var ref_forced: int = ref_car.blinker_forced
+	var r_spawn: bool = recorder._execute_dev({"dev": "spawn_car"}, false)
+	var r_blink: bool = recorder._execute_dev(
+			{"dev": "car_blinker", "side": "left", "on": true}, false)
+	var r_tp: bool = recorder._execute_dev(
+			{"dev": "teleport", "x": 9999.0, "y": 9999.0, "z": 9999.0}, false)
+	var r_freeze: bool = recorder._execute_dev({"dev": "freeze_traffic", "on": true}, false)
+	var unknown_ret: bool = recorder._execute_dev({"dev": "not_a_pack_verb"})
+	var refused_ok: bool = r_spawn and r_blink and r_tp and r_freeze and unknown_ret \
+			and spawner.living_cars().size() == fleet_before_ref \
+			and _player.global_position == ref_pos \
+			and ref_car.blinker == ref_blinker and ref_car.blinker_forced == ref_forced \
+			and not Car.traffic_frozen
+	## The ack payloads, read machine-checkably off the events file.
+	var events := _read_pilot_event_list(pilot_dir)
+	var ack_spawn := _find_pilot_event(events, "spawn_car")
+	var ack_tp := _find_pilot_event(events, "teleport")
+	var ack_blink := _find_pilot_event(events, "car_blinker")
+	var ack_freeze := _find_pilot_event(events, "freeze_traffic")
+	var pack_verbs: Array[String] = ["spawn_car", "car_blinker", "teleport",
+			"freeze_traffic"]
+	var refused_events := 0
+	for e in events:
+		if e.get("ev", "") == "pilot_dev_refused" \
+				and pack_verbs.has(String(e.get("verb", ""))):
+			refused_events += 1
+	var acks_ok: bool = not ack_spawn.is_empty() and ack_spawn.has("node") \
+			and not ack_tp.is_empty() and ack_tp.has("p") and ack_tp.has("yaw_deg") \
+			and not ack_blink.is_empty() and ack_blink.has("car") \
+			and ack_blink.has("side") and ack_blink.has("on") \
+			and not ack_freeze.is_empty() and ack_freeze.has("on") \
+			and refused_events >= 4
+	## Restore: tree, static freeze, rig, name, session env.
+	get_tree().paused = false
+	Car.traffic_frozen = false
+	spawner.free()
+	if stale_name != "":
+		stale.name = stale_name ## After the free — the name must be unheld.
+	recorder.queue_free()
+	OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
+	await _wait_frames(2)
+	## The bite record: the one-node spawn, the zero-velocity teleport, the
+	## held-lamp frames, the frozen delta, the resumed delta and the cadence.
+	print(("SIM DATA dev_verb_pack: spawn fleet %d→%d tree %d→%d ok=%s, "
+			+ "teleport Δpos %.4f vel_zero=%s, blinker pre=%d forced=%s held %d/60 "
+			+ "released=%s machine_ok=%s, frozen Δpos=%.6f timer_held=%s far_held=%s, "
+			+ "resumed Δpos=%.2f far_returned=%s, refused=%d/4 acks=%s")
+			% [fleet0.size(), fleet1.size(), tree_before, tree_after,
+			spawn_ok, tp_delta,
+			tp_ok, pre_blinker, side_text, held_frames, released_ok, machine_ok,
+			frozen_delta, timer_held, far_held,
+			moved_sum, far_returned,
+			refused_events, acks_ok])
+	var pack_ok: bool = spawn_ok and tp_ok and nearest_is_staged and override_ok \
+			and held_frames == 60 and released_ok and machine_ok \
+			and frozen_ok and resumed_ok and refused_ok and acks_ok
+	var pack_detail := "spawn=%s tp=%s nearest=%s override=%s held=%d released=%s machine=%s frozen=%s resumed=%s refused=%s acks=%s" \
+			% [spawn_ok, tp_ok, nearest_is_staged, override_ok, held_frames,
+			released_ok, machine_ok, frozen_ok, resumed_ok, refused_ok, acks_ok]
+	_check("dev_verb_pack", pack_ok, pack_detail)
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------
