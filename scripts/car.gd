@@ -850,6 +850,10 @@ func start_route(pos: Vector3, new_path: PackedVector3Array,
 	_has_via = false
 	waypoint_index = 0
 	blinker = 0
+	blinker_forced = 0 ## (T-168 round 1) A re-staged car loses the dev override —
+		## an orphaned tell would ride recycles for the whole process and pollute
+		## the T-134/T-162 blinker observations. The next driving frame re-applies
+		## the (now route-driven) lamps.
 	_blinker_side = 0
 	_blinker_hold = 0.0
 	_passing = false
@@ -897,6 +901,9 @@ func park_at(pos: Vector3, yaw: float, new_block: Vector3) -> void:
 	stops = []
 	_stop_index = 0
 	block_center = new_block
+	blinker = 0
+	blinker_forced = 0 ## (T-168 round 1) Same de-override as start_route.
+	_apply_blinker_meshes() ## Parked cars never tick the lamp pass — go dark now.
 	if traffic != null:
 		traffic.release(self)
 	_redress_crumb()

@@ -146,32 +146,30 @@ func _physics_process(delta: float) -> void:
 
 
 ## (T-168) The `spawn_car` dev verb's entry point — the implementer's read of
-## the spawn paths, recorded in the ticket: ONE car near the player through
+## the spawn paths, recorded in the ticket: ONE car NEAR the player through
 ## the populate loop's own parked path (`_spawn_parked` — the seeded class
 ## draw under a fresh 1-slot quota, the tailgate wiring, `park_at`, the splat
 ## relay and the `_cars` registration), so cleanup, crosswalk yield and the
 ## recycle machinery see it exactly like a populate-seeded car — no orphan
-## nodes. Placement walks the band blocks (nearest to the player first) and
-## each block's curb spots (nearest first) and takes the first FREE one; the
-## sightline gate is deliberately not consulted — it exists to keep gameplay
+## nodes. (Round 1 review) Placement walks the NEAREST block centers with the
+## spawn band ignored and takes the nearest FREE curb spot overall — the old
+## `_blocks_in_band` pool put the dev car 22-24 m out while fleet cars sat
+## nearer, so the documented blink-the-spawned-car flow forced a stranger.
+## The sightline gate is likewise not consulted — it exists to keep gameplay
 ## pop-in off-screen, and a dev spawn is meant to be seen. The 1-slot class
 ## quota makes the draw a deterministic civilian. Returns the new car, or
-## null when city/player are missing or no curb spot anywhere in the band is
-## free (the verb logs the refusal).
+## null when city/player are missing or none of the nearest blocks has a
+## free curb spot (the verb logs the refusal).
 func dev_spawn_car() -> Car:
 	if city == null or player == null:
 		return null
 	var anchor := _anchor_flat()
-	var blocks := _blocks_in_band(anchor)
-	if blocks.is_empty():
-		blocks = _fallback_blocks(anchor)
-	var ordered := blocks.duplicate()
-	ordered.sort_custom(func(a: Vector3, b: Vector3) -> bool:
-		return _center_dist(a, anchor) < _center_dist(b, anchor))
+	var ordered := _nearest_blocks(anchor, 8)
 	for block in ordered:
 		var spots := city.parking_spots(block).duplicate()
 		spots.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-			return _flat_dist(city.to_global(a.pos), anchor) 					< _flat_dist(city.to_global(b.pos), anchor))
+			return _flat_dist(city.to_global(a.pos), anchor) \
+					< _flat_dist(city.to_global(b.pos), anchor))
 		for spot in spots:
 			var global_spot: Vector3 = city.to_global(spot.pos)
 			if _spot_taken(global_spot):

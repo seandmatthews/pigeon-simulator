@@ -10185,18 +10185,24 @@ func _scenario_dev_hunger_lock() -> void:
 ## (the headless sim is a debug build). Legs:
 ## (a) `spawn_car` adds EXACTLY one node to the tree and one entry to the
 ##     spawner's managed list — the new car's parent is the spawner (no
-##     orphan), parked at a curb, and the ack names its node path;
+##     orphan), parked at a curb NEAR the player (the round-1 review bar:
+##     flat distance < 25 m, the old band walk measured 22.5), and the ack
+##     names its node path;
 ## (b) `teleport` moves the player to the world target with `velocity` exactly
 ##     Vector3.ZERO (the reset_flight pin) and the resolved position acked;
-## (d) `car_blinker` (run on a T-134-staged driving car whose first turn
-##     stands 40 m out — beyond the 12 m blinker lead for the whole window, so
-##     the route-driven machine reads 0 deterministically): the player
-##     teleported flat-0 overhead makes the staged car the nearest by
-##     construction; forcing the OPPOSITE side of the route-driven read
-##     proves the override (blinker == forced immediately), the pair stays
+## (d) `car_blinker`, three sub-legs. (d1) On a T-134-staged driving car whose
+##     first turn stands 40 m out — beyond the 12 m blinker lead for the whole
+##     window, so the route-driven machine reads 0 deterministically — the
+##     player teleported flat-0 overhead makes the staged car the nearest by
+##     construction; forcing the OPPOSITE side of the route-driven read proves
+##     the override (blinker == forced immediately) and the pair stays
 ##     solid-lit for 60 straight frames (the flash law would dark-half of
-##     them), and `on:false` zeroes the tell and hands control back — the
-##     machine recomputes 0 on its own within 10 frames, lamps dark;
+##     them). (d2, round 1 review) The player hops flat-0 above the leg-(a)
+##     spawned car — now the nearest — and on:false must STILL release the
+##     staged car (the remembered forced car), lamps dark, the stranger
+##     untouched; the route-driven machine recomputes 0 on its own within 10
+##     frames. (d3) With the player on the spawned car, on:true forces THAT
+##     car and on:false releases it — the owner's flow with its subject.
 ## (c) `freeze_traffic` holds EVERY traffic car bit-identical across 90 ticks
 ##     (positions, stop state, waypoint index, end node — no re-pathing, no
 ##     state resets), the spawner's recycle timer held exactly (the cadence
@@ -10272,11 +10278,21 @@ func _scenario_dev_verb_pack() -> void:
 	for child in spawner.get_children():
 		if child is Car:
 			tree_after += 1
+	## (Round 1 review) "Near the player" is the spawn contract: the old band
+	## walk landed the dev car 22.5 m out (live Gate 3) and the blink step then
+	## forced a fleet car 18.6 m away. The nearest-block walk must land well
+	## inside that — 25 m is the generous regression bar (the bite number below
+	## records the measured distance).
+	var spawn_dist: float = INF
+	if spawned != null:
+		spawn_dist = Vector2(spawned.global_position.x - _player.global_position.x,
+				spawned.global_position.z - _player.global_position.z).length()
 	var spawn_ok: bool = spawn_ret and spawned != null \
 			and fleet1.size() == fleet0.size() + 1 \
 			and tree_after == tree_before + 1 \
 			and spawned.get_parent() == spawner \
-			and spawned.mode == Car.Mode.PARKED
+			and spawned.mode == Car.Mode.PARKED \
+			and spawn_dist < 25.0
 	## --- (b) teleport: reset_flight, velocity exactly zero -------------------
 	var tp_target := _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 30.0, 0.0)
 	var tp_ret: bool = recorder._execute_dev({"dev": "teleport", "x": tp_target.x,
@@ -10323,13 +10339,38 @@ func _scenario_dev_verb_pack() -> void:
 				and staged.blinker_forced == forced_side \
 				and bool(lamps_forced.call(staged, forced_side)):
 			held_frames += 1
+	## (d2, round 1 review) The release must target the car the verb FORCED,
+	## not whatever is nearest at release time: hop flat-0 above the leg-(a)
+	## spawned car (parked at its curb) so the nearest read lands on IT — the
+	## round-1 orphan bug released that stranger and left the staged car
+	## solid-lit forever. The pin is meaningful only if the staged car is NOT
+	## the nearest at this moment; that is asserted first.
+	var tp3 := spawned.global_position + Vector3(0.0, 2.0, 0.0)
+	var tp3_ret: bool = recorder._execute_dev({"dev": "teleport", "x": tp3.x,
+			"y": tp3.y, "z": tp3.z})
+	var wrong_nearest: Car = recorder._dev_nearest_car(_player)
+	var nearest_is_spawned: bool = tp3_ret and wrong_nearest == spawned \
+			and wrong_nearest != staged
 	var release_ret: bool = recorder._execute_dev(
 			{"dev": "car_blinker", "side": side_text, "on": false})
 	var released_ok: bool = release_ret and staged.blinker_forced == 0 \
-			and staged.blinker == 0 and bool(lamps_dark.call(staged))
+			and staged.blinker == 0 and bool(lamps_dark.call(staged)) \
+			and wrong_nearest.blinker_forced == 0
 	await _wait_frames(10) ## The car drives ~1 m — still 25+ m from any turn.
 	var machine_ok: bool = staged.blinker_forced == 0 and staged.blinker == 0 \
 			and bool(lamps_dark.call(staged))
+	## (d3, round 1 review) The owner's flow, pinned: with the player ON the
+	## spawned car, car_blinker forces THAT car (the cross-check against the
+	## spawn ack's node path rides the events below), and on:false hands
+	## control back to the same car.
+	var blink2_ret: bool = recorder._execute_dev(
+			{"dev": "car_blinker", "side": "left", "on": true})
+	var spawned_forced_ok: bool = blink2_ret and spawned.blinker_forced == -1 \
+			and bool(lamps_forced.call(spawned, -1))
+	var release2_ret: bool = recorder._execute_dev(
+			{"dev": "car_blinker", "side": "left", "on": false})
+	var spawned_released_ok: bool = release2_ret and spawned.blinker_forced == 0 \
+			and bool(lamps_dark.call(spawned))
 	staged.queue_free() ## The _t134_clear_cars pattern.
 	await _wait_frames(3)
 	## --- (c) freeze_traffic: bit-identical hold, resumed cadence -------------
@@ -10424,6 +10465,18 @@ func _scenario_dev_verb_pack() -> void:
 			and ack_blink.has("side") and ack_blink.has("on") \
 			and not ack_freeze.is_empty() and ack_freeze.has("on") \
 			and refused_events >= 4
+	## (Round 1 review) The flow pin, machine-checked off the events: the LAST
+	## car_blinker ON ack (leg d3's force of the spawned car) must name the
+	## spawn ack's node — "blink the car spawn_car just made" is the contract
+	## the live Gate 3 flow broke three runs out of three.
+	var ack_blink_on_last := {}
+	for e in events:
+		if e.get("ev", "") == "pilot_dev" and String(e.get("verb", "")) == "car_blinker" \
+				and bool(e.get("on", false)):
+			ack_blink_on_last = e
+	var flow_ok: bool = not ack_spawn.is_empty() and not ack_blink_on_last.is_empty() \
+			and String(ack_blink_on_last.get("car", "")) == String(ack_spawn.get("node", "")) \
+			and String(ack_blink_on_last.get("car", "")) == String(spawned.get_path())
 	## Restore: tree, static freeze, rig, name, session env.
 	get_tree().paused = false
 	Car.traffic_frozen = false
@@ -10434,24 +10487,31 @@ func _scenario_dev_verb_pack() -> void:
 	OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
 	OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
 	await _wait_frames(2)
-	## The bite record: the one-node spawn, the zero-velocity teleport, the
-	## held-lamp frames, the frozen delta, the resumed delta and the cadence.
-	print(("SIM DATA dev_verb_pack: spawn fleet %d→%d tree %d→%d ok=%s, "
+	## The bite record: the near spawn (the round-1 fix), the zero-velocity
+	## teleport, the held-lamp frames, the remembered-car release, the spawned-
+	## car flow pin, the frozen delta, the resumed delta and the cadence.
+	print(("SIM DATA dev_verb_pack: spawn fleet %d→%d tree %d→%d dist %.2f ok=%s, "
 			+ "teleport Δpos %.4f vel_zero=%s, blinker pre=%d forced=%s held %d/60 "
-			+ "released=%s machine_ok=%s, frozen Δpos=%.6f timer_held=%s far_held=%s, "
-			+ "resumed Δpos=%.2f far_returned=%s, refused=%d/4 acks=%s")
+			+ "released=%s (nearest=%s wrong_nearest=%s) machine_ok=%s, spawned "
+			+ "forced=%s released=%s flow=%s, frozen Δpos=%.6f timer_held=%s "
+			+ "far_held=%s, resumed Δpos=%.2f far_returned=%s, refused=%d/4 acks=%s")
 			% [fleet0.size(), fleet1.size(), tree_before, tree_after,
-			spawn_ok, tp_delta,
-			tp_ok, pre_blinker, side_text, held_frames, released_ok, machine_ok,
+			spawn_dist, spawn_ok, tp_delta,
+			tp_ok, pre_blinker, side_text, held_frames, released_ok,
+			nearest_is_staged, nearest_is_spawned, machine_ok,
+			spawned_forced_ok, spawned_released_ok, flow_ok,
 			frozen_delta, timer_held, far_held,
 			moved_sum, far_returned,
 			refused_events, acks_ok])
 	var pack_ok: bool = spawn_ok and tp_ok and nearest_is_staged and override_ok \
 			and held_frames == 60 and released_ok and machine_ok \
-			and frozen_ok and resumed_ok and refused_ok and acks_ok
-	var pack_detail := "spawn=%s tp=%s nearest=%s override=%s held=%d released=%s machine=%s frozen=%s resumed=%s refused=%s acks=%s" \
-			% [spawn_ok, tp_ok, nearest_is_staged, override_ok, held_frames,
-			released_ok, machine_ok, frozen_ok, resumed_ok, refused_ok, acks_ok]
+			and nearest_is_spawned and spawned_forced_ok and spawned_released_ok \
+			and flow_ok and frozen_ok and resumed_ok and refused_ok and acks_ok
+	var pack_detail := "spawn=%s dist=%.2f tp=%s nearest=%s override=%s held=%d released=%s machine=%s spawned=%s/%s flow=%s frozen=%s resumed=%s refused=%s acks=%s" \
+			% [spawn_ok, spawn_dist, tp_ok, nearest_is_staged, override_ok,
+			held_frames, released_ok, machine_ok, spawned_forced_ok,
+			spawned_released_ok, flow_ok, frozen_ok, resumed_ok, refused_ok,
+			acks_ok]
 	_check("dev_verb_pack", pack_ok, pack_detail)
 
 

@@ -44,6 +44,12 @@ var _holds: Dictionary = {}
 var _step_frames_left: int = 0
 var _step_active: bool = false
 var _pending_presses: Array[Dictionary] = []
+## (T-168, round 1 review) The car this session's last successful
+## `car_blinker` on:true forced — the on:false release targets THIS car, not
+## whatever happens to be nearest at release time (the nearest read orphaned
+## the forced car whenever the player had moved, leaving it solid-lit through
+## recycles for the rest of the process). Null when nothing is forced.
+var _dev_forced_car: Car = null
 ## PIGEON_PERF=1 adds an engine-monitor block to the state stream every 30
 ## frames (fps, script times, draw calls, nodes, physics-active) — the
 ## measurement stream for perf work (T-018); default sessions are unchanged.
@@ -421,7 +427,10 @@ func _dev_spawn_car() -> void:
 ## held solid-lit while on (the T-162 blinkers ARE the car's lights), the
 ## route-driven arming logic overridden, and control handed back on on:false.
 ## The nearest read walks Car's static fleet registry, so hand-staged cars
-## (the T-134 rigs) stay blinkable too.
+## (the T-134 rigs) stay blinkable too. (Round 1 review) on:false releases
+## the car THIS SESSION FORCED — remembered at force time, not whatever is
+## nearest at release time; a stale reference falls back to the nearest car
+## still carrying a forced tell, and with none the verb refuses.
 func _dev_car_blinker(cmd: Dictionary) -> void:
 	var side_text := String(cmd.get("side", ""))
 	var side := 0
@@ -437,14 +446,28 @@ func _dev_car_blinker(cmd: Dictionary) -> void:
 	if player == null:
 		_log_event("pilot_dev_refused", {"verb": "car_blinker", "reason": "no_player"})
 		return
-	var car := _dev_nearest_car(player)
-	if car == null:
-		_log_event("pilot_dev_refused", {"verb": "car_blinker", "reason": "no_car"})
+	if on:
+		var car := _dev_nearest_car(player)
+		if car == null:
+			_log_event("pilot_dev_refused", {"verb": "car_blinker", "reason": "no_car"})
+			return
+		car.set_blinker_forced(side)
+		_dev_forced_car = car ## The release targets THIS car, however far the player roams.
+		_log_event("pilot_dev", {"verb": "car_blinker", "side": side_text, "on": true,
+				"car": String(car.get_path()), "blinker": car.blinker,
+				"forced": car.blinker_forced})
 		return
-	car.set_blinker_forced(side if on else 0)
-	_log_event("pilot_dev", {"verb": "car_blinker", "side": side_text, "on": on,
-			"car": String(car.get_path()), "blinker": car.blinker,
-			"forced": car.blinker_forced})
+	var target := _dev_forced_car
+	if target == null or not is_instance_valid(target):
+		target = _dev_nearest_forced_car()
+	if target == null:
+		_log_event("pilot_dev_refused", {"verb": "car_blinker", "reason": "no_forced"})
+		return
+	target.set_blinker_forced(0)
+	_dev_forced_car = null
+	_log_event("pilot_dev", {"verb": "car_blinker", "side": side_text, "on": false,
+			"car": String(target.get_path()), "blinker": target.blinker,
+			"forced": target.blinker_forced})
 
 
 ## `{"dev":"teleport","x":…,"y":…,"z":…,"yaw_deg":0.0}` — `Player.reset_flight`
@@ -521,6 +544,27 @@ func _dev_nearest_car(player: Node3D) -> Car:
 			continue
 		var d := Vector2(car.global_position.x - player.global_position.x,
 				car.global_position.z - player.global_position.z).length()
+		if d < best_d:
+			best_d = d
+			best = car
+	return best
+
+
+## The nearest living car still carrying a forced blinker tell — the on:false
+## release's fallback when the remembered car reference went stale (freed by
+## a mid-session replacement). Null when no car is forced.
+func _dev_nearest_forced_car() -> Car:
+	var best: Car = null
+	var best_d := INF
+	var anchor := Vector3.ZERO
+	var player := _dev_player()
+	if player != null:
+		anchor = player.global_position
+	for car in Car._fleet:
+		if car == null or not is_instance_valid(car) or car.blinker_forced == 0:
+			continue
+		var d := Vector2(car.global_position.x - anchor.x,
+				car.global_position.z - anchor.z).length()
 		if d < best_d:
 			best_d = d
 			best = car

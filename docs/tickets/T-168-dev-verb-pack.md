@@ -1,6 +1,6 @@
 # T-168 — Dev tool 2: the starter verb pack — spawn a car, blink its lights, teleport the pigeon, freeze traffic
 
-- **Status:** doing · **Category:** tooling · **Value (1-5):** 4 ·
+- **Status:** done · **Category:** tooling · **Value (1-5):** 4 ·
   **Risk (1-5):** 2
 - **Depends on:** T-167 (lands `CaptureRecorder._execute_dev` and the
   debug-build gate — this ticket only adds members to that dispatcher)
@@ -136,20 +136,33 @@ spawn entry point used — all four on the `_execute_dev` dispatcher,
   `fleet` the post-spawn `living_cars()` size. Refusals:
   `pilot_dev_refused {reason:"no_spawner"|"no_spot"}`. Spawner entry
   point: **`CarSpawner.dev_spawn_car()`** (scripts/car_spawner.gd) — it
-  walks band blocks nearest-first and each block's curb spots
-  nearest-first and spawns through the populate path's own
-  `_spawn_parked` (now returning the `Car`), under a fresh 1-slot class
-  quota, so the car joins `_cars` with the tailgate wiring and splat
-  relay — never an orphan. The sightline gate is deliberately not
-  consulted (a dev spawn is meant to be seen).
+  walks the NEAREST block centers with the spawn band ignored (round 1
+  review: the band pool landed the dev car 22.5 m out and the blink step
+  then forced a fleet car — measured 8.78 m on the suite plaza, 6.8 m
+  live, after the fix) and each block's curb spots nearest-first, and
+  spawns through the populate path's own `_spawn_parked` (now returning
+  the `Car`), under a fresh 1-slot class quota, so the car joins `_cars`
+  with the tailgate wiring and splat relay — never an orphan. The
+  sightline gate is deliberately not consulted (a dev spawn is meant to
+  be seen).
 - `{"dev":"car_blinker","side":"left"|"right","on":true|false}` — targets
-  the NEAREST living car to the pigeon (flat, walked over Car's static
-  `_fleet`, so staged cars qualify). Ack: `pilot_dev {verb, side, on,
-  car, blinker, forced}`. Refusals: `bad_side`, `no_player`, `no_car`.
-  Entry: `Car.set_blinker_forced(side)` — `blinker_forced` −1/+1 holds
-  that side's pair solid-lit (no flash), the route-driven machine and
-  the post-turn hold clock pause while set; 0 hands control back and the
+  the NEAREST living car to the pigeon at the moment it fires (flat,
+  walked over Car's static `_fleet`, so staged cars qualify) — to dress
+  the spawned car, hop onto the spawn ack's `p` first (the flow below).
+  Ack: `pilot_dev {verb, side, on, car, blinker, forced}`. Refusals:
+  `bad_side`, `no_player`, `no_car`, and — round 1 review — `no_forced`
+  (an `on:false` with no car forced). Entry:
+  `Car.set_blinker_forced(side)` — `blinker_forced` −1/+1 holds that
+  side's pair solid-lit (no flash), the route-driven machine and the
+  post-turn hold clock pause while set; 0 hands control back and the
   machine resumes (a driving car re-arms off its route within a frame).
+  (Round 1 review) The release targets the car THIS SESSION FORCED —
+  the recorder remembers it at force time (`_dev_forced_car`), falling
+  back to the nearest car still carrying a forced tell — not whatever
+  is nearest at release time. A forced tell also dies with the car's
+  re-staging: `start_route` and `park_at` clear `blinker_forced` (and
+  re-apply dark lamps when parking), so a dev override can never ride a
+  recycle and pollute the T-134/T-162 blinker observations.
 - `{"dev":"teleport","x":…,"y":…,"z":…,"yaw_deg":0.0}` — world-frame
   target, `yaw_deg` optional. Routed through `Player.reset_flight`
   (velocity, touchdown velocity and flap state zeroed), converted
@@ -164,30 +177,52 @@ spawn entry point used — all four on the `_execute_dev` dispatcher,
   mid-freeze leaves it set only for that process; a fresh session
   boots false.
 
-## Gate 3 record (2026-11-06, session `t168gate3`)
+## Gate 3 record
 
-One live pilot session ran the owner's flow end-to-end through the real
-channel: `freeze_traffic on` → `spawn_car` → `car_blinker left on` →
-`teleport` poses → captures. Acks (events.jsonl): freeze at 61.7 s,
-`spawn_car` fleet 26→27 parked at (5.5, 0.05, −19.95)
-(`/root/Main/CarSpawner/@CharacterBody3D@1218`), `car_blinker` forced −1
-on the nearest car `@863`, six `teleport` acks each resolving exactly the
-commanded target. Capture PNGs (`.captures/session_t168gate3/`):
-`t168_gate3_overhead.png`, `t168_gate3_stage_a.png`,
-`t168_gate3_closeup.png`, `t168_gate3_nose.png`, `t168_gate3_tail.png`,
-`t168_gate3_overhead2.png`.
+### Round 1 (2026-11-06, session `t168gate3`) — superseded by review
 
-**Eyes-on verdict: the staged scene reads correctly.** The freeze held
-all 27 cars bit-identical across 268 s of wall time (state.jsonl
-multiset compare, first post-spawn sample vs final); the white subject
-car sits frozen mid-crosswalk with its LEFT amber corner lamps visibly
-lit solid at close range from both ends and overhead, the right corners
-dark; the spawned car waits at its curb; the pigeon lands exactly where
-each teleport put it (the reset_flight hover glides down and grounds —
-expected, velocity zeroed). The solid-lit read on screen is corroborated
-by the suite's 60/60-frame lamp pin; these shots confirm placement and
-readability — "spawn a car, make it flash its lights, watch it visually"
-works.
+Flow run as freeze → spawn → blink → teleport overhead → captures. The
+verdict recorded then ("the staged scene reads correctly") was TRUE of
+the staged frames but the FLOW was defective, per the round-1 review:
+`spawn_car` landed @1218 22.5 m from the pigeon (the spawn-band search)
+while a fleet car sat 18.6 m away, so `car_blinker` forced the STRANGER
+`@863`, never the spawned car — reproduced 3/3 runs (reviewer's rv1/rv2
+included). Also: `on:false` released whatever car was nearest at release
+time, orphaning the forced car solid-lit through recycles. Both defects
+fixed this round (see Tuned values); captures of the flawed flow remain
+at `.captures/session_t168gate3/`.
+
+### Round 2 (2026-11-06, session `t168gate3r2`) — the recorded pass
+
+The owner's flow, corrected per the review (freeze → spawn → hop onto
+the spawn ack's `p` → blink → pose overhead → captures), through the real
+pilot channel. Acks (events.jsonl): `freeze_traffic on` at 28.1 s;
+`spawn_car` fleet 26→27, node `/root/Main/CarSpawner/@CharacterBody3D@1218`
+at (12.05, 0.05, −5.5) — 6.8 m from the pigeon; `teleport` onto that exact
+`p` (+1.6 m hover); **`car_blinker left on` acked `car: @1218` — the
+spawn ack's node, the review's cross-pin, TRUE**; six further `teleport`
+acks each resolving exactly the commanded target. Capture PNGs
+(`.captures/session_t168gate3r2/`): `t168_r2_overhead.png`,
+`t168_r2_stage.png`, `t168_r2_closeup.png`, `t168_r2_flank.png`,
+`t168_r2_flank2.png`.
+
+**Eyes-on verdict: the staged scene reads correctly.** The spawned blue
+visitor car sits frozen at its curb mid-frame with its LEFT amber corner
+lamps visibly lit — front-left in `t168_r2_closeup.png`, rear-left
+clear in the broadside `t168_r2_flank2.png` — the right flank dark; the
+fleet (black car across the crosswalk) holds bit-identical positions
+across 195 s (state.jsonl multiset compare, first post-spawn sample vs
+final: 27 cars, identical); the pigeon lands exactly where each teleport
+put it (the reset_flight hover glides down and grounds — expected,
+velocity zeroed). The solid-lit read on screen is corroborated by the
+suite's 60/60-frame lamp pin and the new release/flow pins (suite bite
+line: spawn dist 8.78 m, released=true nearest=true wrong_nearest=true,
+spawned forced=true released=true flow=true).
+
+Gate runs on the round-2 tree: Gate 1 `--import` exit 0 (only the
+documented godot_mcp teardown ERROR line) and `--quit-after 120` exit 0
+with zero ERROR lines; Gate 1b full suite `SIM SUMMARY: 0 failure(s)`
+(173 pass); Gate 2 `AUTOPLAY DONE ok=true t=33.0 … restart=true`.
 
 Gate runs on the committed tree: Gate 1 `--import` exit 0 (only the
 documented godot_mcp teardown ERROR line) and `--quit-after 120` exit 0

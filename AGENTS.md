@@ -132,10 +132,11 @@ python tests/tools/pilot.py send  --session <id> '{"action":"flap","frames":7}'
 python tests/tools/pilot.py send  --session <id> '{"dev":"hunger_lock"}'    # dev verbs: freeze the
 python tests/tools/pilot.py send  --session <id> '{"dev":"hunger_refill"}'  #   survival clock (refill to max),
 python tests/tools/pilot.py send  --session <id> '{"dev":"hunger_unlock"}'  #   then resume the drain
-python tests/tools/pilot.py send  --session <id> '{"dev":"freeze_traffic","on":true}'  # verb pack: hold
-python tests/tools/pilot.py send  --session <id> '{"dev":"spawn_car"}'      #   every car + spawn one near the pigeon,
-python tests/tools/pilot.py send  --session <id> '{"dev":"car_blinker","side":"left","on":true}'  #   force its nearest car's lights,
-python tests/tools/pilot.py send  --session <id> '{"dev":"teleport","x":10.0,"y":30.0,"z":-5.0,"yaw_deg":45.0}'  #   pose the pigeon
+python tests/tools/pilot.py send  --session <id> '{"dev":"freeze_traffic","on":true}'  # verb pack: hold every car,
+python tests/tools/pilot.py send  --session <id> '{"dev":"spawn_car"}'      #   spawn one NEAR the pigeon (ack names node + p),
+python tests/tools/pilot.py send  --session <id> '{"dev":"teleport","x":<p.x>,"y":<p.y+1.6>,"z":<p.z>}'  #   hop onto THAT car (read p off the ack),
+python tests/tools/pilot.py send  --session <id> '{"dev":"car_blinker","side":"left","on":true}'  #   force ITS lights (the ack's car must equal the spawn node),
+python tests/tools/pilot.py send  --session <id> '{"dev":"teleport","x":<p.x>,"y":<p.y+9.0>,"z":<p.z-9.0>,"yaw_deg":180}'  #   pose overhead, then `shot`
 python tests/tools/pilot.py state --session <id>               # last world-state JSONL line
 python tests/tools/pilot.py events --session <id> --tail 20    # what happened
 python tests/tools/pilot.py shot  --session <id>               # OS grab of that window
@@ -186,7 +187,10 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
   everything stopped (no re-pathing, no teleports). `spawn_car` stages ONE
   car near the pigeon through the spawner's own parked spawn path (it joins
   the managed fleet — cleanup, crosswalk yield, quotas — never an orphan;
-  parked, so it stays put while you stage). `car_blinker`
+  parked, so it stays put while you stage): the nearest blocks' nearest free
+  curb spot, typically single-digit metres from the pigeon (the round-1
+  review — no spawn band, no sightline gate; a dev spawn is meant to be
+  seen and used). `car_blinker`
   (`"side":"left"|"right"`, `"on":true|false`) forces the NEAREST car's
   amber pair solid-lit — the T-162 blinkers ARE the car's lights — and
   hands control back on `on:false`; it targets whatever car is nearest the
@@ -197,8 +201,18 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
   path and fleet size, `teleport`'s resolved position, `car_blinker`'s
   car/side/on, `freeze_traffic`'s on); refusals (`no_player`, `no_spawner`,
   `no_car`, `bad_side`, `no_spot`) log `pilot_dev_refused` with the reason.
-  The owner's staging flow is the four lines above in order: freeze, spawn,
-  blink, teleport overhead, `shot`.
+  `car_blinker` forces the car NEAREST the pigeon at the moment it fires, so
+  to dress the car `spawn_car` just made, hop onto it first: the spawn ack's
+  `p` is the position — teleport there, THEN blink, and confirm the blink
+  ack's `car` equals the spawn ack's `node` (the round-1 review: blinking
+  from afar forced a nearer fleet car three runs out of three).
+  `car_blinker` `on:false` releases the car THIS SESSION FORCED — remembered
+  at force time, not whatever is nearest later (a stray release refuses with
+  `no_forced` when nothing is forced) — and a forced tell dies with the
+  car's re-staging (recycle re-route and re-park clear it), so T-134/T-162
+  blinker observations stay clean. The owner's staging flow is the lines
+  above in order: freeze, spawn, hop onto the spawn, blink, pose overhead,
+  `shot`.
 - **`shot` vs frame PNGs:** `shot` grabs the OS window by its
   `Pigeon pilot <id>` title (works even with `--images off`); the frame stream
   is the in-process viewport. Review with `tests/review/summarize.py
