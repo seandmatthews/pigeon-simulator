@@ -161,6 +161,20 @@ var splatted_once: bool = false
 ## The armed blinker side: −1 left / 0 none / +1 right — readable by the
 ## harness and the pilot (the splat-planning tell).
 var blinker: int = 0
+## (T-168) The dev verb's forced blinker: 0 = none (the route-driven state
+## machine owns the tell), −1/+1 = that side held solid-lit, overriding the
+## arming logic and the flash law while set. Written only through
+## `set_blinker_forced` (the `car_blinker` pilot verb's entry); released by
+## the same call with 0 — the machine resumes exactly where the override
+## paused it (a mid-hold clock keeps its remaining seconds).
+var blinker_forced: int = 0
+## (T-168) The dev traffic freeze: when true, every car's `_physics_process`
+## returns at the top — route progress, the patience/honk clocks and the
+## blinker state machine all hold, and transforms stay put for staging — and
+## CarSpawner's recycle cadence is gated on the same flag. Static like
+## `_fleet` because the freeze is a world-wide staging state, not a per-car
+## one; set only by the `freeze_traffic` pilot verb (and the suite's restore).
+static var traffic_frozen: bool = false
 
 ## (T-162) Corner seeds for `_seat_blinkers`, car-local, in the BlinkFL/FR/RL/
 ## RR order — hovering above the hood/deck top at each corner station (front is
@@ -283,6 +297,9 @@ func _show_flag(banner_color: Color) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if traffic_frozen:
+		return ## (T-168) The dev freeze: route progress, honk clocks and the
+			## blinker state machine all hold; transforms stay put for staging.
 	if mode == Mode.PARKED:
 		return ## Parked cars just sit at the curb.
 	_drive(delta)
@@ -576,8 +593,15 @@ func _refresh_block() -> void:
 ## `blinker_lead` of its stop line (12 m out ≈ 2 s at cruise — the approach,
 ## full stop and grant land inside that window), hold the just-driven side
 ## ~0.5 s after the turn completes, and never arm for straight continuations.
+## (T-168) A forced blinker (`set_blinker_forced`) owns the tell while set:
+## the arming logic and the post-turn hold clock both pause — the hold keeps
+## its remaining seconds for when the override is released — and `blinker`
+## reads the forced side every frame.
 func _update_blinker(delta: float) -> void:
 	_flash_clock += delta
+	if blinker_forced != 0:
+		blinker = blinker_forced
+		return
 	if _blinker_hold > 0.0:
 		_blinker_hold -= delta
 		blinker = _blinker_side
@@ -594,15 +618,39 @@ func _update_blinker(delta: float) -> void:
 
 
 ## The four amber corner meshes: the armed side's pair flashes at
-## `blinker_hz`; everything stays dark at rest.
+## `blinker_hz`; everything stays dark at rest. (T-168) A forced blinker
+## holds its pair solid-lit instead — staging wants a steady tell, not the
+## flash law.
 func _apply_blinker_meshes() -> void:
+	if blinker_forced != 0:
+		_set_blinker_lamps(blinker_forced, true)
+		return
 	var lit := blinker != 0 and fmod(_flash_clock * blinker_hz, 1.0) < 0.5
-	var left := blinker < 0
-	var right := blinker > 0
-	_blink_fl.visible = lit and left
-	_blink_rl.visible = lit and left
-	_blink_fr.visible = lit and right
-	_blink_rr.visible = lit and right
+	_set_blinker_lamps(blinker, lit)
+
+
+## One lamp pass: `side`'s pair takes `lit`, the other pair goes dark.
+func _set_blinker_lamps(side: int, lit: bool) -> void:
+	var left := lit and side < 0
+	var right := lit and side > 0
+	_blink_fl.visible = left
+	_blink_rl.visible = left
+	_blink_fr.visible = right
+	_blink_rr.visible = right
+
+
+## (T-168) The `car_blinker` dev verb's entry (CaptureRecorder dispatches it;
+## never bypassed): forces the tell to `side` (−1 left / +1 right) held
+## solid-lit, or hands control back with 0 — the one-shot lamp write here
+## stages parked and frozen cars too (their loops never touch the lamps),
+## while a driving car's per-frame `_apply_blinker_meshes` carries the state
+## from here on. On release the machine resumes exactly where the override
+## paused it: a driving car re-arms off its route within a frame, a parked
+## car stays dark.
+func set_blinker_forced(side: int) -> void:
+	blinker_forced = clampi(side, -1, 1)
+	blinker = blinker_forced
+	_apply_blinker_meshes()
 
 
 ## (T-162) Seats the four blinker lenses ON the paint body: per corner, the
@@ -802,6 +850,10 @@ func start_route(pos: Vector3, new_path: PackedVector3Array,
 	_has_via = false
 	waypoint_index = 0
 	blinker = 0
+	blinker_forced = 0 ## (T-168 round 1) A re-staged car loses the dev override —
+		## an orphaned tell would ride recycles for the whole process and pollute
+		## the T-134/T-162 blinker observations. The next driving frame re-applies
+		## the (now route-driven) lamps.
 	_blinker_side = 0
 	_blinker_hold = 0.0
 	_passing = false
@@ -849,6 +901,9 @@ func park_at(pos: Vector3, yaw: float, new_block: Vector3) -> void:
 	stops = []
 	_stop_index = 0
 	block_center = new_block
+	blinker = 0
+	blinker_forced = 0 ## (T-168 round 1) Same de-override as start_route.
+	_apply_blinker_meshes() ## Parked cars never tick the lamp pass — go dark now.
 	if traffic != null:
 		traffic.release(self)
 	_redress_crumb()

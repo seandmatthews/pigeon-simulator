@@ -44,6 +44,12 @@ var _holds: Dictionary = {}
 var _step_frames_left: int = 0
 var _step_active: bool = false
 var _pending_presses: Array[Dictionary] = []
+## (T-168, round 1 review) The car this session's last successful
+## `car_blinker` on:true forced — the on:false release targets THIS car, not
+## whatever happens to be nearest at release time (the nearest read orphaned
+## the forced car whenever the player had moved, leaving it solid-lit through
+## recycles for the rest of the process). Null when nothing is forced.
+var _dev_forced_car: Car = null
 ## PIGEON_PERF=1 adds an engine-monitor block to the state stream every 30
 ## frames (fps, script times, draw calls, nodes, physics-active) — the
 ## measurement stream for perf work (T-018); default sessions are unchanged.
@@ -310,9 +316,12 @@ func _pilot_step() -> void:
 ## success (the ack an agent reads via `pilot.py events`),
 ## `pilot_dev_unknown` {verb} for an unrecognized `{"dev":...}` payload, and
 ## `pilot_dev_refused` {verb} when the debug-build gate refuses execution.
-## The verbs act on the Game autoload's hunger clock (reachable by name from
-## any script) and flow while the tree is PAUSED — this node is
-## PROCESS_MODE_ALWAYS, so frozen sessions still take dev commands.
+## (T-167) The hunger verbs act on the Game autoload's hunger clock (reachable
+## by name from any script); (T-168) the starter pack acts on the world rig —
+## the CarSpawner, the living cars, the Player — resolved per call through
+## `_dev_spawner`/`_dev_player`. All of them flow while the tree is PAUSED —
+## this node is PROCESS_MODE_ALWAYS, so frozen sessions still take dev
+## commands.
 
 
 ## The family's front-door gate: dev verbs are agent tooling and exist on
@@ -329,7 +338,9 @@ func _dev_allowed() -> bool:
 ## family — any dict carrying a `dev` key is consumed here (executed, logged
 ## unknown, or refused by the gate) and never re-parsed as a gameplay verb;
 ## FALSE for non-dev dicts so _pilot_step() keeps reading them. Refusal
-## (allowed=false) and unknown verbs move no state.
+## (allowed=false) and unknown verbs move no state. (T-168) Each verb logs
+## its own `pilot_dev` ack with a machine-checkable payload — the hunger
+## trio's payload shape is unchanged from T-167.
 func _execute_dev(cmd: Dictionary, allowed: bool = _dev_allowed()) -> bool:
 	if not cmd.has("dev"):
 		return false
@@ -337,26 +348,227 @@ func _execute_dev(cmd: Dictionary, allowed: bool = _dev_allowed()) -> bool:
 	if not allowed:
 		_log_event("pilot_dev_refused", {"verb": verb, "reason": "not_allowed"})
 		return true
-	var hunger := get_tree().root.get_node_or_null("Game/Hunger") as Hunger
-	if hunger == null:
-		_log_event("pilot_dev_refused", {"verb": verb, "reason": "no_hunger"})
-		return true
 	match verb:
 		"hunger_lock":
-			hunger.locked = true
+			_dev_hunger_locked(true)
 		"hunger_unlock":
-			hunger.locked = false
+			_dev_hunger_locked(false)
 		"hunger_refill":
-			## The clamped setter makes a refill-at-full a silent no-op
-			## broadcast (T-075); it does NOT clear the game-over latch —
-			## the lock is prevention, not revive.
-			hunger.value = hunger.max_value
+			_dev_hunger_refill()
+		## (T-168) The starter pack: spawn a car, blink its lights, teleport
+		## the pigeon, freeze traffic. Each routes through the real gameplay
+		## API (the spawner's own spawn path, Car's own blinker state,
+		## Player.reset_flight, Car's own frozen check) so a dev session
+		## exercises the same code paths a player session would.
+		"spawn_car":
+			_dev_spawn_car()
+		"car_blinker":
+			_dev_car_blinker(cmd)
+		"teleport":
+			_dev_teleport(cmd)
+		"freeze_traffic":
+			_dev_freeze_traffic(cmd)
 		_:
 			_log_event("pilot_dev_unknown", {"verb": verb})
 			return true
+	return true
+
+
+## (T-167) The hunger lock pair, unchanged. Resolves the clock per call so a
+## missing autoload refuses just this verb instead of gating the whole family.
+func _dev_hunger_locked(lock: bool) -> void:
+	var verb := "hunger_lock" if lock else "hunger_unlock"
+	var hunger := get_tree().root.get_node_or_null("Game/Hunger") as Hunger
+	if hunger == null:
+		_log_event("pilot_dev_refused", {"verb": verb, "reason": "no_hunger"})
+		return
+	hunger.locked = lock
 	_log_event("pilot_dev", {"verb": verb, "locked": hunger.locked,
 			"value": snappedf(hunger.value, 0.01)})
-	return true
+
+
+## (T-167) The refill, unchanged: the clamped setter makes a refill-at-full a
+## silent no-op broadcast (T-075); it does NOT clear the game-over latch —
+## the lock is prevention, not revive.
+func _dev_hunger_refill() -> void:
+	var hunger := get_tree().root.get_node_or_null("Game/Hunger") as Hunger
+	if hunger == null:
+		_log_event("pilot_dev_refused", {"verb": "hunger_refill", "reason": "no_hunger"})
+		return
+	hunger.value = hunger.max_value
+	_log_event("pilot_dev", {"verb": "hunger_refill", "locked": hunger.locked,
+			"value": snappedf(hunger.value, 0.01)})
+
+
+## --- the T-168 starter verb pack ---------------------------------------------
+
+
+## `{"dev":"spawn_car"}` — ONE car near the player, through the spawner's own
+## parked spawn path (`CarSpawner.dev_spawn_car`, the recorded entry point):
+## the class draw, tailgate wiring, splat relay and `_cars` registration all
+## ride the populate path, so the new car joins the managed fleet — cleanup,
+## crosswalk yield, class quotas — instead of becoming an orphan. The ack
+## carries the spawned node's path and the post-spawn fleet size.
+func _dev_spawn_car() -> void:
+	var spawner := _dev_spawner("CarSpawner") as CarSpawner
+	if spawner == null:
+		_log_event("pilot_dev_refused", {"verb": "spawn_car", "reason": "no_spawner"})
+		return
+	var car := spawner.dev_spawn_car()
+	if car == null:
+		_log_event("pilot_dev_refused", {"verb": "spawn_car", "reason": "no_spot"})
+		return
+	_log_event("pilot_dev", {"verb": "spawn_car", "node": String(car.get_path()),
+			"p": _v(car.global_position), "fleet": spawner.living_cars().size()})
+
+
+## `{"dev":"car_blinker","side":"left"|"right","on":true|false}` — forces the
+## NEAREST car's blinker (−1/0/+1) through `Car.set_blinker_forced`: lamps
+## held solid-lit while on (the T-162 blinkers ARE the car's lights), the
+## route-driven arming logic overridden, and control handed back on on:false.
+## The nearest read walks Car's static fleet registry, so hand-staged cars
+## (the T-134 rigs) stay blinkable too. (Round 1 review) on:false releases
+## the car THIS SESSION FORCED — remembered at force time, not whatever is
+## nearest at release time; a stale reference falls back to the nearest car
+## still carrying a forced tell, and with none the verb refuses.
+func _dev_car_blinker(cmd: Dictionary) -> void:
+	var side_text := String(cmd.get("side", ""))
+	var side := 0
+	if side_text == "left":
+		side = -1
+	elif side_text == "right":
+		side = 1
+	if side == 0:
+		_log_event("pilot_dev_refused", {"verb": "car_blinker", "reason": "bad_side"})
+		return
+	var on := bool(cmd.get("on", true))
+	var player := _dev_player()
+	if player == null:
+		_log_event("pilot_dev_refused", {"verb": "car_blinker", "reason": "no_player"})
+		return
+	if on:
+		var car := _dev_nearest_car(player)
+		if car == null:
+			_log_event("pilot_dev_refused", {"verb": "car_blinker", "reason": "no_car"})
+			return
+		car.set_blinker_forced(side)
+		_dev_forced_car = car ## The release targets THIS car, however far the player roams.
+		_log_event("pilot_dev", {"verb": "car_blinker", "side": side_text, "on": true,
+				"car": String(car.get_path()), "blinker": car.blinker,
+				"forced": car.blinker_forced})
+		return
+	var target := _dev_forced_car
+	if target == null or not is_instance_valid(target):
+		target = _dev_nearest_forced_car()
+	if target == null:
+		_log_event("pilot_dev_refused", {"verb": "car_blinker", "reason": "no_forced"})
+		return
+	target.set_blinker_forced(0)
+	_dev_forced_car = null
+	_log_event("pilot_dev", {"verb": "car_blinker", "side": side_text, "on": false,
+			"car": String(target.get_path()), "blinker": target.blinker,
+			"forced": target.blinker_forced})
+
+
+## `{"dev":"teleport","x":…,"y":…,"z":…,"yaw_deg":0.0}` — `Player.reset_flight`
+## with the world-frame target: the existing API that zeroes velocity,
+## touchdown velocity and flap state, so a teleport lands in a hover-friendly
+## glide rather than carrying the old velocity into a wall. The x/y/z are
+## converted through the player's parent (the harness rigs nest the pigeon
+## under a moved Main instance; the live game's Main sits at the origin, so
+## the conversion is identity there) and the ack reports the resolved global
+## position.
+func _dev_teleport(cmd: Dictionary) -> void:
+	var player := _dev_player() as Player
+	if player == null:
+		_log_event("pilot_dev_refused", {"verb": "teleport", "reason": "no_player"})
+		return
+	var world := Vector3(float(cmd.get("x", 0.0)), float(cmd.get("y", 0.0)),
+			float(cmd.get("z", 0.0)))
+	var yaw := float(cmd.get("yaw_deg", 0.0))
+	var parent := player.get_parent() as Node3D
+	var local := world if parent == null else parent.to_local(world)
+	player.reset_flight(local, yaw)
+	_log_event("pilot_dev", {"verb": "teleport", "p": _v(player.global_position),
+			"yaw_deg": snappedf(yaw, 0.01)})
+
+
+## `{"dev":"freeze_traffic","on":true|false}` — the world-wide hold: Car's
+## `_physics_process` returns at the flag (route progress, honk clocks and
+## the blinker machine all stop, transforms stay put) and CarSpawner's
+## `_physics_process` gates the recycle cadence on the same flag. `on:false`
+## resumes exactly where everything stopped — no re-pathing, no teleports.
+func _dev_freeze_traffic(cmd: Dictionary) -> void:
+	var on := bool(cmd.get("on", true))
+	Car.traffic_frozen = on
+	_log_event("pilot_dev", {"verb": "freeze_traffic", "on": on})
+
+
+## (T-168) The dev verbs' rig resolution, beside `_spawner`'s snapshot paths
+## with the ORDER REVERSED: the current scene's direct child first, the
+## Main-prefixed path second. The live game (current scene IS Main) and the
+## autoplay harness (Main under the scene root) resolve identically either
+## way; the reversal exists because a sim-suite run carries leftover Main
+## instances named "Main" whose rigs are NOT the session under test, while a
+## bare test rig (the T-054 `CarSpawner.new()` pattern) is the scene's own
+## direct child.
+func _dev_spawner(node_name: String) -> Node:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return null
+	var node := scene.get_node_or_null(node_name)
+	if node != null:
+		return node
+	return scene.get_node_or_null("Main/%s" % node_name)
+
+
+## The dev verbs' player — the same reversed rule as `_dev_spawner`.
+func _dev_player() -> Player:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return null
+	var player := scene.get_node_or_null("Player") as Player
+	if player != null:
+		return player
+	return scene.get_node_or_null("Main/Player") as Player
+
+
+## The nearest living car (flat, centre to centre) to `player` — walked over
+## Car's self-maintaining static fleet registry, so every living Car is a
+## candidate regardless of which spawner seeded it. Null when no car lives.
+func _dev_nearest_car(player: Node3D) -> Car:
+	var best: Car = null
+	var best_d := INF
+	for car in Car._fleet:
+		if car == null or not is_instance_valid(car):
+			continue
+		var d := Vector2(car.global_position.x - player.global_position.x,
+				car.global_position.z - player.global_position.z).length()
+		if d < best_d:
+			best_d = d
+			best = car
+	return best
+
+
+## The nearest living car still carrying a forced blinker tell — the on:false
+## release's fallback when the remembered car reference went stale (freed by
+## a mid-session replacement). Null when no car is forced.
+func _dev_nearest_forced_car() -> Car:
+	var best: Car = null
+	var best_d := INF
+	var anchor := Vector3.ZERO
+	var player := _dev_player()
+	if player != null:
+		anchor = player.global_position
+	for car in Car._fleet:
+		if car == null or not is_instance_valid(car) or car.blinker_forced == 0:
+			continue
+		var d := Vector2(car.global_position.x - anchor.x,
+				car.global_position.z - anchor.z).length()
+		if d < best_d:
+			best_d = d
+			best = car
+	return best
 
 
 ## A real key event through the input pipeline — reaches _unhandled_input
