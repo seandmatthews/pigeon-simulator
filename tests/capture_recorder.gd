@@ -25,6 +25,11 @@ const FLAG_PATH := "res://.captures/record.flag"
 const CAPTURES_DIR := "res://.captures"
 const DEFAULT_IMAGE_INTERVAL := 0.1
 const CRUMB_LIMIT := 15
+## (T-170) The hidden-launch clearance: the window parks its bottom-right
+## corner this many px up-left of the min screen corner, so measured frame
+## slop (≤ 8 px x, ≤ 31 px y on this machine) can never drag a monitor edge
+## into view. focuscheck re-proves the OS side with a 32 px bar.
+const HIDE_MARGIN_PX := 80
 
 var _session: String = ""
 var _dir: String = ""
@@ -122,6 +127,7 @@ func _start_session() -> void:
 	var interval_env := OS.get_environment("PIGEON_IMAGE_INTERVAL")
 	if interval_env.is_valid_float():
 		_image_interval = interval_env.to_float()
+	_hide_window()
 	_start_stream()
 	# The claim is written last: pilot.py treats its appearance as "this
 	# instance booted and owns the session".
@@ -131,6 +137,85 @@ func _start_session() -> void:
 		claim_file.store_line(JSON.stringify(claim))
 	claim_file = null
 	DisplayServer.window_set_title("Pigeon pilot %s" % _session)
+
+
+## (T-170) The hidden-launch leg: when the launcher asked for a never-seen
+## window (PIGEON_WINDOW_HIDDEN=1 — pilot.py's default launch, `--shown`
+## skips it) and this build has a real window to hide, flag the window
+## no-activate — the style update applies WS_EX_NOACTIVATE and every later
+## show/foreground path takes the SW_SHOWNA branch — then move it fully
+## off-screen through window_set_position, which is a raw MoveWindow with no
+## clamp (unlike the engine's `--position`, which clamps an off-screen
+## creation rect back onto the primary screen — probed live, the ticket's
+## red-before). The ack is the machine-checkable event pilot sessions read.
+## Timing, stated honestly: the engine shows the window in Main::setup2
+## before autoloads run, so a sub-second blip at the cascade corner precedes
+## the hide, and the boot-instant SetForegroundWindow happens before any
+## game code can flag the window — measured denied in background launches
+## (the agent-batch context this leg targets). Headless runs have no window
+## and legacy flag-file mode never enters here (the session-mode guard skips
+## both: no event, no error).
+func _hide_window() -> void:
+	if OS.get_environment("PIGEON_WINDOW_HIDDEN") != "1":
+		return
+	if DisplayServer.get_name() == "headless":
+		return
+	var win_id := DisplayServer.MAIN_WINDOW_ID
+	var win_size := DisplayServer.window_get_size(win_id)
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true, win_id)
+	var hide_pos := _hide_position(_screen_positions(), win_size)
+	DisplayServer.window_set_position(hide_pos, win_id)
+	## The flag's style rebuild must not become a full HIDE: measured against
+	## the shipped 4.7.2 (style 0x06CF0000 on a live session, IsWindowVisible
+	## false), 4.7's _get_window_style re-applies WS_VISIBLE only when NOT
+	## no-activate, so flagging an already-shown main window strips
+	## WS_VISIBLE outright — and a fully hidden window stops DWM compositing,
+	## which turns the OS `shot` into a stale boot-splash frame (measured: a
+	## navy splash PNG minutes into a run) even though the in-process frame
+	## stream keeps flowing. There is no DisplayServer.window_show in 4.7.2
+	## (probed: the API surface has no such method), but the BORDERLESS flag
+	## case re-shows the window itself — ShowWindow(SW_SHOWNOACTIVATE) when
+	## no_focus is set (source-verified) — so re-asserting the flag's current
+	## value (false) re-lights the window OFF-SCREEN without ever activating
+	## it. End state: visible, off-screen, WS_EX_NOACTIVATE; PrintWindow
+	## captures fresh, every later engine show/foreground path still takes
+	## the no-activate branch.
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false, win_id)
+	_log_event("pilot_window_hidden", {
+		"pos": [hide_pos.x, hide_pos.y],
+		"no_focus": true,
+		"size": [win_size.x, win_size.y],
+	})
+
+
+## (T-170) The top-left corner of every connected monitor, in order — the
+## layout input of _hide_position.
+func _screen_positions() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for i in DisplayServer.get_screen_count():
+		out.append(DisplayServer.screen_get_position(i))
+	return out
+
+
+## (T-170) The PURE hide math: park the window's bottom-right corner at the
+## min screen corner minus the window size minus HIDE_MARGIN_PX, so the
+## window sits fully outside every monitor (each one's top-left is ≥ the min
+## corner) with the margin to absorb frame slop. Static and DisplayServer-free
+## so the sim suite can pin it against fixed monitor layouts headlessly
+## (`pilot_window_hide_math`); 80 px on this machine's measured ≤ 8/≤ 31 px
+## slop keeps a monitor edge from ever peeking back in.
+static func _hide_position(screen_positions: Array[Vector2i],
+		window_size: Vector2i) -> Vector2i:
+	var min_corner := Vector2i.ZERO
+	var first := true
+	for p in screen_positions:
+		if first:
+			min_corner = p
+			first = false
+		else:
+			min_corner = Vector2i(mini(min_corner.x, p.x), mini(min_corner.y, p.y))
+	return Vector2i(min_corner.x - window_size.x - HIDE_MARGIN_PX,
+			min_corner.y - window_size.y - HIDE_MARGIN_PX)
 
 
 ## Legacy flag-file mode, unchanged: one shared .captures/ channel.

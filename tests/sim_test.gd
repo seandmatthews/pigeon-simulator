@@ -323,6 +323,7 @@ func _run_scenarios() -> void:
 	await _scenario_dev_hunger_lock() ## T-167 — the dev-verb family on the same pilot channel: lock/refill/unlock through _execute_dev, the gate seam, live-channel flow while frozen.
 	await _scenario_dev_verb_pack() ## T-168 — the starter verb pack: spawn_car/car_blinker/teleport/freeze_traffic through _execute_dev, the gate seam, ack payloads machine-checkable.
 	await _scenario_dev_call_verb() ## T-169 — the call verb: one-hop invocation through _execute_dev — resolution arms, THE coercion rule, error/denylist events, the gate seam.
+	await _scenario_pilot_window_hide_math() ## T-170 — the hidden-launch math: the pure hide position across three monitor layouts, the size input, and the headless guard leg.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -10941,6 +10942,100 @@ func _scenario_dev_call_verb() -> void:
 						cache_split and cache_acks, def_ok, add_ok, tp_ok,
 						errors_ok, fence_ok, refused_ok,
 						refused_logged and no_leaked_eat])
+
+
+## --- scenarios (T-170 pilot hidden launch) -----------------------------------
+
+## The T-170 hidden-launch contract, pinned at the two arms this headless
+## suite CAN reach — the pure helper and the guard. The OS-level proof (real
+## window placement, foreground samples, off-screen capture) is pilot.py
+## focuscheck, which a headless DisplayServer cannot run (no window,
+## no GetForegroundWindow). Legs: (a) the EXACT hide position for the three
+## ticket monitor layouts at the 1280×720 client — this machine's
+## side-by-side (0,0)+(2560,0), a negative-left-monitor (−1920,0)+(0,0), and
+## a single screen — each then re-checked INDEPENDENTLY: the window rect must
+## sit ≥ HIDE_MARGIN_PX clear of EVERY monitor rect on at least one axis (the
+## per-axis-separation clearance notion focuscheck shares); (b) a second
+## window size (640×360 → (−720,−440)) proving the size input flows — a
+## hard-coded 1280×720 fails it; (c) the GUARD leg: a real session-mode
+## recorder under PIGEON_WINDOW_HIDDEN=1 in THIS headless run logs run_start
+## (session mode started) but NO pilot_window_hidden — the
+## DisplayServer.get_name() != "headless" guard skips the leg with no event
+## and no error, exactly as legacy flag-file mode is skipped by construction
+## (the leg lives in _start_session). Env restored however the legs end.
+func _scenario_pilot_window_hide_math() -> void:
+	var client := Vector2i(1280, 720) ## project.godot's desktop window, what the hide math sizes from
+	var layouts := [
+		{"name": "desktop_side_by_side",
+			"mons": [Rect2i(0, 0, 2560, 1440), Rect2i(2560, 0, 1920, 1080)],
+			"want": Vector2i(-1360, -800)},
+		{"name": "negative_left",
+			"mons": [Rect2i(-1920, 0, 1920, 1080), Rect2i(0, 0, 2560, 1440)],
+			"want": Vector2i(-3280, -800)},
+		{"name": "single_screen",
+			"mons": [Rect2i(0, 0, 1920, 1080)],
+			"want": Vector2i(-1360, -800)},
+	]
+	var exact_ok := true
+	var clear_ok := true
+	var detail := ""
+	for layout in layouts:
+		var mons: Array[Rect2i] = []
+		var positions: Array[Vector2i] = []
+		for m in layout["mons"]:
+			mons.append(m)
+			positions.append((m as Rect2i).position)
+		var got: Vector2i = RECORDER_SCRIPT._hide_position(positions, client)
+		var want: Vector2i = layout["want"]
+		var exact := got == want
+		exact_ok = exact_ok and exact
+		## Independent clearance recompute: the window rect vs every monitor
+		## rect — separated by ≥ HIDE_MARGIN_PX iff some axis separates the
+		## pair by that much (the max of the two per-axis separations).
+		var win := Rect2i(got, client)
+		var worst := 1 << 30
+		for m in mons:
+			var sx: int = maxi(m.position.x - win.end.x, win.position.x - m.end.x)
+			var sy: int = maxi(m.position.y - win.end.y, win.position.y - m.end.y)
+			worst = mini(worst, maxi(sx, sy))
+		var clear := worst >= int(RECORDER_SCRIPT.HIDE_MARGIN_PX)
+		clear_ok = clear_ok and clear
+		detail += " [%s got=%s want=%s exact=%s clearance=%dpx]" % [
+				layout["name"], got, want, exact, worst]
+	## The size input flows: a smaller window parks proportionally closer in.
+	var single: Array[Vector2i] = [Vector2i(0, 0)]
+	var small: Vector2i = RECORDER_SCRIPT._hide_position(single, Vector2i(640, 360))
+	var size_ok := small == Vector2i(-720, -440)
+	detail += " size640x360=%s exact=%s" % [small, size_ok]
+	## The guard leg: the real recorder, session mode, hidden env, HEADLESS —
+	## the leg must skip silently (run_start proves the session started; a
+	## leaked pilot_window_hidden or an engine error both fail the suite).
+	var saved_hidden := OS.get_environment("PIGEON_WINDOW_HIDDEN")
+	var saved_session := OS.get_environment("PIGEON_PILOT_SESSION")
+	var saved_images := OS.get_environment("PIGEON_IMAGE_INTERVAL")
+	OS.set_environment("PIGEON_PILOT_SESSION", "simtest_hide")
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", "0")
+	OS.set_environment("PIGEON_WINDOW_HIDDEN", "1")
+	var recorder: Node = RECORDER_SCRIPT.new()
+	add_child(recorder)
+	await _wait_frames(5)
+	## The T-168 payload reader (skips empty/trailing lines) — the name-set
+	## `_read_pilot_events` prints a JSON parse ERROR on a live file's final
+	## partial line; this leg's read should log no noise.
+	var hide_names := {}
+	for e in _read_pilot_event_list("res://.captures/session_simtest_hide"):
+		hide_names[String(e.get("ev", ""))] = true
+	var guard_ok: bool = hide_names.has("run_start") \
+			and not hide_names.has("pilot_window_hidden")
+	recorder.queue_free()
+	OS.set_environment("PIGEON_WINDOW_HIDDEN", saved_hidden)
+	OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
+	await _wait_frames(2)
+	detail += " guard(session_started=%s no_hidden_event=%s)" % [
+			hide_names.has("run_start"), not hide_names.has("pilot_window_hidden")]
+	_check("pilot_window_hide_math", exact_ok and clear_ok and size_ok and guard_ok,
+			detail)
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------
