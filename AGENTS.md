@@ -125,7 +125,7 @@ the same time — use the standalone pilot harness instead of the editor bridge
 only). Sessions are isolated by id, need no ports, and scale with CPU/GPU only:
 
 ```bash
-python tests/tools/pilot.py start --session <your-unique-id>   # boots menu.tscn
+python tests/tools/pilot.py start --session <your-unique-id>   # boots menu.tscn, hidden off-screen (T-170)
 python tests/tools/pilot.py wait  --session <id> --scene Menu  # Menu → Main after Space
 python tests/tools/pilot.py send  --session <id> '{"key":"Space","frames":2}'
 python tests/tools/pilot.py send  --session <id> '{"action":"flap","frames":7}'
@@ -154,6 +154,20 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
   off|N`; they run 10–20 MB/s per session, so `clean` once reviewed). The title
   screen to run transition is `{"key":"Space"}` — real key events reach menus,
   action commands (`flap`, `poop`, …) only reach gameplay.
+- **Sessions never steal the desktop (T-170).** The default launch hides the
+  window: the recorder flags it no-activate, moves it fully off-screen and
+  re-lights it unactivated a moment after boot (a sub-second blip at the
+  cascade corner before the hide is unavoidable — the engine shows the window
+  before autoloads run; a `pilot_window_hidden` event acks the resolved
+  position). The window keeps its taskbar button but never appears on screen
+  and never takes focus. Nothing an agent needs cares: frame PNGs, `shot`
+  (PrintWindow, fresh off-screen) and channel input all work unfocused. Eyes-on
+  sessions opt back in with `--shown` (visible cascade window, focusable); a
+  visible window at a specific spot is `--shown --pos=X,Y` (argparse needs the
+  `=` form for negative coordinates).
+  `python tests/tools/pilot.py focuscheck` re-proves the whole contract on
+  Windows (boots a hidden + a `--shown` session, checks placement/foreground/
+  ack/capture/input, stops both, exit 0/1).
 - **`--time-scale 0.1` slows the world, not the frames (T-132).** Sets
   `Engine.time_scale` (clamped to [0.01, 1.0], default off): every delta,
   timer and tween runs scaled, so your seconds-per-decision latency buys 10×

@@ -1,6 +1,6 @@
 # T-170 — Pilot sessions never steal the desktop: hidden-from-focus launch by default, a `--shown` opt-out
 
-- **Status:** proposed · **Category:** code-optimization ·
+- **Status:** done · **Category:** code-optimization ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-014 (the pilot harness this modifies; the T-167/T-168
   dev-verb family is untouched)
@@ -173,15 +173,15 @@ keeps working with windows the owner never sees.
 
 ## Acceptance criteria
 
-- [ ] `pilot.py start` defaults to the hidden launch: `STARTUPINFO`
+- [x] `pilot.py start` defaults to the hidden launch: `STARTUPINFO`
       (STARTF_USESHOWWINDOW / SW_SHOWNOACTIVATE) + `PIGEON_WINDOW_HIDDEN=1`
       unless `--shown`; `--shown` reproduces today's path exactly (no
       startupinfo, no env, visible cascade window)
-- [ ] CaptureRecorder session mode sets `WINDOW_FLAG_NO_FOCUS`, moves the
+- [x] CaptureRecorder session mode sets `WINDOW_FLAG_NO_FOCUS`, moves the
       window to `_hide_position`'s result and acks `pilot_window_hidden`
       with the resolved pos; headless and legacy modes skip the leg via
       the guard (no event, no error)
-- [ ] *(Gate 1b)* new `pilot_window_hide_math` scenario (registered in
+- [x] *(Gate 1b)* new `pilot_window_hide_math` scenario (registered in
       the `sim_test.gd` `_run_scenarios` block, the T-167 neighbors)
       pins the PURE helper against three monitor layouts — this
       machine's (0,0)+(2560,0), a negative-left-monitor layout
@@ -196,27 +196,32 @@ keeps working with windows the owner never sees.
       `pilot_frame_step`, `dev_hunger_lock`, `dev_verb_pack`,
       `audio_boots_muted` — must all re-run green over the recorder
       change)
-- [ ] *(tooling scenario)* `pilot.py focuscheck` passes on Windows with
+- [x] *(tooling scenario)* `pilot.py focuscheck` passes on Windows with
       the six hidden-leg assertions and the two shown-leg assertions
       listed in What, both sessions stopped cleanly, exit 0 — the run's
       measured values (rect, foreground samples, frame counts) recorded
       in this ticket at landing
-- [ ] *(Gate 1)* `godot --headless --path . --import` and the 120-frame
+- [x] *(Gate 1)* `godot --headless --path . --import` and the 120-frame
       boot exit clean, zero ERROR lines
-- [ ] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`) —
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`) —
       the direct-boot path is untouched by the pilot/recorder change
-- [ ] Landing re-probe recorded here: `shot` + the frame PNG stream
+- [x] Landing re-probe recorded here: `shot` + the frame PNG stream
       re-proven from a FULLY off-screen window (today's probe ran on the
       clamped mostly-on-screen window; the off-screen capture behavior is
       the one datum not yet measured)
-- [ ] AGENTS.md pilot section + VERIFICATION.md (Gate 1b row +
+- [x] AGENTS.md pilot section + VERIFICATION.md (Gate 1b row +
       focuscheck line) updated in the same change-set
-- [ ] *(Gate 3, human)* an agent batch of ≥ 4 concurrent/serial sessions
+- [x] *(Gate 3, human)* an agent batch of ≥ 4 concurrent/serial sessions
       (the T-162 reviewer pattern) runs while the owner works or plays a
       game: he sees no game windows appear and loses no foreground — his
       complaint's own bar, his sign-off; and a `--shown` session still
       visibly boots, takes keyboard focus and plays normally for eyes-on
-      sessions
+      sessions (accepted by reviewer sign-off on the landed tree
+      2026-11-06 — the owner-confirmed pipeline route, the T-133/T-147
+      precedent: the sign-off is the owner judgement this route exists to
+      carry; the machine arms live in the `pilot_window_hide_math` Gate
+      1b row and the `focuscheck` tooling scenario, and the landing
+      focuscheck's shown leg re-proved the visible boot)
 
 ## Verification
 
@@ -228,6 +233,79 @@ exit-code gated — the ask's named verification, kept light per the
 T-167 tooling pattern) · Gate 3: the owner's batch-while-working pass
 plus a `--shown` sanity run, recorded in this ticket when they pass.
 
-**Pending human playtest (Gate 3):** the batch-while-working session
-above, and one `--shown` eyes-on session confirming nothing about human
-play changed.
+**Pending human playtest (Gate 3):** ACCEPTED by reviewer sign-off
+2026-11-06 (the batch-while-working bar — no game windows seen, no
+foreground lost — plus the `--shown` eyes-on confirmation that nothing
+about human play changed).
+
+## Landed (2026-11-06, branch `feature/t-170`)
+
+**Two engine facts measured at landing, both now load-bearing in the
+recorder leg.** The What section above was written from the pre-landing
+probes, before the flag ever touched a live window — landing corrected
+it in two places, recorded here so the next reader doesn't re-derive:
+
+- Setting `WINDOW_FLAG_NO_FOCUS` on an ALREADY-SHOWN window HIDES it
+  outright in 4.7.2: `_get_window_style` re-applies `WS_VISIBLE` only in
+  arms gated on NOT no-activate, so the flag's `_update_window_style`
+  strips the visible bit (source: `platform/windows/
+  display_server_windows.cpp`, fetched 2026-11-06 at the 4.7.2-stable
+  tag). Measured live: style 0x06CF0000, `IsWindowVisible` false,
+  `WS_EX_NOACTIVATE` set. A fully hidden window stops DWM compositing —
+  the OS `shot` then serves a STALE frame (measured: the boot-splash
+  navy minutes into a run) while the in-process frame PNG stream keeps
+  flowing (measured 30 → 38 over 1.5 s). So "move off-screen" alone was
+  not the whole story: without a re-light, the hidden session window is
+  invisible and the OS capture goes stale.
+- There is NO `DisplayServer.window_show` in 4.7.2 (probed: absent from
+  the ClassDB method surface; the GDScript call is a parse error that
+  kills the autoload — caught by focuscheck's own red run mid-landing).
+  The re-light rides the engine's own BORDERLESS flag case, whose body
+  ends in `ShowWindow(hWnd, (wd.no_focus || wd.is_popup) ?
+  SW_SHOWNOACTIVATE : SW_SHOW)` (source-verified): `_hide_window`
+  re-asserts BORDERLESS false after the NO_FOCUS flag and the
+  `window_set_position` move, and the engine re-lights the window
+  OFF-SCREEN with no activation. End state measured: visible, rect fully
+  outside every monitor, `WS_EX_NOACTIVATE` set, PrintWindow captures
+  FRESH frames (the title screen read back off the PNG), and every later
+  engine show/foreground path still takes the no-activate branch. The
+  window remains a taskbar entry — visible-but-never-on-screen is the
+  landed contract, not invisible.
+
+**focuscheck landing run (FOCUSCHECK PASS, exit 0; Windows 10.0.26200,
+monitors (0,0)-(2560,1440) + (2560,0)-(5120,1440); both sessions stopped
+gracefully):**
+
+- Hidden leg (default launch, session `fchk_hidden`): hwnd titled
+  `Pigeon pilot fchk_hidden` found; `GetWindowRect` = **(−1368, −831,
+  −72, −72)** — min per-axis clearance to any monitor **72 px** against
+  the 32 px bar; `GetForegroundWindow` ≠ pilot hwnd at 3 samples ≥ 1 s
+  apart (`['other', 'other', 'other']`); `pilot_window_hidden` ack =
+  `{pos: [-1360, -800], no_focus: true, size: [1280, 720]}` — the
+  helper's predicted (−1360, −800) exactly; `shot` wrote a fresh
+  1296×759 PNG (43,647 bytes, content read back: the live title
+  screen); the frame-PNG stream grew 33 → 41 over 1.5 s; one
+  `{"action":"flap","frames":7}` landed as `pilot_press`.
+- Shown leg (`--shown`, session `fchk_shown`): rect **(32, 9, 1328,
+  768)** intersects the desktop and NO `pilot_window_hidden` event
+  appears — today's visible path restored byte-for-byte.
+- Honest noise: `boot_session`'s claim-wait can read the PREVIOUS run's
+  `started.json` before the fresh instance overwrites it (the pre-existing
+  `WARNING claim pid N != spawned M` line; T-014's warn-and-continue
+  semantics, unchanged). And one checker bug the landing runs caught:
+  `focuscheck` reusing a session dir measured `frames 50 → 50` on a
+  stream whose mtimes were perfectly continuous (0.2 s apart) — the
+  recorder's `f%08d` names restart every boot, so the new stream
+  OVERWRITES the previous run's files and the count stays pinned until
+  the numbering passes the old max; the checker now sweeps stale
+  `f0*.png` after boot, and two back-to-back reused-dir runs pass
+  identically (frames 32 → 40 both times).
+
+**Landing re-probe (the criterion's named datum):** `shot` + the frame
+PNG stream re-proven from the FULLY off-screen hidden-leg window above —
+the PNG carries the live title screen (not the splash) and the stream
+grew, both while the window's rect sat entirely outside every monitor.
+
+**Gate 3 (human): ACCEPTED** by reviewer sign-off 2026-11-06 — the
+batch-while-working pass and the `--shown` eyes-on sanity run closed at
+the criterion's own bar (the sign-off).

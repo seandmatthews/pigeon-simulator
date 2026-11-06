@@ -12,13 +12,14 @@ never wrecks the real record or the ears of the person at the keyboard.
 Usage:
   pilot.py start  --session <id> [--scene res://scenes/menu.tscn]
                   [--images 0.2|off] [--sound] [--persist] [--pos X,Y] [--size WxH]
-                  [--time-scale 0.1]
+                  [--time-scale 0.1] [--shown]
   pilot.py send   --session <id> '{"action":"flap","frames":7}'
   pilot.py state  --session <id> [--tail 1]
   pilot.py events --session <id> [--tail 20]
   pilot.py wait   --session <id> --scene Main [--timeout 15]
   pilot.py shot   --session <id> --out shot.png      (OS window grab)
   pilot.py stop   --session <id> [--force]
+  pilot.py focuscheck                                 (T-170: prove the hidden launch)
   pilot.py list
   pilot.py clean
 
@@ -33,7 +34,8 @@ Pilot commands (one JSON object per line):
 Step mode: queue action holds in the SAME file as the step so they press on
 the first stepped tick (a hold sent while frozen decays unspent).
 
-Exit codes: 0 ok · 2 bad usage/owner alive · 3 game died on boot · 4 timeout.
+Exit codes: 0 ok · 1 focuscheck failed · 2 bad usage/owner alive ·
+3 game died on boot · 4 timeout.
 """
 import argparse
 import ctypes
@@ -52,6 +54,13 @@ TOOLS = Path(__file__).resolve().parent
 
 CREATE_NO_WINDOW = 0x08000000
 STILL_ACTIVE = 259
+SW_SHOWNOACTIVATE = 4  # T-170: the launcher's show-state leg (belt-and-suspenders)
+FOCUS_MARGIN_PX = 32   # T-170: focuscheck's on/off-screen clearance bar
+
+
+class _RECT(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
 
 
 def godot_bin() -> Path:
@@ -156,8 +165,19 @@ def cascade_pos() -> tuple:
     return (40 + off, 40 + off)
 
 
-def cmd_start(a):
-    sid = a.session
+def boot_session(sid: str, shown: bool, scene: str = "res://scenes/menu.tscn",
+                 images: str = "0.2", sound: bool = False, persist: bool = False,
+                 pos: str = "", size: str = "", time_scale=None,
+                 announce: bool = True) -> tuple:
+    """The ONE launch path (T-170) — cmd_start and focuscheck both boot
+    through here, so the checker exercises the real default. Returns
+    (proc, session_dir, pos). Unless `shown`, the launch is hidden-from-focus:
+    a STARTUPINFO show-state (SW_SHOWNOACTIVATE — apps honoring the launcher's
+    show state get it; Godot's console wrapper doesn't, so this leg is
+    belt-and-suspenders, not load-bearing) plus PIGEON_WINDOW_HIDDEN=1, the env
+    lever the recorder acts on by flagging the window no-activate and moving it
+    fully off-screen. `shown` skips both and reproduces the historical visible
+    cascade path byte-for-byte (no startupinfo, no new env)."""
     d = session_dir(sid)
     claim = read_claim(sid)
     if claim and godot_alive(int(claim.get("pid", 0) or 0)):
@@ -184,23 +204,37 @@ def cmd_start(a):
 
     env = os.environ.copy()
     env["PIGEON_PILOT_SESSION"] = sid
-    env["PIGEON_IMAGE_INTERVAL"] = "0" if a.images == "off" else a.images
-    env["PIGEON_MUTE"] = "" if a.sound else "1"
-    env["PIGEON_SOUND"] = "1" if a.sound else ""  # T-101: --sound opts the game's own boot-mute policy in
-    env["PIGEON_NO_PERSIST"] = "" if a.persist else "1"
+    env["PIGEON_IMAGE_INTERVAL"] = "0" if images == "off" else images
+    env["PIGEON_MUTE"] = "" if sound else "1"
+    env["PIGEON_SOUND"] = "1" if sound else ""  # T-101: --sound opts the game's own boot-mute policy in
+    env["PIGEON_NO_PERSIST"] = "" if persist else "1"
+    if not shown:  # T-170: the recorder reads this and hides the window
+        env["PIGEON_WINDOW_HIDDEN"] = "1"
 
-    pos = tuple(int(v) for v in a.pos.split(",")) if a.pos else cascade_pos()
+    pos = tuple(int(v) for v in pos.split(",")) if pos else cascade_pos()
     argv = [str(godot), "--path", str(ROOT), "--position", f"{pos[0]},{pos[1]}"]
-    if a.size:
-        argv += ["--resolution", a.size]
-    argv += [a.scene, "--", f"--pilot-session={sid}"]
-    if a.time_scale is not None:  # T-132: agent slow-mo — the game clamps to [0.01, 1.0]
-        argv += [f"--time-scale={a.time_scale}"]
+    if size:
+        argv += ["--resolution", size]
+    argv += [scene, "--", f"--pilot-session={sid}"]
+    if time_scale is not None:  # T-132: agent slow-mo — the game clamps to [0.01, 1.0]
+        argv += [f"--time-scale={time_scale}"]
+
+    startupinfo = None
+    if os.name == "nt" and not shown:
+        # T-170: the launcher's show-state leg. The engine never honors it
+        # (stated in the ticket against the 4.7.2 wrapper source), but it
+        # costs four lines and matches the intent.
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = SW_SHOWNOACTIVATE
 
     log = (d / "godot.log").open("wb")
     proc = subprocess.Popen(argv, cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT,
-                            env=env, creationflags=CREATE_NO_WINDOW if os.name == "nt" else 0)
-    print(f"pilot: session '{sid}' pid {proc.pid} spawning (pos {pos[0]}x{pos[1]}) ...")
+                            env=env, creationflags=CREATE_NO_WINDOW if os.name == "nt" else 0,
+                            startupinfo=startupinfo)
+    if announce:
+        print(f"pilot: session '{sid}' pid {proc.pid} spawning "
+              f"(pos {pos[0]}x{pos[1]}, {'shown' if shown else 'hidden off-screen'}) ...")
 
     deadline = time.time() + 30
     while time.time() < deadline:
@@ -217,8 +251,15 @@ def cmd_start(a):
     else:
         stop_force(proc.pid)
         sys.exit("pilot: timed out waiting for the session claim (started.json)")
+    return proc, d, pos
 
-    print(f"pilot: session '{sid}' READY")
+
+def cmd_start(a):
+    sid = a.session
+    proc, d, _pos = boot_session(sid, a.shown, a.scene, a.images, a.sound,
+                                 a.persist, a.pos, a.size, a.time_scale)
+    print(f"pilot: session '{sid}' READY"
+          + ("" if a.shown else " (window hidden off-screen — --shown for eyes-on)"))
     print(f"  dir     {d}")
     print(f"  log     {d / 'godot.log'}")
     print(f"  images  {'off' if a.images == 'off' else a.images + 's interval'}"
@@ -273,25 +314,33 @@ def cmd_wait(a):
     sys.exit(4)
 
 
-def cmd_shot(a):
-    ps1 = TOOLS / "window-shot.ps1"
-    out = a.out or str(session_dir(a.session) / "window.png")
+def take_shot(sid: str, out: str) -> tuple:
+    """One OS window grab through window-shot.ps1 (PrintWindow needs no focus,
+    so an off-screen hidden session captures fine — T-170). Returns
+    (returncode, printed text)."""
     r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-                        "-File", str(ps1), "-TitlePattern", f"Pigeon pilot {a.session}",
-                        "-OutPath", str(out)], capture_output=True, text=True)
-    print((r.stdout or r.stderr).strip())
-    sys.exit(r.returncode)
+                        "-File", str(TOOLS / "window-shot.ps1"), "-TitlePattern",
+                        f"Pigeon pilot {sid}", "-OutPath", str(out)],
+                       capture_output=True, text=True)
+    return r.returncode, (r.stdout or r.stderr).strip()
 
 
-def cmd_stop(a):
-    claim = read_claim(a.session)
+def cmd_shot(a):
+    out = a.out or str(session_dir(a.session) / "window.png")
+    code, text = take_shot(a.session, out)
+    print(text)
+    sys.exit(code)
+
+
+def stop_session(sid: str, force: bool = False) -> None:
+    claim = read_claim(sid)
     pid = int(claim.get("pid", 0)) if claim else 0
     if not pid or not godot_alive(pid):
-        print(f"pilot: session '{a.session}' is not running")
+        print(f"pilot: session '{sid}' is not running")
         return
-    if not a.force:
+    if not force:
         try:
-            drop_command(a.session, '{"quit": true}')
+            drop_command(sid, '{"quit": true}')
         except Exception:
             pass
         deadline = time.time() + 6
@@ -302,8 +351,12 @@ def cmd_stop(a):
         subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
                        capture_output=True)
         time.sleep(0.5)
-    print(f"pilot: session '{a.session}' stopped"
-          + (" (graceful)" if not godot_alive(pid) and not a.force else " (killed)"))
+    print(f"pilot: session '{sid}' stopped"
+          + (" (graceful)" if not godot_alive(pid) and not force else " (killed)"))
+
+
+def cmd_stop(a):
+    stop_session(a.session, a.force)
 
 
 def stop_force(pid: int):
@@ -349,6 +402,232 @@ def cmd_clean(_a):
         print(f"pilot: removed dead session {sid}")
 
 
+## --- T-170 focuscheck: the hidden-launch tooling scenario --------------------
+
+
+def _monitor_rects() -> list:
+    """Every connected monitor's rect (left, top, right, bottom)."""
+    import ctypes.wintypes as wt
+    user32 = ctypes.windll.user32
+    rects: list = []
+    proc = ctypes.WINFUNCTYPE(wt.BOOL, wt.HMONITOR, wt.HDC,
+                              ctypes.POINTER(_RECT), wt.LPARAM)
+
+    def _cb(_hmon, _hdc, lprect, _ldata):
+        r = lprect.contents
+        rects.append((r.left, r.top, r.right, r.bottom))
+        return True
+
+    user32.EnumDisplayMonitors(None, None, proc(_cb), 0)
+    return rects
+
+
+def _find_window(title: str):
+    """The top-level window whose title is EXACTLY `title`, or None."""
+    import ctypes.wintypes as wt
+    user32 = ctypes.windll.user32
+    found: list = []
+    proc = ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
+
+    def _cb(hwnd, _lparam):
+        n = user32.GetWindowTextLengthW(hwnd)
+        buf = ctypes.create_unicode_buffer(n + 2)
+        user32.GetWindowTextW(hwnd, buf, n + 2)
+        if buf.value == title:
+            found.append(hwnd)
+        return True
+
+    user32.EnumWindows(proc(_cb), 0)
+    return found[0] if found else None
+
+
+def _window_rect(hwnd) -> tuple:
+    import ctypes.wintypes as wt
+    user32 = ctypes.windll.user32
+    user32.GetWindowRect.argtypes = [wt.HWND, ctypes.POINTER(_RECT)]
+    r = _RECT()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(r)):
+        return None
+    return (r.left, r.top, r.right, r.bottom)
+
+
+def _foreground_hwnd():
+    import ctypes.wintypes as wt
+    user32 = ctypes.windll.user32
+    user32.GetForegroundWindow.restype = wt.HWND
+    return user32.GetForegroundWindow()
+
+
+def _axis_separation(rect: tuple, other: tuple) -> tuple:
+    """Per-axis separation between two rects — positive = gap on that axis,
+    negative = overlap there. Two rects sit >= m px apart (the clearance
+    notion focuscheck and the hide math share) iff separation_x >= m OR
+    separation_y >= m."""
+    l, t, r, b = rect
+    ol, ot, oright, ob = other
+    return (max(ol - r, l - oright), max(ot - b, t - ob))
+
+
+def _wait_for_window(sid: str, timeout_s: float):
+    """Poll for the session's exact window title (the recorder re-stamps it
+    for ~600 frames against the engine's own re-titling)."""
+    title = f"Pigeon pilot {sid}"
+    deadline = time.time() + timeout_s
+    hwnd = None
+    while time.time() < deadline and hwnd is None:
+        hwnd = _find_window(title)
+        if hwnd is None:
+            time.sleep(0.25)
+    return hwnd, title
+
+
+def _events_list(sid: str) -> list:
+    out = []
+    f = session_dir(sid) / "events.jsonl"
+    if not f.is_file():
+        return out
+    for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            e = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(e, dict):
+            out.append(e)
+    return out
+
+
+def _fresh_sid(base: str) -> str:
+    """A session id no live instance owns — `start` refuses live ids, so the
+    checker picks a fresh suffix instead of failing on a stale one."""
+    for i in range(100):
+        sid = base if i == 0 else f"{base}_{i}"
+        claim = read_claim(sid)
+        if not (claim and godot_alive(int(claim.get("pid", 0) or 0))):
+            return sid
+    sys.exit("pilot: no free focuscheck session id")
+
+
+def cmd_focuscheck(_a):
+    """The T-170 tooling scenario, self-contained: boots two short muted
+    menu-scene sessions itself — one through the default (hidden) launch, one
+    through --shown — checks the hidden-launch contract against the OS, stops
+    both, prints measurements and FOCUSCHECK PASS/FAIL. Exit 0/1; non-Windows
+    prints SKIP and exits 0 (window placement is a Win32 contract)."""
+    if os.name != "nt":
+        print("FOCUSCHECK SKIP (non-Windows — window placement is a Win32 contract)")
+        return
+    checks: list = []
+
+    def note(name: str, ok: bool, detail: str = "") -> None:
+        checks.append((name, ok))
+        print(f"  [{'PASS' if ok else 'FAIL'}] {name}"
+              + (f" — {detail}" if detail else ""))
+
+    def claim_pid(sid: str) -> int:
+        claim = read_claim(sid)
+        return int(claim.get("pid", 0)) if claim else 0
+
+    sid_h = _fresh_sid("fchk_hidden")
+    print(f"pilot: focuscheck hidden leg — session '{sid_h}' (default launch)")
+    try:
+        proc_h, _d_h, _p = boot_session(sid_h, shown=False, images="0.2",
+                                        announce=False)
+    except SystemExit as e:
+        note("hidden_boot", False, str(e))
+        proc_h = None
+    if proc_h is not None:
+        # A reused session dir carries the previous run's frame PNGs — the
+        # recorder's f%08d names restart every boot, so the new stream
+        # OVERWRITES stale files and the file count stays pinned until the
+        # numbering passes the old max (observed live: "frames 50 -> 50" on a
+        # reused dir while the stream itself ran every 0.2 s, mtimes
+        # continuous). Sweep them so the growth check counts THIS run.
+        for stale in session_dir(sid_h).glob("f0*.png"):
+            stale.unlink()
+        hwnd, title = _wait_for_window(sid_h, 20)
+        note("hidden_window_found", hwnd is not None, f"title='{title}'")
+        if hwnd is not None:
+            # The claim lands when the recorder starts and the hide leg has
+            # already run by then (it sits before the claim write in
+            # _start_session); the settle absorbs the boot foreground race.
+            time.sleep(2.5)
+            rect = _window_rect(hwnd)
+            mons = _monitor_rects()
+            if rect is None or not mons:
+                note("hidden_rect_offscreen", False,
+                     f"GetWindowRect failed or no monitors (rect={rect}, monitors={mons})")
+            else:
+                clear = min(max(_axis_separation(rect, m)) for m in mons)
+                outside = clear >= FOCUS_MARGIN_PX
+                note("hidden_rect_offscreen", outside,
+                     f"rect={rect} monitors={mons} min_clearance={clear}px "
+                     f"(bar {FOCUS_MARGIN_PX}px)")
+            fg_ok = True
+            samples = []
+            for _i in range(3):
+                fg = _foreground_hwnd()
+                samples.append("pilot" if fg == hwnd else "other")
+                fg_ok = fg_ok and fg != hwnd
+                time.sleep(1.0)
+            note("hidden_never_foreground", fg_ok, f"samples={samples}")
+        acks = [e for e in _events_list(sid_h) if e.get("ev") == "pilot_window_hidden"]
+        note("hidden_ack_event",
+             len(acks) == 1 and acks[0].get("no_focus") is True,
+             f"ack={acks}")
+        shot_path = session_dir(sid_h) / "focuscheck_shot.png"
+        code, text = take_shot(sid_h, str(shot_path))
+        shot_ok = code == 0 and shot_path.is_file() and shot_path.stat().st_size > 0
+        note("hidden_shot_alive", shot_ok,
+             f"rc={code} {text} bytes={shot_path.stat().st_size if shot_path.is_file() else 0}")
+        frames0 = len(list(session_dir(sid_h).glob("f0*.png")))
+        time.sleep(1.5)
+        frames1 = len(list(session_dir(sid_h).glob("f0*.png")))
+        note("hidden_frame_stream_grows", frames1 > frames0,
+             f"frames {frames0} -> {frames1}")
+        drop_command(sid_h, '{"action":"flap","frames":7}')
+        time.sleep(1.5)
+        presses = [e for e in _events_list(sid_h)
+                   if e.get("ev") == "pilot_press" and e.get("action") == "flap"]
+        note("hidden_input_flows", len(presses) >= 1, f"pilot_press={presses[:1]}")
+        stop_session(sid_h)
+        note("hidden_stopped_clean",
+             not godot_alive(claim_pid(sid_h)), f"pid={claim_pid(sid_h)}")
+
+    sid_s = _fresh_sid("fchk_shown")
+    print(f"pilot: focuscheck shown leg — session '{sid_s}' (--shown)")
+    try:
+        proc_s, _d_s, _p = boot_session(sid_s, shown=True, images="off",
+                                        announce=False)
+    except SystemExit as e:
+        note("shown_boot", False, str(e))
+        proc_s = None
+    if proc_s is not None:
+        hwnd_s, _title_s = _wait_for_window(sid_s, 20)
+        rect_s = _window_rect(hwnd_s) if hwnd_s else None
+        mons = _monitor_rects()
+        on_any = False
+        if rect_s is not None:
+            for m in mons:
+                sx, sy = _axis_separation(rect_s, m)
+                if sx < 0 and sy < 0:
+                    on_any = True
+        note("shown_rect_onscreen", on_any,
+             f"rect={rect_s} monitors={mons}")
+        time.sleep(1.0)
+        leaked = [e for e in _events_list(sid_s) if e.get("ev") == "pilot_window_hidden"]
+        note("shown_no_hide_ack", not leaked, f"pilot_window_hidden={leaked}")
+        stop_session(sid_s)
+        note("shown_stopped_clean",
+             not godot_alive(claim_pid(sid_s)), f"pid={claim_pid(sid_s)}")
+
+    ok = bool(checks) and all(c[1] for c in checks)
+    print("FOCUSCHECK " + ("PASS" if ok else "FAIL"))
+    sys.exit(0 if ok else 1)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -366,8 +645,15 @@ def main():
                    help="slow the whole simulation (Engine.time_scale), 0.01..1.0 — "
                         "frames keep painting, the flight model per game-second is "
                         "unchanged; default off")
-    s.add_argument("--pos", help="window position X,Y (default: cascade)")
+    s.add_argument("--pos", help="window position X,Y (default: cascade; with the "
+                        "default hidden launch the window ends off-screen regardless — "
+                        "stage a visible window at a spot with --shown --pos=X,Y; use "
+                        "the = form for negative coordinates)")
     s.add_argument("--size", help="window size, e.g. 1280x720")
+    s.add_argument("--shown", action="store_true",
+                   help="launch visible + focusable at the cascade position (T-170: "
+                        "the default launch is hidden off-screen and no-activate so "
+                        "agent batches never steal the desktop)")
     s.set_defaults(fn=cmd_start)
 
     s = sub.add_parser("send", help="queue a pilot command")
@@ -399,6 +685,10 @@ def main():
 
     sub.add_parser("list", help="all sessions and liveness").set_defaults(fn=cmd_list)
     sub.add_parser("clean", help="delete dead sessions' capture dirs").set_defaults(fn=cmd_clean)
+    sub.add_parser("focuscheck",
+                   help="T-170: prove the hidden launch end to end (boots a hidden "
+                        "and a --shown session, checks, stops both; Windows only)"
+                   ).set_defaults(fn=cmd_focuscheck)
 
     a = p.parse_args()
     a.fn(a)
