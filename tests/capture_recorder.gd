@@ -50,10 +50,17 @@ var _pending_presses: Array[Dictionary] = []
 ## the forced car whenever the player had moved, leaving it solid-lit through
 ## recycles for the rest of the process). Null when nothing is forced.
 var _dev_forced_car: Car = null
-## (T-169) The call verb's signature cache, read once per METHOD NAME from
-## get_method_list() (the ticket's rule): name → {"types": PackedInt64Array
-## (one Variant.Type per declared parameter), "total": int}. Keyed by method
-## name only per the ticket — project methods keep one signature per name.
+## (T-169) The call verb's signature cache, read once per METHOD NAME PER
+## CLASS from get_method_list() (the ticket's cache rule — the round-1
+## review made the key per class+script: the same method NAME carries
+## different declared types on different classes, e.g. `set_scale` is
+## Vector3 on Node3D and Vector2 on Control, and two scripts both define
+## `_face` with different arities — car.gd vs elder.gd — so a name-only
+## key let the first caller poison every later one):
+## "<script_path>|<native_class>|<method>" → {"types": PackedInt64Array
+## (one Variant.Type per declared parameter), "total": int, "required":
+## int (total minus the defaults get_method_list reports)}. Same script
+## implies same base class, so the key separates everything that differs.
 var _call_sigs: Dictionary = {}
 ## PIGEON_PERF=1 adds an engine-monitor block to the state stream every 30
 ## frames (fps, script times, draw calls, nodes, physics-active) — the
@@ -517,6 +524,23 @@ func _dev_freeze_traffic(cmd: Dictionary) -> void:
 ## --- the T-169 call verb -----------------------------------------------------
 
 
+## (T-169, round 1 review) The denied METHOD names. The ticket's fence is
+## "one hop, no chaining, no property writes, no self-calls into the
+## channel" — and Object's own dispatch/write methods defeat a name check
+## that only covers the fence's first three names: a
+## `{"method":"call","args":["queue_free"]}` wrap FREED the live Game
+## autoload in the round-1 review (the wrap rode past `free`/`queue_free`),
+## `propagate_call` on /root fanned out into this recorder and ran a dev
+## verb (a self-call into the channel), `set` moved hunger arbitrarily (the
+## property write the ticket excludes), and `call_deferred` dispatched a
+## method on the next tick. Denied everywhere, by exact name — the fence
+## is uniform, not situational.
+const _CALL_DENIED_METHODS: Array[String] = [
+	"free", "queue_free", "_pilot_step",
+	"call", "callv", "call_deferred", "propagate_call", "set", "set_deferred",
+]
+
+
 ## `{"dev":"call","node":…,"method":…,"args":[…]}` (T-169) — ONE-hop method
 ## invocation on the running world from a JSONL line: a remote procedure
 ## call, NOT a scripting console. `node` resolves through _call_resolve
@@ -524,18 +548,24 @@ func _dev_freeze_traffic(cmd: Dictionary) -> void:
 ## wildcards, no search), the method enters through `callv`, and THE single
 ## coercion rule applies: JSON arrays of 2–4 numbers coerce to
 ## Vector2/Vector3/Vector4 ONLY when the method's declared parameter type
-## demands it (read once per method name from get_method_list()); everything
-## else passes as raw JSON types. Results and errors are events, never
-## crashes — the session continues either way: `pilot_call_result`
-## {node, method, result} on success, `pilot_call_error` {node, method,
-## error} for a malformed command, an unknown node, an unknown method, an
-## arity/type failure, or a denylisted aim. THE FENCE (per the ticket, the
-## line future extensions argue against): one hop only — no expression
-## evaluation, no chaining on results (a returned object serializes as
-## inert data), no property writes; denylisted are node paths resolving
-## inside this recorder (no self-calls into the channel) and the methods
-## `free` / `queue_free` / `_pilot_step`. Debug builds only, inherited from
-## the _execute_dev gate — release exports refuse the verb before this runs.
+## demands it (read once per method name per class from
+## get_method_list()); everything else passes as raw JSON types with
+## callv's own conversions (the channel delivers every JSON number as a
+## float, and int-typed parameters accept it — measured 4.7.2). Results
+## and errors are events, never crashes — the session continues either
+## way: `pilot_call_result` {node, method, result} on success,
+## `pilot_call_error` {node, method, error} for a malformed command, an
+## unknown node, an unknown method, an arity/type failure, or a
+## denylisted aim. THE FENCE (per the ticket, the line future extensions
+## argue against): one hop only — no expression evaluation, no chaining
+## on results (a returned object serializes as inert data), no property
+## writes; denylisted are node paths resolving inside this recorder (no
+## self-calls into the channel) and _CALL_DENIED_METHODS: the teardown
+## trio plus Object's own dispatch/write escapes (`call` / `callv` /
+## `call_deferred` / `propagate_call` / `set` / `set_deferred` — see the
+## const above for what each smuggled in review). Debug builds only,
+## inherited from the _execute_dev gate — release exports refuse the verb
+## before this runs.
 func _dev_call(cmd: Dictionary) -> void:
 	var node_text := String(cmd.get("node", ""))
 	var method := String(cmd.get("method", ""))
@@ -552,7 +582,7 @@ func _dev_call(cmd: Dictionary) -> void:
 		_log_event("pilot_call_error", {"node": node_text, "method": method,
 				"error": "recorder_node"})
 		return
-	if method == "free" or method == "queue_free" or method == "_pilot_step":
+	if method in _CALL_DENIED_METHODS:
 		_log_event("pilot_call_error", {"node": node_text, "method": method,
 				"error": "denied_method"})
 		return
@@ -607,41 +637,53 @@ func _call_resolve(node_text: String) -> Node:
 
 
 ## (T-169) The declared signature for `method`, read ONCE per method name
-## from get_method_list() and kept in `_call_sigs`:
-## {"types": PackedInt64Array (one Variant.Type per parameter, in order),
-## "total": int}. A name the list does not carry yields the empty signature,
-## which the arity gate refuses any args on.
+## per class (see `_call_sigs`) from get_method_list() and kept in
+## `_call_sigs`: {"types": PackedInt64Array (one Variant.Type per
+## parameter, in order), "total": int, "required": int}. The required
+## count comes from the METHOD dict's `default_args` key — measured live
+## on 4.7.2 (the round-1 review's probe and this repo's: keys are
+## name/args/default_args/flags/id/return, and reset_flight-style methods
+## read `default_args: [0.0]`), so required = total − default count is
+## computable and undershoot can refuse pre-call. A name the list does not
+## carry yields the empty signature, which the arity gate refuses any args
+## on.
 func _call_signature(target: Node, method: String) -> Dictionary:
-	if _call_sigs.has(method):
-		return _call_sigs[method]
-	var sig := {"types": PackedInt64Array(), "total": 0}
+	var script: Script = target.get_script()
+	var key := "%s|%s|%s" % [script.resource_path if script != null else "",
+			target.get_class(), method]
+	if _call_sigs.has(key):
+		return _call_sigs[key]
+	var sig := {"types": PackedInt64Array(), "total": 0, "required": 0}
 	for m in target.get_method_list():
 		if String(m.get("name", "")) != method:
 			continue
 		var declared: Array = m.get("args", [])
+		var defaults: Array = m.get("default_args", [])
 		var types := PackedInt64Array()
 		for a in declared:
 			types.append(int(a.get("type", TYPE_NIL)))
-		sig = {"types": types, "total": types.size()}
+		sig = {"types": types, "total": types.size(),
+				"required": types.size() - defaults.size()}
 		break
-	_call_sigs[method] = sig
+	_call_sigs[key] = sig
 	return sig
 
 
-## (T-169) The coercion gate: overshooting the declared arity refuses
-## pre-call ("arity"); each provided argument is checked against its
-## declared type — a 2–4-number array coerces when the parameter demands a
-## Vector2/3/4 (_call_vec_array), anything into an untyped (Variant)
-## parameter passes raw (the array-stays-an-array law), and a JSON value a
-## declared parameter cannot accept (_call_json_fits) refuses pre-call
-## ("type") so the failure is a named event instead of a silent engine null.
-## Undershoot passes through deliberately: get_method_list() cannot see
-## default values (measured on 4.7.2 — required and defaulted args both
-## read usage 0), so the engine fills defaults when they exist and refuses
-## on its own when they do not.
+## (T-169) The coercion gate: arity refuses pre-call in BOTH directions —
+## over `total` (the engine would refuse) and under `required` (total
+## minus the declared defaults; the engine would refuse there too, with
+## only a console ERROR and a null result to show for it, which read as a
+## false void-success event). Each provided argument is checked against
+## its declared type — a 2–4-number array coerces when the parameter
+## demands a Vector2/3/4 (_call_vec_array), anything into an untyped
+## (Variant) parameter passes raw (the array-stays-an-array law), and a
+## JSON value a declared parameter cannot accept (_call_json_fits) refuses
+## pre-call ("type") so the failure is a named event instead of a silent
+## engine null.
 func _call_prepare_args(sig: Dictionary, args_in: Array) -> Dictionary:
 	var types: PackedInt64Array = sig["types"]
-	if args_in.size() > int(sig["total"]):
+	if args_in.size() > int(sig["total"]) \
+			or args_in.size() < int(sig["required"]):
 		return {"args": [], "error": "arity"}
 	var out: Array = []
 	for i in args_in.size():
@@ -684,29 +726,45 @@ func _call_vec_array(v: Variant, dims: int) -> Variant:
 			return null
 
 
-## (T-169) Which JSON types a declared parameter accepts as-is — the scalar
-## half of the pre-call type check, matching callv's own conversions (int
-## widens to float, String converts to StringName) and its refusals
-## (bools/strings do not become numbers, arrays are not vectors, and the
-## types JSON cannot produce at all — objects, the integer vectors, the
-## other math types, RID/Callable — refuse so the event names the failure
-## the engine would have raised silently).
+## (T-169) Which JSON values a declared parameter accepts as-is — the
+## scalar half of the pre-call type check, mirroring callv's own argument
+## conversion cell by cell (measured live on 4.7.2, probe + the round-1
+## review's session; JSON delivers every number as a FLOAT, so the int
+## arms are the float arms): numbers convert to int/float/bool params
+## (take_int [2.0] ran; the review's set_blinker_forced [1] and
+## get_child [0] ran through callv), String converts to StringName,
+## NodePath and Color params (take_node_path ["Player"] and take_color
+## ["red"] ran), a typed Object param accepts null, and everything else
+## refuses exactly as the engine refuses it (string into a bool/number,
+## number/bool into a String, arrays into anything, including the integer
+## vectors — take_vec2i [[1,2]] refuses in the engine too). Refusing here
+## names the failure in an event instead of leaving the engine's silent
+## null to pose as a void success.
 func _call_json_fits(declared: int, v: Variant) -> bool:
+	var t := typeof(v)
 	match declared:
 		TYPE_NIL:
 			return true
 		TYPE_BOOL:
-			return typeof(v) == TYPE_BOOL
+			return t == TYPE_BOOL or t == TYPE_INT or t == TYPE_FLOAT
 		TYPE_INT:
-			return typeof(v) == TYPE_INT
+			return t == TYPE_INT or t == TYPE_FLOAT or t == TYPE_BOOL
 		TYPE_FLOAT:
-			return typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT
-		TYPE_STRING, TYPE_STRING_NAME:
-			return typeof(v) == TYPE_STRING
+			return t == TYPE_INT or t == TYPE_FLOAT or t == TYPE_BOOL
+		TYPE_STRING:
+			return t == TYPE_STRING
+		TYPE_STRING_NAME:
+			return t == TYPE_STRING
+		TYPE_NODE_PATH:
+			return t == TYPE_STRING
+		TYPE_COLOR:
+			return t == TYPE_STRING
 		TYPE_ARRAY:
-			return typeof(v) == TYPE_ARRAY
+			return t == TYPE_ARRAY
 		TYPE_DICTIONARY:
-			return typeof(v) == TYPE_DICTIONARY
+			return t == TYPE_DICTIONARY
+		TYPE_OBJECT:
+			return v == null
 		_:
 			return false
 

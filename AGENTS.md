@@ -224,18 +224,27 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
   wildcards, no search. Args pass as raw JSON (float/string/bool/null/
   array/dict) with THE one coercion rule: an array of 2–4 numbers becomes a
   Vector2/3/4 only when the method's declared parameter type demands it.
-  Overshoot arity, unknown node/method and denylisted aims refuse pre-call
-  (undershoot rides the engine — defaulted calls fill, no-default calls
-  error); returns serialize as arrays for math types, `str()` with the type
-  named for everything else. **Read the fence before reaching for it:** this
+  The channel delivers every JSON number as a float and typed int
+  parameters accept it (the engine converts — `set_blinker_forced [1]`
+  works), as String converts into NodePath/StringName/Color parameters.
+  Arity refuses pre-call in BOTH directions — over the declared total and
+  under the required count (get_method_list's `default_args`; the
+  defaulted tail still fills: `reset_flight [pos]` works) — and unknown
+  node/method/type-mismatch and denylisted aims refuse pre-call too;
+  returns serialize as arrays for math types, `str()` with the type named
+  for everything else. **Read the fence before reaching for it:** this
   is a remote procedure call, NOT a scripting console — no expression
   evaluation, no chaining on results (a returned object comes back as inert
   text), no property writes, no global functions, and the denylist refuses
-  `free` / `queue_free` / `_pilot_step` and anything resolving inside the
-  CaptureRecorder. Debug builds only (release refuses behind the
-  `_dev_allowed()` gate); flows while the tree is paused like every dev
-  verb. Loosening any of that is a future owner ticket argued against this
-  written line.
+  `free` / `queue_free` / `_pilot_step` AND Object's own dispatch/write
+  escapes — `call` / `callv` / `call_deferred` / `propagate_call` / `set` /
+  `set_deferred` — plus anything resolving inside the CaptureRecorder (the
+  round-1 review: a `{"method":"call","args":["queue_free"]}` wrap freed
+  the live Game autoload, `propagate_call` on /root reached the recorder,
+  and `set` wrote hunger — all before this list existed). Debug builds
+  only (release refuses behind the `_dev_allowed()` gate); flows while the
+  tree is paused like every dev verb. Loosening any of that is a future
+  owner ticket argued against this written line.
 - **`shot` vs frame PNGs:** `shot` grabs the OS window by its
   `Pigeon pilot <id>` title (works even with `--images off`); the frame stream
   is the in-process viewport. Review with `tests/review/summarize.py

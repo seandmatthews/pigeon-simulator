@@ -33,13 +33,22 @@ investigation stop needing tickets at all:
    method, or arity/type failure — the session continues either way.
 2. **The single coercion rule:** JSON arrays of 2–4 numbers coerce to
    Vector2/Vector3/Vector4 ONLY when the method's declared parameter type
-   demands it (read once per method name from `get_method_list()`).
-   Everything else passes as raw JSON types (float/string/bool/null/
-   array/dict) — `callv` semantics, no magic. Without the rule, every
-   position-taking method is unreachable; with ONLY this rule, the surface
-   stays predictable. Return values serialize the same way in reverse
-   (known math types → arrays, everything else via `str()` with the type
-   named).
+   demands it (read once per method name per class from
+   `get_method_list()` — the round-1 review widened the key: the same
+   name carries different declared types on different classes,
+   `set_scale` Vector3 on Node3D vs Vector2 on Control, `_face` two
+   args in car.gd vs three in elder.gd, so a name-only cache let the
+   first caller poison the rest). Everything else passes as raw JSON
+   types (float/string/bool/null/array/dict) — `callv` semantics, no
+   magic: the gate mirrors the engine's own argument conversions
+   (measured live, round 1: every JSON number arrives as a float and
+   int-typed parameters accept it; String converts into
+   StringName/NodePath/Color; strings refuse numbers and bools; arrays
+   refuse into everything, integer vectors included). Without the rule,
+   every position-taking method is unreachable; with ONLY this rule, the
+   surface stays predictable. Return values serialize the same way in
+   reverse (known math types → arrays, everything else via `str()` with
+   the type named).
 3. **The safety fence — this is a remote procedure call, NOT a scripting
    console.** The anti-rabbit-hole contract, stated here so future
    extensions argue against a written line:
@@ -49,9 +58,14 @@ investigation stop needing tickets at all:
      property writes (`set`-with-coercion would smuggle the chaining back).
    - **Denylist:** node paths resolving inside the CaptureRecorder itself
      (no self-calls into the channel), and the methods `free` /
-     `queue_free` / `_pilot_step` — logged `pilot_call_error` if aimed at.
-     Release exports refuse everything anyway behind the T-167
-     `_dev_allowed()` gate.
+     `queue_free` / `_pilot_step` — logged `pilot_call_error` if aimed
+     at. (Round-1 amendment, review-found: the fence's words already
+     excluded what these next six DO, but a name check over the first
+     three didn't stop them — `call` / `callv` / `call_deferred`
+     re-enter dispatch by name, `propagate_call` fans out to self and
+     descendants, `set` / `set_deferred` are the property write; all six
+     now denylisted and scenario-pinned.) Release exports refuse
+     everything anyway behind the T-167 `_dev_allowed()` gate.
    - **Debug-build only**, inherited from T-167 — the shipped game has no
      invocation surface.
 4. **Gate 1b scenario `dev_call_verb`** (registered in the
@@ -146,35 +160,50 @@ that uses `call` without wedging the game is a Gate 3 data point.
 ## Recorded (2026-11-06, landed run)
 
 - **Gate 1b bite** (the scenario's `SIM DATA` line, `drain_per_second`
-  hand-raised to 60/s for the run and restored after):
-  `SIM DATA dev_call_verb: eat +10.00 (acked void-null=true), tells vec='Vector3:(1.0, 2.0, 3.0)' arr='Array:3:float' untyped='Array:2', defaulted=true add=true tp=true, errors node/method/arity=true/true/true moved_nothing=true, deny free/qfree/self/step=true/true/true/true game_alive=true, refused=true no_leaked_eat=true`
+  hand-raised to 60/s for the run and restored after — the post-round-1
+  run, every leg driven through the channel-real `_json_round_trip`):
+  `SIM DATA dev_call_verb: eat +10.00 (acked void-null=true), tells vec='Vector3:(1.0, 2.0, 3.0)' arr='Array:3:float' untyped='Array:2' int='int:1' np='node_path:CallProbe', defaulted=true add=true tp=true, errors node/method/arity=true/true/true(eat_errors=2) moved_nothing=true, deny direct=true escapes=6/6 no_dev_ran=true game_alive=true, refused=true no_leaked_eat=true`
   followed by `SIM PASS dev_call_verb`. The reads behind each arm: the
   `Game.hunger` eat lands +10.00 exactly with the void return serialized as
   JSON null; the `[1,2,3]` array coerced into the probe's Vector3-typed
   parameter (the method ran — an uncoercing verb would have type-refused
   pre-call) while the same shape into Array-typed and untyped parameters
-  stayed an `Array` (the tell names the element type); the undershoot into
-  `probe_defaulted` filled the 2.5 default; the `/root`-path `reset_flight`
-  landed the pigeon on target with velocity exactly `Vector3.ZERO`; and
-  every error/denylist arm refused with its named code while the session
-  continued (exactly one eat result ack exists — a leaked refused call
-  would log a second).
+  stayed an `Array` (the tell names the element type); the channel-type
+  pins read `int:1` / `node_path:CallProbe` (a bare JSON `[1]` into an
+  int-typed parameter and a string into a NodePath-typed one — the
+  round-1 fix); the undershoot into `probe_defaulted` filled the 2.5
+  default while BOTH eat arity refusals logged (eat_errors=2); the
+  `/root`-path `reset_flight` landed the pigeon on target with velocity
+  exactly `Vector3.ZERO`; and every error/denylist arm refused with its
+  named code while the session continued — all six dispatch/write escapes
+  denied, no `pilot_dev` event anywhere (the propagate_call never reached
+  the recorder), Game alive, exactly one eat result ack.
 - **Engine behavior measured on 4.7.2** (a headless probe, before writing
-  the verb): `get_method_list()` cannot see default values (required and
-  defaulted args both read `usage: 0`; untyped params read `usage: 131072`)
-  — so the arity gate refuses only OVERSHOOT pre-call and undershoot rides
-  the engine, which fills defaults when they exist (the `probe_defaulted`
-  pin) and refuses when they do not; `root.get_node_or_null("Game.hunger")`
+  the verb): `root.get_node_or_null("Game.hunger")`
   returns null for a dotted path (subnames do not resolve) — hence the
   resolver splits dots itself and walks child nodes first, node-holding
   script properties second; and `callv` with bad arity/types prints an
   engine ERROR and returns null (the method does not run) — hence the
   pre-call type table turns those failures into named `pilot_call_error`
-  events instead of silent nulls.
-- **Full suite:** 174 passes, `SIM SUMMARY: 0 failure(s)`, exit 0. The
-  remaining log ERRORs are pre-existing baseline (the `route_exhausted`
-  double-connects, the cafe-sitter lookups, and two Parse-JSON lines from
-  the untouched `pilot_frame_step`/`dev_hunger_lock` live-channel reads).
+  events instead of silent nulls. (CORRECTED in round 1: the first probe
+  read only the per-arg dicts and MISSED the method-level `default_args`
+  key — the method dict carries name/args/default_args/flags/id/return and
+  `default_args: [0.0]` for reset_flight-style methods, so the required
+  count IS computable and undershoot refuses pre-call; the landed-run
+  claim below that defaults were invisible was false and the round-1
+  review proved it live. The round-1 probe also measured Godot's JSON
+  parser delivering EVERY number as a float — `"7"` parses to `7.0` — and
+  the engine's argument-conversion matrix: float→int runs
+  (`take_int [2.0]`, the review's `set_blinker_forced [1]`),
+  String→StringName/NodePath/Color runs (`take_node_path ["Player"]`),
+  numbers→bool runs, string/bool→String and arrays→anything (integer
+  vectors included) refuse, and a typed Object param accepts null.)
+- **Full suite (post-round-1):** 174 passes, `SIM SUMMARY: 0 failure(s)`,
+  exit 0. The remaining log ERRORs are pre-existing baseline (the
+  `route_exhausted` double-connects, the cafe-sitter/hair-cap lookups, one
+  car-gap line, and two Parse-JSON lines from the untouched
+  `pilot_frame_step`/`dev_hunger_lock` live-channel reads); the
+  `dev_call_verb` scenario itself logs none.
 - **One latent suite bug fixed in passing (T-167's scenario):** GDScript's
   `%` binds tighter than `+`, so an UNparenthesized `"...%s..." +
   "...%s..." % [args]` formats only the LAST string segment — the
@@ -192,6 +221,63 @@ that uses `call` without wedging the game is a Gate 3 data point.
   release exports behind `_dev_allowed()`, and nothing player-visible
   changed. Every future agent session that `call`s without wedging the
   game is the ongoing Gate 3 data point.
+
+## Round 1 review (2026-11-06) — four defects, all fixed in the follow-up
+
+The reviewer played the landed verb live and read the code; each finding
+reopened the ticket (status back to doing) and each fix landed in the
+`fix(tooling)` commit:
+
+1. **No int-typed parameter was callable.** The type gate demanded
+   `typeof(v) == TYPE_INT`, but the channel's JSON parse delivers every
+   number as a float (the raw `pilot_press_deferred` event shows
+   `"frames":7.0` for a sent 7) — live, `set_blinker_forced [1]` and
+   `get_child [0]` refused with `error:"type"` while `callv` ran the same
+   values, and String into NodePath refused the same way
+   (`has_node ["Player"]` vs callv's true). Fix: `_call_json_fits` now
+   mirrors the engine's argument-conversion matrix cell by cell (re-measured
+   by probe: float→int/float/bool params run, String→StringName/NodePath/
+   Color runs, string/bool→String refuses, arrays refuse into everything —
+   integer vectors included — and a typed Object param accepts null); the
+   probe gains `probe_int`/`probe_node_path`; and EVERY scenario leg now
+   drives through `_json_round_trip` (the round-1 scenario handed the verb
+   hand-built GDScript dicts the channel can never deliver, so it proved
+   nothing about the live types).
+2. **Undershoot on a no-default method logged a false void-success.** Live:
+   `eat []` acked `pilot_call_result` with `result:null` — identical to a
+   real void ack — while hunger stayed 79.72 and godot.log held the
+   engine's "Method expected 1 argument(s), but called with 0";
+   `reset_flight []` did the same with the pigeon unmoved. The stated
+   reason was false: the first probe read only the per-arg dicts and
+   missed the METHOD-level `default_args` key (keys are
+   name/args/default_args/flags/id/return). Fix: signature carries
+   `required = total − default_args.size()` and undershoot refuses
+   pre-call ("arity"), scenario-pinned beside the overshoot pin; the
+   corrected contract is stated here, in AGENTS.md and in the code
+   comments.
+3. **The signature cache keyed by method NAME across classes.** Live,
+   session rv1: HUD/StatsLabel `set_scale [[1,1]]` succeeded, then Player
+   `set_scale [[1,1,1]]` refused (`type`); fresh session rv1b in reverse
+   order flipped which call succeeded; rv1 also refused set_rotation and
+   set_position on the label after a Player call. The comment claiming
+   "project methods keep one signature per name" was false — car.gd and
+   elder.gd both define `_face` with different arities. Fix: the cache key
+   is `<script_path>|<native_class>|<method>` (same script implies same
+   base class, so the key separates everything that differs).
+4. **The denylist did not hold — Object's own dispatch/write methods rode
+   past the name check.** Live: a `{"method":"call","args":["queue_free"]}`
+   wrap FREED the Game autoload (state read hunger/score None, a follow-up
+   logged unknown_node, godot.log reached 473 ERROR-matching lines); the
+   same wrap on a spawned car freed it and corrupted the fleet
+   (living_cars() errored to `[]`, spawn_car acked fleet:0);
+   `/root` `propagate_call("_execute_dev", ...)` made the RECORDER run a
+   dev verb (a self-call into the channel); `set("value", 50.0)` moved
+   hunger; `call_deferred("reset")` dispatched. Fix: the denylist extends
+   to `call` / `callv` / `call_deferred` / `propagate_call` / `set` /
+   `set_deferred` (the const above each name records what it smuggled),
+   six wrap legs + a no-`pilot_dev`-anywhere pin joined the scenario, and
+   the ticket's §3 denylist line and the AGENTS.md fence text now state
+   the full list.
 
 **Final tuned values:** none retuned — this ticket adds no gameplay
 constants. The shipped surface is the `call` verb's behavior contract

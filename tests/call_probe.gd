@@ -21,6 +21,23 @@ func probe_vec3(p: Vector3) -> String:
 	return "Vector3:%s" % p
 
 
+## (T-169, round 1 review) The int-typed pin: the real channel delivers
+## every JSON number as a float, so this method is callable only if the
+## verb's type gate accepts the delivered float into an int-typed
+## parameter (the engine converts — set_blinker_forced [1] and
+## get_child [0] both ran through callv in the review). The tell names
+## what landed.
+func probe_int(a: int) -> String:
+	return "int:%d" % a
+
+
+## (T-169, round 1 review) The NodePath-typed pin: the gate must let the
+## JSON string through into a NodePath-typed parameter (the engine
+## converts — has_node ["Player"] returned true in the review).
+func probe_node_path(p: NodePath) -> String:
+	return "node_path:%s" % p
+
+
 func probe_array(a: Array) -> String:
 	return "Array:%d:%s" % [a.size(), type_string(typeof(a[0]))]
 
