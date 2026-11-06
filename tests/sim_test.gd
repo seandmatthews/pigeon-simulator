@@ -18,6 +18,7 @@ const MENU_SCENE: PackedScene = preload("res://scenes/menu.tscn")
 const TOUCH_SCENE: PackedScene = preload("res://scenes/touch_controls.tscn") ## (T-119) Driven with synthetic screen contacts, never by poking its methods.
 const CAR_SCENE: PackedScene = preload("res://scenes/car.tscn") ## (T-134) Hand-staged stop-protocol cars.
 const RECORDER_SCRIPT := preload("res://tests/capture_recorder.gd") ## (T-140) Driven in session mode for the frame-step scenario.
+const CALL_PROBE_SCRIPT := preload("res://tests/call_probe.gd") ## (T-169) The call verb's typed-method probe.
 
 ## (T-119) The shipped non-builtin InputMap set. The touch layer must add
 ## NOTHING — `touch_layer_desktop_inert` reads the live InputMap against this
@@ -321,6 +322,7 @@ func _run_scenarios() -> void:
 	await _scenario_pilot_frame_step() ## T-140 — pause/step/resume + deferred presses, driven through a real recorder in session mode.
 	await _scenario_dev_hunger_lock() ## T-167 — the dev-verb family on the same pilot channel: lock/refill/unlock through _execute_dev, the gate seam, live-channel flow while frozen.
 	await _scenario_dev_verb_pack() ## T-168 — the starter verb pack: spawn_car/car_blinker/teleport/freeze_traffic through _execute_dev, the gate seam, ack payloads machine-checkable.
+	await _scenario_dev_call_verb() ## T-169 — the call verb: one-hop invocation through _execute_dev — resolution arms, THE coercion rule, error/denylist events, the gate seam.
 	await _scenario_density_cpu_budget()
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
@@ -10044,6 +10046,19 @@ func _find_pilot_event(events: Array[Dictionary], verb: String) -> Dictionary:
 	return {}
 
 
+## (T-169) The first `pilot_call_result`/`pilot_call_error` event whose
+## node/method pair matches — the call verb's acks and refusals are
+## distinguished by that pair (empty when none logged).
+func _find_pilot_call(events: Array[Dictionary], ev_name: String,
+		node: String, method: String) -> Dictionary:
+	for e in events:
+		if e.get("ev", "") == ev_name \
+				and String(e.get("node", "")) == node \
+				and String(e.get("method", "")) == method:
+			return e
+	return {}
+
+
 ## --- scenarios (T-167 dev hunger lock) --------------------------------------
 
 ## The T-167 dev-verb contract, driven through a REAL CaptureRecorder in
@@ -10166,9 +10181,9 @@ func _scenario_dev_hunger_lock() -> void:
 			drain_ok and locked_ok and refill_ok and resumed_ok and gate_ok
 					and channel_pause_ok and channel_verbs_ok and lock_holds_live
 					and channel_unlock_ok,
-			"drain=%.2f locked=%s (Δ%.6f, changed_fires=%d) refill=%s resumed=%s "
+			("drain=%.2f locked=%s (Δ%.6f, changed_fires=%d) refill=%s resumed=%s "
 					+ "gate=%s (ret l/r/u %s/%s/%s, unknown=%s, non_dev=%s) "
-					+ "channel pause=%s verbs=%s hold_live=%s unlock=%s" % [
+					+ "channel pause=%s verbs=%s hold_live=%s unlock=%s") % [
 						drained, locked_ok, locked_delta, silent_fires,
 						refill_ok, resumed_ok, gate_ok, refused_lock, refused_refill,
 						refused_unlock, unknown_ret, non_dev_ret, channel_pause_ok,
@@ -10513,6 +10528,223 @@ func _scenario_dev_verb_pack() -> void:
 			spawned_released_ok, flow_ok, frozen_ok, resumed_ok, refused_ok,
 			acks_ok]
 	_check("dev_verb_pack", pack_ok, pack_detail)
+
+
+## The T-169 call verb, driven through a REAL CaptureRecorder in session mode
+## (scratch `simtest_call` dir — swept later by pilot.py clean), the T-167
+## pattern: every leg fires through `_execute_dev` with an explicit dict,
+## `allowed` default (the headless sim is a debug build). Targets: the Game
+## autoload's own hunger clock through the dotted-property path
+## (`Game.hunger` — the resolution the ticket's example names), the harness
+## pigeon through its absolute /root path (the third resolution arm), and a
+## tests-only CallProbe (tests/call_probe.gd) whose typed methods pin the
+## coercion surface. Legs:
+## (a) the happy path — after 90 ticks of a 60/s forced drain,
+##     `{"dev":"call","node":"Game.hunger","method":"eat","args":[10.0]}`
+##     raises the bar by EXACTLY 10 (the read is synchronous — no drain tick
+##     can interleave) and the `pilot_call_result` ack carries node/method
+##     with the void return serialized as JSON null;
+## (b) THE coercion rule — a [x,y,z] array into the probe's Vector3-typed
+##     parameter RUNS the method with the tell reading Vector3 (an
+##     uncoercing verb would have type-refused pre-call), the same shape
+##     into the probe's Array-typed and untyped parameters stays an Array
+##     (the tells read Array:N:float — the array-stays-an-array law the
+##     ticket pins), the same shape into the pigeon's `reset_flight` through
+##     its /root path lands it on the target with velocity exactly
+##     Vector3.ZERO, an undershoot into `probe_defaulted` fills the default
+##     (the engine fills what get_method_list cannot see — measured 4.7.2),
+##     and a two-float call returns the numeric result through the
+##     serializer;
+## (c) error paths — unknown node, unknown method and overshoot arity each
+##     log `pilot_call_error` (unknown_node / unknown_method / arity), the
+##     arity refusal moves no state, and the harness continues through all
+##     of them into legs (d)/(e);
+## (d) the denylist — `free` and `queue_free` aimed at the Game autoload are
+##     refused (`denied_method`) and the autoload SURVIVES the following
+##     frames, a call aimed at the recorder's own node path refuses
+##     (`recorder_node` — no self-calls into the channel), and `_pilot_step`
+##     aimed anywhere refuses;
+## (e) the gate seam — with `allowed=false` the verb is consumed but refuses
+##     (`pilot_dev_refused`, verb "call"), moves no state, and logs no
+##     pilot_call_result.
+## The tree, the autoload clock (drain constant, lock, player, value) and the
+## session env are restored however the legs end.
+func _scenario_dev_call_verb() -> void:
+	get_tree().paused = false
+	var saved_session := OS.get_environment("PIGEON_PILOT_SESSION")
+	var saved_images := OS.get_environment("PIGEON_IMAGE_INTERVAL")
+	OS.set_environment("PIGEON_PILOT_SESSION", "simtest_call")
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", "0")
+	var hunger := Game.hunger
+	hunger.reset() ## Clean slate on the autoload clock (suite convention).
+	var saved_drain: float = hunger.drain_per_second
+	hunger.drain_per_second = 60.0 ## The T-005 game-over scenario's time-compression precedent.
+	hunger.player = _player ## Attach the sim pigeon — the drain needs a live player.
+	var recorder: Node = RECORDER_SCRIPT.new()
+	add_child(recorder)
+	await _wait_frames(3)
+	var pilot_dir := "res://.captures/session_simtest_call"
+	## --- (a) the happy path: drain some, call eat, read +10 ------------------
+	await _set_up(true, Vector3(0.0, 20.0, 0.0), Vector3.ZERO)
+	await _wait_frames(90)
+	var v_before: float = hunger.value
+	var eat_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": "Game.hunger", "method": "eat", "args": [10.0]})
+	var rose: float = hunger.value - v_before ## The synchronous read — no drain tick interleaves.
+	var happy_ok: bool = eat_ret and rose == 10.0
+	## --- (b) the coercion rule on the probe's typed methods ------------------
+	var probe: Node = CALL_PROBE_SCRIPT.new()
+	probe.name = "CallProbe"
+	add_child(probe)
+	var probe_path := String(probe.get_path())
+	var vec_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": probe_path, "method": "probe_vec3",
+			"args": [[1.0, 2.0, 3.0]]})
+	var arr_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": probe_path, "method": "probe_array",
+			"args": [[4.0, 5.0, 6.0]]})
+	var untyped_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": probe_path, "method": "probe_untyped",
+			"args": [[7.0, 8.0]]})
+	## The /root arm against the real player: [x,y,z] coerces into
+	## reset_flight's Vector3 `pos`, 45.0 rides raw into `yaw_deg`.
+	var tp_target := Vector3(3.0, 20.0, -4.0)
+	var tp_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": String(_player.get_path()),
+			"method": "reset_flight",
+			"args": [[tp_target.x, tp_target.y, tp_target.z], 45.0]})
+	var tp_ok: bool = tp_ret and _player.global_position == tp_target \
+			and _player.velocity == Vector3.ZERO
+	var def_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": probe_path, "method": "probe_defaulted",
+			"args": [7.0]})
+	var add_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": probe_path, "method": "probe_add",
+			"args": [2.0, 1.5]})
+	## --- (c) error paths: unknown node / method / overshoot arity ------------
+	var v_ref: float = hunger.value
+	var bad_node_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": "NotAnAutoload.child", "method": "eat", "args": []})
+	var bad_method_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": "Game.hunger",
+			"method": "definitely_not_a_method", "args": []})
+	var bad_arity_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": "Game.hunger", "method": "eat",
+			"args": [1.0, 2.0]})
+	var arity_moved_nothing: bool = hunger.value == v_ref ## Synchronous read.
+	## --- (d) the denylist ------------------------------------------------------
+	var free_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": "/root/Game", "method": "free", "args": []})
+	var qfree_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": "/root/Game", "method": "queue_free", "args": []})
+	await _wait_frames(2) ## A slipped queue_free would land on the next frame.
+	var game_alive: bool = is_instance_valid(Game)
+	var self_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": String(recorder.get_path()),
+			"method": "has_method", "args": ["_pilot_step"]})
+	var step_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": "/root/Game", "method": "_pilot_step",
+			"args": []})
+	## --- (e) the gate seam ------------------------------------------------------
+	var ref_eat: float = hunger.value
+	var refused_ret: bool = recorder._execute_dev(
+			{"dev": "call", "node": "Game.hunger", "method": "eat",
+			"args": [999.0]}, false)
+	var refused_ok: bool = refused_ret and hunger.value == ref_eat
+	## --- the events, read machine-checkably ------------------------------------
+	var events := _read_pilot_event_list(pilot_dir)
+	var ack_eat := _find_pilot_call(events, "pilot_call_result", "Game.hunger", "eat")
+	var ack_vec := _find_pilot_call(events, "pilot_call_result", probe_path, "probe_vec3")
+	var ack_arr := _find_pilot_call(events, "pilot_call_result", probe_path, "probe_array")
+	var ack_untyped := _find_pilot_call(events, "pilot_call_result", probe_path, "probe_untyped")
+	var ack_def := _find_pilot_call(events, "pilot_call_result", probe_path, "probe_defaulted")
+	var ack_add := _find_pilot_call(events, "pilot_call_result", probe_path, "probe_add")
+	var ack_tp := _find_pilot_call(events, "pilot_call_result",
+			String(_player.get_path()), "reset_flight")
+	var err_node := _find_pilot_call(events, "pilot_call_error", "NotAnAutoload.child", "eat")
+	var err_method := _find_pilot_call(events, "pilot_call_error", "Game.hunger",
+			"definitely_not_a_method")
+	var err_arity := _find_pilot_call(events, "pilot_call_error", "Game.hunger", "eat")
+	var err_free := _find_pilot_call(events, "pilot_call_error", "/root/Game", "free")
+	var err_qfree := _find_pilot_call(events, "pilot_call_error", "/root/Game", "queue_free")
+	var err_self := _find_pilot_call(events, "pilot_call_error",
+			String(recorder.get_path()), "has_method")
+	var err_step := _find_pilot_call(events, "pilot_call_error", "/root/Game", "_pilot_step")
+	var eat_acked: bool = not ack_eat.is_empty() and ack_eat.has("result") \
+			and ack_eat.get("result") == null ## The void return, serialized as JSON null.
+	var vec_tell: String = String(ack_vec.get("result", ""))
+	var arr_tell: String = String(ack_arr.get("result", ""))
+	var untyped_tell: String = String(ack_untyped.get("result", ""))
+	var coerce_ok: bool = vec_ret and not ack_vec.is_empty() \
+			and vec_tell.begins_with("Vector3:") ## The method RAN — the verb coerced.
+	var stays_array: bool = arr_ret and untyped_ret \
+			and arr_tell == "Array:3:float" and untyped_tell == "Array:2" ## The ticket's pin.
+	var def_result: Variant = ack_def.get("result", [])
+	var def_arr: Array = def_result if def_result is Array else []
+	var def_ok: bool = def_ret and not ack_def.is_empty() and def_arr.size() == 2 \
+			and absf(float(def_arr[0]) - 7.0) < 0.001 \
+			and absf(float(def_arr[1]) - 2.5) < 0.001 ## The undershoot filled 2.5.
+	var add_result: Variant = ack_add.get("result", 0.0)
+	var add_ok: bool = add_ret and not ack_add.is_empty() \
+			and absf(float(add_result) - 3.5) < 0.001 ## The numeric return serialized.
+	var tp_acked: bool = tp_ok and not ack_tp.is_empty()
+	var errors_ok: bool = bad_node_ret and bad_method_ret and bad_arity_ret \
+			and arity_moved_nothing \
+			and not err_node.is_empty() and String(err_node.get("error", "")) == "unknown_node" \
+			and not err_method.is_empty() and String(err_method.get("error", "")) == "unknown_method" \
+			and not err_arity.is_empty() and String(err_arity.get("error", "")) == "arity"
+	var deny_ok: bool = free_ret and qfree_ret and self_ret and step_ret and game_alive \
+			and not err_free.is_empty() and String(err_free.get("error", "")) == "denied_method" \
+			and not err_qfree.is_empty() and String(err_qfree.get("error", "")) == "denied_method" \
+			and not err_self.is_empty() and String(err_self.get("error", "")) == "recorder_node" \
+			and not err_step.is_empty() and String(err_step.get("error", "")) == "denied_method"
+	var refused_logged: bool = false
+	for e in events:
+		if e.get("ev", "") == "pilot_dev_refused" and String(e.get("verb", "")) == "call":
+			refused_logged = true
+	## Exactly ONE eat result ack exists — the leg-(a) happy path. A second
+	## would mean the leg-(e) refused call (999.0) leaked through the gate and
+	## executed; a pilot_call_error with the arity code already pins leg (c).
+	var eat_result_acks := 0
+	for e in events:
+		if e.get("ev", "") == "pilot_call_result" \
+				and String(e.get("node", "")) == "Game.hunger" \
+				and String(e.get("method", "")) == "eat":
+			eat_result_acks += 1
+	var no_leaked_eat: bool = eat_result_acks == 1
+	## Restore: tree, autoload clock, probe, recorder, session env — however the legs end.
+	get_tree().paused = false
+	probe.queue_free()
+	recorder.queue_free()
+	hunger.player = null ## The autoload's clock outlives this scene instance (suite convention).
+	hunger.locked = false ## Never leak a dev lock into later scenarios.
+	hunger.drain_per_second = saved_drain
+	hunger.reset()
+	OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
+	await _wait_frames(2)
+	## The bite record (the T-155/T-167 SIM DATA precedent): the +10 read, the
+	## three coercion tells, the undershoot fill, the serialized sum and the
+	## three error codes.
+	print(("SIM DATA dev_call_verb: eat +%.2f (acked void-null=%s), tells vec='%s' "
+			+ "arr='%s' untyped='%s', defaulted=%s add=%s tp=%s, errors node/method/arity="
+			+ "%s/%s/%s moved_nothing=%s, deny free/qfree/self/step=%s/%s/%s/%s "
+			+ "game_alive=%s, refused=%s no_leaked_eat=%s")
+			% [rose, eat_acked, vec_tell, arr_tell, untyped_tell, def_ok, add_ok,
+			tp_ok, not err_node.is_empty(), not err_method.is_empty(),
+			not err_arity.is_empty(), arity_moved_nothing,
+			not err_free.is_empty(), not err_qfree.is_empty(),
+			not err_self.is_empty(), not err_step.is_empty(), game_alive,
+			refused_logged, no_leaked_eat])
+	var call_ok: bool = happy_ok and eat_acked and coerce_ok and stays_array \
+			and def_ok and add_ok and tp_ok and tp_acked and errors_ok and deny_ok \
+			and refused_ok and refused_logged and no_leaked_eat
+	_check("dev_call_verb", call_ok,
+			("happy=%s acked=%s coerce=%s stays_array=%s def=%s add=%s tp=%s "
+					+ "errors=%s deny=%s refused=%s no_leaked_eat=%s") % [
+						happy_ok, eat_acked, coerce_ok, stays_array, def_ok,
+						add_ok, tp_ok, errors_ok, deny_ok, refused_ok,
+						refused_logged and no_leaked_eat])
 
 
 ## --- scenarios (T-114 favor economy) -----------------------------------------

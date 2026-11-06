@@ -1,6 +1,6 @@
 # T-169 — Dev tool 3: the call verb — one-hop method invocation on the running world from a JSONL line
 
-- **Status:** proposed · **Category:** tooling · **Value (1-5):** 3 ·
+- **Status:** doing · **Category:** tooling · **Value (1-5):** 3 ·
   **Risk (1-5):** 3
 - **Depends on:** T-167 (the `_execute_dev` seam, the `_dev_allowed()`
   debug-build gate, the `pilot_dev`/`pilot_dev_unknown` event contract);
@@ -115,24 +115,24 @@ drift.
 
 ## Acceptance criteria
 
-- [ ] `{"dev":"call",...}` resolves autoload/dotted/root paths, calls via
+- [x] `{"dev":"call",...}` resolves autoload/dotted/root paths, calls via
       `callv`, and acks `pilot_call_result` with a serialized return
-- [ ] The coercion rule works and ONLY for declared Vector2/3/4 parameters
+- [x] The coercion rule works and ONLY for declared Vector2/3/4 parameters
       (a float-array into an untyped or Array parameter stays an array —
       pinned by the scenario)
-- [ ] Unknown node / method / arity and denylisted targets log
+- [x] Unknown node / method / arity and denylisted targets log
       `pilot_call_error` and the session continues; release builds refuse
       behind `_dev_allowed()`
-- [ ] *(Gate 1b)* new `dev_call_verb` scenario registered in the
+- [x] *(Gate 1b)* new `dev_call_verb` scenario registered in the
       `_run_scenarios` block with the five legs above; full suite 0
       failures: `godot --headless --fixed-fps 60 --path .
       res://tests/sim_test.tscn`
-- [ ] *(Gate 1)* `godot --headless --path . --import` and the 120-frame
+- [x] *(Gate 1)* `godot --headless --path . --import` and the 120-frame
       boot exit clean, zero ERROR lines
-- [ ] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`)
-- [ ] VERIFICATION.md Gate 1b row + AGENTS.md `call` entry with the
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`)
+- [x] VERIFICATION.md Gate 1b row + AGENTS.md `call` entry with the
       one-hop contract, same change-set
-- [ ] *(Gate 3)* none — same honesty as T-167: dev-only surface, refused
+- [x] *(Gate 3)* none — same honesty as T-167: dev-only surface, refused
       in release exports, nothing player-visible to judge
 
 ## Verification
@@ -142,3 +142,59 @@ Gate 1 (`--import` + 120-frame boot) · Gate 1b full suite with
 Gate 3 explicitly none (dev-only, fenced, release-refused — same reasoning
 as T-167). The real-world pass is implicit and ongoing: every agent session
 that uses `call` without wedging the game is a Gate 3 data point.
+
+## Recorded (2026-11-06, landed run)
+
+- **Gate 1b bite** (the scenario's `SIM DATA` line, `drain_per_second`
+  hand-raised to 60/s for the run and restored after):
+  `SIM DATA dev_call_verb: eat +10.00 (acked void-null=true), tells vec='Vector3:(1.0, 2.0, 3.0)' arr='Array:3:float' untyped='Array:2', defaulted=true add=true tp=true, errors node/method/arity=true/true/true moved_nothing=true, deny free/qfree/self/step=true/true/true/true game_alive=true, refused=true no_leaked_eat=true`
+  followed by `SIM PASS dev_call_verb`. The reads behind each arm: the
+  `Game.hunger` eat lands +10.00 exactly with the void return serialized as
+  JSON null; the `[1,2,3]` array coerced into the probe's Vector3-typed
+  parameter (the method ran — an uncoercing verb would have type-refused
+  pre-call) while the same shape into Array-typed and untyped parameters
+  stayed an `Array` (the tell names the element type); the undershoot into
+  `probe_defaulted` filled the 2.5 default; the `/root`-path `reset_flight`
+  landed the pigeon on target with velocity exactly `Vector3.ZERO`; and
+  every error/denylist arm refused with its named code while the session
+  continued (exactly one eat result ack exists — a leaked refused call
+  would log a second).
+- **Engine behavior measured on 4.7.2** (a headless probe, before writing
+  the verb): `get_method_list()` cannot see default values (required and
+  defaulted args both read `usage: 0`; untyped params read `usage: 131072`)
+  — so the arity gate refuses only OVERSHOOT pre-call and undershoot rides
+  the engine, which fills defaults when they exist (the `probe_defaulted`
+  pin) and refuses when they do not; `root.get_node_or_null("Game.hunger")`
+  returns null for a dotted path (subnames do not resolve) — hence the
+  resolver splits dots itself and walks child nodes first, node-holding
+  script properties second; and `callv` with bad arity/types prints an
+  engine ERROR and returns null (the method does not run) — hence the
+  pre-call type table turns those failures into named `pilot_call_error`
+  events instead of silent nulls.
+- **Full suite:** 174 passes, `SIM SUMMARY: 0 failure(s)`, exit 0. The
+  remaining log ERRORs are pre-existing baseline (the `route_exhausted`
+  double-connects, the cafe-sitter lookups, and two Parse-JSON lines from
+  the untouched `pilot_frame_step`/`dev_hunger_lock` live-channel reads).
+- **One latent suite bug fixed in passing (T-167's scenario):** GDScript's
+  `%` binds tighter than `+`, so an UNparenthesized `"...%s..." +
+  "...%s..." % [args]` formats only the LAST string segment — the
+  `dev_hunger_lock` `_check` detail has evaluated that way since T-167
+  (spurious "not all arguments converted" ERROR after every pass; the
+  failure detail would have printed mangled). Both detail strings (T-167's
+  and this ticket's) are now parenthesized; the assertion expressions are
+  untouched.
+- **Gate 1:** `--import` exit 0 (the sole ERROR line is the documented,
+  accepted godot_mcp "N resources still in use at exit" notice) and the
+  120-frame `--quit-after 120` boot exit 0 with zero ERROR lines.
+- **Gate 2:** `AUTOPLAY DONE ok=true t=33.0 fps=127 ... splats=8 ...
+  restart=true` — exit 0.
+- **Gate 3:** none, per the ticket — the surface is dev-only, refused in
+  release exports behind `_dev_allowed()`, and nothing player-visible
+  changed. Every future agent session that `call`s without wedging the
+  game is the ongoing Gate 3 data point.
+
+**Final tuned values:** none retuned — this ticket adds no gameplay
+constants. The shipped surface is the `call` verb's behavior contract
+(resolution arms, the single Vector2/3/4 coercion rule, the denylist, the
+event names) plus the tests-only `CallProbe` (tests/call_probe.gd), whose
+methods exist to be called by the scenario and ship with `tests/`.
