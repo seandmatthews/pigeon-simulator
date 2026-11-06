@@ -50,6 +50,18 @@ var _pending_presses: Array[Dictionary] = []
 ## the forced car whenever the player had moved, leaving it solid-lit through
 ## recycles for the rest of the process). Null when nothing is forced.
 var _dev_forced_car: Car = null
+## (T-169) The call verb's signature cache, read once per METHOD NAME PER
+## CLASS from get_method_list() (the ticket's cache rule — the round-1
+## review made the key per class+script: the same method NAME carries
+## different declared types on different classes, e.g. `set_scale` is
+## Vector3 on Node3D and Vector2 on Control, and two scripts both define
+## `_face` with different arities — car.gd vs elder.gd — so a name-only
+## key let the first caller poison every later one):
+## "<script_path>|<native_class>|<method>" → {"types": PackedInt64Array
+## (one Variant.Type per declared parameter), "total": int, "required":
+## int (total minus the defaults get_method_list reports)}. Same script
+## implies same base class, so the key separates everything that differs.
+var _call_sigs: Dictionary = {}
 ## PIGEON_PERF=1 adds an engine-monitor block to the state stream every 30
 ## frames (fps, script times, draw calls, nodes, physics-active) — the
 ## measurement stream for perf work (T-018); default sessions are unchanged.
@@ -368,6 +380,11 @@ func _execute_dev(cmd: Dictionary, allowed: bool = _dev_allowed()) -> bool:
 			_dev_teleport(cmd)
 		"freeze_traffic":
 			_dev_freeze_traffic(cmd)
+		## (T-169) The call verb: one-hop method invocation on the running
+		## world — the fenced RPC below, its own event family
+		## (pilot_call_result / pilot_call_error), not pilot_dev.
+		"call":
+			_dev_call(cmd)
 		_:
 			_log_event("pilot_dev_unknown", {"verb": verb})
 			return true
@@ -502,6 +519,315 @@ func _dev_freeze_traffic(cmd: Dictionary) -> void:
 	var on := bool(cmd.get("on", true))
 	Car.traffic_frozen = on
 	_log_event("pilot_dev", {"verb": "freeze_traffic", "on": on})
+
+
+## --- the T-169 call verb -----------------------------------------------------
+
+
+## (T-169, rounds 1–2 review) The denied METHOD names: Object's whole
+## enumerable write/dispatch family. The ticket's fence is "one hop, no
+## chaining, no property writes, no self-calls into the channel", and a
+## name check shorter than the family does not hold it — the round-1 six
+## left live siblings that the round-2 review fired on real sessions:
+## `set_indexed`/`set_thread_safe`/`set_deferred_thread_group` wrote hunger
+## (99.88→50.0→40.0→30.0), `call_thread_safe`/`call_deferred_thread_group`
+## dispatched reset (and queue_free'd a spawned car, corrupting the fleet
+## to living_cars() == []), and — enabled by the typed-Object-accepts-null
+## argument arm — `set_script [null]` STRIPPED a car's script, leaving a
+## bare CharacterBody3D in the managed fleet. Round 1's evidence: a
+## `{"method":"call","args":["queue_free"]}` wrap FREED the live Game
+## autoload, `propagate_call` on /root fanned out into this recorder and
+## ran a dev verb (a self-call into the channel), `set`/`set_deferred`
+## wrote hunger, and `call_deferred` dispatched on the next tick.
+## Denied everywhere, by exact name — the fence is uniform, not
+## situational. Deliberate omissions, classification-checked against the
+## full get_method_list enumeration (196 entries on a bare Node):
+## `notification`/`notify_*`/`propagate_notification` carry only int
+## notification codes — no callable rides on them, so they are not
+## arbitrary dispatch; `rpc`/`rpc_id`/`rpc_config` are inert in this
+## game (the engine refuses unconfigured RPCs and none are configured —
+## live-tried in the round-2 review); and the fixed-purpose config
+## setters (`set_name`, `set_process`, `set_meta`, …) are ordinary
+## one-hop methods — a fence over every setter would be an allowlist in
+## reverse.
+const _CALL_DENIED_METHODS: Array[String] = [
+	## teardown (self and others)
+	"free", "queue_free", "_pilot_step",
+	## dispatch by name — the engine runs what these name
+	"call", "callv", "call_deferred", "call_thread_safe",
+	"call_deferred_thread_group", "propagate_call", "emit_signal",
+	## arbitrary writes by property name/path
+	"set", "set_deferred", "set_indexed", "set_thread_safe",
+	"set_deferred_thread_group",
+	## destructive write — strips a class from a live node
+	"set_script",
+]
+
+
+## `{"dev":"call","node":…,"method":…,"args":[…]}` (T-169) — ONE-hop method
+## invocation on the running world from a JSONL line: a remote procedure
+## call, NOT a scripting console. `node` resolves through _call_resolve
+## (autoload name, dotted path from an autoload, or a /root/... path — no
+## wildcards, no search), the method enters through `callv`, and THE single
+## coercion rule applies: JSON arrays of 2–4 numbers coerce to
+## Vector2/Vector3/Vector4 ONLY when the method's declared parameter type
+## demands it (read once per method name per class from
+## get_method_list()); everything else passes as raw JSON types with
+## callv's own conversions (the channel delivers every JSON number as a
+## float, and int-typed parameters accept it — measured 4.7.2). Results
+## and errors are events, never crashes — the session continues either
+## way: `pilot_call_result` {node, method, result} on success,
+## `pilot_call_error` {node, method, error} for a malformed command, an
+## unknown node, an unknown method, an arity/type failure, or a
+## denylisted aim. THE FENCE (per the ticket, the line future extensions
+## argue against): one hop only — no expression evaluation, no chaining
+## on results (a returned object serializes as inert data), no property
+## writes; denylisted are node paths resolving inside this recorder (no
+## self-calls into the channel) and _CALL_DENIED_METHODS — Object's whole
+## enumerable write/dispatch family: the teardown trio, every dispatch-by-
+## name method (call/callv/call_deferred/call_thread_safe/
+## call_deferred_thread_group/propagate_call/emit_signal), every
+## arbitrary write by property name or path (set/set_deferred/set_indexed/
+## set_thread_safe/set_deferred_thread_group), and the destructive
+## set_script (see the const above for what each family smuggled in the
+## round-1/round-2 reviews, and for the classification-checked
+## omissions). Debug builds only, inherited from the _execute_dev gate —
+## release exports refuse the verb before this runs.
+func _dev_call(cmd: Dictionary) -> void:
+	var node_text := String(cmd.get("node", ""))
+	var method := String(cmd.get("method", ""))
+	if node_text.is_empty() or method.is_empty():
+		_log_event("pilot_call_error", {"node": node_text, "method": method,
+				"error": "bad_command"})
+		return
+	var target := _call_resolve(node_text)
+	if target == null:
+		_log_event("pilot_call_error", {"node": node_text, "method": method,
+				"error": "unknown_node"})
+		return
+	if target == self or is_ancestor_of(target):
+		_log_event("pilot_call_error", {"node": node_text, "method": method,
+				"error": "recorder_node"})
+		return
+	if method in _CALL_DENIED_METHODS:
+		_log_event("pilot_call_error", {"node": node_text, "method": method,
+				"error": "denied_method"})
+		return
+	if not target.has_method(method):
+		_log_event("pilot_call_error", {"node": node_text, "method": method,
+				"error": "unknown_method"})
+		return
+	var args_in: Variant = cmd.get("args", [])
+	if typeof(args_in) != TYPE_ARRAY:
+		_log_event("pilot_call_error", {"node": node_text, "method": method,
+				"error": "bad_args"})
+		return
+	var prepared := _call_prepare_args(_call_signature(target, method), args_in)
+	if not String(prepared["error"]).is_empty():
+		_log_event("pilot_call_error", {"node": node_text, "method": method,
+				"error": String(prepared["error"])})
+		return
+	var call_args: Array = prepared["args"]
+	var ret: Variant = target.callv(method, call_args)
+	_log_event("pilot_call_result", {"node": node_text, "method": method,
+			"result": _call_serialize(ret)})
+
+
+## (T-169) The resolver: a `/root/...` path goes straight to
+## get_node_or_null; otherwise the first dotted component is an autoload
+## name (the resolution root — autoloads sit as named children of root) and
+## each further component resolves deterministically: a child node
+## (get_node_or_null) first, then a script property that holds a node
+## (`Game.hunger` — the clock NODE's name is "Hunger", but the autoload
+## carries it in the `hunger` property). No wildcards, no search: a
+## component that resolves to nothing refuses the whole call.
+func _call_resolve(node_text: String) -> Node:
+	if node_text.begins_with("/"):
+		return get_tree().root.get_node_or_null(node_text)
+	var parts := node_text.split(".")
+	if parts[0].is_empty():
+		return null
+	var node := get_tree().root.get_node_or_null(parts[0])
+	for i in range(1, parts.size()):
+		if node == null or parts[i].is_empty():
+			return null
+		var child := node.get_node_or_null(parts[i])
+		if child != null:
+			node = child
+			continue
+		var prop: Variant = node.get(parts[i])
+		if prop is Node:
+			node = prop as Node
+		else:
+			return null
+	return node
+
+
+## (T-169) The declared signature for `method`, read ONCE per method name
+## per class (see `_call_sigs`) from get_method_list() and kept in
+## `_call_sigs`: {"types": PackedInt64Array (one Variant.Type per
+## parameter, in order), "total": int, "required": int}. The required
+## count comes from the METHOD dict's `default_args` key — measured live
+## on 4.7.2 (the round-1 review's probe and this repo's: keys are
+## name/args/default_args/flags/id/return, and reset_flight-style methods
+## read `default_args: [0.0]`), so required = total − default count is
+## computable and undershoot can refuse pre-call. A name the list does not
+## carry yields the empty signature, which the arity gate refuses any args
+## on.
+func _call_signature(target: Node, method: String) -> Dictionary:
+	var script: Script = target.get_script()
+	var key := "%s|%s|%s" % [script.resource_path if script != null else "",
+			target.get_class(), method]
+	if _call_sigs.has(key):
+		return _call_sigs[key]
+	var sig := {"types": PackedInt64Array(), "total": 0, "required": 0}
+	for m in target.get_method_list():
+		if String(m.get("name", "")) != method:
+			continue
+		var declared: Array = m.get("args", [])
+		var defaults: Array = m.get("default_args", [])
+		var types := PackedInt64Array()
+		for a in declared:
+			types.append(int(a.get("type", TYPE_NIL)))
+		sig = {"types": types, "total": types.size(),
+				"required": types.size() - defaults.size()}
+		break
+	_call_sigs[key] = sig
+	return sig
+
+
+## (T-169) The coercion gate: arity refuses pre-call in BOTH directions —
+## over `total` (the engine would refuse) and under `required` (total
+## minus the declared defaults; the engine would refuse there too, with
+## only a console ERROR and a null result to show for it, which read as a
+## false void-success event). Each provided argument is checked against
+## its declared type — a 2–4-number array coerces when the parameter
+## demands a Vector2/3/4 (_call_vec_array), anything into an untyped
+## (Variant) parameter passes raw (the array-stays-an-array law), and a
+## JSON value a declared parameter cannot accept (_call_json_fits) refuses
+## pre-call ("type") so the failure is a named event instead of a silent
+## engine null.
+func _call_prepare_args(sig: Dictionary, args_in: Array) -> Dictionary:
+	var types: PackedInt64Array = sig["types"]
+	if args_in.size() > int(sig["total"]) \
+			or args_in.size() < int(sig["required"]):
+		return {"args": [], "error": "arity"}
+	var out: Array = []
+	for i in args_in.size():
+		var declared := TYPE_NIL
+		if i < types.size():
+			declared = int(types[i])
+		var v: Variant = args_in[i]
+		if declared == TYPE_VECTOR2 or declared == TYPE_VECTOR3 \
+				or declared == TYPE_VECTOR4:
+			var dims := 2 if declared == TYPE_VECTOR2 else 3
+			if declared == TYPE_VECTOR4:
+				dims = 4
+			var coerced: Variant = _call_vec_array(v, dims)
+			if coerced == null:
+				return {"args": [], "error": "type"}
+			out.append(coerced)
+		elif not _call_json_fits(declared, v):
+			return {"args": [], "error": "type"}
+		else:
+			out.append(v)
+	return {"args": out, "error": ""}
+
+
+## THE single coercion rule (T-169): an array of exactly `dims` numbers
+## becomes the `dims`-wide float vector — and nothing else ever coerces.
+func _call_vec_array(v: Variant, dims: int) -> Variant:
+	if typeof(v) != TYPE_ARRAY or (v as Array).size() != dims:
+		return null
+	for e: Variant in v:
+		if typeof(e) != TYPE_INT and typeof(e) != TYPE_FLOAT:
+			return null
+	match dims:
+		2:
+			return Vector2(float(v[0]), float(v[1]))
+		3:
+			return Vector3(float(v[0]), float(v[1]), float(v[2]))
+		4:
+			return Vector4(float(v[0]), float(v[1]), float(v[2]), float(v[3]))
+		_:
+			return null
+
+
+## (T-169) Which JSON values a declared parameter accepts as-is — the
+## scalar half of the pre-call type check, mirroring callv's own argument
+## conversion cell by cell (measured live on 4.7.2, probe + the round-1
+## review's session; JSON delivers every number as a FLOAT, so the int
+## arms are the float arms): numbers convert to int/float/bool params
+## (take_int [2.0] ran; the review's set_blinker_forced [1] and
+## get_child [0] ran through callv), String converts to StringName,
+## NodePath and Color params (take_node_path ["Player"] and take_color
+## ["red"] ran), a typed Object param accepts null, and everything else
+## refuses exactly as the engine refuses it (string into a bool/number,
+## number/bool into a String, arrays into anything, including the integer
+## vectors — take_vec2i [[1,2]] refuses in the engine too). Refusing here
+## names the failure in an event instead of leaving the engine's silent
+## null to pose as a void success.
+func _call_json_fits(declared: int, v: Variant) -> bool:
+	var t := typeof(v)
+	match declared:
+		TYPE_NIL:
+			return true
+		TYPE_BOOL:
+			return t == TYPE_BOOL or t == TYPE_INT or t == TYPE_FLOAT
+		TYPE_INT:
+			return t == TYPE_INT or t == TYPE_FLOAT or t == TYPE_BOOL
+		TYPE_FLOAT:
+			return t == TYPE_INT or t == TYPE_FLOAT or t == TYPE_BOOL
+		TYPE_STRING:
+			return t == TYPE_STRING
+		TYPE_STRING_NAME:
+			return t == TYPE_STRING
+		TYPE_NODE_PATH:
+			return t == TYPE_STRING
+		TYPE_COLOR:
+			return t == TYPE_STRING
+		TYPE_ARRAY:
+			return t == TYPE_ARRAY
+		TYPE_DICTIONARY:
+			return t == TYPE_DICTIONARY
+		TYPE_OBJECT:
+			return v == null
+		_:
+			return false
+
+
+## (T-169) The result serializer — the coercion rule in reverse: known math
+## types become number arrays, JSON-native values pass, everything else
+## (an Object return above all — inert data, no chaining through the fence)
+## serializes via str() with the type named.
+func _call_serialize(v: Variant) -> Variant:
+	match typeof(v):
+		TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING:
+			return v
+		TYPE_VECTOR2:
+			return [v.x, v.y]
+		TYPE_VECTOR3:
+			return [v.x, v.y, v.z]
+		TYPE_VECTOR4:
+			return [v.x, v.y, v.z, v.w]
+		TYPE_VECTOR2I:
+			return [v.x, v.y]
+		TYPE_VECTOR3I:
+			return [v.x, v.y, v.z]
+		TYPE_VECTOR4I:
+			return [v.x, v.y, v.z, v.w]
+		TYPE_ARRAY:
+			var out: Array = []
+			for e: Variant in v:
+				out.append(_call_serialize(e))
+			return out
+		TYPE_DICTIONARY:
+			var map := {}
+			for k: Variant in v.keys():
+				map[str(k)] = _call_serialize(v[k])
+			return map
+		_:
+			return "%s: %s" % [type_string(typeof(v)), str(v)]
 
 
 ## (T-168) The dev verbs' rig resolution, beside `_spawner`'s snapshot paths

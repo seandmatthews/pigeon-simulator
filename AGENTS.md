@@ -137,6 +137,7 @@ python tests/tools/pilot.py send  --session <id> '{"dev":"spawn_car"}'      #   
 python tests/tools/pilot.py send  --session <id> '{"dev":"teleport","x":<p.x>,"y":<p.y+1.6>,"z":<p.z>}'  #   hop onto THAT car (read p off the ack),
 python tests/tools/pilot.py send  --session <id> '{"dev":"car_blinker","side":"left","on":true}'  #   force ITS lights (the ack's car must equal the spawn node),
 python tests/tools/pilot.py send  --session <id> '{"dev":"teleport","x":<p.x>,"y":<p.y+9.0>,"z":<p.z-9.0>,"yaw_deg":180}'  #   pose overhead, then `shot`
+python tests/tools/pilot.py send  --session <id> '{"dev":"call","node":"Game.hunger","method":"eat","args":[10.0]}'  # call verb: ONE method on ONE node (see the fence below)
 python tests/tools/pilot.py state --session <id>               # last world-state JSONL line
 python tests/tools/pilot.py events --session <id> --tail 20    # what happened
 python tests/tools/pilot.py shot  --session <id>               # OS grab of that window
@@ -213,6 +214,50 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
   blinker observations stay clean. The owner's staging flow is the lines
   above in order: freeze, spawn, hop onto the spawn, blink, pose overhead,
   `shot`.
+- **The call verb — one-hop RPC (T-169).** `{"dev":"call","node":"Game.hunger","method":"eat","args":[10.0]}`
+  invokes ONE method on ONE resolvable node and acks `pilot_call_result`
+  `{node, method, result}` (errors ack `pilot_call_error` `{node, method,
+  error}` — the session continues either way; results are events you read
+  with `pilot.py events`, not values you get back). `node` is an autoload
+  name (`Game`), a dotted path from one (`Game.hunger` — child nodes and
+  node-holding script properties resolve), or a `/root/...` path; no
+  wildcards, no search. Args pass as raw JSON (float/string/bool/null/
+  array/dict) with THE one coercion rule: an array of 2–4 numbers becomes a
+  Vector2/3/4 only when the method's declared parameter type demands it.
+  The channel delivers every JSON number as a float and typed int
+  parameters accept it (the engine converts — `set_blinker_forced [1]`
+  works), as String converts into NodePath/StringName/Color parameters.
+  Arity refuses pre-call in BOTH directions — over the declared total and
+  under the required count (get_method_list's `default_args`; the
+  defaulted tail still fills: `reset_flight [pos]` works) — and unknown
+  node/method/type-mismatch and denylisted aims refuse pre-call too;
+  returns serialize as arrays for math types, `str()` with the type named
+  for everything else. **Read the fence before reaching for it:** this
+  is a remote procedure call, NOT a scripting console — no expression
+  evaluation, no chaining on results (a returned object comes back as inert
+  text), no property writes, no global functions, and the denylist covers
+  Object's whole enumerable WRITE/DISPATCH family, not a point list:
+  everything that dispatches by name (`call`, `callv`, `call_deferred`,
+  `call_thread_safe`, `call_deferred_thread_group`, `propagate_call`,
+  `emit_signal`), everything that writes by property name or path (`set`,
+  `set_deferred`, `set_indexed`, `set_thread_safe`,
+  `set_deferred_thread_group`), the destructive `set_script` (strips a
+  class from a live node), and the teardown `free` / `queue_free` /
+  `_pilot_step` — plus anything resolving inside the CaptureRecorder.
+  Review rounds made the family explicit: round 1 — a
+  `{"method":"call","args":["queue_free"]}` wrap freed the live Game
+  autoload and `propagate_call` on /root reached the recorder itself;
+  round 2 — the `*-thread-safe`/`set_indexed` siblings wrote hunger and
+  dispatched methods past the six, and a null `set_script` stripped a
+  car's script out of the managed fleet. Deliberately NOT denied:
+  `notification`/`notify_*` (int codes, no callable payload — not
+  arbitrary dispatch), `rpc`/`rpc_id`/`rpc_config` (inert here — the
+  engine refuses unconfigured RPCs and this game configures none), and
+  the fixed-purpose config setters (`set_name`, `set_process`, `set_meta`,
+  …) — ordinary one-hop methods. Debug builds only (release refuses
+  behind the `_dev_allowed()` gate); flows while the tree is paused like
+  every dev verb. Loosening any of that is a future owner ticket argued
+  against this written line.
 - **`shot` vs frame PNGs:** `shot` grabs the OS window by its
   `Pigeon pilot <id>` title (works even with `--images off`); the frame stream
   is the in-process viewport. Review with `tests/review/summarize.py
