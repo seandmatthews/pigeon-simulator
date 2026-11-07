@@ -14,9 +14,15 @@ extends CharacterBody3D
 ## yield to the right, straight and right beat left, conflicting committed
 ## movements hold the line. A body in the node's padded crosswalk bands holds
 ## the car too, pedestrian-priority. Nothing stays stuck: every hold runs the
-## patience clock (T-134 §3) — at `patience_seconds` the car honks once through
-## its own `honk()` and either commits through a protocol denial or steers one
-## careful lateral pass around a physical blocker, then re-arms. Amber corner
+## patience clock (T-134 §3) — at `patience_seconds` (physical blockers and
+## wedges) or `protocol_patience_seconds` (ladder/crosswalk denials) the car
+## honks once through the etiquette gate (T-166: only near the player, under
+## the fleet cadence cap) and either commits through a protocol denial whose
+## node box is actually clear, or steers one careful lateral pass around
+## whatever holds it — a pigeon/tourist body at one cycle, a car-blocker
+## queue from the third (T-134's stagger) — never blind: the pass arms only
+## across a verified shoulder (the oncoming gate and the parked gate), with
+## the aim clamped inside the asphalt. Amber corner
 ## blinkers arm `blinker_lead` before the route's next turn and flash at
 ## `blinker_hz` — the splat-planning tell (T-134 §5). Either mode takes a poop
 ## splat through the duck-typed `on_splatted` convention (T-006): the car
@@ -51,6 +57,11 @@ const HONK_TINT := Color(1.0, 0.85, 0.2)
 ## simultaneous passes converged mid-arc at 1.11 m). A car holds no fleet
 ## list, so a self-maintaining static registry is the one honest source.
 static var _fleet: Array[Car] = []
+## (T-166) Game-time (`TrafficControl.now`) of the last PATIENCE honk sounded
+## anywhere in the fleet — the etiquette cadence cap's clock. Static like
+## `_fleet`: the cadence is a world-wide street mood, not a per-car one. Near
+## honks set it; far honks (gated out) and splat honks (never gated) do not.
+static var _last_fleet_patience_honk: float = -INF
 ## Half the scene collider's 4.4 m length — the nose offset used for stop-line
 ## geometry (the nose stops AT the line; the body stays behind it).
 const HALF_LENGTH := 2.2
@@ -82,11 +93,44 @@ const STOP_MARGIN := 0.3
 @export var full_stop_speed: float = 0.3 ## Horizontal speed (m/s) at/below which a stopped car counts as fully stopped at its line.
 
 @export_group("Patience")
-@export var patience_seconds: float = 6.0 ## Seconds a hold lasts before the honk-and-pass break.
+@export var patience_seconds: float = 6.0 ## Seconds a hold lasts before the honk-and-pass break — physical blockers and wedges.
+@export var protocol_patience_seconds: float = 12.0 ## (T-166) Seconds a PROTOCOL denial (a registered ladder denial or a crosswalk hold) lasts before the break — longer, because waiting in line is polite; the pigeon-in-the-crosswalk honk comes after ~12 s, not ~6.
 @export var pass_clearance: float = 2.3 ## Lateral pass offset around a blocker (m): blocker half-width 0.95 + own half-width 0.95 + margin.
+@export var pass_clearance_body: float = 1.7 ## (T-166) Lateral pass offset around a pigeon/tourist BODY blocker (m): body half ~0.35 + own half-width 0.95 + margin — narrower than the car-class clearance, the swing stays small.
 
 @export_group("Honk")
 @export var honk_flash_seconds: float = 0.8 ## Seconds the honk flash stays lit before fading.
+@export var honk_near_m: float = 30.0 ## (T-166) Patience honks play only within this flat distance (m) of the player — beyond it the horn is static, not feedback, and the break runs silent.
+
+@export_group("Pass")
+@export var pass_lookahead: float = 25.0 ## (T-166) Corridor length (m) ahead of the pass origin the shoulder gates scan — ≈ 4 s at cruise 6 m/s.
+@export var box_clear_radius: float = 7.0 ## (T-166) The force-commit's node-box occupancy radius (m) ≈ the box half-diagonal (±5 m both axes): any other fleet car this close holds the break's force-commit arm.
+
+## (T-166) The fleet-wide patience-honk cadence floor (s), on the fixed physics
+## clock (`TrafficControl.now` — deterministic under `--fixed-fps 60`): a
+## patience honk may sound only this long after the previous fleet-wide one.
+## Near honks set the clock; far honks (already silent) do not.
+const HONK_MIN_FLEET_INTERVAL := 3.0
+## (T-166) The pass aim's ABSOLUTE lane-local lateral bounds (m) — the asphalt
+## clamp. Derived from the street constants (city.gd `road_width` 10.0 →
+## half-width 5.0; `lane_center_off` 1.5 → the lane line sits 1.5 m right of
+## the road centerline; own half-width 0.95; the 0.4 m margin the
+## `pass_clearance` arithmetic already carries): the asphalt's right edge sits
+## 3.5 m right of the lane line (pass center bound 3.5 − 0.95 − 0.4 = 2.15),
+## the left edge 6.5 m left (6.5 − 0.95 − 0.4 = 5.15). No pass aim can leave
+## the asphalt from the clamp alone, whatever the origin's own lane-local
+## offset.
+const PASS_ASPHALT_LEFT := -5.15
+const PASS_ASPHALT_RIGHT := 2.15
+## (T-166) The corridor gates' lateral band (m, lane-local): THIS road's
+## asphalt, from the lane line — the left edge at −(5.0 + 1.5), the right at
+## (5.0 − 1.5). A pass corridor reads only cars ON this road; the raw
+## along-axis projection alone reaches cars on PARALLEL STREETS tens of
+## metres sideways (the census caught a wedge held 47 s by an opposing car
+## 68 m away and a parked car 10 m off-road, both through the unbounded
+## projection), so each gate checks the band as well as the corridor length.
+const PASS_CORRIDOR_LEFT := -6.5
+const PASS_CORRIDOR_RIGHT := 3.5
 
 ## Route lane waypoints (global coords) — the current route's corner points and
 ## leg leads, dealt and extended by the spawner. Empty (or PARKED mode) means
@@ -116,6 +160,13 @@ var route_end_node := Vector2i.ZERO
 ## car just follows its path (every bare-rig scenario and the harness escape
 ## hatch keep today's behavior).
 var traffic: TrafficControl = null
+## (T-166) The pigeon — assigned by the spawner before _ready (the same
+## injection pattern as `traffic`/`bread_spawner`) and by the harness staging
+## helper. The patience-honk gate reads it: honks play only within
+## `honk_near_m` of the player, because beyond that the horn is static the
+## player can attribute to nothing. Null (bare rigs without a spawner) keeps
+## the old always-honk behavior — the gate needs a player to gate against.
+var player: Player = null
 ## The city's block centers (global) — handed over at deal time so the car can
 ## refresh `block_center` without holding a City reference.
 var _block_centers := PackedVector3Array()
@@ -211,16 +262,21 @@ var _pass_aim := Vector3.ZERO
 ## The instance id of the body this pass is clearing — the proximity brake
 ## must never brake for it (passing means closing to pass_clearance of it).
 var _pass_target := 0
-## The pass shoulder: +1 left of travel first (the ticket's convention), then
-## alternating — a pass that wedged tries the other side next break.
+## The pass shoulder: +1 left of travel / −1 right, flipped BEFORE every arm
+## (`_break_hold`) — so a fresh car's first break aims RIGHT (init +1 → −1
+## against the car-local "forward is −z, right is +x" convention), its second
+## left — and a pass that wedged (or a denied shoulder) tries the other side
+## next break (T-166 §2 keeps the flip and adds the fallthrough).
 var _pass_side := 1
 ## Pass progress watch: the best travel so far and how long since it grew.
 var _pass_best := 0.0
 var _pass_stall := 0.0
-## Consecutive patience breaks against a plain CAR queue: a queue is the
-## ladder's job (it dissolves through the leader's progress), so only the
-## third cycle escalates to a pass — two simultaneous queue-break passes
-## crossed mid-arc under the no-overlap floor (round 1 soak).
+## Consecutive patience breaks against a plain CAR queue (T-134's stagger,
+## re-landed with T-166's gates): a car-blocker pass may not arm before the
+## third cycle, so adjacent queue cars' passes stay staggered — two
+## same-direction passes arming in one window crossed mid-arc at 1.12 m in
+## the T-166 census (the round-1 defect signature); the pigeon/tourist/
+## parked/wedge classes pass at one cycle exactly as the ticket keeps them.
 var _car_block_cycles := 0
 ## The wedge watchdog: last frame's flat position and how long the car has
 ## commanded real speed without actually moving (a curb/slab grind the zone
@@ -345,14 +401,22 @@ func _drive(delta: float) -> void:
 	## The patience clock (T-134 §3): any hold — a denied go, a FrontZone
 	## blocker, a pigeon in the lane, or a WEDGE (commanded speed, zero
 	## displacement — the curb grind) — feeds it; at `patience_seconds` the car
-	## honks once and breaks the hold (commit through, or one careful pass).
+	## honks once (etiquette-gated) and breaks the hold (commit through a
+	## clear box, or one gated careful pass).
 	if target_speed > 1.0 and moved < 0.03:
 		_stalled += delta
 	else:
 		_stalled = 0.0
 	if held or target_speed < cruise_speed * pace * 0.5 or _stalled > 1.0:
 		_patience += delta
-		if _patience >= patience_seconds and not _passing:
+		## (T-166) One accumulated clock; the threshold reads the CURRENT hold
+		## class each frame — `held` (a registered ladder denial or a crosswalk
+		## hold, from `_protocol_speed`) expires at `protocol_patience_seconds`,
+		## physical blockers and wedges at `patience_seconds`. A hold that
+		## becomes a protocol denial mid-window simply expires later; monotone,
+		## no second float.
+		var threshold := protocol_patience_seconds if held else patience_seconds
+		if _patience >= threshold and not _passing:
 			_stalled = 0.0
 			_break_hold(entry)
 	if path.size() >= 2:
@@ -501,24 +565,59 @@ func _crosswalk_blocked(entry: Dictionary) -> bool:
 	return false
 
 
-## The patience break (T-134 §3): honk ONCE, then make progress. A protocol
-## denial with nothing physical ahead force-commits through (the liveness
-## guarantee that no ladder cycle can deadlock the city); a physical blocker
-## gets one careful lateral pass at corner speed, re-entering the lane once
-## it is behind — EXCEPT another car in a plain queue (round 1: two
-## simultaneous queue-break passes crossed mid-arc at 1.11 m, under the
-## fleet's no-overlap floor): a queue dissolves through the ladder and the
-## leader's own progress, so car-blockers escalate to a pass only after
-## three patience cycles (≈ 18 s of a genuinely wedged car), while a pigeon
-## or a curb grind passes at one cycle. The clock re-arms only after the
-## pass completes.
+## The patience break (T-134 §3, rebuilt by T-166): honk ONCE where the honk
+## is feedback, then make progress. Three rules keep the break calm:
+##   1. EVERY blocker class may be passed, but never blind: the pass arms only
+##      across a VERIFIED shoulder (rule 3's gates). This INCLUDES driving
+##      cars — the ticket's §1 had retired queue passes outright, but the
+##      landed census met the §1 fallback's own trigger and the pre-agreed
+##      escape (option 1, the oncoming-gated car pass) was invoked and is
+##      recorded in the ticket: the no-car-pass tree froze 8 of 14 traffic
+##      cars > 30 s (pre-fix worst continuous stop 21.2 s) in MUTUAL
+##      HEAD-TO-HEAD FACE-OFFS — wrong-side cars (pass-overshoot U-turns)
+##      nose-to-nose with oncoming traffic, each the other's only blocker,
+##      a stand-off no ladder, box check or parked rule can dissolve. The
+##      gates make the car pass what §1 wanted all along: not a blind swerve
+##      into oncoming, but a verified-clear overtake (T-134 round 1's
+##      mid-arc crossing happened precisely because those passes were
+##      UNGATED). Car-blocker passes additionally stagger to the third
+##      patience cycle (T-134's `_car_block_cycles`, re-landed here): two
+##      same-direction passes that arm inside one window cross mid-arc, and
+##      the stagger is what keeps adjacent queue breaks out of each other's
+##      arcs while the gates keep every pass on a verified shoulder.
+##   2. A protocol denial with nothing physical ahead force-commits through
+##      (the liveness guarantee that no ladder cycle can deadlock the city) —
+##      but ONLY when the node box is actually clear (`_box_clear`, geometric:
+##      it catches committed movements mid-box AND waiting cars that overshot
+##      in, which a ledger-only check would miss). When the box is occupied
+##      the break does nothing but the gated honk and re-arms — the occupant
+##      is mid-movement and clears in seconds, and liveness chains through
+##      the occupant's own breaks. The three-mutual-right-yield cycle (all
+##      waiting, box empty) still force-commits, at protocol patience,
+##      exactly as `TrafficControl`'s liveness note documents.
+##   3. A pigeon/tourist body, a parked car, a driving car, or a wedge grind
+##      gets one careful lateral pass at corner speed — but only across a
+##      VERIFIED shoulder: the oncoming gate denies the left while an
+##      opposing car sits in the corridor, the parked gate denies the right
+##      while a parked car occupies the band, the alternated shoulder is
+##      tried first and a denied one falls to the other, and the aim is
+##      clamped so the pass center can never leave the asphalt. Both
+##      shoulders denied arms no pass this cycle — the gated honk, the clock
+##      re-arms, the next cycle re-checks.
 func _break_hold(entry: Dictionary) -> void:
-	honk()
+	_play_patience_honk()
 	_patience = 0.0
 	_pass_side = -_pass_side ## The next pass tries the other shoulder.
 	if entry != null and traffic != null and entry.has("registered") \
 			and entry.registered and not entry.committed \
 			and _blocker_distance() == INF:
+		if not _box_clear(entry.pos, box_clear_radius):
+			## Occupied box: the break does nothing but the gated honk and
+			## re-arms (T-166 §4) — the occupant is mid-movement and clears
+			## in seconds, and liveness chains through the occupant's own
+			## breaks. Falling through to a wedge pass here would drive the
+			## registered car THROUGH the box it must respect.
+			return
 		traffic.force_commit(self, entry.node, entry.dir, entry.turn)
 		entry.committed = true
 		return
@@ -526,15 +625,144 @@ func _break_hold(entry: Dictionary) -> void:
 	if blocker is Car:
 		_car_block_cycles += 1
 		if _car_block_cycles < 3:
-			return ## A queue is the ladder's job — honk, wait, re-assess.
+			return ## A queue pass staggers to the third cycle — the two
+				## same-direction passes that arm inside one window cross
+				## mid-arc (round 1: 1.11 m; T-166 census: 1.12 m).
 	else:
 		_car_block_cycles = 0
-	_passing = true
 	_pass_origin = global_position
+	var axis := _leg_axis()
+	var first_clear := _shoulder_clear(_pass_side, axis)
+	var second_clear := _shoulder_clear(-_pass_side, axis)
+	if not first_clear and not second_clear:
+		return ## Both shoulders denied: no pass this cycle — re-check next one.
+	_passing = true
 	_pass_target = blocker.get_instance_id() if blocker != null else 0
+	## Pigeon/tourist bodies get the narrower `pass_clearance_body`; car-class
+	## blockers (parked or driving) and wedge grinds (no zone body at all)
+	## keep the car-class `pass_clearance`.
+	var clearance := pass_clearance_body \
+			if (blocker != null and not blocker is Car) else pass_clearance
 	var fwd := _flat_forward()
-	var left := Vector3(fwd.z, 0.0, -fwd.x) * float(_pass_side)
-	_pass_aim = global_position + fwd * 6.0 + left * pass_clearance
+	var left := Vector3(fwd.z, 0.0, -fwd.x) * float(
+			_pass_side if first_clear else -_pass_side)
+	var aim := global_position + fwd * 6.0 + left * clearance
+	## Asphalt clamp (T-166 §2): the aim's lane-local lateral offset may never
+	## leave [PASS_ASPHALT_LEFT, PASS_ASPHALT_RIGHT] — corrected along the
+	## leg's right axis, so even a yawed origin (whose `fwd * 6.0` term leaks
+	## lateral offset) cannot swing the aim off the asphalt.
+	var lat := _lane_local(aim, axis)
+	if lat > PASS_ASPHALT_RIGHT:
+		aim += _lane_right(axis) * (PASS_ASPHALT_RIGHT - lat)
+	elif lat < PASS_ASPHALT_LEFT:
+		aim += _lane_right(axis) * (PASS_ASPHALT_LEFT - lat)
+	_pass_aim = aim
+
+
+## (T-166 §3) The patience honk's etiquette gate. The horn plays only where it
+## is feedback: within `honk_near_m` of the player — a null player (bare-rig
+## default) keeps the old always-honk behavior, the gate needs a player to
+## gate against — and only when the fleet's last patience honk is
+## `HONK_MIN_FLEET_INTERVAL` old (`TrafficControl.now`, the fixed physics
+## clock). Near honks set the fleet clock; far honks are already silent and
+## do not; a capped-out near honk is DUCKED (the next cycle tries again),
+## like a real street. `honk_count` counts played honks only. Splat honks
+## (`on_splatted`) are never gated — hitting a car is always feedback.
+func _play_patience_honk() -> void:
+	if player != null:
+		var offset := Vector2(player.global_position.x - global_position.x,
+				player.global_position.z - global_position.z)
+		if offset.length() > honk_near_m:
+			return
+	var t := TrafficControl.now()
+	if t - _last_fleet_patience_honk < HONK_MIN_FLEET_INTERVAL:
+		return
+	_last_fleet_patience_honk = t
+	honk()
+
+
+## (T-166 §2) The car's current leg axis: the flat unit travel direction of
+## the leg being driven — the active stop entry's approach axis (route legs
+## are grid-axis-aligned), falling back to the bearing of the current
+## waypoint, then the car's own flat forward (a route-end wedge stand). Every
+## lane-local gate read computes against this axis and the lane line through
+## the pass origin.
+func _leg_axis() -> Vector3:
+	var entry := _current_entry()
+	if not entry.is_empty():
+		return City.ROUTE_DIR_VECS[entry.dir]
+	if waypoint_index < path.size():
+		var to := path[waypoint_index] - global_position
+		to.y = 0.0
+		if to.length() > 0.1:
+			return to.normalized()
+	return _flat_forward()
+
+
+## (T-166 §2) The flat right-of-travel unit vector for a leg `axis`.
+func _lane_right(axis: Vector3) -> Vector3:
+	return Vector3(-axis.z, 0.0, axis.x)
+
+
+## (T-166 §2) A point's signed lateral offset (m) off the car's current lane
+## line — the line through the pass origin parallel to the leg axis, right
+## positive. Legs are grid-axis-aligned, so the offset is one flat projection.
+func _lane_local(p: Vector3, axis: Vector3) -> float:
+	var rel := p - _pass_origin
+	rel.y = 0.0
+	return rel.dot(_lane_right(axis))
+
+
+## (T-166 §2) The shoulder check for one pass side against the lane line
+## through `_pass_origin`. Side −1 is the LEFT shoulder — the oncoming gate:
+## denied while any fleet car with an opposing heading (flat forward dot
+## < −0.5) sits ahead of the origin within `pass_lookahead` at lane-local
+## lateral < −0.5 (at/over the centerline) — a verified-clear oncoming lane
+## is exactly when a real overtake crosses. Side +1 is the RIGHT shoulder —
+## the parked gate: denied while any PARKED-mode fleet car sits ahead within
+## `pass_lookahead` at lane-local lateral > +1.0 (the parked band). The
+## in-pass 2.6 m proximity brake stays as the floor's last line either way.
+func _shoulder_clear(side: int, axis: Vector3) -> bool:
+	var right := _lane_right(axis)
+	for other in _fleet:
+		if other == null or other == self or not is_instance_valid(other):
+			continue
+		var rel := other.global_position - _pass_origin
+		rel.y = 0.0
+		var along := rel.dot(axis)
+		if along <= 0.0 or along > pass_lookahead:
+			continue
+		var lat := rel.dot(right)
+		if side > 0:
+			## LEFT shoulder — the oncoming gate: an opposing car on THIS
+			## road's left half (at/over the centerline, out to the far
+			## asphalt edge) inside the corridor denies the pass.
+			if lat >= PASS_CORRIDOR_LEFT and lat < -0.5 \
+					and other._flat_forward().dot(axis) < -0.5:
+				return false
+		elif other.mode == Mode.PARKED and lat > 1.0 \
+				and lat <= PASS_CORRIDOR_RIGHT:
+			## RIGHT shoulder — the parked gate: a parked car in THIS road's
+			## band (the row occupies lane-local +1.0..+3.4) inside the
+			## corridor denies the pass.
+			return false
+	return true
+
+
+## (T-166 §4) The force-commit's node-box occupancy check: true when no OTHER
+## fleet car sits within `radius` (flat) of `center`. Geometric on purpose —
+## it catches committed movements mid-box AND waiting cars that overshot into
+## the box (along-axis registration allows up to 3 m in), which a ledger-only
+## check would miss.
+func _box_clear(center: Vector3, radius: float) -> bool:
+	for other in _fleet:
+		if other == null or other == self or not is_instance_valid(other):
+			continue
+		var d := Vector2(other.global_position.x - center.x,
+				other.global_position.z - center.z).length()
+		if d <= radius:
+			return false
+	return true
 
 
 ## Ends the pass when the blocker is BEHIND us and we have genuinely moved —

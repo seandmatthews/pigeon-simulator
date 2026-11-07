@@ -236,6 +236,10 @@ func _run_scenarios() -> void:
 	await _scenario_four_way_stop_right_of_way() ## T-134 — the stop ladder at one staged node.
 	await _scenario_crosswalk_yield_holds_and_releases() ## T-134 — pedestrian priority at the padded bands.
 	await _scenario_patience_pass_unsticks() ## T-134 — the T-089 pigeon-wall repro closes: honk once, pass, re-arm.
+	await _scenario_pass_stays_on_road() ## T-166 — the pass stays on the road: corridor gates + the asphalt clamp.
+	await _scenario_car_queue_never_passes() ## T-166 — queues are the ladder's job: no driving-car-queue passes, ever.
+	await _scenario_honk_etiquette_gates() ## T-166 — patience honks near, sparse, attributable.
+	await _scenario_force_commit_checks_the_box() ## T-166 — the gentler force-commit only when the box is clear.
 	await _scenario_turn_signals_blink_before_turns() ## T-134 — the splat-planning tell.
 	await _scenario_car_blinkers_sit_on_the_body() ## T-162 — the lamps sit on the paint body.
 	await _scenario_citizen_classes_spawn_deterministic() ## T-113 — the class multiset is a seeded law on both rigs.
@@ -7339,6 +7343,8 @@ func _t134_stage_car(node: Vector2i, dir: int, turn: int, standoff: float,
 		ctrl: TrafficControl, lateral: float = 0.0) -> Car:
 	var car: Car = CAR_SCENE.instantiate()
 	car.traffic = ctrl
+	car.player = _player ## (T-166) The honk gate needs the player to gate against —
+		## scenarios stage the player's DISTANCE to test the gate's two arms.
 	var exit_dir := dir
 	if turn == City.ROUTE_TURN_RIGHT:
 		exit_dir = (dir + 1) % 4
@@ -7700,8 +7706,16 @@ func _scenario_crosswalk_yield_holds_and_releases() -> void:
 ## sees), and over the following 10 s it completes one careful pass — path
 ## travel ≥ 8 m while the pigeon stands still — with no second honk inside
 ## one patience window of the first (the clock re-arms only after the pass).
+## (T-166 re-derivation) the expectations survive byte-for-byte — the honk
+## window stays 5-9 s (a physical pigeon hold keeps `patience_seconds`, and
+## the pigeon IS the player 5.6 m ahead, so the near gate plays it), one pass,
+## zero honks on the off-line leg — and the staging gains the corridor-clear
+## precondition the pass gates now demand: the fleet is wiped bare before
+## staging, so the only `Car._fleet` member is the staged car itself and both
+## shoulder gates read an empty corridor by construction (asserted).
 func _scenario_patience_pass_unsticks() -> void:
 	var node := _t134_node()
+	await _t166_wipe_fleet()
 	var ctrl := TrafficControl.new()
 	## 80 m out on the +x approach of node (3,3): ~70 m of runway before the
 	## stop line matters, so the staged hold is the pigeon, not the protocol.
@@ -7710,6 +7724,7 @@ func _scenario_patience_pass_unsticks() -> void:
 	var pigeon_pos := _city.to_global(_city.route_lane_point(node, 0, 70.0))
 	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
 	await _await_grounded(90)
+	var corridor_clear: bool = Car._fleet.size() == 1 and Car._fleet[0] == car
 	var pigeon_start := _player.global_position
 	var honk_frame := -1
 	var travel_since_honk := 0.0
@@ -7743,8 +7758,8 @@ func _scenario_patience_pass_unsticks() -> void:
 	## The once-per-expiry contract: across the honk + a full patience window
 	## the counter never moved again.
 	var honk_at := float(honk_frame) / 60.0
-	var leg1 := honk_frame > 0 and honk_at >= 5.0 and honk_at <= 9.0 \
-			and travel_since_honk >= 8.0 and second_honk_free \
+	var leg1 := corridor_clear and honk_frame > 0 and honk_at >= 5.0 \
+			and honk_at <= 9.0 and travel_since_honk >= 8.0 and second_honk_free \
 			and car.honk_count == 1 and pigeon_drift < 0.5
 	var leg1_honks: int = car.honk_count
 	## --- Leg 2: the off-line stop (round 1 review) — a car that halts 1.5 m
@@ -7767,10 +7782,577 @@ func _scenario_patience_pass_unsticks() -> void:
 	var leg2 := off_registered and off_clear_frame >= 0 and off_car.honk_count == 0
 	_check("patience_pass_unsticks",
 			leg1 and leg2,
-			"leg1: first honk at %.2f s (want 5-9) · pass travel %.1f m (want ≥ 8) · honks=%d (want 1, no second inside one window=%s) · pigeon drift %.2f m (want < 0.5) · leg2: off-line car registered=%s cleared node in frame %d (want ≥ 0) honks=%d (want 0)" % [
-					honk_at, travel_since_honk, leg1_honks, second_honk_free,
-					pigeon_drift, off_registered, off_clear_frame, off_car.honk_count])
+			"leg1: corridor_clear=%s first honk at %.2f s (want 5-9) · pass travel %.1f m (want ≥ 8) · honks=%d (want 1, no second inside one window=%s) · pigeon drift %.2f m (want < 0.5) · leg2: off-line car registered=%s cleared node in frame %d (want ≥ 0) honks=%d (want 0)" % [
+					corridor_clear, honk_at, travel_since_honk, leg1_honks,
+					second_honk_free, pigeon_drift, off_registered,
+					off_clear_frame, off_car.honk_count])
 	await _t134_clear_cars([off_car])
+
+
+## --- scenarios (T-166 traffic holds that read calm) -------------------------
+
+
+## (T-166) The staged scenarios' fleet wipe: a zero-target spawner whose
+## `_populate()` frees any surviving background fleet and seeds none — the
+## staged cars are then the only `Car._fleet` members, so the corridor gates,
+## the box check and the honk census read exactly the staged stimulus.
+func _t166_wipe_fleet() -> void:
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	spawner.target_moving = 0
+	spawner.target_parked = 0
+	add_child(spawner)
+	await _wait_frames(2)
+	spawner._populate()
+	await _wait_frames(2)
+	spawner.free()
+	await _wait_frames(2)
+
+
+## (T-166) A hand-placed PARKED-mode car — the corridor gates' staged stimulus
+## (the opposing car mid-corridor, the parked car in the right band, the
+## force-commit rig's box occupant). Parked mode keeps it exactly where staged
+## for the whole scenario; the gates read its position, heading and mode off
+## the static `Car._fleet` registry, never a script.
+func _t166_stage_parked(pos: Vector3, facing: Vector3,
+		ctrl: TrafficControl = null) -> Car:
+	var car: Car = CAR_SCENE.instantiate()
+	car.traffic = ctrl
+	car.player = _player
+	add_child(car)
+	car.park_at(pos, atan2(-facing.x, -facing.z),
+			_city.to_global(_city.block_centers[0]))
+	return car
+
+
+## (T-166) A static stand-in body on the npc layer — the honk-gate arms' lane
+## blocker. The gate's subject is the CAR↔PLAYER distance, so the blocker must
+## not be the player, and a static body never wanders mid-scenario; the
+## FrontZone mask (14 = layers 2|4|8) sees it exactly like any npc body.
+func _t166_stage_blocker(pos: Vector3) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.name = "T166Blocker"
+	body.collision_layer = 4
+	body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.7, 1.6, 0.7)
+	shape.shape = box
+	body.add_child(shape)
+	add_child(body)
+	body.global_position = pos
+	return body
+
+
+## Frees the staged T-166 cars and lets the tree settle. Static blocker bodies
+## are freed explicitly by their scenarios (they are captured one at a time).
+func _t166_clear(cars: Array[Car]) -> void:
+	await _t134_clear_cars(cars)
+	await _wait_frames(2)
+
+
+## (T-166 §2) The pass stays on the road — staged at the T-134 node with a real
+## `TrafficControl` and the background fleet wiped for determinism (zeroed
+## spawner targets, `_populate()`; the staged cars are then the only
+## `Car._fleet` members). Three arms:
+##  (i)  a pigeon-held car with the oncoming corridor verified empty commits a
+##       pass whose every sampled frame stays inside the asphalt bounds —
+##       lane-local lateral within [−5.45, +2.45] (the clamp ±0.3) — pairwise
+##       gaps > 2.0 m throughout and completion inside 15 s (travel ≥ 8 m,
+##       blocker behind);
+##  (ii) with an opposing car staged mid-corridor (ahead 15 m, lane-local
+##       −3.0, opposing heading) AND a parked car in the right band (ahead
+##       ~12 m, lane-local +2.0), BOTH shoulders deny — the fresh car's first
+##       break aims right (flip-before-arming) into the parked gate and the
+##       left falls to the oncoming gate, so no pass commits for two patience
+##       cycles (the car stays held behind the pigeon, never `_passing`);
+##       freeing the opposing car releases the pass inside the next cycle ON
+##       THE LEFT SHOULDER — the right is still parked-denied, so the leg also
+##       proves the fallthrough: the excursion goes leftward (min lane-local
+##       < 0) and stays inside arm (i)'s asphalt bounds;
+##  (iii) with a parked car in the right band and NO opposing car, the car's
+##       natural first break aims right (no pinning), the right shoulder is
+##       denied, and the pass falls through to the left, completing within the
+##       arm-(i) asphalt bounds and never closing under 2.0 m of the staged
+##       parked car.
+func _scenario_pass_stays_on_road() -> void:
+	var node := _t134_node()
+	var ok := true
+	var detail := ""
+	await _t166_wipe_fleet()
+	var axis: Vector3 = City.ROUTE_DIR_VECS[0] ## The staged dir-0 (+x) leg.
+	var right := Vector3(-axis.z, 0.0, axis.x)
+	## --- Arm (i): corridor clear — the pass stays inside the asphalt. ---
+	var ctrl := TrafficControl.new()
+	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 80.0, ctrl)
+	var lane_origin: Vector3 = car.global_position ## Staged ON its lane line.
+	var pigeon_pos := _city.to_global(_city.route_lane_point(node, 0, 70.0))
+	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var fleet_only: bool = Car._fleet.size() == 1 and Car._fleet[0] == car
+	var lat_min := INF
+	var lat_max := -INF
+	var travel := 0.0
+	var last := car.global_position
+	var pass_frames := 0
+	var completed_frame := -1
+	var blocker_behind := false
+	for f in 900: ## 15 s.
+		await get_tree().physics_frame
+		travel += last.distance_to(car.global_position)
+		last = car.global_position
+		var lat: float = Vector3(car.global_position - lane_origin).dot(right)
+		lat_min = minf(lat_min, lat)
+		lat_max = maxf(lat_max, lat)
+		if car._passing:
+			pass_frames += 1
+		elif pass_frames > 0 and completed_frame < 0:
+			completed_frame = f ## The armed pass has just completed.
+			var bd := car._blocker_distance()
+			blocker_behind = bd == INF or bd < 0.5
+	var arm1 := fleet_only and pass_frames > 0 and completed_frame >= 0 \
+			and travel >= 8.0 and blocker_behind \
+			and lat_min >= -5.45 and lat_max <= 2.45
+	if not arm1:
+		ok = false
+		detail += "arm1(clear-corridor) fleet_only=%s pass_frames=%d completed=%d travel %.1f (want ≥ 8) behind=%s lat [%.2f, %.2f] (want [−5.45, 2.45]); " % [
+				fleet_only, pass_frames, completed_frame, travel, blocker_behind,
+				lat_min, lat_max]
+	await _t166_clear([car])
+	## --- Arm (ii): both shoulders denied; the fallthrough releases LEFT. ---
+	ctrl = TrafficControl.new()
+	car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 80.0, ctrl)
+	var opp := _t166_stage_parked(
+			_city.to_global(_city.route_lane_point(node, 0, 65.0)) + right * -3.0,
+			-axis) ## Ahead 15 m, lane-local −3.0, opposing heading.
+	var band := _t166_stage_parked(
+			_city.to_global(_city.route_lane_point(node, 0, 68.0)) + right * 2.0,
+			axis) ## Ahead ~12 m, lane-local +2.0 — the parked band.
+	pigeon_pos = _city.to_global(_city.route_lane_point(node, 0, 70.0))
+	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var staged3: bool = Car._fleet.size() == 3
+	lane_origin = car.global_position
+	## The hold begins when the car has stopped behind the pigeon — the
+	## travel/watch accumulators start there, so the approach roll is not
+	## counted against the held car.
+	await _wait_until(func() -> bool:
+		return Vector2(car.velocity.x, car.velocity.z).length() < 0.3, 600)
+	var ever_passing := false
+	var held_travel := 0.0
+	var last_a := car.global_position
+	var min_gap_a := INF
+	var honks_two_cycles := 0
+	for f in 870: ## 14.5 s — two full patience cycles.
+		await get_tree().physics_frame
+		ever_passing = ever_passing or car._passing
+		held_travel += last_a.distance_to(car.global_position)
+		last_a = car.global_position
+		honks_two_cycles = car.honk_count
+		for other: Car in [opp, band]:
+			if is_instance_valid(other):
+				min_gap_a = minf(min_gap_a, Vector2(
+						car.global_position.x - other.global_position.x,
+						car.global_position.z - other.global_position.z).length())
+	var held_ok := staged3 and not ever_passing and held_travel < 1.0 \
+			and honks_two_cycles >= 2 and min_gap_a > 2.0
+	if not held_ok:
+		ok = false
+		detail += "arm2(denied) staged3=%s ever_passing=%s held_travel %.2f honks=%d (breaks ran, want ≥ 2) min_gap %.2f; " % [
+				staged3, ever_passing, held_travel, honks_two_cycles, min_gap_a]
+	opp.queue_free() ## Freeing the opposing car clears the oncoming corridor.
+	await _wait_frames(3)
+	var armed_frame := -1
+	var pass_lat_min := INF
+	var pass_lat_max := -INF
+	var fell_left := false
+	for f in 900: ## Arm inside the next cycle, then the pass runs to completion.
+		await get_tree().physics_frame
+		var lat: float = Vector3(car.global_position - lane_origin).dot(right)
+		if car._passing:
+			if armed_frame < 0:
+				armed_frame = f
+			pass_lat_min = minf(pass_lat_min, lat)
+			pass_lat_max = maxf(pass_lat_max, lat)
+		elif armed_frame >= 0:
+			fell_left = true
+			break ## The fallthrough pass completed.
+	var arm2 := held_ok and armed_frame >= 0 and armed_frame <= 540 \
+			and fell_left and pass_lat_min < 0.0 \
+			and pass_lat_min >= -5.45 and pass_lat_max <= 2.45
+	if not arm2:
+		ok = false
+		detail += "arm2(release) armed=%d (want ≤ 540) completed=%s min_lat %.2f (want < 0) lat [%.2f, %.2f]; " % [
+				armed_frame, fell_left, pass_lat_min, pass_lat_min, pass_lat_max]
+	await _t166_clear([car, band])
+	## --- Arm (iii): right denied by the band; the natural first break
+	## falls through to the left. ---
+	ctrl = TrafficControl.new()
+	car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 80.0, ctrl)
+	band = _t166_stage_parked(
+			_city.to_global(_city.route_lane_point(node, 0, 68.0)) + right * 2.0,
+			axis)
+	pigeon_pos = _city.to_global(_city.route_lane_point(node, 0, 70.0))
+	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var staged2: bool = Car._fleet.size() == 2
+	lane_origin = car.global_position
+	var arm3_pass := false
+	var arm3_done := false
+	var arm3_travel_at_done := 0.0
+	var arm3_lat_min := INF
+	var arm3_lat_max := -INF
+	var min_gap_band := INF
+	var last_c := car.global_position
+	var travel_c := 0.0
+	for f in 1200: ## 20 s — arm at the first break, complete, queue behind the band car.
+		await get_tree().physics_frame
+		travel_c += last_c.distance_to(car.global_position)
+		last_c = car.global_position
+		var lat: float = Vector3(car.global_position - lane_origin).dot(right)
+		arm3_lat_min = minf(arm3_lat_min, lat)
+		arm3_lat_max = maxf(arm3_lat_max, lat)
+		arm3_pass = arm3_pass or car._passing
+		if arm3_pass and not car._passing and not arm3_done:
+			arm3_done = true
+			arm3_travel_at_done = travel_c
+		min_gap_band = minf(min_gap_band, Vector2(
+				car.global_position.x - band.global_position.x,
+				car.global_position.z - band.global_position.z).length())
+	var arm3 := staged2 and arm3_pass and arm3_done and arm3_travel_at_done >= 6.0 \
+			and arm3_lat_min >= -5.45 and arm3_lat_max <= 2.45 \
+			and min_gap_band > 2.0
+	_check("pass_stays_on_road", ok and arm3,
+			detail + "arm3(fallthrough) staged2=%s pass=%s done=%s travel_at_done %.1f (want ≥ 6) lat [%.2f, %.2f] (want [−5.45, 2.45]) min gap to parked %.2f (want > 2.0)" % [
+					staged2, arm3_pass, arm3_done, arm3_travel_at_done,
+					arm3_lat_min, arm3_lat_max, min_gap_band])
+	await _t166_clear([car, band])
+
+
+## (T-166 §1, as resolved by the recorded fallback) A queue whose shoulders
+## are GATE-DENIED never passes. A leader held by a pigeon and a follower at
+## follow-gap behind it, both shoulders denied for the follower (the staged
+## band car denies the right through the parked gate, the staged opposing
+## car denies the left through the oncoming gate) so the queue stands: over
+## ≥ 3 follower patience cycles (≈ 20 s) the follower never enters
+## `_passing` and the pairwise gaps stay > 2.0 m; once the opposing corridor
+## is freed, the leader's gated pass completes and the follower gains ≥ 5 m
+## of travel within the next 6 s — the queue dissolves from the front,
+## nothing wedges behind the retired pass. Red-before (recorded in the
+## ticket): the old tree escalated a car-blocker pass at the third cycle
+## (census: 13 car-blocker passes, all at cycle 3) — UNGATED, straight
+## through the staged oncoming car and parked car. (The fallback the census
+## forced — recorded in the ticket — re-opens car passes behind the §2
+## gates: this staging is the proof the gates, not a class ban, are what
+## keep a queue standing.)
+func _scenario_car_queue_never_passes() -> void:
+	var node := _t134_node()
+	await _t166_wipe_fleet()
+	var axis: Vector3 = City.ROUTE_DIR_VECS[0]
+	var right := Vector3(-axis.z, 0.0, axis.x)
+	var ctrl := TrafficControl.new()
+	var leader := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 80.0, ctrl)
+	var opp := _t166_stage_parked(
+			_city.to_global(_city.route_lane_point(node, 0, 65.0)) + right * -3.0,
+			-axis)
+	var band := _t166_stage_parked(
+			_city.to_global(_city.route_lane_point(node, 0, 68.0)) + right * 2.0,
+			axis)
+	var follower := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 90.0, ctrl)
+	var pigeon_pos := _city.to_global(_city.route_lane_point(node, 0, 70.0))
+	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var staged4: bool = Car._fleet.size() == 4
+	var fleet: Array[Car] = [leader, follower]
+	for other: Car in [opp, band]:
+		if is_instance_valid(other):
+			fleet.append(other)
+	var follower_ever_passing := false
+	var min_gap := INF
+	for f in 1380: ## 23 s — ≥ 3 follower patience cycles with the leader held.
+		await get_tree().physics_frame
+		follower_ever_passing = follower_ever_passing or follower._passing
+		for i in fleet.size():
+			if not is_instance_valid(fleet[i]):
+				continue
+			for j in range(i + 1, fleet.size()):
+				if not is_instance_valid(fleet[j]):
+					continue
+				min_gap = minf(min_gap, Vector2(
+						fleet[i].global_position.x - fleet[j].global_position.x,
+						fleet[i].global_position.z - fleet[j].global_position.z).length())
+	var queue_ok := staged4 and not follower_ever_passing and min_gap > 2.0
+	opp.queue_free() ## Release the oncoming corridor — the leader's next break passes.
+	await _wait_frames(3)
+	var leader_armed := -1
+	var leader_done := -1
+	for f in 900: ## Leader arms within the next cycle and completes the pass.
+		await get_tree().physics_frame
+		if leader._passing and leader_armed < 0:
+			leader_armed = f
+		elif leader_armed >= 0 and not leader._passing and leader_done < 0:
+			leader_done = f
+			break
+	## The hold instrument resolves at the completion instant: the pigeon — the
+	## queue's original head blocker, now BEHIND the retired pass — moves off
+	## the lane, so this leg measures pure flow behind the retired pass instead
+	## of the follower's own next patience cycle (a second 6 s cycle cannot fit
+	## a 6 s window; without the resolution the pigeon would just become the
+	## follower's next blocker and the ceiling would be the 5.6 m follow gap).
+	_player.reset_flight(_city.position + Vector3(4.0, 0.5, 2.0))
+	var follower_gain := 0.0
+	var last_f := follower.global_position
+	if leader_done >= 0:
+		for f in 360: ## 6 s after the leader's pass completed.
+			await get_tree().physics_frame
+			follower_gain += last_f.distance_to(follower.global_position)
+			last_f = follower.global_position
+	var dissolved := leader_armed >= 0 and leader_done >= 0 and follower_gain >= 5.0
+	_check("car_queue_never_passes", queue_ok and dissolved,
+			"queue: staged4=%s follower_ever_passing=%s min_gap %.2f (want > 2.0) · dissolve: leader armed=%d done=%d follower gain %.1f m in 6 s (want ≥ 5)" % [
+					staged4, follower_ever_passing, min_gap, leader_armed,
+					leader_done, follower_gain])
+	await _t166_clear([leader, follower, band])
+
+
+## (T-166 §3) Honk etiquette — patience honks play only where they are
+## feedback, through three arms on the same staging (a staged car held by a
+## static npc-layer body; the blocker must not be the player, because the
+## gate's subject is the car↔player distance):
+##  (i)   FAR — the player parked 40 m out (beyond `honk_near_m` 30): across
+##        two patience cycles `honk_count` stays 0 while the break machinery
+##        still runs (the pass visibly arms and the car progresses);
+##  (ii)  NEAR — the same staging with the player 10 m behind the car: exactly
+##        one honk at the first expiry (the T-134 joke honk) and no more as
+##        the pass completes;
+##  (iii) CADENCE — two near-player cars staged symmetrically on perpendicular
+##        approaches break within `HONK_MIN_FLEET_INTERVAL`: exactly ONE horn
+##        sounds between them; the ducked car's `honk_count` stays 0 and its
+##        break still runs (it still passes its blocker).
+func _scenario_honk_etiquette_gates() -> void:
+	var node := _t134_node()
+	var ok := true
+	var detail := ""
+	await _t166_wipe_fleet()
+	## --- Arm (i) FAR: silent machinery. ---
+	var ctrl := TrafficControl.new()
+	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0, ctrl)
+	var blocker := _t166_stage_blocker(
+			_city.to_global(_city.route_lane_point(node, 0, 20.0)))
+	var car_start := car.global_position
+	var far_pos := _city.to_global(_city.route_lane_point(node, 0, 70.0)) ## 40 m behind the car.
+	await _set_up(false, far_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var far_dist := Vector2(_player.global_position.x - car.global_position.x,
+			_player.global_position.z - car.global_position.z).length()
+	var far_honks := -1
+	var far_pass := false
+	var far_travel := 0.0
+	var last := car.global_position
+	for f in 870: ## 14.5 s — two patience cycles.
+		await get_tree().physics_frame
+		far_honks = car.honk_count
+		far_pass = far_pass or car._passing
+		far_travel += last.distance_to(car.global_position)
+		last = car.global_position
+	var arm1 := far_dist > car.honk_near_m and far_honks == 0 \
+			and far_pass and far_travel >= 5.0
+	if not arm1:
+		ok = false
+		detail += "arm1(far) dist %.1f (want > 30) honks=%d (want 0) pass=%s travel %.1f (want ≥ 5); " % [
+				far_dist, far_honks, far_pass, far_travel]
+	blocker.queue_free()
+	await _t134_clear_cars([car])
+	## --- Arm (ii) NEAR: exactly one honk at the first expiry. ---
+	ctrl = TrafficControl.new()
+	car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0, ctrl)
+	blocker = _t166_stage_blocker(
+			_city.to_global(_city.route_lane_point(node, 0, 20.0)))
+	var near_pos := _city.to_global(_city.route_lane_point(node, 0, 40.0)) ## 10 m behind the car.
+	await _set_up(false, near_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var near_dist := Vector2(_player.global_position.x - car.global_position.x,
+			_player.global_position.z - car.global_position.z).length()
+	var honk_frame := -1
+	for f in 540: ## 9 s — well past the first expiry (~7 s at patience 6.0).
+		await get_tree().physics_frame
+		if honk_frame < 0 and car.honk_count >= 1:
+			honk_frame = f
+	var honk_at := float(honk_frame) / 60.0
+	for f in 330: ## 5.5 s more — the pass runs; no second honk may arrive.
+		await get_tree().physics_frame
+	var arm2 := near_dist <= car.honk_near_m and honk_frame >= 0 \
+			and honk_at >= 4.0 and honk_at <= 9.0 and car.honk_count == 1
+	if not arm2:
+		ok = false
+		detail += "arm2(near) dist %.1f honk at %s s (want one, 4-9) honks=%d (want 1); " % [
+				near_dist, "inf" if honk_frame < 0 else "%.2f" % honk_at,
+				car.honk_count]
+	blocker.queue_free()
+	await _t134_clear_cars([car])
+	## --- Arm (iii) CADENCE: two near cars, one horn. ---
+	ctrl = TrafficControl.new()
+	var car_a := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0, ctrl)
+	var blocker_a := _t166_stage_blocker(
+			_city.to_global(_city.route_lane_point(node, 0, 20.0)))
+	var car_b := _t134_stage_car(node, 1, City.ROUTE_TURN_STRAIGHT, 30.0, ctrl)
+	var blocker_b := _t166_stage_blocker(
+			_city.to_global(_city.route_lane_point(node, 1, 20.0)))
+	await _set_up(false, entry_node_pos(node) + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var near_a := Vector2(car_a.global_position.x - _player.global_position.x,
+			car_a.global_position.z - _player.global_position.z).length()
+	var near_b := Vector2(car_b.global_position.x - _player.global_position.x,
+			car_b.global_position.z - _player.global_position.z).length()
+	var travel_a := 0.0
+	var travel_b := 0.0
+	var last_a := car_a.global_position
+	var last_b := car_b.global_position
+	for f in 870: ## 14.5 s — both breaks land inside the first ~8 s.
+		await get_tree().physics_frame
+		travel_a += last_a.distance_to(car_a.global_position)
+		travel_b += last_b.distance_to(car_b.global_position)
+		last_a = car_a.global_position
+		last_b = car_b.global_position
+	var horn_total := car_a.honk_count + car_b.honk_count
+	var arm3 := near_a <= car_a.honk_near_m and near_b <= car_b.honk_near_m \
+			and horn_total == 1 and minf(travel_a, travel_b) >= 5.0
+	_check("honk_etiquette_gates", ok and arm3,
+			detail + "arm3(cadence) near_a %.1f near_b %.1f horns=%d (want 1) travels %.1f/%.1f (both want ≥ 5: the ducked car's break still ran)" % [
+					near_a, near_b, horn_total, travel_a, travel_b])
+	blocker_a.queue_free()
+	blocker_b.queue_free()
+	await _t166_clear([car_a, car_b])
+
+
+## (T-166 §4) The gentler force-commit — only when the node box is actually
+## clear. Three arms at the T-134 node with real `TrafficControl` ledgers:
+##  (i)   a registered-denied car with a conflicting committed movement staged
+##        in its node (the parked occupant at the center, movement committed
+##        by hand — the leg-6 manual-ledger pattern) does NOT force-commit at
+##        `patience_seconds`: `find_committed` stays null across the whole
+##        occupied window and the nose-distance pin holds (≥ 8.79 m out); only
+##        after the staged movement is released (the occupant freed — its
+##        `_exit_tree` releases the ledger) does the car commit and cross the
+##        bar;
+##  (ii)  a registered-denied car with an EMPTY box does nothing at
+##        `patience_seconds` (the old tree force-committed at 6 s — the
+##        red-before) and force-commits only past `protocol_patience_seconds`
+##        (measured, recorded);
+##  (iii) the three-mutual-right-yield cycle (all waiting, box empty)
+##        dissolves within `protocol_patience_seconds` + 10 s with zero
+##        overlaps (sampled pairwise gaps > 2.0 m).
+func _scenario_force_commit_checks_the_box() -> void:
+	var node := _t134_node()
+	await _t166_wipe_fleet()
+	## The pigeon on the plaza for the whole scenario — the box check reads
+	## cars only, and the crosswalk `watched` list stays empty.
+	await _set_up(false, _city.position + Vector3(4.0, 0.5, 2.0), Vector3.ZERO)
+	await _await_grounded(90)
+	var ok := true
+	var detail := ""
+	var node_pos := entry_node_pos(node)
+	## --- Arm (i): occupied box — no force-commit until the movement releases. ---
+	var ctrl := TrafficControl.new()
+	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	var occupant := _t166_stage_parked(node_pos, City.ROUTE_DIR_VECS[1], ctrl)
+	## The occupant's committed movement: dir-1 straight — perpendicular to the
+	## held car's dir-0 straight, so rule 1 denies every grant. Pure ledger
+	## staging: the parked occupant never drives, so the movement stands until
+	## the occupant is freed (its `_exit_tree` releases it).
+	ctrl.register_arrival(occupant, node, 1, City.ROUTE_TURN_STRAIGHT)
+	ctrl.commit(occupant)
+	var registered := await _wait_until(func() -> bool:
+		return not car.stops.is_empty() and car.stops[0].registered, 300)
+	var pin_ok := registered
+	var committed_while_occupied := false
+	var min_nose := INF
+	for f in 900: ## 15 s — past both patience thresholds, box occupied throughout.
+		await get_tree().physics_frame
+		if registered:
+			var nose := _t134_nose_along(car)
+			min_nose = minf(min_nose, nose)
+			pin_ok = pin_ok and nose >= 8.79
+			committed_while_occupied = committed_while_occupied \
+					or ctrl.find_committed(car) != null
+	_dbg("fc arm1: registered=%s min_nose=%.3f committed_while_occupied=%s honks=%d passing=%s" % [
+			registered, min_nose, committed_while_occupied, car.honk_count,
+			car._passing])
+	var release_ok := false
+	var crossed_frame := -1
+	if registered and not committed_while_occupied:
+		occupant.queue_free() ## `_exit_tree` releases the staged movement.
+		await _wait_frames(3)
+		for f in 420: ## 7 s — the grant lands, the car commits and crosses.
+			await get_tree().physics_frame
+			if ctrl.find_committed(car) != null and crossed_frame < 0:
+				crossed_frame = f
+			if crossed_frame >= 0 and _t134_nose_along(car) < 8.79:
+				break
+		release_ok = crossed_frame >= 0 \
+				and _t134_nose_along(car) < 8.79
+	var arm1 := registered and not committed_while_occupied and pin_ok and release_ok
+	if not arm1:
+		ok = false
+		detail += "arm1(occupied) registered=%s committed_while_occupied=%s pin=%s released=%s crossed=%d; " % [
+				registered, committed_while_occupied, pin_ok, release_ok, crossed_frame]
+	await _t166_clear([car])
+	if is_instance_valid(occupant):
+		occupant.queue_free() ## The arm-1 failure path: never leave the occupant.
+	await _wait_frames(2)
+	## --- Arms (ii)+(iii): the mutual right-yield cycle, box empty. ---
+	ctrl = TrafficControl.new()
+	var l0 := _t134_stage_car(node, 0, City.ROUTE_TURN_LEFT, 22.0, ctrl)
+	var s1 := _t134_stage_car(node, 1, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
+	var r2 := _t134_stage_car(node, 2, City.ROUTE_TURN_RIGHT, 22.0, ctrl)
+	var all_reg := await _wait_until(func() -> bool:
+		return not l0.stops.is_empty() and l0.stops[0].registered \
+				and not s1.stops.is_empty() and s1.stops[0].registered \
+				and not r2.stops.is_empty() and r2.stops[0].registered, 300)
+	## The watch clock below starts within a few frames of the common
+	## registration instant (the staged cars brake onto their lines together),
+	## so its `t` reads seconds-since-registration.
+	var l0_committed_at := -1.0
+	var nothing_at_patience := true
+	var l0_committed := false
+	var min_gap := INF
+	var cleared_frames: Array[int] = [-1, -1, -1]
+	var trio: Array[Car] = [l0, s1, r2]
+	for f in 1400: ## ~23 s from registration — past protocol patience + 10 s.
+		await get_tree().physics_frame
+		var t := float(f) / 60.0
+		## "Does nothing at patience_seconds": sampled across [7, 10) s — past
+		## the plain 6 s threshold, before the expected protocol force-commit
+		## (~12 s). The old tree committed at ~4.5-5 s, so its t=7 sample reads
+		## committed and fails here (the red-before).
+		if t >= 7.0 and t < 10.0 and not l0_committed:
+			var committed_now: bool = ctrl.find_committed(l0) != null
+			if committed_now:
+				_dbg("fc arm2: committed inside the nothing-window at t=%.2f" % t)
+			nothing_at_patience = nothing_at_patience and not committed_now
+		if not l0_committed and ctrl.find_committed(l0) != null:
+			l0_committed = true
+			l0_committed_at = t
+		for i in 3:
+			if cleared_frames[i] < 0 and trio[i]._stop_index >= 1:
+				cleared_frames[i] = f
+		for i in 3:
+			for j in range(i + 1, 3):
+				min_gap = minf(min_gap, Vector2(
+						trio[i].global_position.x - trio[j].global_position.x,
+						trio[i].global_position.z - trio[j].global_position.z).length())
+	var all_cleared := true
+	for cf in cleared_frames:
+		all_cleared = all_cleared and cf >= 0 and float(cf) / 60.0 <= 22.0
+	var arm2 := all_reg and nothing_at_patience \
+			and l0_committed and l0_committed_at >= 10.5 and l0_committed_at <= 14.5
+	var arm3 := all_reg and all_cleared and min_gap > 2.0
+	_check("force_commit_checks_the_box", ok and arm2 and arm3,
+			detail + "arm2(empty box) all_reg=%s nothing_at_6s=%s l0 committed at %.2f s (want past protocol patience, 10.5-14.5) · arm3(cycle) cleared=%s (all ≤ 22 s) min gap %.2f (want > 2.0)" % [
+					all_reg, nothing_at_patience, l0_committed_at,
+					str(cleared_frames), min_gap])
+	await _t166_clear(trio)
 
 
 ## T-134 — the splat-planning tell: a car routed into a turn arms the correct

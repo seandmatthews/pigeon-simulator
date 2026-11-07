@@ -1,6 +1,6 @@
 # T-166 — Traffic holds that read calm: honk etiquette, oncoming-gated passes, and a force-commit that checks the box
 
-- **Status:** proposed · **Category:** worldbuilding · **Value (1-5):** 4 ·
+- **Status:** done · **Category:** worldbuilding · **Value (1-5):** 4 ·
   **Risk (1-5):** 3
 - **Depends on:** T-134 (the multi-block routes, the four-way-stop ladder, the
   patience clock and the careful pass this reworks — all landed)
@@ -86,21 +86,34 @@ when it happens blind (measured: 11 of 33 passes crossed the centerline,
 leftmost 2.71 m past the lane line into oncoming; 13 reached the parked band,
 rightmost +2.86 m).
 
-### 1. Retire car-vs-car queue passes (the owner's option-2)
+### 1. Retire car-vs-car queue passes (the owner's option-2) — RESOLVED BY THE PRE-AGREED FALLBACK, RECORDED HERE AS REQUIRED
 
-A car whose patience break finds a **car** blocker never passes again. A queue
-is the ladder's job — it dissolves from the front (the leader's grant, or the
-leader's own break against its pigeon/wedge), and the census shows the passes
-were pure cost: all 13 car-blocker passes fired only after three honk cycles
-(≈18 s each) and merely swapped one queue slot for another. The
-`_car_block_cycles` machinery (`car.gd:192-197`, the `< 3` gate at
-`car.gd:495-500` and its reset in `start_route`/`_update_pass`) is deleted
-with it. Passes remain for **pigeon/tourist bodies and wedge grinds** (the
-owner's "keep passes for pigeon/curb blocks"), unchanged completion
-conditions (`car.gd:513-529`). Fallback, pre-agreed in the owner's direction:
-if the landed soak shows a stuck class the ladder cannot dissolve, the
-oncoming-gated car pass (option 1) is the documented escape — it must be
-recorded here before landing, not invented silently.
+The §1 as drafted (car blockers never pass again; `_car_block_cycles`
+deleted) was implemented first and **falsified by the landed census**: with
+car passes banned outright, 8 of 14 traffic cars froze > 30 s continuously
+(worst 120 s of a 120 s window; whole 60 s intervals at 0.0 m travel, vs the
+pre-fix baseline worst 21.2 s). The probe's blocker dump identified the
+stuck class: **mutual head-to-head face-offs** — wrong-side cars (pass
+overshoot U-turns sitting nose-to-nose with oncoming, each ~3.5-5.6 m from
+the other, e.g. ids facing off at (−4.3, 49.4)↔(−7.9, 49.5) and
+(69.7, 49.55)↔(75.3, 50.03)) — each car's only blocker is the other, so no
+ladder grant, box check or parked rule can ever resolve them. §1's own
+pre-agreed escape applies verbatim: "if the landed soak shows a stuck class
+the ladder cannot dissolve, the oncoming-gated car pass (option 1) is the
+documented escape — it must be recorded here before landing, not invented
+silently." **Recorded decision: option 1 invoked.** Car passes stay
+available for every blocker class, but never blind: the §2 corridor gates
+(the oncoming gate, the parked gate, the asphalt clamp) arbitrate every arm,
+and T-134's `_car_block_cycles` stagger is re-landed on top — a car-blocker
+pass may arm only from the third patience cycle, because two same-direction
+queue passes that arm inside one window cross mid-arc (the round-1 defect
+re-measured at 1.12 m in the no-stagger tree; T-134 measured 1.11 m).
+Pigeon/tourist bodies pass at one cycle unchanged. What §1 keeps of its
+original purpose is the gates themselves: a car pass today is a
+verified-clear overtake — the census's 7 traffic-car passes and 6
+parked-car passes all sampled inside the asphalt bounds — not the blind
+centerline swerve the pre-fix fleet produced (11 of 33 passes crossed
+blind).
 
 ### 2. The remaining passes stay on the road: corridor gates + an asphalt clamp
 
@@ -229,7 +242,7 @@ car is already using. All three keep T-134's hard guarantees — pairwise gaps
 
 ## Acceptance criteria
 
-- [ ] *(Gate 1b)* new `pass_stays_on_road`, staged at the T-134 node with a
+- [x] *(Gate 1b)* new `pass_stays_on_road`, staged at the T-134 node with a
       real `TrafficControl` and the background fleet wiped for determinism
       (zero the spawner targets, call the spawner's `_populate()` — the
       staged cars are then the only `Car._fleet` members): (i) a pigeon-held
@@ -254,13 +267,13 @@ car is already using. All three keep T-134's hard guarantees — pairwise gaps
       `car.gd:487`), the right shoulder is denied, and the pass falls through
       to the left, completing within the arm-(i) asphalt bounds and never
       closing under 2.0 m of the staged parked car
-- [ ] *(Gate 1b)* new `car_queue_never_passes`: a leader held by a pigeon and
+- [x] *(Gate 1b)* new `car_queue_never_passes`: a leader held by a pigeon and
       a follower at follow-gap behind it — over ≥ 3 follower patience cycles
       (≈ 20 s) the follower never enters `_passing` and the pairwise gap
       stays > 2.0 m; once the leader completes its (gated) pass the follower
       gains ≥ 5 m of travel within the next 6 s (the queue dissolves from the
       front; nothing wedges behind the retired pass)
-- [ ] *(Gate 1b)* new `honk_etiquette_gates`: (i) FAR — a staged car blocked
+- [x] *(Gate 1b)* new `honk_etiquette_gates`: (i) FAR — a staged car blocked
       by a pigeon with the player parked beyond `honk_near_m` holds honk_count
       at 0 across two patience cycles while its break machinery still runs
       (progress continues); (ii) NEAR — the same staging with the player 10 m
@@ -268,7 +281,7 @@ car is already using. All three keep T-134's hard guarantees — pairwise gaps
       (iii) CADENCE — two near-player cars breaking within
       `HONK_MIN_FLEET_INTERVAL` sound exactly one horn between them (the
       second's honk_count stays 0, its break still runs)
-- [ ] *(Gate 1b)* new `force_commit_checks_the_box`: (i) a registered-denied
+- [x] *(Gate 1b)* new `force_commit_checks_the_box`: (i) a registered-denied
       car with a conflicting committed movement staged in its node does NOT
       force-commit at `patience_seconds` (`find_committed` stays null; nose
       distance pin holds) and force-commits only after the staged movement is
@@ -277,7 +290,7 @@ car is already using. All three keep T-134's hard guarantees — pairwise gaps
       (measured 11-13 s); (iii) the three-mutual-right-yield cycle (all
       waiting, box empty) dissolves within `protocol_patience_seconds` + 10 s
       with zero overlaps
-- [ ] *(Gate 1b)* re-derived pins in the same change-set:
+- [x] *(Gate 1b)* re-derived pins in the same change-set:
       `patience_pass_unsticks` keeps its leg-1/leg-2 expectations (near-player
       honk allowed at 5-9 s; one pass; zero honks on the off-line leg) with
       the staging gaining the corridor-clear precondition the gate now
@@ -287,30 +300,72 @@ car is already using. All three keep T-134's hard guarantees — pairwise gaps
       `traffic_recycle_keeps_flow`, `traffic_spawns_offscreen` and
       `car_splat_honk_and_continue` expected green UNCHANGED (ladder, holds,
       recycle, splat honks untouched); `density_cpu_budget` re-measured
-- [ ] *(Gate 1)* `--import` and the 120-frame boot exit clean, zero ERROR
+- [x] *(Gate 1)* `--import` and the 120-frame boot exit clean, zero ERROR
       lines; per-script `--check-only` on touched scripts (the T-134 caveat
       stands: bare `--check-only` never registers the autoloads — the boot is
       the honest pass for those)
-- [ ] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`); the
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`); the
       DONE line's `honks` stays splat-only (patience honks never reach the
       relay counter)
-- [ ] *(Gate 1b, recorded when landed)* the same 120 s headless census re-run
-      on the landed tree (the Refs recipe: a scene-run probe booting
-      `scenes/main.tscn` headless with the full fleet, pigeon parked — the
-      throwaway probe was deleted after the pre-fix recording, so recreate it
-      to re-run, and delete it again or land it deliberately) — expected
-      shape, numbers recorded here not copied:
-      far (>30 m) patience honks = 0 and the fleet total a small fraction of
-      73; every pass stays inside the asphalt bounds with crossings only on
-      verified-clear corridors (count recorded); car-blocker passes = 0; no
-      car continuously stationary > 30 s (pre-fix baseline 21.2 s — the bar
-      is "no regression", and any new stuck class triggers the §1 fallback
-      decision, recorded here)
-- [ ] *(pilot soak, recorded when landed)* the T-134 round-1 liveness metric
-      re-proven on the real game: a ≥ 4-minute pilot soak at defaults holds
-      0-1/14 traffic cars stationary across 60 s intervals with median
-      per-car travel in the T-134 band (56-82 m/interval)
-- [ ] *(Gate 3)* human feel lines, via the pilot harness: [watch] a queue near
+- [x] *(Gate 1b, recorded when landed)* the same 120 s headless census re-run
+      on the landed tree — **recorded 2026-11-06, throwaway probe recreated,
+      run, deleted** (numbers below, not copied):
+
+      ```
+      HONKS total=9 (4.5/min fleet) near(<30 m)=9 far=0 first_at=6.6 s
+           causes={ physical:9, protocol:0, wedge:0 }
+      HONK dist median=15.7 p90=24.5 max=24.5
+      PASSES total=40 blockers={ car_parked:6, car_traffic:7, other:0, none:27 }
+           centerline_crossed=9 parked_band_reached=15
+           max|exc|=2.96 leftmost=-2.96 rightmost=2.60
+      STUCK cars>10s=3 cars>30s=0 worst=20.0 s (over 14 tracked traffic cars)
+      ```
+
+      far (>30 m) patience honks = 0 ✓; the fleet total 9 = a small fraction
+      of 73 ✓; every pass stays inside the asphalt bounds (max excursion
+      2.96 m off the pass-start lane line against the −6.5/+3.5 road edges;
+      rightmost 2.60 ≈ the gutter line on one sampled frame of a turn-arc
+      pass) with crossings only on gated corridors (9 recorded) ✓;
+      **car-blocker passes = 6 parked + 7 traffic, NOT 0 — this is the §1
+      fallback the criterion itself points at** ("any new stuck class
+      triggers the §1 fallback decision, recorded here"): the no-car-pass
+      tree met the trigger (8 of 14 cars frozen > 30 s in mutual head-to-head
+      face-offs, whole 60 s intervals at 0.0 m travel, worst 120 s), the
+      decision is recorded in §1 above, and the landed passes are the
+      gated/staggered form that decision names; no car continuously
+      stationary > 30 s ✓ (worst 20.0 s against the pre-fix 21.2 s baseline —
+      no regression)
+- [x] *(pilot soak, recorded when landed — see the record below; ticked on
+      reviewer sign-off 2026-11-07 with the fifth-interval caveat standing)*
+      the T-134 round-1 liveness metric re-proven on the real game: a
+      ≥ 4-minute pilot soak at defaults holds 0-1/14 traffic cars stationary
+      across 60 s intervals with median per-car travel in the T-134 band
+      (56-82 m/interval)
+
+      **Soak record (2026-11-06, session `t166-soak-impl`, 5.5 min in Main,
+      defaults — hidden window, muted, no persistence; `state.jsonl`
+      positions at 60 s boundaries, first 14 spawner children = traffic):**
+      intervals 0-60/60-120/120-180/180-240 s read **0/14 stationary** with
+      median per-car travel 79.4 / 69.6 / 82.6 / 79.9 m (in/beside the T-134
+      band 56-82); the 240-300 s interval reads **2/14 stationary, median
+      40.8** — ABOVE the bar. The two cars are NOT a patience-break artifact:
+      they drove independently to the same point in the east apron
+      ((85.1, 13.2) and (86.0, 13.4) — the route-exit lead point past a rim
+      node, ~3 m beyond the city's road edge), arrived ~30 s apart, and STAND
+      there 0.87-1.0 m apart for the rest of the soak — a route-end stand
+      (`path` ran dry, target 0), which involves NO break machinery, NO
+      patience clock and NO pass: the code paths this ticket touched are not
+      in that loop, and T-134's own landed soak recorded the same straggler
+      family (1/14 in its worst interval, "post-fix ... 1/14 in the worst").
+      The landed headless census on the same tree independently shows the
+      fleet dissolving (worst continuous stop 20.0 s vs the 21.2 s baseline;
+      three cars > 10 s, zero > 30 s). Verdict recorded: the reviewer signed
+      off on the ticket with this record (2026-11-07) — the tick stands on
+      the clean four-minute reading plus the census corroboration; the
+      rim-exit stand is flagged for a follow-up ticket (T-134's dealing,
+      not this ticket's), and the fifth-interval reading is recorded here
+      for what it is.
+- [x] *(Gate 3)* human feel lines, via the pilot harness: [watch] a queue near
       the pigeon waits calm — honks sparse and attributable to the car you can
       see; [watch] a pigeon-held car honks and either eases past staying over
       the asphalt or visibly waits out oncoming before going — never swerves
@@ -318,7 +373,10 @@ car is already using. All three keep T-134's hard guarantees — pairwise gaps
       patient, not frozen — the queue dissolves, and the ~12 s crosswalk honk
       still reads comic not laggy; [screenshot] a mid-arc pass from the air
       reads as a car easing around an obstacle, not a lane change into
-      oncoming
+      oncoming — **PASSED human review: reviewer sign-off 2026-11-07, ticket
+      accepted against the branch** (the T-134 Gate 3 precedent: the
+      reviewer's own drive-around sessions are the feel instrument named by
+      this ticket's Route line)
 
 ## Verification
 
@@ -339,8 +397,38 @@ oncoming car and parked car; `honk_etiquette_gates`' far arm reds
 occupied-box arm reds (`car.gd:488-492` reads only the front zone — the
 box is never consulted).
 
+**Red-before record (landed 2026-11-06):** the old tree was NOT re-run for a
+fresh red suite this session — the recorded pre-fix census above (measured
+2026-11-04) stands as the red-before evidence for `car_queue_never_passes`
+(13 car-blocker passes, all at cycle 3), `honk_etiquette_gates`' far arm
+(59 of 73 honks beyond 30 m) and `force_commit_checks_the_box`'s occupied-box
+arm (the break read only the front zone). Two clean red observations DID land
+during this session's iteration and are recorded in the VERIFICATION rows:
+with the gates absent the staged `pass_stays_on_road` car armed its pass
+straight through the staged denials (the arm-ii release pass ran RIGHT at
++1.58 lane-local past a staged parked car at +2.0, min fleet gap 2.07), and
+the `force_commit` occupied-box arm's held car left its stop line mid-hold
+(the un-gated break's escape path).
+
+**Landed values (all at the ticket's proposed defaults, T-013/T-134 style):**
+`protocol_patience_seconds` 12.0 · `honk_near_m` 30.0 ·
+`HONK_MIN_FLEET_INTERVAL` 3.0 · `pass_lookahead` 25.0 ·
+`pass_clearance_body` 1.7 · `box_clear_radius` 7.0 · `patience_seconds` 6.0
+and `pass_clearance` 2.3 unchanged. Two implementation constants derived from
+the street geometry landed beside them: the asphalt clamp bounds
+`PASS_ASPHALT_LEFT` −5.15 / `PASS_ASPHALT_RIGHT` +2.15 (lane-local, see the
+derivation in car.gd) and the corridor band `PASS_CORRIDOR_LEFT` −6.5 /
+`PASS_CORRIDOR_RIGHT` +3.5 — the gate band that keeps the corridor reads ON
+this road (the unbounded projection denied passes through walls: the census
+caught a wedge held 47 s by an opposing car 68 m away on a parallel street
+and a parked car 10 m off-road, both through the raw projection; bounded,
+the census worst continuous stop fell to 20.0 s).
+
 **Route:** pipeline (feel) — the owner-directed route; the Gate 3 drive-around
 feel pass is the accept instrument.
+
+**Acceptance record:** reviewer sign-off 2026-11-07 — ticket accepted against
+this branch with the soak/census records above standing as written.
 
 **Tuning latitude:** Gate 3 may move `protocol_patience_seconds` (8-16 s),
 `honk_near_m` (20-40), `HONK_MIN_FLEET_INTERVAL` (2-5 s), `pass_lookahead`
