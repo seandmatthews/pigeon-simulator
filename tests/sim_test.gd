@@ -242,6 +242,7 @@ func _run_scenarios() -> void:
 	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
 	await _scenario_civilian_palette_reserved() ## T-121 — the reservation law + the grown flag, bare value pins.
 	await _scenario_people_on_one_rig() ## T-138 — the one rigged people source, whitelist-pruned clips, adult scale, rate-matched walks.
+	await _scenario_locomotion_rate_ledger() ## T-165 — the sprint/shuffle/sit-pacing rate pins + the import-stamp ledger (the walk-rate leg stays in the row above).
 	await _scenario_citizen_parts_world_scale() ## T-139 — every citizen part stays human-sized (the ×100 arm regression tripwire).
 	await _scenario_elder_seats_on_the_bench() ## T-141 — the seated elder lands on the bench (the sink/hunch/hair composite).
 	await _scenario_cafe_sitters_on_the_rig() ## T-142 — the café crowd wears the baked one-people model.
@@ -8910,6 +8911,161 @@ func _scenario_people_on_one_rig() -> void:
 			"scenes=%s rig=%s arms=%s whitelist=%s envelope=%s rate=%s capsule=%s cars=%s box=%s no_death=%s" % [
 					scenes_ok, rig_ok, arms_ok, whitelist_ok, envelope_ok, rate_ok,
 					capsule_ok, car_ok, car_shape_ok, death_ok])
+
+
+## T-165 — the locomotion rate ledger: the rate pins the suite never had. The
+## walk-rate pin STAYS in `people_on_one_rig` (no duplication); this scenario
+## pins every other played rate, each read ±0.02 `speed_scale` on the LIVE
+## animation player. One design rule the legs split on (the ticket's): a leg
+## whose expected value comes from the same `PeopleRig` constant the game
+## plays can never red on a constant edit — both sides move together
+## (`play_locomotion` calls the same static `sprint_rate()`,
+## scripts/people_rig.gd, and `_panic` snaps velocity straight to
+## `panic_speed`) — so constant TRUTH is pinned only where the expected value
+## comes from the independent copy, the import stamps
+## (`tools/import_people_rig.gd` `_stamp_meta`, read by nothing else in the
+## game), and that is PANIC and LEDGER; SHUFFLE and SIT PACING pin WIRING in
+## the people_on_one_rig convention, by design:
+##   PANIC — a strolling tourist takes a REAL `on_splatted(Vector3(...))`,
+##     settles into `Mood.PANIC`, then `current_animation == CLIP_SPRINT`
+##     and `speed_scale == panic_speed × stamp(sprint_seconds) /
+##     stamp(sprint_stride)` — expected from the STAMPS, so a one-sided edit
+##     of either sprint constant separates played from expected and reds
+##     (the red-before is ticket-recorded: `SPRINT_STRIDE` 2.05 plays
+##     4.2 × 0.6667 / 2.05 = 1.3659 vs the stamp-derived 1.3126, delta
+##     0.0533 past the ±0.02 tolerance);
+##   SHUFFLE — the T-137 migration mechanism (an elder seated at a plaza
+##     ring seat migrating to a park bench through the REAL
+##     `begin_migration`) read mid-WALKING as
+##     `PeopleRig.walk_rate(elder.walk_speed)` — the export read live makes
+##     the pin pace-free: the walk runs at the T-137 harness's 6 m/s window
+##     pace while the shipped 0.8 default is value-locked before it, so
+##     BOTH paces are green by construction;
+##   SIT PACING — the same migration's RISING and ARRIVING windows record
+##     `speed_scale == PeopleRig.SITTING_EXIT_SECONDS / elder.rise_seconds`
+##     and `== PeopleRig.SITTING_ENTER_SECONDS / elder.rise_seconds`
+##     (the `elder.gd` `_sync_clip` wiring, pinned);
+##   LEDGER — `PeopleRig.WALK_STRIDE/WALK_SECONDS/SPRINT_STRIDE/
+##     SPRINT_SECONDS` equal the imported Model's stamped `walk_stride` /
+##     `walk_seconds` / `sprint_stride` / `sprint_seconds` metas — the
+##     stamps become load-bearing (the PANIC leg already derives its
+##     expected rate from two of them; this leg pins all four against the
+##     script copies), and a one-sided edit of either copy reds CI. The
+##     independence is one-directional by design: a COORDINATED
+##     constant+stamp re-pin stays green — the correct contract for a pins
+##     ticket.
+func _scenario_locomotion_rate_ledger() -> void:
+	## --- LEDGER: the four script constants vs the import stamps --------------
+	var bare_rig: Node3D = (load("res://scenes/people_rig.tscn") as PackedScene) \
+			.instantiate()
+	add_child(bare_rig)
+	await _wait_frames(2)
+	var bare_model: Node3D = bare_rig.get_node("Model")
+	var stamp_walk_stride: float = bare_model.get_meta("walk_stride", 0.0)
+	var stamp_walk_seconds: float = bare_model.get_meta("walk_seconds", 0.0)
+	var stamp_sprint_stride: float = bare_model.get_meta("sprint_stride", 0.0)
+	var stamp_sprint_seconds: float = bare_model.get_meta("sprint_seconds", 0.0)
+	var stamps_ok := stamp_walk_stride > 0.0 and stamp_walk_seconds > 0.0 \
+			and stamp_sprint_stride > 0.0 and stamp_sprint_seconds > 0.0
+	var ledger_ok := stamps_ok \
+			and is_equal_approx(stamp_walk_stride, PeopleRig.WALK_STRIDE) \
+			and is_equal_approx(stamp_walk_seconds, PeopleRig.WALK_SECONDS) \
+			and is_equal_approx(stamp_sprint_stride, PeopleRig.SPRINT_STRIDE) \
+			and is_equal_approx(stamp_sprint_seconds, PeopleRig.SPRINT_SECONDS)
+	bare_rig.free()
+
+	## --- PANIC: the sprint rate, played vs the stamps ------------------------
+	var tourist_scene := load("res://scenes/tourist.tscn") as PackedScene
+	var walker: Tourist = tourist_scene.instantiate()
+	walker.path = PackedVector3Array([Vector3(4500.0, 0.0, 4500.0),
+			Vector3(4506.0, 0.0, 4500.0)])
+	add_child(walker)
+	await _wait_frames(6)
+	var t_rig: PeopleRig = walker.get_node("Visual")
+	var strolling := t_rig.anim.current_animation == PeopleRig.CLIP_WALK
+	walker.on_splatted(Vector3(3.0, -9.0, 2.0)) ## A real splat: the panic away.
+	var stamp_expected: float = walker.panic_speed \
+			* t_rig.model.get_meta("sprint_seconds", 0.0) \
+			/ t_rig.model.get_meta("sprint_stride", 0.0)
+	var panic_ok := false
+	var played_rate := -1.0
+	for _i in 30:
+		await get_tree().physics_frame
+		if walker.mood == Tourist.Mood.PANIC \
+				and t_rig.anim.current_animation == PeopleRig.CLIP_SPRINT:
+			played_rate = t_rig.anim.speed_scale
+			panic_ok = absf(played_rate - stamp_expected) < 0.02
+			break
+	walker.free()
+
+	## --- SHUFFLE + SIT PACING: the migration windows -------------------------
+	var elder_scene := load("res://scenes/elder.tscn") as PackedScene
+	var elder: Elder = elder_scene.instantiate()
+	elder.city = _city
+	elder.global_transform = _city.global_transform * _city.elder_spots[0]
+	elder.current_seat = 0
+	add_child(elder)
+	await _wait_frames(2)
+	## The shipped defaults, value-locked BEFORE the window pace — the pin
+	## reads the export live, so the harness pace and the shipped default are
+	## both green by construction (green at 6 m/s AND at 0.8).
+	var defaults_ok := elder._state == Elder.State.SEATED \
+			and is_equal_approx(elder.walk_speed, 0.8) \
+			and is_equal_approx(elder.rise_seconds, 0.6)
+	var seats_ok := _city.elder_spots.size() >= 12 ## Plaza ring 0-7 + parks 8-11.
+	elder.walk_speed = 6.0 ## The T-137 harness's bounded-window pace.
+	elder.begin_migration(8) ## The real migration entry — plaza seat → park bench.
+	var e_rig: PeopleRig = elder.get_node("Visual")
+	var saw_rising := false
+	var saw_walking := false
+	var saw_arriving := false
+	var rising_ok := true
+	var walking_ok := true
+	var arriving_ok := true
+	var rising_rate := -1.0
+	var shuffle_rate := -1.0
+	var arriving_rate := -1.0
+	for _i in 3600:
+		await get_tree().physics_frame
+		match elder._state:
+			Elder.State.RISING:
+				if e_rig.anim.current_animation == PeopleRig.CLIP_SITTING_EXIT:
+					saw_rising = true
+					rising_rate = e_rig.anim.speed_scale
+					rising_ok = rising_ok and absf(rising_rate \
+							- PeopleRig.SITTING_EXIT_SECONDS / elder.rise_seconds) < 0.02
+			Elder.State.WALKING:
+				if e_rig.anim.current_animation == PeopleRig.CLIP_WALK:
+					saw_walking = true
+					shuffle_rate = e_rig.anim.speed_scale
+					walking_ok = walking_ok and absf(shuffle_rate \
+							- PeopleRig.walk_rate(elder.walk_speed)) < 0.02
+			Elder.State.ARRIVING:
+				if e_rig.anim.current_animation == PeopleRig.CLIP_SITTING_ENTER:
+					saw_arriving = true
+					arriving_rate = e_rig.anim.speed_scale
+					arriving_ok = arriving_ok and absf(arriving_rate \
+							- PeopleRig.SITTING_ENTER_SECONDS / elder.rise_seconds) < 0.02
+			Elder.State.SEATED:
+				if saw_walking:
+					break
+	elder.free()
+
+	_check("locomotion_rate_ledger",
+			stamps_ok and ledger_ok and strolling and panic_ok
+					and defaults_ok and seats_ok and saw_rising and rising_ok
+					and saw_walking and walking_ok and saw_arriving and arriving_ok,
+			("stamps=%s ledger=%s strolling=%s panic=%s (played %.4f vs stamps %.4f) "
+					+ "defaults=%s seats=%s rising=%s/%s (%.4f want %.4f) "
+					+ "walking=%s/%s (%.4f want %.4f) arriving=%s/%s (%.4f want %.4f)") % [
+					stamps_ok, ledger_ok, strolling, panic_ok,
+					played_rate, stamp_expected,
+					defaults_ok, seats_ok, saw_rising, rising_ok, rising_rate,
+					PeopleRig.SITTING_EXIT_SECONDS / 0.6,
+					saw_walking, walking_ok, shuffle_rate,
+					PeopleRig.walk_rate(6.0),
+					saw_arriving, arriving_ok, arriving_rate,
+					PeopleRig.SITTING_ENTER_SECONDS / 0.6])
 
 
 ## T-139 — every citizen part is HUMAN-sized. The import split must keep the

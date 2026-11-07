@@ -1,6 +1,6 @@
 # T-165 — Ground the gait: the people-locomotion constants probe — a live census instrument, its recorded ledger, and the rate pins the suite never had
 
-- **Status:** proposed · **Category:** visual-design · **Value (1-5):** 3 ·
+- **Status:** done · **Category:** visual-design · **Value (1-5):** 3 ·
   **Risk (1-5):** 2
 - **Depends on:** T-138 (the one people rig whose clip/stride constants this
   audits — nothing new is invented here, everything measured already ships)
@@ -206,14 +206,14 @@ next motion ticket a running start instead of a blind one.
 
 ## Acceptance criteria
 
-- [ ] *(Gate 1b)* new `locomotion_rate_ledger` scenario registered in the
+- [x] *(Gate 1b)* new `locomotion_rate_ledger` scenario registered in the
       `_run_scenarios` block (`sim_test.gd:242` neighbors) with the four
       legs above (PANIC — expected rate derived from the stamped
       `sprint_seconds`/`sprint_stride` metas, the independent copy — /
       SHUFFLE / SIT PACING / LEDGER, ±0.02 reads on the live
       `speed_scale`); the walk-rate leg remains ONLY in
       `people_on_one_rig` (`VERIFICATION.md:129` untouched in its law)
-- [ ] *(Gate 1b)* the scenario demonstrably bites — recorded when landed:
+- [x] *(Gate 1b)* the scenario demonstrably bites — recorded when landed:
       with `PeopleRig.SPRINT_STRIDE` hand-edited (e.g. to 2.05) the LEDGER
       leg reds on the meta mismatch (script 2.05 vs stamped 2.1333) AND
       the PANIC leg reds because its expected rate comes from the STAMPS
@@ -225,20 +225,20 @@ next motion ticket a running start instead of a blind one.
       independence is one-directional by design — a COORDINATED
       constant+stamp re-pin stays green, the correct contract for a
       pins ticket)
-- [ ] *(Gate 1b)* full suite 0 failures:
+- [x] *(Gate 1b)* full suite 0 failures:
       `godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn`
-- [ ] *(Gate 1)* `godot --headless --path . --import` and the 120-frame
+- [x] *(Gate 1)* `godot --headless --path . --import` and the 120-frame
       boot exit clean, zero ERROR lines
-- [ ] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`)
-- [ ] `tools/probe_walk_constants.gd` lands as the persistent census
+- [x] *(Gate 2)* autoplay green (`AUTOPLAY DONE ok=true restart=true`)
+- [x] `tools/probe_walk_constants.gd` lands as the persistent census
       instrument (the five sections above, ≥ 96 samples/cycle, tolerance
       documented in its header), runs clean headless via
       `--script`, and its printed numbers agree with the ledger below
       within the documented tolerance
-- [ ] the ledger table in this ticket is re-confirmed against the LANDED
+- [x] the ledger table in this ticket is re-confirmed against the LANDED
       probe's actual output at done-time (the T-134 "Tuned values" pattern —
       record any deltas, don't copy the pre-ticket run)
-- [ ] *(Gate 3, screenshots)* pilot-harness slow-mo captures into
+- [x] *(Gate 3, screenshots)* pilot-harness slow-mo captures into
       `.captures/t165_walk_probe/` (use `--time-scale 0.1` for stride
       readability), eyes-on verdicts recorded here: (a) a strolling
       tourist's feet track the ground — no skating at gameplay distance;
@@ -264,3 +264,113 @@ autoplay · Gate 3 the three slow-mo lines above.
 "fore-aft" is the bone-origin range along the rig's local Z (the pack's
 forward is −Z, `people_rig.gd:83-87`); stride = per-foot fore-aft L + R (two
 feet, half a cycle apart — the T-138 derivation, `import_people_rig.gd:80`).
+
+## Landed evidence (implementer run, 2026-11-06)
+
+Everything below was run on the branch tree (`feature/t-165`, worktree
+`t-165`) with `C:/Users/matth/bin/Godot_v4.7.2-stable_win64_console.exe`.
+Honesty note on an environment interruption mid-ask: an outside process
+hard-reset the worktree's tracked files (and cleaned the untracked probe
+script) between the first gate sweep and the commit; every edit was
+recreated from the session record and EVERY gate below was re-run against
+the recreated tree — the recorded outputs are the recreated tree's runs.
+The Gate 3 captures (`.captures/` is gitignored) survived the reset and
+document the same shipped game content.
+
+**The landed probe's census vs this ticket's ledger (the done-time
+re-confirmation, T-134 pattern):** `godot --headless --path . --script
+tools/probe_walk_constants.gd` → exit 0, census GREEN, and every number
+byte-matches the pre-ticket ledger — **no deltas recorded**. Walk: fore-aft
+L 0.6540 + R 0.6797 = stride 1.3337 vs pinned 1.3239 (+0.7%); sprint:
+1.0484 / 1.0375 = 2.0859 vs 2.1333 (−2.2%); hips in-place x/y/z 0.0000 in
+both clips; ankle lifts 0.2304/0.2248 (walk) and 0.4414/0.2938 (sprint) via
+the per-foot y ranges; rate table 1.1128 / 1.3092 / 1.5711 stroll, authored
+0.993 m/s, shuffle 0.8057, panic 1.3126, sit enter 2.1528 / exit 1.6667 —
+all identical to the ledger above. The probe pins
+`LEDGER_WALK_STRIDE_MEASURED 1.3337` / `LEDGER_SPRINT_STRIDE_MEASURED
+2.0859` (the ledger's measured values) as its census-green band (±0.5%),
+so a future clip edit that moves the live foot travel reds the census while
+the pinned-constant comparison stays a printed finding (the sprint −2.2% is
+this ledger's recorded defect candidate, shipped as-is).
+
+**Red-before (the bite, recorded when landed):** with `PeopleRig.SPRINT_STRIDE`
+hand-edited to 2.05 and the full suite run
+(`godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn`),
+exactly ONE scenario reds, with BOTH independence legs failing and both
+wiring legs holding — exit 1, `SIM SUMMARY: 1 failure(s)`:
+
+```
+SIM FAIL locomotion_rate_ledger: stamps=true ledger=false strolling=true panic=false (played 1.3659 vs stamps 1.3126) defaults=true seats=true rising=true/true (1.6667 want 1.6667) walking=true/true (6.0426 want 6.0426) arriving=true/true (2.1528 want 2.1528)
+```
+
+`ledger=false` is the script-vs-stamp mismatch (2.05 vs stamped 2.1333);
+`panic=false (played 1.3659 vs stamps 1.3126)` is the predicted 0.0533
+separation past the ±0.02 tolerance — both exactly the ticket's arithmetic.
+SHUFFLE (6.0426 == `walk_rate(6.0)`) and SIT PACING (1.6667 / 2.1528) stay
+green on the same edited tree, by design — they pin wiring, not constants.
+Constant reverted; the identical red line reproduced on a second red run
+(after the mid-ask reset rebuilt the scenario), and the suite went back to
+green after the revert.
+
+**Gates (recreated tree, final runs):**
+
+- Gate 1b: `godot --headless --fixed-fps 60 --path .
+  res://tests/sim_test.tscn` → exit 0, **176 SIM PASS / 0 SIM FAIL**,
+  `SIM SUMMARY: 0 failure(s)`, `SIM PASS locomotion_rate_ledger` (the
+  suite prints detail lines on FAIL only; the shipped-tree leg values are
+  evidenced by the probe census above and by the red run's detail line,
+  whose wiring legs read 6.0426 / 1.6667 / 2.1528 and whose played rate
+  moved exactly with the edited constant). `people_on_one_rig` PASSes
+  unchanged in the same run (the walk-rate leg stays only there).
+- Gate 1: `godot --headless --path . --import` → exit 0 with exactly the
+  one VERIFICATION-documented accepted ERROR line ("33 resources still in
+  use at exit" — the provisioned-godot_mcp notice); `godot --headless
+  --path . --quit-after 120` → exit 0, zero ERROR lines. (The worktree
+  needed the untracked `addons/godot_mcp/` copy restored per the
+  VERIFICATION.md precondition before the first clean import.)
+- Gate 2: `godot --path . res://tests/autoplay.tscn` → exit 0,
+  `AUTOPLAY DONE ok=true t=33.0 fps=136 … restart=true …`, zero SCRIPT
+  ERROR lines.
+
+**Gate 3 — the three slow-mo reads** (pilot sessions at `--time-scale
+0.1`, captures in `.captures/t165_walk_probe/`, untracked; the stroll
+frames from session `t165probe`, the panic/elder frames from session
+`t165b` after the first session's game process died mid-capture):
+
+- (a) Stroll — `a_stroll_2/4/5.png` (`a_stroll_1/3/6/7.png` are the
+  surrounding burst): a red-shirt civilian strolls its sidewalk loop past
+  the grounded pigeon at gameplay distance. Across the frames the figure
+  advances along the pavement with alternating leg extension → plant;
+  against the sidewalk edge and road markings the plant foot holds its
+  ground line between frames — **no skating visible. The stroll verdict:
+  feet track the ground.**
+- (b) Panic — `b_panic_1/2.png` mid-sprint, `b_panic_3.png` the
+  arms-down stroll resume, `b_panic_4.png` post-window: the splatted
+  civilian sprints across the crosswalk with arms raised, torso lean and
+  the flush live (the HUD books `Civilian +100` and the −1 civilian
+  favor in the same frames — the scoring chain riding along). Judged
+  against the ledger's −2.2% glide prediction (≈0.093 m/s of foot drift,
+  ≈4.7 cm per planted step): **INVISIBLE at gameplay distance.** Both
+  mid-sprint frames read crisp planted poses against the asphalt
+  markings; no smear, no slide. This feeds the follow-up fix decision:
+  the shipped −2.2% does not read at gameplay distance — accept-the-glide
+  is a live option for the owner.
+- (c) Elder — `c_elder_2.png` and `c_elder_4.png`: the white-haired,
+  cardigan'd elder mid-shuffle with its cane, having risen off the plaza
+  bench via a real `begin_migration(8)` (the call verb, T-169) toward the
+  park bench; `c_elder_2.png` holds BOTH figures in one frame — the
+  elder's short cane-assisted shuffle step on the right, a strolling
+  tourist mid-stride across the plaza on the left. Across the 14 wall-s
+  (= 1.4 game-s at 0.1×) between the frames the elder covers ~1 m while
+  the tourist crossed several times that — **the pace separation reads as
+  grandfather-vs-stroll, not glitch.**
+
+**Accepted by reviewer sign-off 2026-11-06** (the reviewer read the landed
+ledger re-confirmation, the red-before line and the three Gate 3 verdicts
+and signed off). Final tuned values: none — this ticket changes no constant
+by design (Not claimed); the values the next motion ticket tunes against
+are the ledger above, re-confirmed byte-identical by the landed probe
+(walk stride 1.3337 measured vs 1.3239 pinned, +0.7%; sprint 2.0859
+measured vs 2.1333 pinned, −2.2% — the recorded defect candidate, accepted
+as shipped per the (b) invisible-at-gameplay-distance call; all six clip
+lengths and the played-rate table exact per the census).
