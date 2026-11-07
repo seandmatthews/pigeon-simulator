@@ -143,7 +143,7 @@ exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 | T-163 | [One seat-contact law: thighs, knees and shins clear every seat — the café stools and the elder bench](T-163-seat-contact-law.md) | visual-design | 3 | 2 | done |
 | T-164 | [Hair that is not a plank: one fitted dome cap on every head (café sitter, elder, tourist)](T-164-rounded-hair-caps.md) | visual-design | 3 | 2 | done |
 | T-165 | [Ground the gait: the people-locomotion constants probe — a live census instrument, its recorded ledger, and the rate pins the suite never had](T-165-walk-constants-probe.md) | visual-design | 3 | 2 | done |
-| T-166 | [Traffic holds that read calm: honk etiquette, oncoming-gated passes, and a force-commit that checks the box](T-166-traffic-hold-calm.md) | worldbuilding | 4 | 3 | proposed |
+| T-166 | [Traffic holds that read calm: honk etiquette, oncoming-gated passes, and a force-commit that checks the box](T-166-traffic-hold-calm.md) | worldbuilding | 4 | 3 | done |
 | T-167 | [Dev tool 1: the hunger lock — pilot verbs freeze and refill the survival clock](T-167-dev-hunger-lock.md) | tooling | 4 | 1 | done |
 | T-168 | [Dev tool 2: the starter verb pack — spawn a car, blink its lights, teleport the pigeon, freeze traffic](T-168-dev-verb-pack.md) | tooling | 4 | 2 | done |
 | T-169 | [Dev tool 3: the call verb — one-hop method invocation on the running world from a JSONL line](T-169-dev-call-verb.md) | tooling | 3 | 3 | done |

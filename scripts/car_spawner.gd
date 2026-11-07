@@ -320,6 +320,7 @@ func _replace_car(spent: Car) -> bool:
 	fresh.pace = spent.pace
 	_assign_tailgate(fresh)
 	fresh.traffic = traffic_ctrl ## (T-134) Null when the protocol hatch is off.
+	fresh.player = player ## (T-166) The patience-honk gate, before _ready.
 	var block: Vector3 = _pick_recycle_block(blocks)
 	var placed := false
 	if spent.mode == Car.Mode.PARKED:
@@ -375,6 +376,7 @@ func _spawn_traffic(block_local: Vector3, index: int) -> void:
 	_assign_tailgate(car) ## (T-114) The cooler rides traffic AND parked visitors.
 	car.pace = _rng.randf_range(0.9, 1.15)
 	car.traffic = traffic_ctrl ## (T-134) Null when the protocol hatch is off — bare pathing.
+	car.player = player ## (T-166) The patience-honk gate, before _ready.
 	add_child(car)
 	# A deterministic seeded route off the block's corner node, staged at a
 	# deterministic spread point on its first leg: two cars sharing one leg
@@ -411,6 +413,7 @@ func _spawn_parked(block_local: Vector3, pos: Vector3, yaw: float, index: int) -
 	if car.citizen_class == CitizenClass.Kind.CIVILIAN:
 		car.body_color = Car.BODY_PALETTE[index % Car.BODY_PALETTE.size()]
 	_assign_tailgate(car) ## (T-114) Cooler + bread service; park_at anchors the crumb.
+	car.player = player ## (T-166) The patience-honk gate, before _ready.
 	add_child(car)
 	car.park_at(pos, yaw, city.to_global(block_local))
 	car.splatted.connect(_on_car_splatted)
