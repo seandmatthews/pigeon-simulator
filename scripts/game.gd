@@ -79,11 +79,46 @@ var settings_muted: bool = true
 ## BOTH branches through `web_override` (−1 = ask the OS; 0/1 force).
 var web_override: int = -1
 
+## The worlds a boot can pick (T-173): "windrow" is the procedural generator
+## (the default and the whole suite's world), "ames" is the resident baked
+## world (`AmesWorld`). Which one boots is a setting, not a scene edit —
+## main.tscn stays byte-identical either way; Main swaps the world root at
+## `_ready` when this says "ames", and every existing gate stays green until
+## T-177 owns the default flip.
+const WORLDS: Array[String] = ["windrow", "ames"]
+
+## (T-173) Which world boots. Persisted under the settings file's `game`
+## section; an explicit boot flag (the `--world=` user arg or the pilot's
+## PIGEON_WORLD env — see `boot_world`) beats the file, a saved file beats the
+## default, and anything else keeps "windrow".
+var world: String = "windrow"
+
+## (T-173) True when `boot_world` resolved an EXPLICIT flag this boot —
+## `load_settings` must not clobber it with the file's (or default) value.
+var _world_boot_forced: bool = false
+
 
 func is_web() -> bool:
 	if web_override >= 0:
 		return web_override == 1
 	return OS.has_feature("web")
+
+
+## (T-173) The boot-time world resolution, the `boot_muted`/`pilot_time_scale`
+## pattern: the pilot's PIGEON_WORLD env, then a `--world=` user arg (after
+## `--` on the CLI), then the default. Anything outside `WORLDS` is no flag at
+## all — a mistyped value must never silently mean something other than
+## windrow. Returns the resolved world and marks `_world_boot_forced` when an
+## explicit one landed.
+func boot_world(user_args: PackedStringArray) -> String:
+	var raw := OS.get_environment("PIGEON_WORLD")
+	for arg in user_args:
+		if arg.begins_with("--world="):
+			raw = arg.get_slice("=", 1)
+	if raw in WORLDS:
+		_world_boot_forced = true
+		return raw
+	return "windrow"
 
 ## Play sessions launched by tests/tools/pilot.py set PIGEON_NO_PERSIST=1 so N
 ## concurrent agent-driven runs never fight over (or wipe) the real record.
@@ -186,6 +221,7 @@ func _ready() -> void:
 	settings_muted = boot_muted(OS.get_cmdline_user_args())
 	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), settings_muted)
 	apply_pilot_time_scale(OS.get_cmdline_user_args()) ## (T-132) agent slow-mo opt-in; flagless boots stay 1.0.
+	world = boot_world(OS.get_cmdline_user_args()) ## (T-173) the world setting's boot seam; default windrow.
 	hunger = Hunger.new()
 	hunger.name = "Hunger"
 	add_child(hunger)
@@ -231,6 +267,10 @@ func load_settings() -> void:
 	volume_sfx = clampf(float(cfg.get_value("audio", "sfx", 1.0)), 0.0, 1.0)
 	volume_ambience = clampf(float(cfg.get_value("audio", "ambience", 1.0)), 0.0, 1.0)
 	settings_muted = bool(cfg.get_value("audio", "muted", true))
+	if not _world_boot_forced: ## (T-173) an explicit boot flag outranks the file.
+		var saved_world := str(cfg.get_value("game", "world", "windrow"))
+		if saved_world in WORLDS:
+			world = saved_world
 	apply_audio_settings()
 
 
@@ -245,6 +285,7 @@ func save_settings() -> void:
 	cfg.set_value("audio", "sfx", volume_sfx)
 	cfg.set_value("audio", "ambience", volume_ambience)
 	cfg.set_value("audio", "muted", settings_muted)
+	cfg.set_value("game", "world", world) ## (T-173) the world setting persists with the rest.
 	cfg.save(settings_path)
 
 

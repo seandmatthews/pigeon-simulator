@@ -353,7 +353,7 @@ scan (T-170 was max; no workflows in flight).
 | -- | ------ | ---- | ---------- | ------ |
 | T-171 | [Ames data pack](T-171-ames-data-pack.md) | R1 The Map | survey | done |
 | T-172 | [Chunk baker](T-172-ames-chunk-baker.md) | R1 The Map | T-171 | done |
-| T-173 | [World renderer](T-173-ames-world-renderer.md) | R1 The Map | T-172 | proposed |
+| T-173 | [World renderer](T-173-ames-world-renderer.md) | R1 The Map | T-172 | done |
 | T-174 | [Skeleton visuals](T-174-ames-skeleton-visuals.md) | R1 The Map | T-173 | proposed |
 | T-175 | [Landmark placeholders](T-175-ames-landmark-placeholders.md) | R1 The Map | T-173 | proposed |
 | T-176 | [Survival rebase](T-176-ames-survival-rebase.md) | R1 The Map | T-173, T-175 | proposed |

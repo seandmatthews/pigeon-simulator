@@ -8,6 +8,7 @@ extends Node3D
 
 const PLAYER_SCENE: PackedScene = preload("res://scenes/player.tscn")
 const CITY_SCENE: PackedScene = preload("res://scenes/city.tscn")
+const AMES_WORLD_SCENE: PackedScene = preload("res://scenes/ames_world.tscn") ## (T-173) The resident Ames world rig.
 const CRUMB_SCENE: PackedScene = preload("res://scenes/bread_crumb.tscn")
 const POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const SPLAT_TARGET_SCRIPT := preload("res://tests/splat_target.gd")
@@ -173,6 +174,8 @@ func _run_scenarios() -> void:
 	await _scenario_ames_data_integrity() ## T-171 — FIRST: pure data over the committed Ames pack; touches no rig and no city.
 	await _scenario_ames_bake_census() ## T-172 — pure data over the committed chunk bake; still no rig and no city.
 	await _scenario_ames_bake_determinism() ## T-172 — re-bake in-scenario must reproduce the committed manifest hash.
+	await _scenario_ames_world_render_budget() ## T-173 — the resident bake inside the draw/memory budget.
+	await _scenario_ames_world_api_seam() ## T-173 — the city API over chunk data; the corridor is flyable.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -946,6 +949,326 @@ func _scenario_ames_bake_determinism() -> void:
 			dir.remove(f)
 		DirAccess.remove_absolute(REBAKE_DIR)
 	_check(S, bad.is_empty(), "; ".join(bad))
+
+
+## --- scenarios (T-173 Ames world renderer) ---------------------------------
+
+
+## Offset every Ames rig out past the harness world (the rig ground plate sits
+## at the origin; the bake's z extent ends ~1.4 km out, so 8 km south clears
+## it with precision to spare — the review's ±4 km single-precision note is
+## about bake-local coordinates, which stay untouched).
+const AMES_WORLD_OFFSET := Vector3(0.0, 0.0, 8000.0)
+
+
+## (T-173) The resident baked world renders the WHOLE committed bake inside
+## the perf budget, chunk-partitioned: every chunk is one small node family
+## (massing boxes / ground rectangles / lake-park triangles — each ONE
+## frustum-cullable MultiMesh via its manifest AABB, plus one baked
+## ArrayOccluder3D), so the draw story is per-chunk culling, not
+## per-building. Measured, not assumed: the whole-world draw ceiling (every
+## chunk visible) AND the camera-pose ceilings at the ticket's two poses —
+## cruise over Campustown (60 m, looking east across the strip) and a low
+## hover over downtown (20 m) — must stay under the 800-draw budget, the
+## resident buffer estimate under the 400 MB chunk-memory budget, the built
+## instance count equal to the committed bake totals (the renderer consumed
+## everything — the memory metric honest), and one occluder per chunk. The
+## pose read is the scenario's own frustum test: the engine camera's own
+## planes (`Camera3D.get_frustum` — the same math the renderer culls with)
+## against each chunk's manifest AABB via its 8 corners
+## (all-corners-over-ANY-one-plane excludes; a camera inside the AABB is
+## visible). First values printed on the SIM DATA line for the in-ticket
+## record; a budget retune re-derives the gate, never edits the assertion.
+func _scenario_ames_world_render_budget() -> void:
+	const S := "ames_world_render_budget"
+	const DRAW_BUDGET := 800 ## (T-173) first value in-ticket, tuned on measurement.
+	const MEMORY_BUDGET_BYTES := 400 * 1024 * 1024
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var bad: PackedStringArray = PackedStringArray()
+	var m: Dictionary = world.render_metrics()
+	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	var totals: Dictionary = manifest.get("totals", {})
+	var chunk_count := (manifest.get("chunks", []) as Array).size()
+	var expected_instances := int(totals.get("massing", 0)) + int(totals.get("ribbons", 0)) \
+			+ int(totals.get("creek_quads", 0)) + int(totals.get("ballast_quads", 0)) \
+			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0))
+	if int(m.mm_nodes) <= 0:
+		bad.append("no chunk MultiMeshes built (%s)" % str(m))
+	if int(m.instances) != expected_instances:
+		bad.append("instances %d != bake total %d" % [m.instances, expected_instances])
+	if int(m.chunk_count) != chunk_count:
+		bad.append("chunks %d != manifest %d" % [m.chunk_count, chunk_count])
+	if int(m.mm_nodes) > DRAW_BUDGET:
+		bad.append("whole-world draw ceiling %d > %d" % [m.mm_nodes, DRAW_BUDGET])
+	if int(m.buffer_bytes) > MEMORY_BUDGET_BYTES:
+		bad.append("buffer bytes %d > %d" % [m.buffer_bytes, MEMORY_BUDGET_BYTES])
+	var occluders := 0
+	var mm_per_chunk := 0
+	var chunks_root := world.get_node_or_null("Chunks") as Node3D
+	if chunks_root == null:
+		bad.append("no Chunks root — the world did not build")
+	else:
+		for c: Node in chunks_root.get_children():
+			## owned=false: the chunk families are built at runtime — no scene owner.
+			occluders += c.find_children("*", "OccluderInstance3D", true, false).size()
+			mm_per_chunk = maxi(mm_per_chunk,
+					c.find_children("*", "MultiMeshInstance3D", true, false).size())
+	## Baked occlusion rode along: exactly one occluder per MASSING-bearing
+	## chunk (25 of the 172 tiles are flats-only — streets/water with no
+	## buildings — recomputed from the manifest, not trusted from the build).
+	var massing_chunks := 0
+	for entry: Dictionary in manifest.get("chunks", []):
+		if int(entry.get("counts", {}).get("massing", 0)) > 0:
+			massing_chunks += 1
+	if occluders != massing_chunks:
+		bad.append("occluders %d != massing-bearing chunks %d" % [occluders, massing_chunks])
+	## The ticket's two poses, staged on a probe camera mid-band of the chase
+	## rig (fov 72 air → 79 at cruise; far stays the engine default 4000, as
+	## in the game scene).
+	var cam := Camera3D.new()
+	cam.fov = 75.0
+	add_child(cam)
+	cam.global_transform = _look_xf(AMES_WORLD_OFFSET + Vector3(-300.0, 60.0, 60.0), -90.0, -20.0)
+	var cruise_draws := _frustum_draw_ceiling(world, cam)
+	cam.global_transform = _look_xf(AMES_WORLD_OFFSET + Vector3(2700.0, 20.0, -256.0), -90.0, -10.0)
+	var hover_draws := _frustum_draw_ceiling(world, cam)
+	print("SIM DATA %s: mm_nodes=%d instances=%d buffer_bytes=%d max_mm_per_chunk=%d cruise_draws=%d hover_draws=%d" % [
+			S, m.mm_nodes, m.instances, m.buffer_bytes, mm_per_chunk, cruise_draws, hover_draws])
+	if cruise_draws > DRAW_BUDGET:
+		bad.append("cruise-over-Campustown draws %d > %d" % [cruise_draws, DRAW_BUDGET])
+	if hover_draws > DRAW_BUDGET:
+		bad.append("low-hover-over-downtown draws %d > %d" % [hover_draws, DRAW_BUDGET])
+	_check(S, bad.is_empty(), "; ".join(bad))
+	cam.queue_free()
+	world.queue_free()
+
+
+## A camera transform at `pos` yawing `yaw_deg` about UP (−90 faces +x east)
+## then pitching `pitch_deg` about the yawed local x (negative looks down) —
+## the probe poses' staging helper.
+func _look_xf(pos: Vector3, yaw_deg: float, pitch_deg: float) -> Transform3D:
+	var b := Basis(Vector3.UP, deg_to_rad(yaw_deg))
+	b = Basis(b.x, deg_to_rad(pitch_deg)) * b
+	return Transform3D(b, pos)
+
+
+## The scenario's own chunk-culling read: the draw ceiling of every chunk
+## whose content AABB intersects the camera frustum (each chunk MultiMesh is
+## ONE draw when visible — the partition's whole point). Convex-vs-convex:
+## the box is culled only when ALL 8 corners sit over the SAME frustum plane;
+## a camera position inside the box is visible outright.
+func _frustum_draw_ceiling(world: AmesWorld, cam: Camera3D) -> int:
+	var planes := cam.get_frustum()
+	var draws := 0
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var tile := Vector2i(int(entry["cx"]), int(entry["cz"]))
+		var aabb := world.chunk_aabb(tile)
+		if aabb.size == Vector3.ZERO:
+			continue
+		if not _aabb_hits_frustum(aabb, world, cam.global_position, planes):
+			continue
+		var chunk := world.get_node_or_null("Chunks/Chunk_%d_%d" % [tile.x, tile.y]) as Node3D
+		if chunk == null:
+			continue
+		draws += chunk.find_children("*", "MultiMeshInstance3D", true, false).size()
+	return draws
+
+
+func _aabb_hits_frustum(aabb: AABB, world: Node3D, cam_pos: Vector3,
+		planes: Array[Plane]) -> bool:
+	if aabb.has_point(world.to_local(cam_pos)):
+		return true
+	var corners: Array[Vector3] = []
+	for k in 8:
+		corners.append(world.to_global(Vector3(
+				aabb.position.x + (aabb.size.x if k & 1 != 0 else 0.0),
+				aabb.position.y + (aabb.size.y if k & 2 != 0 else 0.0),
+				aabb.position.z + (aabb.size.z if k & 4 != 0 else 0.0))))
+	for plane: Plane in planes:
+		var all_over := true
+		for corner: Vector3 in corners:
+			if not plane.is_point_over(corner):
+				all_over = false
+				break
+		if all_over:
+			return false
+	return true
+
+
+## (T-173) The gameplay seam: everything gameplay reads off the world answers
+## over chunk data through the City API's signatures, and the world is
+## FLYABLE — the pigeon drops into the spawn corridor and settles grounded on
+## the ground plate, then a grounded flap returns it to flight. Expected
+## values recomputed INDEPENDENTLY from the committed bake (the no-self-test
+## rule): the ground query's massing leg re-reads chunk (0, 0) and takes its
+## tallest box, the plate leg re-scans the four origin tiles for any box
+## covering the pack origin (Lincoln Way × Welch — a street crossing, so none
+## may), the tile-crossing leg (round-1 review) finds the bake's
+## largest-overhang box by an independent scan of every chunk file and
+## requires the query to answer its top BOTH at the center AND inside the
+## overhang region — the neighbor tile a centroid-only filing never saw,
+## the guard circle (round-1 review) must hold EVERY manifest chunk AABB's
+## corners (the round-1 build pinned it at the pack origin and leaked 46%
+## of the massing — the T-023 nudge banked the pigeon home over downtown),
+## the district lookup pins the baker v0 rule's four families at
+## independently-derived points (Campustown band off Lincoln Way, downtown
+## band off Main Street z ≈ −256, the campanile's campus anchor, and a point
+## past every band), and the spawn corridor is the pack origin itself — above
+## the plate, massing-clear by the same scan.
+func _scenario_ames_world_api_seam() -> void:
+	const S := "ames_world_api_seam"
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var bad: PackedStringArray = PackedStringArray()
+	## Ground query, massing leg: tallest box of the independently re-read
+	## chunk, queried at its footprint center.
+	var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, "chunk_0_0.json")
+	var tallest: Dictionary = {}
+	for b: Dictionary in doc.get("massing", []):
+		if tallest.is_empty() or float(b["p"][1]) + float(b["s"][1]) * 0.5 \
+				> float(tallest["p"][1]) + float(tallest["s"][1]) * 0.5:
+			tallest = b
+	var probe := world.to_global(Vector3(float(tallest["p"][0]), 0.0, float(tallest["p"][2])))
+	var expected_top := float(tallest["p"][1]) + float(tallest["s"][1]) * 0.5
+	var got := world.ground_height(probe)
+	if absf(got - expected_top) > 0.05:
+		bad.append("ground_height massing %.2f != %.2f" % [got, expected_top])
+	## Ground query, plate leg: the origin stays massing-clear and answers 0.
+	var origin_clear := true
+	for tile: Vector2i in [Vector2i(-1, -1), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(0, 0)]:
+		var near: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+				"chunk_%d_%d.json" % [tile.x, tile.y])
+		for b: Dictionary in near.get("massing", []):
+			if absf(float(b["p"][0])) <= float(b["s"][0]) * 0.5 \
+					and absf(float(b["p"][2])) <= float(b["s"][2]) * 0.5:
+				origin_clear = false
+				bad.append("origin not massing-clear: %s covers it" % b["id"])
+	if origin_clear and world.ground_height(world.to_global(Vector3.ZERO)) != 0.0:
+		bad.append("origin plate query != 0")
+	## Ground query, tile-crossing leg (round-1 review): the bake files each
+	## box under its CENTROID tile, and 401 of 3,737 boxes cross a 256 m tile
+	## edge (worst overhang 77 m) — centroid-only filing answered the plate
+	## (0.0) for points standing under those overhangs (live call-verb
+	## evidence in the ticket). Recomputed here from the committed chunks:
+	## the largest-overhang box must answer its top BOTH at the center and
+	## at a point of its overhang region — a point inside the footprint but
+	## inside the NEIGHBOR tile.
+	var crossing: Dictionary = {} ## {box, overhang, probe} — the worst overhang.
+	var crossing_count := 0
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc_c: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for b: Dictionary in doc_c.get("massing", []):
+			var cx := float(b["p"][0])
+			var cz := float(b["p"][2])
+			var hw := float(b["s"][0]) * 0.5
+			var hd := float(b["s"][2]) * 0.5
+			var tile_size := AmesBaker.CHUNK_SIZE
+			var tx := floori(cx / tile_size)
+			var tz := floori(cz / tile_size)
+			var over_x_lo := maxf(0.0, float(tx) * tile_size - (cx - hw))
+			var over_x_hi := maxf(0.0, (cx + hw) - float(tx + 1) * tile_size)
+			var over_z_lo := maxf(0.0, float(tz) * tile_size - (cz - hd))
+			var over_z_hi := maxf(0.0, (cz + hd) - float(tz + 1) * tile_size)
+			var over := maxf(maxf(over_x_lo, over_x_hi), maxf(over_z_lo, over_z_hi))
+			if over > 0.0:
+				crossing_count += 1
+			if crossing.is_empty() or over > float(crossing["overhang"]):
+				var probe_p := Vector3.ZERO
+				if over == over_x_hi:
+					probe_p = Vector3(((float(tx + 1) * tile_size) + (cx + hw)) * 0.5, 0.0, cz)
+				elif over == over_x_lo:
+					probe_p = Vector3((float(tx) * tile_size + (cx - hw)) * 0.5, 0.0, cz)
+				elif over == over_z_hi:
+					probe_p = Vector3(cx, 0.0, ((float(tz + 1) * tile_size) + (cz + hd)) * 0.5)
+				else:
+					probe_p = Vector3(cx, 0.0, (float(tz) * tile_size + (cz - hd)) * 0.5)
+				crossing = {"box": b, "overhang": over, "probe": probe_p}
+	if crossing.is_empty() or float(crossing["overhang"]) <= 0.0:
+		bad.append("no tile-crossing box recomputed from the bake (probe arm vacuous)")
+	else:
+		var cb: Dictionary = crossing["box"]
+		var cb_top := float(cb["p"][1]) + float(cb["s"][1]) * 0.5
+		var got_center := world.ground_height(world.to_global(
+				Vector3(float(cb["p"][0]), 0.0, float(cb["p"][2]))))
+		var got_over := world.ground_height(world.to_global(crossing["probe"]))
+		print("SIM DATA %s: crossing boxes=%d worst overhang=%.1f m id=%s center=%.2f overhang_point=%.2f want=%.2f" % [
+				S, crossing_count, crossing["overhang"], cb["id"], got_center, got_over, cb_top])
+		if absf(got_center - cb_top) > 0.05:
+			bad.append("crossing box center %.2f != %.2f" % [got_center, cb_top])
+		if absf(got_over - cb_top) > 0.05:
+			bad.append("crossing box OVERHANG point %.2f != %.2f (red-before: 0.0)" % [got_over, cb_top])
+	## Guard-circle containment (round-1 review): the wired guard circle must
+	## hold EVERY chunk AABB. The round-1 build pinned the center at the pack
+	## origin (the map's west edge) with a 2335.2 m radius and left 1,719 of
+	## 3,737 boxes (46%) outside it — the T-023 nudge banked the pigeon home
+	## over downtown (live A/B: heading north at 100 m over Main St, yaw
+	## drifted 0→1.10 rad in 4 s; the Campustown control held 0.00). Corners
+	## recomputed here from the manifest; the world-owned center/radius must
+	## contain them all.
+	var guard_center := world.home_center()
+	var guard_radius := world.home_radius()
+	var worst_corner := -INF
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var tile: Vector2i = Vector2i(int(entry["cx"]), int(entry["cz"]))
+		var aabb := world.chunk_aabb(tile)
+		if aabb.size == Vector3.ZERO:
+			bad.append("chunk %s missing from the world" % tile)
+			continue
+		for k in 8:
+			var corner := world.to_global(Vector3(
+					aabb.position.x + (aabb.size.x if k & 1 != 0 else 0.0),
+					aabb.position.y + (aabb.size.y if k & 2 != 0 else 0.0),
+					aabb.position.z + (aabb.size.z if k & 4 != 0 else 0.0)))
+			worst_corner = maxf(worst_corner, corner.distance_to(guard_center))
+	print("SIM DATA %s: guard center=%s radius=%.1f worst corner=%.1f (containment margin %.1f m)" % [
+			S, guard_center, guard_radius, worst_corner, guard_radius - worst_corner])
+	if guard_radius <= 0.0:
+		bad.append("guard radius not wired (%.1f)" % guard_radius)
+	if worst_corner > guard_radius:
+		bad.append("guard circle leaks the map: worst corner %.1f > radius %.1f" % [
+				worst_corner, guard_radius])
+	## District lookup: the four families of the baker's v0 rule.
+	var districts := {
+		Vector3(-300.0, 0.0, 60.0): "campustown",
+		Vector3(2700.0, 0.0, -256.0): "downtown",
+		Vector3(340.0, 0.0, -294.0): "campus",
+		Vector3(1500.0, 0.0, 900.0): "residential",
+	}
+	for pos: Vector3 in districts:
+		var got_d: String = world.district_at(world.to_global(pos))
+		if got_d != districts[pos]:
+			bad.append("district_at %s = %s != %s" % [pos, got_d, districts[pos]])
+	## Spawn corridor equivalent: the pack origin, above the plate.
+	var spawn_local := world.to_local(world.spawn_point)
+	if Vector2(spawn_local.x, spawn_local.z).length() > 0.001 \
+			or absf(spawn_local.y - world.spawn_drop_height) > 0.001:
+		bad.append("spawn corridor off the pack origin: local %s" % spawn_local)
+	## ... and flyable: a drop into the corridor settles grounded on the
+	## plate (top y 0 — the pigeon stands at its own 0.3 half-height), then
+	## the flap_takes_off_ground contract: one grounded flap returns to flight.
+	await _set_up(true, world.spawn_point - Vector3.UP * world.spawn_drop_height
+			+ Vector3.UP * 3.0, Vector3.ZERO)
+	await _await_grounded(150)
+	var grounded_ok := _player.is_grounded and _player.position.y > 0.15 \
+			and _player.position.y < 0.45 and _player.velocity.is_finite()
+	var peak_y := _player.position.y
+	await _tap("flap")
+	for _i in 60:
+		await get_tree().physics_frame
+		peak_y = maxf(peak_y, _player.position.y)
+		if not _player.is_grounded and peak_y > 0.8:
+			break
+	var flyable_ok := not _player.is_grounded and peak_y > 0.8 \
+			and _player.velocity.is_finite()
+	_check(S, bad.is_empty() and grounded_ok and flyable_ok,
+			"%s; grounded=%s at y=%.2f, takeoff peak %.2f" % ["; ".join(bad),
+					_player.is_grounded, _player.position.y, peak_y])
+	world.queue_free()
 
 
 ## --- scenarios (T-001 flight model) --------------------------------------

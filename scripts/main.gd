@@ -39,6 +39,10 @@ const FAVOR_LOSS_COLOR := Color(1.0, 0.32, 0.25)
 const SCORE_POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const HIT_MARKER_SCENE: PackedScene = preload("res://scenes/hit_marker.tscn")
 const MENU_SCENE_PATH := "res://scenes/menu.tscn"
+## (T-173) The resident Ames world root — swapped in for the scene's Windrow
+## City when the `world` setting says "ames" (`Game.world`, default "windrow";
+## the swap branch is inert on every existing gate until T-177 flips it).
+const AMES_WORLD_SCENE: PackedScene = preload("res://scenes/ames_world.tscn")
 
 ## Hunger warning tiers (T-019): the bar is the fail state's messenger, so it
 ## changes color — and then pulses — as the clock runs down. All driven in
@@ -208,6 +212,8 @@ var _drew_bread_target: bool = false
 
 func _ready() -> void:
 	$Sun.rotation_degrees = Vector3(-50.0, -30.0, 0.0)
+	if Game.world == AmesWorld.WORLD_ID: ## (T-173) the world flag: one world root or the other.
+		_swap_to_ames_world()
 	_combo_strip_rest_color = combo_strip.get_theme_color("font_color") ## (T-151) The scene's own T-019 fill — the tint the strip restores to.
 	_combo_strip_tint_shown = _combo_strip_rest_color
 	player.grounding_changed.connect(_on_grounding_changed)
@@ -248,6 +254,31 @@ func _ready() -> void:
 ## sync-flag defaults green untouched.
 func _boot_is_stepped() -> bool:
 	return stepped_boot and get_parent() == get_tree().root
+
+
+## (T-173) The world flag's swap: the scene's Windrow City node (which has NOT
+## generated — main.tscn stages it with hold_generate) gives its name, spot,
+## staged-boot flag and every spawner's `city` reference to a fresh AmesWorld
+## root, then frees. Runs at the top of _ready, BEFORE any boot phase: the
+## spawners bound `$City` in their own (earlier) _ready, so their references
+## are re-pointed here, still ahead of every populate. Rig-path Mains in the
+## sim harness keep windrow (Game.world defaults "windrow"); the ames boot
+## path is the game scene.
+func _swap_to_ames_world() -> void:
+	var windrow := city
+	windrow.name = "WindrowCity" ## Free the name before the replacement claims it.
+	var ames: AmesWorld = AMES_WORLD_SCENE.instantiate() as AmesWorld
+	ames.name = "City"
+	ames.position = windrow.position
+	ames.hold_generate = windrow.hold_generate ## The stepped-boot contract rides the swap.
+	add_child(ames)
+	city = ames
+	car_spawner.city = ames
+	bread_spawner.city = ames
+	tourist_spawner.city = ames
+	elder_spawner.city = ames
+	cafe_spawner.city = ames
+	windrow.queue_free()
 
 
 ## (T-129) The synchronous boot — the rig path, byte-as-today: the whole
@@ -341,8 +372,8 @@ func _finish_boot() -> void:
 	## ~250 m beyond the 234 m city edge. The same never-stale argument applies:
 	## restart_run() regenerates the same-seed city in place, so one wiring here
 	## is enough for the run's lifetime.
-	player.home_center = city.global_position
-	player.home_radius = city.city_span * 0.5 + city.ground_extra
+	player.home_center = city.home_center() ## (T-173) world-owned guard circle: the bake bounds center on ames.
+	player.home_radius = city.home_radius()
 	player.reset_flight(player.respawn_point)
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)
 
