@@ -17,9 +17,10 @@
 2. **The swans**: two mute-swan NPCs — Lancelot & Elaine — ambient
    swimmers on a slow lake circuit; bob on wake; wing-tuck idle; the
    three-laps folklore honored as a sign easter egg in R4 (NOT
-   gameplay here). **Scope guard (master plan fork 3 default):**
-   ambient only — not perchable, not splat-able, not bread-able; they
-   are the town's beloveds (REDDIT-RESONANCE: "They were so iconic").
+   gameplay here). **Scope guard (owner-decided 2026-11-09, master
+   plan §11.3):** ambient only — not perchable, not splat-able, not
+   bread-able; they are the town's beloveds (REDDIT-RESONANCE: "They
+   were so iconic").
 3. **Swap discipline**: replaces the T-175 placeholder at the same
    id/slot; dims probe re-pins (the water body was T-174's — this
    ticket owns the shore + birds).
@@ -49,5 +50,5 @@ Gate 1 · Gate 1b + one row · Gate 2 · Gate 3: screenshots vs
 
 ## Decisions & forks
 
-Swan scope fork (master plan §11.3): default ambient-only; perchable
-or interactive swans need an owner pick + a tone check first.
+Swan scope DECIDED (owner, 2026-11-09): ambient-only swimmers. More
+character would be a new owner-picked ticket.

@@ -13,10 +13,9 @@
 
 The survival loop moves to Ames geometry with zero feel changes:
 
-1. **Spawn** over Central Campus near the campanile (master plan §11
-   fork 1 default; veto window open until T-177's owner flight) —
-   the postcard spawn: lake+campanile on one screen, Lincoln Way strip
-   one dive south.
+1. **Spawn** over Central Campus near the campanile (owner-decided
+   2026-11-09, master plan §11.1) — the postcard spawn: lake+campanile
+   on one screen, Lincoln Way strip one dive south.
 2. **Bread distribution from data**: ground rings at downtown Main,
    Campustown Welch, the four pinned parks, LaVerne shore; roof crumbs
    on authored buildings + large filler (the T-032 pattern over the

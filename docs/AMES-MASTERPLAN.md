@@ -239,19 +239,28 @@ B-9 perch/verticality and B-4a landmark bonus targets fold here too.
   available for non-campaign lanes but campaign tickets run owner-steered
   serial-parallel per ring.
 
-## 11 · Open owner forks (answer any, at any ring boundary)
+## 11 · Owner forks
 
-1. **Spawn point:** (a) Central Campus near the campanile (recommended —
-   postcard + all systems reachable), (b) over Welch × Lincoln Way
-   (immediate strip energy), (c) Lake LaVerne shore (swan adjacency).
-2. **Windrow's fate:** delete at R1 cutover (recommended) vs keep behind a
-   debug world flag until R2/R3.
-3. **Swans' scope:** ambient swimmers only (recommended) vs perchable/landable
-   (comedy risk — they're beloved; handle gently) vs splat-able (no).
-4. **Ghost plaques for closed venues** (R4): yes as love notes (recommended,
-   tone-checked) vs omit.
-5. **Web build after R5:** re-diet and redeploy vs desktop-only for a while.
-6. **R6 options:** pick any of (a)–(e) or none.
+**Decided 2026-11-09 (owner picks, all recommended options):**
+
+1. **Spawn point: Central Campus near the campanile** — the postcard
+   spawn (lake + campanile on one screen; Lincoln Way one dive south).
+2. **Windrow's fate: delete at R1 cutover** — no debug toggle; git
+   history keeps the old city.
+3. **Swans' scope: ambient swimmers only** — Lancelot & Elaine
+   circuit, bob, paddle away; never splat-able, never bread-able.
+4. **Ghost plaques: yes** — memorial styling for the mourned closed
+   venues, tone-checked at T-199's review.
+
+**Still open (deferred by design):**
+
+5. **Web build after R5:** re-diet and redeploy vs desktop-only —
+   decided at T-209 with measurements in hand.
+6. **R6 options:** pick any of (a) day/night bar-hours lighting,
+   (b) traditions easter eggs, (c) VEISHEA remembrance,
+   (d) flight feel pass (B-20's slow-bird half), (e) victory-ending
+   relocation to Central Campus — or none; pickable any time before
+   R6 starts.
 
 ## 12 · Risk register
 

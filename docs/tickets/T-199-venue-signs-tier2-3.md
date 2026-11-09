@@ -14,12 +14,12 @@
 1. **Tiers 2–3 signed** at verified positions (the same component and
    rules as T-198; UNVERIFIED-status venues from the 8-flag list get
    signs ONLY after a status re-check recorded in-ticket).
-2. **Ghost plaques** (fork default: yes, tone-checked): the mourned
-   closed venues get a small memorial plaque styling — a modest
-   ground-floor plaque, never a glowing sign: "Es Tas — 2024" reads as
-   love, not haunted-house kitsch. The list is dated and sourced; the
-   styling is reviewed against the tone guardrail in this ticket's
-   review round.
+2. **Ghost plaques** (owner-decided 2026-11-09: yes, memorial
+   styling): the mourned closed venues get a small memorial plaque
+   styling — a modest ground-floor plaque, never a glowing sign: "Es
+   Tas — 2024" reads as love, not haunted-house kitsch. The list is
+   dated and sourced; the styling is reviewed against the tone
+   guardrail in this ticket's review round.
 3. Naming discipline: all names exactly as VENUES records them; no
    slogan/tagline text (legal line: names in type, no trade dress).
 

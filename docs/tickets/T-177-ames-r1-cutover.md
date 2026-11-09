@@ -15,10 +15,10 @@ The one ticket per ring allowed to change the default game:
 1. **Flip the default**: `world=ames`. The menu→flight loop now boots
    Ames for every player, every gate.
 2. **Retire the Windrow generate path**: delete `city.gd`'s live
-   generate (master plan §11 fork 2 default = delete; owner veto window
-   closes at this ticket's review). The Windrow visuals survive only in
-   git history. `district_of`/anchor logic that gameplay still consumes
-   is re-pointed to the data pack — NOT deleted until nothing reads it.
+   generate (owner-decided 2026-11-09, master plan §11.2 — no debug
+   toggle). The Windrow visuals survive only in git history.
+   `district_of`/anchor logic that gameplay still consumes is
+   re-pointed to the data pack — NOT deleted until nothing reads it.
 3. **The re-pin**: every world-dependent suite expectation re-derived
    against Ames — counts, positions, palettes, fingerprints, the plaza/
    park/anchor scenarios, spawn-corridor math — recorded in this
