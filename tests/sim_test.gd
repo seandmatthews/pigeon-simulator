@@ -171,6 +171,8 @@ func _add_box(box_name: String, size: Vector3, pos: Vector3) -> StaticBody3D:
 
 func _run_scenarios() -> void:
 	await _scenario_ames_data_integrity() ## T-171 — FIRST: pure data over the committed Ames pack; touches no rig and no city.
+	await _scenario_ames_bake_census() ## T-172 — pure data over the committed chunk bake; still no rig and no city.
+	await _scenario_ames_bake_determinism() ## T-172 — re-bake in-scenario must reproduce the committed manifest hash.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -593,6 +595,262 @@ func _scenario_ames_data_integrity() -> void:
 		bad.append("attribution=%s/%s" % [AmesDataPack.ATTRIBUTION,
 				meta.get("attribution")])
 
+	_check(S, bad.is_empty(), "; ".join(bad))
+
+
+## The directory the T-172 tool bakes into (res:// — the committed bake).
+const AMES_CHUNKS_DIR := "res://data/ames/chunks"
+
+
+## T-172: the committed chunk bake is load-bearing. Pure data — reads the
+## committed `data/ames/chunks/` output (manifest + chunk files) and proves
+## the bake consumed the WHOLE pack: instance counts sum to the pack counts,
+## every building lands in some chunk at its true position, all 9 at-grade
+## rail crossings are world facts with real ballast gaps at them, and the
+## LaVerne water flat preserves the lake's polygon area. Runs beside
+## `ames_data_integrity` before any rig/city/physics exists.
+func _scenario_ames_bake_census() -> void:
+	const S := "ames_bake_census"
+	var bad: PackedStringArray = PackedStringArray()
+	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	if manifest.is_empty():
+		_check(S, false, "no committed bake at %s — run tools/bake_ames_chunks.gd" % AMES_CHUNKS_DIR)
+		return
+
+	# --- load every chunk once, indexed by tile ---------------------------
+	var chunks: Dictionary = {} ## Vector2i -> parsed chunk Dictionary.
+	var counts_sum: Dictionary = {}
+	var crossings: Array[Dictionary] = []
+	for entry: Dictionary in manifest.get("chunks", []):
+		var tile := Vector2i(int(entry["cx"]), int(entry["cz"]))
+		var chunk: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		if chunk.is_empty():
+			bad.append("chunk_file_missing:%s" % entry["file"])
+			continue
+		chunks[tile] = chunk
+		var counts: Dictionary = chunk.get("counts", {})
+		for key: String in ["massing", "ribbons", "water_tris", "creek_quads",
+				"lawn_tris", "ballast_quads", "occluders", "crossings"]:
+			counts_sum[key] = int(counts_sum.get(key, 0)) + int(counts.get(key, 0))
+		for c: Dictionary in chunk.get("crossings", []):
+			crossings.append(c)
+	if chunks.is_empty():
+		bad.append("no_chunks_loaded")
+
+	# --- 1. instance counts sum to the pack counts ------------------------
+	var buildings: Array[Dictionary] = AmesDataPack.buildings()
+	if int(counts_sum.get("massing", 0)) != buildings.size():
+		bad.append("massing_total=%d (pack buildings %d)" % [counts_sum.get("massing", 0), buildings.size()])
+	# self-consistency: manifest counts == parsed chunk arrays, occluders 1:1
+	var manifest_totals: Dictionary = manifest.get("totals", {})
+	for key: String in ["massing", "ribbons", "water_tris", "creek_quads",
+			"lawn_tris", "ballast_quads", "occluders", "crossings"]:
+		if int(manifest_totals.get(key, -1)) != int(counts_sum.get(key, -2)):
+			bad.append("totals_%s manifest=%s parsed=%s" % [key, manifest_totals.get(key), counts_sum.get(key)])
+	if int(counts_sum.get("occluders", 0)) != int(counts_sum.get("massing", 0)):
+		bad.append("occluders!=massing %d/%d" % [counts_sum.get("occluders", 0), counts_sum.get("massing", 0)])
+
+	# --- 2. every building position present in its own tile chunk ---------
+	var massing_by_tile: Dictionary = {} ## Vector2i -> PackedVector2Array of centers.
+	for tile: Vector2i in chunks:
+		var centers := PackedVector2Array()
+		for m: Dictionary in chunks[tile].get("massing", []):
+			var p: Array = m["p"]
+			centers.append(Vector2(float(p[0]), float(p[2])))
+		massing_by_tile[tile] = centers
+	var missing := 0
+	var first_missing := ""
+	for b: Dictionary in buildings:
+		var centroid: Array = b.get("centroid", [0.0, 0.0])
+		var pos := Vector2(float(centroid[0]), float(centroid[1]))
+		var tile := Vector2i(floori(pos.x / 256.0), floori(pos.y / 256.0))
+		if not chunks.has(tile):
+			missing += 1
+			if first_missing.is_empty():
+				first_missing = "%s tile %s has no chunk" % [b.get("id"), tile]
+			continue
+		var found := false
+		for c: Vector2 in massing_by_tile[tile]:
+			if c.distance_to(pos) < 0.05:
+				found = true
+				break
+		if not found:
+			missing += 1
+			if first_missing.is_empty():
+				first_missing = "%s at %s not in chunk %s" % [b.get("id"), pos, tile]
+	if missing > 0:
+		bad.append("buildings_missing_from_chunks=%d (%s)" % [missing, first_missing])
+
+	# --- 3. all 9 at-grade crossings present, with real ballast gaps ------
+	var want_crossings: Array[String] = []
+	var crossing_pos := {} ## road name -> Vector2 (pack side).
+	for c: Dictionary in AmesDataPack.rail().get("crossings", []):
+		if str(c.get("grade", "")) == "at_grade":
+			var road := str(c.get("road_name", ""))
+			want_crossings.append(road)
+			var pos: Array = c.get("pos", [0.0, 0.0])
+			crossing_pos[road] = Vector2(float(pos[0]), float(pos[1]))
+	want_crossings.sort()
+	var got_crossings: Array[String] = []
+	for c: Dictionary in crossings:
+		got_crossings.append(str(c.get("road", "")))
+	got_crossings.sort()
+	if got_crossings != want_crossings:
+		bad.append("crossing_names=%s (want %s)" % [got_crossings, want_crossings])
+	if crossings.size() != 9:
+		bad.append("crossing_count=%d (want 9)" % crossings.size())
+	# each crossing has a REAL gap: no baked ballast quad mid-segment inside
+	# the gap radius (width by class per census §7.3, +3 m margin, min 10)
+	var gap_radius := {} ## road -> meters.
+	for road: String in crossing_pos:
+		var cls := "residential"
+		for c: Dictionary in crossings:
+			if str(c.get("road", "")) == road:
+				cls = str(c.get("class", "residential"))
+		var w := 11.0
+		match cls:
+			"primary", "trunk":
+				w = 20.0
+			"motorway":
+				w = 24.0
+			"secondary":
+				w = 16.0
+			"tertiary":
+				w = 13.0
+			"service":
+				w = 7.0
+		gap_radius[road] = maxf(10.0, w * 0.5 + 3.0)
+	var min_gap_seen := {} ## road -> nearest ballast midpoint distance.
+	for tile: Vector2i in chunks:
+		for q: Dictionary in chunks[tile].get("ballast_quads", []):
+			var flat: Array = q["q"]
+			var mid := Vector2((float(flat[0]) + float(flat[6])) * 0.5,
+					(float(flat[2]) + float(flat[8])) * 0.5)
+			for road: String in crossing_pos:
+				var d: float = mid.distance_to(crossing_pos[road])
+				min_gap_seen[road] = minf(float(min_gap_seen.get(road, 1e9)), d)
+	for road: String in crossing_pos:
+		var want_gap: float = gap_radius[road]
+		var seen_gap: float = float(min_gap_seen.get(road, 0.0))
+		if seen_gap < want_gap:
+			bad.append("crossing_gap_%s=%.1f m (want ballast-free within %.1f m)" % [road, seen_gap, want_gap])
+
+	# --- 4. LaVerne water flat area: PACK PRESERVATION --------------------
+	# The bake triangulates the lake polygon into `water_tris` (chunked by
+	# triangle centroid — no clipping loss). The criterion arm (AC amended
+	# 2026-11-09, orchestrator-approved per V-12 — the original ±2%-of-11,300
+	# band was unsatisfiable against the faithful pack): the baked water area
+	# matches the pack polygon's RING-SPLIT shoelace within ±1%. The DNR
+	# 2.8 ac (≈11,300 m²) vs OSM-ring gap is the survey's SETTLED V-12
+	# simplification difference (docs/references/ames-survey/verification/
+	# VERIFICATION.md:80) — recorded here as a comment, never asserted: the
+	# census scenario proves the bake PRESERVES the data pack; the real
+	# world's 11,300 m² is not the polygon's job to hit. (Measured at
+	# landing: baked 11,067.7 m², split shoelace 11,067.7 — the pack's own
+	# `area_m2` scalar 11,040 sits 0.25 % below its true split geometry,
+	# inside the 1 % follow-up threshold, so no T-171 correction is owed.)
+	var la_verne := 0.0
+	for tile: Vector2i in chunks:
+		for t: Dictionary in chunks[tile].get("water_tris", []):
+			var v: Array = t["v"]
+			var a := Vector2(float(v[0]), float(v[2]))
+			var b5 := Vector2(float(v[3]), float(v[5]))
+			var c2 := Vector2(float(v[6]), float(v[8]))
+			la_verne += absf((b5.x - a.x) * (c2.y - a.y) - (c2.x - a.x) * (b5.y - a.y)) * 0.5
+	var split_area := _pack_split_area(AmesDataPack.water()[0].get("polygon", []))
+	if split_area <= 0.0:
+		bad.append("laverne_split_area_recompute_failed")
+	elif absf(la_verne - split_area) > split_area * 0.01:
+		bad.append("laverne_area=%.1f m2 vs pack ring-split shoelace %.1f m2 (±1%%)" % [la_verne, split_area])
+
+	_check(S, bad.is_empty(), "; ".join(bad))
+
+
+## Independent recompute (the no-self-test rule): the ring-split shoelace of
+## a pack polygon. The stored LaVerne sequence is TWO joined OSM ways
+## sharing a seam — a naive shoelace over the raw sequence undercounts by the
+## seam loop, and a naive ear clip double-covers the lake; the walk below
+## closes a loop at each repeated vertex and sums |signed area| over the
+## simple loops. Coded here separately from the baker's splitter on purpose.
+func _pack_split_area(list: Array) -> float:
+	var pts := PackedVector2Array()
+	for p: Array in list:
+		pts.append(Vector2(float(p[0]), float(p[1])))
+	var dedup := PackedVector2Array()
+	for v: Vector2 in pts:
+		if dedup.is_empty() or dedup[dedup.size() - 1] != v:
+			dedup.append(v)
+	var loops: Array[PackedVector2Array] = []
+	var cur := PackedVector2Array()
+	var seen: Dictionary = {}
+	for v: Vector2 in dedup:
+		var key := "%s,%s" % [v.x, v.y]
+		if seen.has(key):
+			var j: int = seen[key]
+			var loop := PackedVector2Array()
+			for k: int in range(j, cur.size()):
+				loop.append(cur[k])
+			var clean := PackedVector2Array()
+			for w: Vector2 in loop:
+				if clean.is_empty() or clean[clean.size() - 1] != w:
+					clean.append(w)
+			if clean.size() >= 3:
+				loops.append(clean)
+			cur = cur.slice(0, j + 1)
+			seen.clear()
+			for k: int in cur.size():
+				seen["%s,%s" % [cur[k].x, cur[k].y]] = k
+		else:
+			seen[key] = cur.size()
+			cur.append(v)
+	if cur.size() >= 3:
+		loops.append(cur)
+	var total := 0.0
+	for loop: PackedVector2Array in loops:
+		var a2 := 0.0
+		for i: int in loop.size():
+			a2 += loop[i].cross(loop[(i + 1) % loop.size()])
+		total += absf(a2 * 0.5)
+	return total
+
+
+## T-172: the bake is a pure function of the pack — re-bake IN-SCENARIO into
+## user:// through the same `AmesBaker` core the tool uses and require the
+## identical manifest hash (per-chunk SHA-256 set + the total). Proves the
+## committed bake is reproducible offline, byte for byte.
+func _scenario_ames_bake_determinism() -> void:
+	const S := "ames_bake_determinism"
+	var committed: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	if committed.is_empty():
+		_check(S, false, "no committed bake at %s" % AMES_CHUNKS_DIR)
+		return
+	const REBAKE_DIR := "user://ames_rebake_t172"
+	var rebaked: Dictionary = AmesBaker.bake_to_dir(REBAKE_DIR)
+	if rebaked.is_empty():
+		_check(S, false, "re-bake failed (no manifest)")
+		return
+	var bad: PackedStringArray = PackedStringArray()
+	if str(committed.get("total_sha256", "")) != str(rebaked.get("total_sha256", "")):
+		bad.append("total_sha256 committed=%s rebaked=%s" % [
+				committed.get("total_sha256"), rebaked.get("total_sha256")])
+	var committed_by_file: Dictionary = {}
+	for entry: Dictionary in committed.get("chunks", []):
+		committed_by_file[str(entry["file"])] = str(entry["sha256"])
+	var rebaked_by_file: Dictionary = {}
+	for entry: Dictionary in rebaked.get("chunks", []):
+		rebaked_by_file[str(entry["file"])] = str(entry["sha256"])
+	if committed_by_file.keys() != rebaked_by_file.keys():
+		bad.append("chunk_file_set differs (%d vs %d)" % [committed_by_file.size(), rebaked_by_file.size()])
+	else:
+		for file: String in committed_by_file:
+			if committed_by_file[file] != rebaked_by_file[file]:
+				bad.append("chunk_hash differs: %s" % file)
+	# sweep the scratch dir so the run leaves nothing behind
+	var dir := DirAccess.open(REBAKE_DIR)
+	if dir != null:
+		for f: String in dir.get_files():
+			dir.remove(f)
+		DirAccess.remove_absolute(REBAKE_DIR)
 	_check(S, bad.is_empty(), "; ".join(bad))
 
 
