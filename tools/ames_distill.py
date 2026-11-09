@@ -1,0 +1,1070 @@
+#!/usr/bin/env python3
+"""Ames R1 data-pack distiller (T-171).
+
+Reads the COMMITTED ring-0 survey inputs and emits data/ames/ames_core.json —
+the versioned city database every later Ames ticket consumes (master plan §2).
+
+Run from the repo root (offline, stdlib only):
+
+    python -I tools/ames_distill.py
+
+Canonical invocation has NO arguments; it is byte-identical on every re-run
+from the same committed inputs (no timestamps, no RNG, sorted iteration).
+`--distill-commit` only stamps provenance into meta.distill_commit and is NOT
+part of the canonical byte-identity contract.
+
+Committed inputs (all under docs/references/ames-survey/):
+  osm/ames_merged.json            merged OSM extract, pulled 2026-11-08
+                                  (309,870 nodes / 37,531 ways / 251 relations;
+                                  merged nodes carry NO tags)
+  census/authored-buildings.csv   the census classification of all 3,737
+                                  in-core buildings (BUILD-CENSUS.md §6)
+  census/tagged-nodes-core.json   tagged NODES (natural=tree, venue name/addr
+                                  anchors) — a verbatim snapshot of the census
+                                  lane's tagged_nodes.json cache, committed at
+                                  T-171 so the pack builds without the 84 MB
+                                  raw tiles (which stay local per the survey's
+                                  owner-approved commit split; every node in it
+                                  is © OpenStreetMap contributors, ODbL, same as
+                                  the merged dataset — see ODBL-NOTE.md)
+
+Coordinate convention (master plan §2, the ONE transform in to_local()):
+  local meters; origin at Lincoln Way × Welch (the campus/Campustown seam);
+  +X east, −Z north, Y up; equirectangular scale at lat 42.02.
+  Re-centering the origin is a pack-version bump (bump `version`, change the
+  `origin` constants, re-run) — never a refactor.
+
+Census faithfulness: every count/geometry rule below is the census lane's rule
+(docs/references/ames-survey/census/scripts/ames_census.py), so the pack's
+numbers ARE the census's numbers. The script hard-fails if any pinned count
+drifts.
+"""
+import argparse
+import csv
+import json
+import math
+import os
+import sys
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SURVEY = os.path.join(REPO, "docs", "references", "ames-survey")
+MERGED = os.path.join(SURVEY, "osm", "ames_merged.json")
+AUTHORED_CSV = os.path.join(SURVEY, "census", "authored-buildings.csv")
+TAGGED_NODES = os.path.join(SURVEY, "census", "tagged-nodes-core.json")
+OUT = os.path.join(REPO, "data", "ames", "ames_core.json")
+
+# --- census constants (BUILD-CENSUS.md definitions) -------------------------
+
+CORE = (-93.6590, 42.0120, -93.6100, 42.0355)  # game-core bbox W, S, E, N
+
+# --- coordinate convention (master plan §2) — THE transform -----------------
+
+SCALE_LAT = 42.02  # equirectangular scale latitude
+M_PER_DEG_LAT = 111074.0  # survey standard at 42.02 N (SUMMARY §1)
+M_PER_DEG_LON = 111320.0 * math.cos(math.radians(SCALE_LAT))  # ≈ 82,700 m/°
+ORIGIN_LON = -93.65015  # Lincoln Way × Welch (survey verification §1 scan)
+ORIGIN_LAT = 42.02278   # Lincoln Way mean lat in the Campustown window
+
+
+def to_local(lon, lat):
+    """WGS84 lon/lat -> local meters (x, z). +X east, −Z north. THE helper."""
+    return (round((lon - ORIGIN_LON) * M_PER_DEG_LON, 2),
+            round(-(lat - ORIGIN_LAT) * M_PER_DEG_LAT, 2))
+
+
+def local_to_lonlat(x, z):
+    """Local meters -> WGS84 lon/lat (inverse of to_local, unrounded)."""
+    return (ORIGIN_LON + x / M_PER_DEG_LON,
+            ORIGIN_LAT - z / M_PER_DEG_LAT)
+
+
+def in_core(p, margin=0.0):
+    return (CORE[0] - margin <= p[0] <= CORE[2] + margin
+            and CORE[1] - margin <= p[1] <= CORE[3] + margin)
+
+
+# --- census geometry helpers (verbatim rules from ames_census.py) -----------
+
+def way_pts(w, nodes):
+    return [nodes[n] for n in w.get("nodes", []) if n in nodes]
+
+
+def bbox_center(pts):
+    return ((min(p[0] for p in pts) + max(p[0] for p in pts)) / 2,
+            (min(p[1] for p in pts) + max(p[1] for p in pts)) / 2)
+
+
+def bbox_dims_m(pts):
+    latc = (min(p[1] for p in pts) + max(p[1] for p in pts)) / 2
+    return ((max(p[0] for p in pts) - min(p[0] for p in pts)) * m_per_deg_lon_at(latc),
+            (max(p[1] for p in pts) - min(p[1] for p in pts)) * M_PER_DEG_LAT)
+
+
+def m_per_deg_lon_at(lat):
+    return 111320.0 * math.cos(math.radians(lat))
+
+
+def is_closed(pts):
+    return len(pts) >= 4 and pts[0] == pts[-1]
+
+
+def ring_of(pts):
+    return pts[:-1] if is_closed(pts) else pts
+
+
+def shoelace_m2(pts):
+    if len(pts) < 3:
+        return 0.0
+    xy = [to_local_lonlat_free(p) for p in pts]
+    s = 0.0
+    n = len(xy)
+    for i in range(n):
+        x1, y1 = xy[i]
+        x2, y2 = xy[(i + 1) % n]
+        s += x1 * y2 - x2 * y1
+    return abs(s) / 2.0
+
+
+def to_local_lonlat_free(p):
+    """Unrounded planar projection (for areas/lengths; never stored)."""
+    return ((p[0] - ORIGIN_LON) * M_PER_DEG_LON,
+            -(p[1] - ORIGIN_LAT) * M_PER_DEG_LAT)
+
+
+def segs_in_bbox(pts, bbox=CORE):
+    """Sub-segments whose midpoint lies in bbox (the census in-core rule)."""
+    out = []
+    for i in range(len(pts) - 1):
+        a, b = pts[i], pts[i + 1]
+        mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        if bbox[0] <= mx <= bbox[2] and bbox[1] <= my <= bbox[3]:
+            out.append((a, b))
+    return out
+
+
+def seg_len_m(a, b):
+    ax, ay = to_local_lonlat_free(a)
+    bx, by = to_local_lonlat_free(b)
+    return math.hypot(bx - ax, by - ay)
+
+
+def hav_m(a, b):
+    """Haversine meters (analyze.py's hav — the survey's street-stat rule)."""
+    p1, p2 = math.radians(a[1]), math.radians(b[1])
+    dp = p2 - p1
+    dl = math.radians(b[0] - a[0])
+    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * 6371000.0 * math.asin(math.sqrt(h))
+
+
+def named_highway_extra3_km(nodes, ways):
+    """SUMMARY §3's '99.6 km of named street' — the extra3.py §5 rule verbatim:
+
+    every way carrying a `highway` tag and a name, NODES filtered to the
+    core bbox, haversine over the consecutive survivors. This is a survey
+    statistic over a different node-filter than streets[] (it rejoins gaps
+    across dropped nodes and folds cycleway/service/pedestrian into one
+    sum); the pack carries it so the survey figure is derivable from
+    committed data, while the streets[] graph itself pins the census §4
+    midpoint rule (see build_streets).
+    """
+    total = 0.0
+    by_class = {}
+    for wid in sorted(ways):
+        w = ways[wid]
+        t = w.get("tags") or {}
+        if "highway" not in t or not t.get("name"):
+            continue
+        pts = [p for p in way_pts(w, nodes)
+               if CORE[1] <= p[1] <= CORE[3] and CORE[0] <= p[0] <= CORE[2]]
+        ln = sum(hav_m(pts[i], pts[i + 1]) for i in range(len(pts) - 1))
+        by_class[t["highway"]] = by_class.get(t["highway"], 0.0) + ln
+        total += ln
+    return total, by_class
+
+
+def seg_intersection(a, b, c, d):
+    """Planar segment intersection; returns (x, y) lon/lat or None."""
+    ax, ay = to_local_lonlat_free(a)
+    bx, by = to_local_lonlat_free(b)
+    cx, cy = to_local_lonlat_free(c)
+    dx, dy = to_local_lonlat_free(d)
+    rx, ry = bx - ax, by - ay
+    sx, sy = dx - cx, dy - cy
+    den = rx * sy - ry * sx
+    if abs(den) < 1e-9:
+        return None
+    t = ((cx - ax) * sy - (cy - ay) * sx) / den
+    u = ((cx - ax) * ry - (cy - ay) * rx) / den
+    if -1e-6 <= t <= 1 + 1e-6 and -1e-6 <= u <= 1 + 1e-6:
+        return (ax + t * rx, ay + t * ry)
+    return None
+
+
+def runs_from_segments(segs):
+    """Stitch midpoint-in-core segments into contiguous point runs.
+
+    Each run becomes one polyline; runs partition the in-core segments, so
+    summing run lengths reproduces the census's in-core length exactly.
+    """
+    if not segs:
+        return []
+    pts = [list(s[0]) for s in segs] + [list(segs[-1][1])]
+    runs = []
+    cur = [pts[0]]
+    for i in range(len(segs)):
+        a, b = segs[i]
+        if cur[-1] == list(a):
+            cur.append(list(b))
+        else:
+            runs.append(cur)
+            cur = [list(a), list(b)]
+    runs.append(cur)
+    return runs
+
+
+def run_local_m(run):
+    return sum(seg_len_m(run[i], run[i + 1]) for i in range(len(run) - 1))
+
+
+def poly_local(pts):
+    """Store a lon/lat polyline as rounded local-meter points [[x, z], ...]."""
+    return [[to_local(p[0], p[1])[0], to_local(p[0], p[1])[1]] for p in pts]
+
+
+def polyline_km_local(points):
+    """Length of a STORED (rounded, local) polyline, in km."""
+    total = 0.0
+    for i in range(len(points) - 1):
+        total += math.hypot(points[i + 1][0] - points[i][0],
+                            points[i + 1][1] - points[i][1])
+    return total / 1000.0
+
+
+# --- loading ----------------------------------------------------------------
+
+def load_inputs():
+    with open(MERGED, encoding="utf-8") as f:
+        d = json.load(f)
+    nodes = {int(k): tuple(v) for k, v in d["nodes"].items()}
+    ways = {int(k): v for k, v in d["ways"].items()}
+    rels = {int(k): v for k, v in d["relations"].items()}
+    authored = {}
+    with open(AUTHORED_CSV, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            authored[f"{row['osm_type']}/{row['osm_id']}"] = row
+    with open(TAGGED_NODES, encoding="utf-8") as f:
+        raw = json.load(f)
+    tagged = {int(k): (v[0], v[1], v[2]) for k, v in raw.items()}
+    return nodes, ways, rels, authored, tagged
+
+
+# --- sections ---------------------------------------------------------------
+
+ROAD_CLASSES = ("motorway", "trunk", "primary", "secondary", "tertiary",
+                "unclassified", "residential", "living_street")
+
+# Census §7.3 generator width defaults (OSM carries no lane/width detail for
+# Ames — SUMMARY §10). motorway/trunk/unclassified/living_street have no
+# in-core census row; they extend the same arterials-to-local ladder.
+WIDTH_BY_CLASS = {
+    "motorway": 24.0, "trunk": 20.0, "primary": 20.0, "secondary": 16.0,
+    "tertiary": 13.0, "residential": 11.0, "unclassified": 11.0,
+    "living_street": 9.0, "service": 7.0,
+}
+
+GREEN_TAGS = (("leisure", ("park", "garden")),
+              ("natural", ("wood", "scrub")),
+              ("landuse", ("recreation_ground", "forest", "grass", "meadow",
+                           "village_green")))
+
+
+def build_streets(nodes, ways):
+    """Named drivable centerlines, midpoint-in-core segments, run-split."""
+    entries = []
+    km_census_rule = 0.0  # unrounded census method (meta audit field)
+    for wid in sorted(ways):
+        w = ways[wid]
+        t = w.get("tags") or {}
+        hw = t.get("highway")
+        name = (t.get("name") or "").strip()
+        if hw not in ROAD_CLASSES or not name:
+            continue
+        pts = way_pts(w, nodes)
+        segs = segs_in_bbox(pts)
+        if not segs:
+            continue
+        for a, b in segs:
+            km_census_rule += seg_len_m(a, b)
+        for run in runs_from_segments(segs):
+            points = poly_local(run)
+            km = polyline_km_local(points)
+            entries.append({
+                "name": name,
+                "class": hw,
+                "width_m": WIDTH_BY_CLASS[hw],
+                "width_source": "census-§7.3-default",
+                "km": round(km, 3),
+                "points": points,
+            })
+    entries.sort(key=lambda e: (e["name"], e["class"], e["points"][0]))
+    return entries, km_census_rule
+
+
+def collect_building_set(nodes, ways, rels):
+    """The census buildings mode: footprint bbox centroid inside the core."""
+    blds = []
+    for wid in sorted(ways):
+        w = ways[wid]
+        t = w.get("tags") or {}
+        b = t.get("building")
+        if not b or b == "no":
+            continue
+        pts = way_pts(w, nodes)
+        if len(pts) < 2:
+            continue
+        c = bbox_center(pts)
+        if in_core(c):
+            blds.append({"id": f"way/{wid}", "tags": t, "pts": pts, "c": c})
+    for rid in sorted(rels):
+        r = rels[rid]
+        t = r.get("tags") or {}
+        b = t.get("building")
+        if not b or b == "no":
+            continue
+        pts = []
+        for m in r.get("members", []):
+            if m.get("type") == "way" and m.get("ref") in ways:
+                pts.extend(way_pts(ways[m["ref"]], nodes))
+        if not pts:
+            continue
+        c = bbox_center(pts)
+        if in_core(c):
+            blds.append({"id": f"relation/{rid}", "tags": t, "pts": pts, "c": c})
+    return blds
+
+
+def flt(v):
+    try:
+        return float(str(v).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def build_buildings(blds, authored_csv):
+    entries = []
+    missing_csv = []
+    for b in sorted(blds, key=lambda x: x["id"]):
+        row = authored_csv.get(b["id"])
+        if row is None:
+            missing_csv.append(b["id"])
+            continue
+        t = b["tags"]
+        name = (t.get("name") or "").strip()
+        census_class = row["class"]
+        dims = bbox_dims_m(b["pts"])
+        x, z = to_local(*b["c"])
+        entries.append({
+            "id": b["id"],
+            "name": name if name else None,
+            "class": "authored" if census_class == "authored-named" else "procedural",
+            "census_class": census_class,
+            "levels": flt(t.get("building:levels")),
+            "height_m": flt(t.get("height")),
+            "centroid": [x, z],
+            "bbox_m": [round(dims[0], 1), round(dims[1], 1)],
+            "wgs84": [round(b["c"][0], 6), round(b["c"][1], 6)],
+        })
+    return entries, missing_csv
+
+
+def build_water(nodes, ways, rels):
+    out = []
+    # Lake LaVerne — relation 3329428, two chained outer ways (SUMMARY §7).
+    for rid in sorted(rels):
+        r = rels[rid]
+        t = r.get("tags") or {}
+        if rid != 3329428 and "laverne" not in (t.get("name") or "").lower():
+            continue
+        pts = []
+        for m in r.get("members", []):
+            if m.get("type") == "way" and m.get("ref") in ways:
+                pts.extend(way_pts(ways[m["ref"]], nodes))
+        area = shoelace_m2(pts)
+        if not (10800.0 <= area <= 11300.0):  # V-12 settled 11,050 m²
+            raise SystemExit(f"Lake LaVerne ring area out of band: {area:.0f} m2")
+        cx, cz = to_local(*bbox_center(pts))
+        out.append({
+            "kind": "lake",
+            "name": t.get("name") or "Lake LaVerne",
+            "polygon": poly_local(pts),
+            "area_m2": round(area),
+            "bbox_m": [round(v, 1) for v in bbox_dims_m(pts)],
+            "center": [cx, cz],
+            "wgs84": [round(bbox_center(pts)[0], 6), round(bbox_center(pts)[1], 6)],
+        })
+        break
+    # College / Ioway Creek centerlines (mapped waterway lines, in core).
+    for creek in ("College Creek", "Ioway Creek"):
+        runs = []
+        km = 0.0
+        for wid in sorted(ways):
+            w = ways[wid]
+            t = w.get("tags") or {}
+            if t.get("name") != creek or not t.get("waterway"):
+                continue
+            segs = segs_in_bbox(way_pts(w, nodes))
+            if not segs:
+                continue
+            for a, b in segs:
+                km += seg_len_m(a, b)
+            for run in runs_from_segments(segs):
+                points = poly_local(run)
+                if polyline_km_local(points) > 0.005:  # drop sub-5 m slivers
+                    runs.append(points)
+        runs.sort(key=lambda p: (p[0], p[-1]))
+        out.append({
+            "kind": "creek",
+            "name": creek,
+            "centerlines": runs,
+            "width_m": 6.0,
+            "width_source": "default",
+            "in_core_km": round(km / 1000.0, 2),
+        })
+    return out
+
+
+def build_rail(nodes, ways):
+    """UP Clinton Sub main line + every vehicular road crossing (census §5b)."""
+    main_runs = []
+    km = 0.0
+    rail_segs = []
+    for wid in sorted(ways):
+        w = ways[wid]
+        t = w.get("tags") or {}
+        # census §5b crossing scan covers rail/light_rail/tram/abandoned/disused
+        if t.get("railway") not in ("rail", "light_rail", "tram", "abandoned",
+                                    "disused"):
+            continue
+        is_main = (t.get("railway") == "rail"
+                   and t.get("usage") == "main"
+                   and not t.get("service")
+                   and "clinton" in (t.get("name") or t.get("operator") or "").lower())
+        segs = segs_in_bbox(way_pts(w, nodes))
+        if not segs:
+            continue
+        rail_segs.extend((a, b, t) for a, b in segs)
+        if is_main:
+            for a, b in segs:
+                km += seg_len_m(a, b)
+            for run in runs_from_segments(segs):
+                points = poly_local(run)
+                if polyline_km_local(points) > 0.005:
+                    main_runs.append(points)
+    main_runs.sort(key=lambda p: (p[0], p[-1]))
+    # Vehicular road segments (census VEH set), midpoint-in-core.
+    veh = ROAD_CLASSES + ("service",)
+    crossings = []
+    for wid in sorted(ways):
+        w = ways[wid]
+        t = w.get("tags") or {}
+        if t.get("highway") not in veh:
+            continue
+        pts = way_pts(w, nodes)
+        for a, b in segs_in_bbox(pts):
+            for c, d, rt2 in rail_segs:
+                p = seg_intersection(a, b, c, d)
+                if not p:
+                    continue
+                # census grade rule: bridge/tunnel or layer != 0 on either side
+                gsep = any(x in (t, rt2) for x in ("bridge", "tunnel")) or \
+                    t.get("layer") not in (None, "0") or rt2.get("layer") not in (None, "0")
+                crossings.append({
+                    "pos": [round(p[0], 2), round(p[1], 2)],
+                    "wgs84": [round(v, 6) for v in local_to_lonlat(p[0], p[1])],
+                    "road_name": (t.get("name") or "").strip(),
+                    "road_class": t.get("highway"),
+                    "grade": "separated" if gsep else "at_grade",
+                    "rail": rt2.get("name") or rt2.get("operator") or "rail",
+                })
+    # census dedup: same road name+class within 20 m
+    crossings.sort(key=lambda c: (c["road_name"], c["road_class"],
+                                  round(c["wgs84"][0], 4), round(c["wgs84"][1], 4)))
+    kept = []
+    for cr in crossings:
+        dup = False
+        for k in kept:
+            if (k["road_name"] == cr["road_name"]
+                    and k["road_class"] == cr["road_class"]
+                    and math.hypot(k["pos"][0] - cr["pos"][0],
+                                   k["pos"][1] - cr["pos"][1]) < 20):
+                dup = True
+                break
+        if not dup:
+            kept.append(cr)
+    kept.sort(key=lambda c: (0 if c["grade"] == "at_grade" else 1,
+                             -c["wgs84"][1], c["road_name"]))
+    return {
+        "name": "UP Clinton Subdivision",
+        "centerlines": main_runs,
+        "in_core_km": round(km / 1000.0, 2),
+        "crossings": kept,
+    }
+
+
+def build_parks(nodes, ways):
+    entries = []
+    for wid in sorted(ways):
+        w = ways[wid]
+        t = w.get("tags") or {}
+        hit = any(t.get(k) in vals for k, vals in GREEN_TAGS)
+        if not hit:
+            continue
+        pts = way_pts(w, nodes)
+        if len(pts) < 4 or not is_closed(pts):
+            continue
+        c = bbox_center(pts)
+        if not in_core(c):
+            continue
+        name = (t.get("name") or "").strip()
+        area = shoelace_m2(ring_of(pts))
+        if not name and area < 50000.0:  # unnamed green: only the big set
+            continue
+        cx, cz = to_local(*c)
+        entries.append({
+            "name": name if name else None,
+            "polygon": poly_local(ring_of(pts)),
+            "area_m2": round(area),
+            "center": [cx, cz],
+            "wgs84": [round(c[0], 6), round(c[1], 6)],
+        })
+    entries.sort(key=lambda e: -e["area_m2"])
+    return entries
+
+
+def build_trees(tagged):
+    pts = []
+    for nid in sorted(tagged):
+        lon, lat, t = tagged[nid]
+        if t.get("natural") == "tree" and in_core((lon, lat)):
+            x, z = to_local(lon, lat)
+            pts.append([x, z])
+    return pts
+
+
+# --- POIs: the 48 venues (VENUES.md) + the landmark list (LANDMARKS §5) ----
+#
+# Anchors resolve at distill time from the COMMITTED data:
+#   ("way", id)      -> footprint bbox center from ames_merged.json
+#   ("relation", id) -> bbox center over member ways (ames_merged.json)
+#   ("node", id)     -> position from census/tagged-nodes-core.json
+#   ("lit", (lon,lat)) -> literal coordinate recorded in a committed survey doc
+#   None             -> unplaced (the survey records no position; addr kept)
+# Every row names the committed doc it came from. T-171 is data plumbing over
+# the survey — no new research, no invented coordinates.
+
+CAMPUS_ANCHOR_TRIAD_LAT = 42.02278  # Lincoln Way (verification §1)
+WELCH_LON = -93.65015               # Welch centerline (verification §1)
+
+
+def _venue(slug, name, tier, address, anchor, src, note=None):
+    return {"slug": slug, "name": name, "kind": "venue", "tier": tier,
+            "address": address, "anchor": anchor, "src": src, "note": note}
+
+
+def venue_table():
+    v = []
+    # --- Tier 1 (14; anchors per BUILD-CENSUS.md §2 table)
+    v.append(_venue("welch_ave_station", "Welch Ave Station", 1, "207 Welch Ave",
+                    ("node", 2531586094),
+                    "census §2: addr node (named Pizza Pit — same building)"))
+    v.append(_venue("paddys_irish_pub", "Paddy's Irish Pub", 1, "124 Welch Ave",
+                    ("node", 1941751171), "census §2: amenity=bar node"))
+    v.append(_venue("cys_roost", "Cy's Roost", 1, "121 Welch Ave",
+                    ("way", 241365820), "census §2: way anchor (exact)"))
+    v.append(_venue("sips", "Sips", 1, "126 Welch Ave",
+                    ("node", 8530394477), "census §2: node (Paddy's basement)"))
+    v.append(_venue("mickeys_irish_pub", "Mickey's Irish Pub", 1, "109 Welch Ave",
+                    ("node", 2531586091), "census §2: amenity=pub node + addr"))
+    v.append(_venue("ajs_ultra_lounge", "AJ's Ultra Lounge", 1, "2401 Chamberlain St",
+                    ("way", 246079558), "census §2: way anchor (exact)"))
+    v.append(_venue("outlaws", "Outlaws", 1, "2522 Chamberlain St",
+                    ("way", 272522425), "census §2: way anchor (exact)"))
+    v.append(_venue("cafe_beaudelaire", "Café Beaudelaire", 1, "2504 Lincoln Way",
+                    ("node", 2400994656), "census §2: amenity=cafe node + addr"))
+    v.append(_venue("jeffs_pizza_shop", "Jeff's Pizza Shop", 1, "2402 Lincoln Way",
+                    ("node", 2447728161), "census §2: amenity=restaurant node + addr"))
+    v.append(_venue("mr_burrito", "Mr. Burrito", 1, "2508 Lincoln Way",
+                    ("node", 2531586092), "census §2: addr node"))
+    v.append(_venue("superdog", "Superdog", 1, "208 Welch Ave (cart)",
+                    ("curb_rule", None),
+                    "census §2: cart prop at the 200-block east curb across "
+                    "Kum & Go — Welch centerline + half the residential width, "
+                    "at the Kum & Go frontage lat",
+                    "hand-placed prop, not an OSM feature"))
+    v.append(_venue("hickory_park", "Hickory Park", 1, "1404 S Duff Ave",
+                    ("way", 196541966),
+                    "census §2: way anchor (exact); out of core, 220 m south"))
+    v.append(_venue("the_cafe", "The Cafe", 1, "2616 Northridge Pkwy",
+                    ("node", 1292348200),
+                    "census §2: node anchor; ~1.5 km north of the core"))
+    v.append(_venue("great_plains_sauce_dough", "Great Plains Sauce & Dough Co.",
+                    1, "129 Main St", ("way", 237834149),
+                    "census §2: way anchor (exact)"))
+    # --- Tier 2 (17)
+    v.append(_venue("mothers_pub_coffee", "Mother's Pub & Coffee", 2, "2900 West St",
+                    ("way", 251728629), "census §2: way anchor (exact)"))
+    v.append(_venue("thumbs", "Thumbs", 2, "2816 West St",
+                    ("way", 251728624), "census §2: way anchor (exact)"))
+    v.append(_venue("west_street_deli", "West Street Deli", 2, "2810 West St",
+                    ("way", 251728626), "census §2: way anchor (exact)"))
+    v.append(_venue("bnc_field_house", "BNC Field House", 2, "206 Welch Ave",
+                    ("way", 241365816), "census §2: way anchor (exact)"))
+    v.append(_venue("blue_owl_bar", "Blue Owl Bar", 2, "223 Welch Ave",
+                    ("node", 2445161035), "census §2: named node"))
+    v.append(_venue("cornbred_barbecue", "Cornbred Barbecue", 2, "526 Main St",
+                    ("node", 8395552560), "census §2: depot node + addr"))
+    v.append(_venue("whiskey_river", "Whiskey River", 2, "134 Main St",
+                    ("way", 269752175), "census §2: way anchor (exact)"))
+    v.append(_venue("london_underground", "London Underground", 2, "212 Main St",
+                    ("way", 269752154), "census §2: way anchor (exact)"))
+    v.append(_venue("time_out", "Time Out", 2, "120 Kellogg Ave",
+                    ("way", 236565187), "census §2: way anchor (exact)"))
+    v.append(_venue("mucky_duck_pub", "The Mucky Duck Pub", 2, "3100 S Duff Ave",
+                    None, "census §2: NO OSM anchor anywhere in the extract"))
+    v.append(_venue("torrent_brewing", "Torrent Brewing Company", 2, "504 Burnett Ave",
+                    ("way", 931902030), "census §2: way anchor (exact)"))
+    v.append(_venue("aunt_maudes", "Aunt Maude's", 2, "547 Main St",
+                    ("node", 5064244865), "census §2: node + addr"))
+    v.append(_venue("grove_cafe", "The Grove Cafe", 2, "124 Main St",
+                    ("way", 269752153), "census §2: way anchor (exact)"))
+    v.append(_venue("provisions_lot_f", "Provisions Lot F", 2, "2400 N Loop Dr",
+                    ("way", 846310912),
+                    "census §2: way anchor (exact); out of core, S research park"))
+    v.append(_venue("the_stan_tap", "The Stan Tap", 2, "216 Stanton Ave",
+                    ("way", 273536249),
+                    "census §2: addr way (unnamed ex-Es Tas building); "
+                    "centroid from ames_merged.json"))
+    v.append(_venue("sams_place", "Sam's Place", 2, "125 Main St",
+                    ("way", 237834143), "census §2: way anchor (exact)"))
+    v.append(_venue("lost_and_found_lounge", "Lost and Found Lounge", 2,
+                    "121 Welch Ave (upper)", ("way", 241365820),
+                    "census §2: shares the Cy's Roost way"))
+    # --- Tier 3 (17)
+    v.append(_venue("stomping_grounds", "Stomping Grounds Cafe", 3, "303 Welch Ave",
+                    ("node", 1933284322),
+                    "tagged-nodes-core.json: named addr node (Bar La Tosca room)"))
+    v.append(_venue("clouds", "Clouds", 3, "119 Stanton Ave (Legacy Tower, 7th floor)",
+                    ("way", 236800162),
+                    "census appendix: Legacy Tower way (V-16: 7th floor)"))
+    v.append(_venue("labyrinth_coffee", "Labyrinth Coffee", 3, "159 Sheldon Ave",
+                    None, "VENUES §3.3/§7: UNVERIFIED exact suite — unplaced"))
+    v.append(_venue("ichiban", "Ichiban Japanese Restaurant", 3, "117 Welch Ave",
+                    ("way", 231767126), "census appendix: way"))
+    v.append(_venue("blue_fish_poke", "Blue Fish Poke Bowl", 3, "127 Welch Ave",
+                    ("node", 8530394479), "tagged-nodes-core.json: named addr node"))
+    v.append(_venue("macubana", "Macubana", 3, "116 Welch Ave",
+                    ("way", 241365821), "census appendix: way"))
+    v.append(_venue("dogtown_university", "Dogtown University", 3,
+                    "217 Welch Ave (Welch Crown Center)",
+                    ("way", 377558129), "census appendix: Welch Crown Center way"))
+    v.append(_venue("thai_kitchen", "Thai Kitchen", 3, "2410 Chamberlain St",
+                    ("node", 2533115029), "tagged-nodes-core.json: named addr node"))
+    v.append(_venue("szechuan_house", "Szechuan House", 3, "3605 Lincoln Way",
+                    ("lit", (WELCH_LON - 1440.0 / M_PER_DEG_LON, CAMPUS_ANCHOR_TRIAD_LAT + 8.0 / M_PER_DEG_LAT)),
+                    "VENUES §3.9 (QA fix): north side, ~1.4 km west of Welch — "
+                    "doc-interpolated on the Lincoln Way line"))
+    v.append(_venue("restaurant_888", "888 Restaurant", 3, "809 Wheeler St Ste 106",
+                    None, "VENUES §3.10: north Ames; no committed position"))
+    v.append(_venue("el_azteca", "El Azteca", 3, "2727 Stange Rd / 2120 Isaac Newton Dr",
+                    None, "VENUES §3.11: two locations; no committed position"))
+    v.append(_venue("carlos_quesadilla", "Carlos Quesadilla", 3, "food truck",
+                    ("lit", (-93.63576, 42.01401)),
+                    "VENUES §3.12: truck — gameday spot inside Jack Trice Stadium "
+                    "(SUMMARY §9 stadium center)",
+                    "truck prop; gameday position"))
+    v.append(_venue("isu_creamery", "Iowa State Creamery", 3,
+                    "536 Farm House Lane (Food Sciences Bldg 2953)",
+                    ("relation", 2507887), "census appendix: Food Sciences relation"))
+    v.append(_venue("perfect_games", "Perfect Games", 3, "1320 Dickinson Ave",
+                    None, "VENUES §3.14: north Ames; no committed position"))
+    v.append(_venue("whatcha_smokin", "Whatcha Smokin' BBQ", 3,
+                    "403 Iowa Ave, Luther IA", None,
+                    "VENUES §3.15: out of Ames entirely — unplaced"))
+    v.append(_venue("morning_bell", "Morning Bell Coffee Roasters", 3,
+                    "111 Main St Ste 101", ("name", "Morning Bell Coffee Roasters"),
+                    "census appendix row; resolved by unique building name"))
+    v.append(_venue("cafe_diem", "Cafe Diem", 3, "229 Main St",
+                    ("name", "Cafe Diem"),
+                    "census appendix row; resolved by unique building name"))
+    return v
+
+
+def _landmark(slug, name, rank, anchor, src, note=None):
+    return {"slug": slug, "name": name, "kind": "landmark", "tier": rank,
+            "address": None, "anchor": anchor, "src": src, "note": note}
+
+
+def landmark_table():
+    l = []
+    # LANDMARKS.md §5 "Top 15 from the air" (rank = tier); coordinates from
+    # the committed census/SUMMARY/verification docs.
+    l.append(_landmark("jack_trice_stadium", "Jack Trice Stadium", 1,
+                       ("way", 613735866), "census appendix: bowl way 183x208 m"))
+    l.append(_landmark("hilton_coliseum", "Hilton Coliseum", 2,
+                       ("way", 180651868), "census appendix: way 138x105 m"))
+    l.append(_landmark("lake_laverne", "Lake LaVerne", 3,
+                       ("lit", (-93.64792, 42.02354)),
+                       "verification V-12 settled center"))
+    l.append(_landmark("campanile", "Campanile", 4,
+                       ("way", 183041212),
+                       "census §3: way 183041212 — SENTINEL (−93.64604, 42.02543)"))
+    l.append(_landmark("central_campus", "Central Campus lawn", 5,
+                       ("way", 486943973), "census §5: the quad lawn way"))
+    l.append(_landmark("marston_water_tower", "Marston Water Tower", 6,
+                       ("way", 861201396), "census appendix: way (51.2 m)"))
+    l.append(_landmark("beardshear_hall", "Beardshear Hall", 7,
+                       ("way", 33725619), "census appendix: way (green dome)"))
+    l.append(_landmark("memorial_union", "Memorial Union", 8,
+                       ("way", 183224150),
+                       "census §3: way 183224150 — SENTINEL (2229 Lincoln Way, "
+                       "NORTH of it)"))
+    l.append(_landmark("parks_library", "Parks Library", 9,
+                       ("way", 33725897), "census appendix: way"))
+    l.append(_landmark("reiman_gardens", "Reiman Gardens", 10,
+                       ("lit", (-93.63832, 42.01057)),
+                       "SUMMARY §9; out of core, 1 km south"))
+    l.append(_landmark("ada_hayden", "Ada Hayden Heritage Park", 11,
+                       ("lit", (-93.63095, 42.06808)),
+                       "SUMMARY §9; out of core, north Ames"))
+    l.append(_landmark("up_main_line", "UP Clinton Subdivision main line", 12,
+                       ("rail_duff_crossing", None),
+                       "census §5: the downtown at-grade set; positioned at the "
+                       "Duff Ave crossing (the busiest)"))
+    l.append(_landmark("downtown_bandshell", "Downtown grid + Bandshell Park", 13,
+                       ("lit", (-93.60960, 42.02649)),
+                       "census §5: Bandshell Park center (just east of the core "
+                       "edge; R5 bbox-east ticket lands it)"))
+    l.append(_landmark("grain_elevators", "Grain elevator cluster (SE)", 14,
+                       None,
+                       "LANDMARKS T7 / V-30: heights AND positions unmapped/"
+                       "unknowable — unplaced"))
+    l.append(_landmark("ames_airport", "Ames Municipal Airport (KAMW)", 15,
+                       ("lit", (-93.62188, 41.99047)),
+                       "SUMMARY §9; out of core, south"))
+    return l
+
+
+def resolve_anchor(anchor, nodes, ways, rels, tagged, rail):
+    """Anchor tuple -> (lon, lat) or None (unplaced)."""
+    if anchor is None:
+        return None
+    kind, ref = anchor
+    if kind == "way":
+        w = ways.get(int(ref))
+        if w is None:
+            raise SystemExit(f"anchor way {ref} not in ames_merged.json")
+        return bbox_center(way_pts(w, nodes))
+    if kind == "relation":
+        r = rels.get(int(ref))
+        if r is None:
+            raise SystemExit(f"anchor relation {ref} not in ames_merged.json")
+        pts = []
+        for m in r.get("members", []):
+            if m.get("type") == "way" and m.get("ref") in ways:
+                pts.extend(way_pts(ways[m["ref"]], nodes))
+        if not pts:
+            raise SystemExit(f"anchor relation {ref} has no resolvable member ways")
+        return bbox_center(pts)
+    if kind == "node":
+        if int(ref) not in tagged:
+            raise SystemExit(f"anchor node {ref} not in tagged-nodes-core.json")
+        lon, lat, _ = tagged[int(ref)]
+        return (lon, lat)
+    if kind == "lit":
+        return (ref[0], ref[1])
+    if kind == "name":
+        hits = []
+        for wid in sorted(ways):
+            w = ways[wid]
+            t = w.get("tags") or {}
+            if t.get("building") and (t.get("name") or "").strip() == ref:
+                pts = way_pts(w, nodes)
+                if len(pts) >= 2 and in_core(bbox_center(pts)):
+                    hits.append(bbox_center(pts))
+        if len(hits) != 1:
+            raise SystemExit(f"anchor name '{ref}' resolved to {len(hits)} "
+                             f"in-core buildings (need exactly 1)")
+        return hits[0]
+    if kind == "curb_rule":
+        # Superdog cart: 200-block EAST curb across Kum & Go (census §2).
+        kum_lonlat = (-93.650558, 42.021245)  # census appendix, Kum & Go way
+        curb_lon = WELCH_LON + (WIDTH_BY_CLASS["residential"] / 2.0) / m_per_deg_lon_at(CAMPUS_ANCHOR_TRIAD_LAT)
+        return (curb_lon, kum_lonlat[1])
+    if kind == "rail_duff_crossing":
+        for cr in rail["crossings"]:
+            if cr["road_name"] == "Duff Avenue" and cr["grade"] == "at_grade":
+                return (cr["wgs84"][0], cr["wgs84"][1])
+        raise SystemExit("rail_duff_crossing anchor: no Duff Avenue at-grade crossing")
+    raise SystemExit(f"unknown anchor kind {kind}")
+
+
+def build_pois(nodes, ways, rels, tagged, rail, streets):
+    entries = []
+    for table in (venue_table(), landmark_table()):
+        for row in table:
+            lonlat = resolve_anchor(row["anchor"], nodes, ways, rels, tagged, rail)
+            placed = lonlat is not None
+            facing = 0.0
+            facing_src = "unplaced" if not placed else None
+            if placed:
+                x, z = to_local(*lonlat)
+                facing, facing_src, _ = nearest_street_local(streets, x, z)
+                entries.append({
+                    "id": row["slug"],
+                    "name": row["name"],
+                    "kind": row["kind"],
+                    "tier": row["tier"],
+                    "address": row["address"],
+                    "position": [x, z],
+                    "wgs84": [round(lonlat[0], 6), round(lonlat[1], 6)],
+                    "facing_deg": facing,
+                    "facing_src": facing_src,
+                    "in_core": in_core(lonlat),
+                    "placed": True,
+                    "src": row["src"],
+                    "note": row["note"],
+                })
+            else:
+                entries.append({
+                    "id": row["slug"],
+                    "name": row["name"],
+                    "kind": row["kind"],
+                    "tier": row["tier"],
+                    "address": row["address"],
+                    "position": None,
+                    "wgs84": None,
+                    "facing_deg": None,
+                    "facing_src": "unplaced",
+                    "in_core": False,
+                    "placed": False,
+                    "src": row["src"],
+                    "note": row["note"],
+                })
+    entries.sort(key=lambda e: (e["kind"], e["tier"], e["id"]))
+    return entries
+
+
+def nearest_street_local(streets, x, z):
+    """Compass facing (0=N/−Z, 90=E/+X) toward the nearest centerline point."""
+    best = (None, None, None, None)  # dist2, name, px, pz
+    for e in streets:
+        pts = e["points"]
+        for i in range(len(pts) - 1):
+            ax, az = pts[i]
+            bx, bz = pts[i + 1]
+            dx, dz = bx - ax, bz - az
+            l2 = dx * dx + dz * dz
+            if l2 < 1e-12:
+                px, pz = ax, az
+            else:
+                t = max(0.0, min(1.0, ((x - ax) * dx + (z - az) * dz) / l2))
+                px, pz = ax + t * dx, az + t * dz
+            d2 = (x - px) * (x - px) + (z - pz) * (z - pz)
+            if best[0] is None or d2 < best[0]:
+                best = (d2, e["name"], px, pz)
+    if best[0] is None:
+        return 0.0, "none", None
+    facing = math.degrees(math.atan2(best[2] - x, -(best[3] - z)))
+    facing = (facing + 360.0) % 360.0
+    return round(facing, 1), f"nearest_street:{best[1]}", math.sqrt(best[0])
+
+
+# --- pack assembly ----------------------------------------------------------
+
+CENSUS_PINNED = {
+    "buildings": 3737,          # BUILD-CENSUS §1
+    "named_buildings": 512,     # §1 (the authored set, §6)
+    "trees": 5637,              # §5
+    "rail_at_grade_vehicular": 9,   # §5/§7.11 (Grand, Clark, Kellogg, Duff,
+                                    #  Hazel, Brookridge, 9th, 13th, 1 service)
+    "venues": 48,               # VENUES.md (14 + 17 + 17)
+    "venue_tiers": {1: 14, 2: 17, 3: 17},
+    "landmarks": 15,            # LANDMARKS §5 top-15
+}
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--distill-commit", default="e486d72",
+                    help="provenance stamp only (default: the survey commit "
+                         "whose dataset this pack distills); NOT part of the "
+                         "byte-identity contract")
+    args = ap.parse_args()
+
+    nodes, ways, rels, authored_csv, tagged = load_inputs()
+
+    streets, street_km_census = build_streets(nodes, ways)
+    street_km_stored = round(sum(e["km"] for e in streets), 2)
+
+    drivable_km = 0.0
+    for wid in sorted(ways):
+        w = ways[wid]
+        t = w.get("tags") or {}
+        if t.get("highway") not in ROAD_CLASSES:
+            continue
+        for a, b in segs_in_bbox(way_pts(w, nodes)):
+            drivable_km += seg_len_m(a, b)
+
+    extra3_km_raw, extra3_by_class = named_highway_extra3_km(nodes, ways)
+    extra3_km = round(extra3_km_raw / 1000.0, 1)
+    # SUMMARY §3's figure must reproduce (extra3.py §5 prints 99.6 km)
+    if not (99.4 <= extra3_km <= 99.8):
+        raise SystemExit(f"extra3-rule named-road km {extra3_km} != SUMMARY "
+                         f"§3's 99.6 (rule drift — check named_highway_extra3_km)")
+
+    blds = collect_building_set(nodes, ways, rels)
+    buildings, missing_csv = build_buildings(blds, authored_csv)
+    named = [b for b in buildings if b["name"]]
+    authored_n = sum(1 for b in buildings if b["class"] == "authored")
+
+    water = build_water(nodes, ways, rels)
+    rail = build_rail(nodes, ways)
+    parks = build_parks(nodes, ways)
+    trees = build_trees(tagged)
+    pois = build_pois(nodes, ways, rels, tagged, rail, streets)
+
+    # --- pinned-count guards (the pack IS the census, made load-bearing) ---
+    if len(buildings) != CENSUS_PINNED["buildings"]:
+        raise SystemExit(f"buildings {len(buildings)} != census "
+                         f"{CENSUS_PINNED['buildings']}")
+    if len(named) != CENSUS_PINNED["named_buildings"]:
+        raise SystemExit(f"named buildings {len(named)} != census "
+                         f"{CENSUS_PINNED['named_buildings']}")
+    if len(trees) != CENSUS_PINNED["trees"]:
+        raise SystemExit(f"trees {len(trees)} != census {CENSUS_PINNED['trees']}")
+    at_grade = [c for c in rail["crossings"] if c["grade"] == "at_grade"]
+    if len(at_grade) != CENSUS_PINNED["rail_at_grade_vehicular"]:
+        raise SystemExit(f"at-grade vehicular crossings {len(at_grade)} != "
+                         f"census {CENSUS_PINNED['rail_at_grade_vehicular']}: "
+                         + str([c['road_name'] or c['road_class'] for c in at_grade]))
+    venues = [p for p in pois if p["kind"] == "venue"]
+    landmarks = [p for p in pois if p["kind"] == "landmark"]
+    if len(venues) != CENSUS_PINNED["venues"]:
+        raise SystemExit(f"venues {len(venues)} != {CENSUS_PINNED['venues']}")
+    for tier, want in CENSUS_PINNED["venue_tiers"].items():
+        got = sum(1 for v in venues if v["tier"] == tier)
+        if got != want:
+            raise SystemExit(f"tier-{tier} venues {got} != {want}")
+    if len(landmarks) != CENSUS_PINNED["landmarks"]:
+        raise SystemExit(f"landmarks {len(landmarks)} != {CENSUS_PINNED['landmarks']}")
+    if missing_csv:
+        raise SystemExit(f"buildings missing from authored-buildings.csv: "
+                         f"{missing_csv[:5]} ({len(missing_csv)} total)")
+    # duplicate building ids would silently corrupt the census join
+    ids = [b["id"] for b in buildings]
+    if len(set(ids)) != len(ids):
+        raise SystemExit("duplicate building ids in pack")
+
+    pack = {
+        "meta": {
+            "pack": "ames_core",
+            "version": 1,
+            "schema": "ames_core/v1",
+            "attribution": "Map data © OpenStreetMap contributors",
+            "license": "ODbL — see docs/references/ames-survey/ODBL-NOTE.md",
+            "source_date": "2026-11-08",
+            "survey_commits": ["aa73840", "e486d72"],
+            "distill_commit": args.distill_commit,
+            "distilled_by": "tools/ames_distill.py",
+            "core_bbox_wsen": [CORE[0], CORE[1], CORE[2], CORE[3]],
+            "origin": {
+                "lon": ORIGIN_LON,
+                "lat": ORIGIN_LAT,
+                "place": "Lincoln Way x Welch",
+                "axes": "+X east, -Z north, Y up (master plan §2)",
+            },
+            "scale": {
+                "equirect_lat": SCALE_LAT,
+                "m_per_deg_lat": M_PER_DEG_LAT,
+                "m_per_deg_lon": round(M_PER_DEG_LON, 4),
+            },
+            "facing_convention": "compass degrees, 0 = north (-Z), 90 = east "
+                                 "(+X); Godot yaw = -deg_to_rad(facing_deg)",
+            "counts": {
+                "buildings": len(buildings),
+                "named_buildings": len(named),
+                "authored_buildings": authored_n,
+                "procedural_buildings": len(buildings) - authored_n,
+                "trees": len(trees),
+                "street_entries": len(streets),
+                "venues": len(venues),
+                "venues_placed": sum(1 for v in venues if v["placed"]),
+                "landmarks": len(landmarks),
+                "pois": len(pois),
+                "rail_crossings_vehicular": len(rail["crossings"]),
+                "rail_crossings_at_grade": len(at_grade),
+                "parks": len(parks),
+            },
+            "street_km": {
+                "named_drivable_in_core": street_km_stored,
+                "named_drivable_in_core_census_rule": round(street_km_census / 1000.0, 2),
+                "drivable_in_core_all": round(drivable_km / 1000.0, 2),
+                "method": "census §4: segment midpoints inside the core bbox; "
+                          "named drivable classes only. This is the rule the "
+                          "streets[] graph pins (clean per-way polyline runs "
+                          "with class/width semantics).",
+                "named_highway_in_core_extra3_km": extra3_km,
+                "named_km_by_class_extra3": {
+                    k: round(v / 1000.0, 2)
+                    for k, v in sorted(extra3_by_class.items(), key=lambda kv: -kv[1])
+                },
+                "method_extra3": "SUMMARY §3's '99.6 km of named street': "
+                                 "extra3.py §5 — every way with a highway tag "
+                                 "and a name, NODES filtered to the core bbox, "
+                                 "haversine over the consecutive survivors (a "
+                                 "survey statistic, not the streets[] graph). "
+                                 "Re-runnable: python -I "
+                                 "docs/references/ames-survey/osm/scripts/extra3.py "
+                                 "docs/references/ames-survey/osm/ames_merged.json "
+                                 "docs/references/ames-survey/osm/raw",
+            },
+            "unplaced_pois": [p["id"] for p in pois if not p["placed"]],
+        },
+        "streets": streets,
+        "buildings": buildings,
+        "pois": pois,
+        "water": water,
+        "rail": rail,
+        "parks": parks,
+        "trees": trees,
+    }
+
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    with open(OUT, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(pack, f, ensure_ascii=False, indent=1)
+        f.write("\n")
+
+    print(f"wrote {OUT} ({os.path.getsize(OUT) / 1e6:.2f} MB)")
+    print(f"buildings {len(buildings)} (named {len(named)}, authored {authored_n})")
+    print(f"trees {len(trees)}; street entries {len(streets)} "
+          f"(named drivable in-core {street_km_stored} km, census rule "
+          f"{street_km_census / 1000.0:.2f} km, all drivable "
+          f"{drivable_km / 1000.0:.2f} km; extra3 rule {extra3_km} km)")
+    print(f"extra3 per-class km: " + ", ".join(
+        f"{k} {v / 1000.0:.2f}" for k, v in sorted(extra3_by_class.items(),
+                                                   key=lambda kv: -kv[1])))
+    print(f"rail: main line {rail['in_core_km']} km in core, crossings "
+          f"{len(rail['crossings'])} vehicular "
+          f"({len(at_grade)} at-grade: "
+          f"{', '.join(c['road_name'] or c['road_class'] for c in at_grade)})")
+    print(f"pois {len(pois)} (venues {len(venues)} "
+          f"[placed {sum(1 for v in venues if v['placed'])}], landmarks "
+          f"{len(landmarks)} [placed {sum(1 for l in landmarks if l['placed'])}]); "
+          f"unplaced: {', '.join(pack['meta']['unplaced_pois'])}")
+    print(f"water {len(water)}; parks {len(parks)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

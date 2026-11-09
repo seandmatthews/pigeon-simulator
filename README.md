@@ -56,3 +56,10 @@ Main Run Args.
 - [`docs/DESIGN.md`](docs/DESIGN.md) — the game design
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — phase plan: what's being built now and what's next
 - [`docs/tickets/`](docs/tickets/README.md) — backlog and ticket workflow
+
+## Credits
+
+- Map data of the Ames world: **Map data © OpenStreetMap contributors** (ODbL —
+  see [`docs/references/ames-survey/ODBL-NOTE.md`](docs/references/ames-survey/ODBL-NOTE.md);
+  the in-game credits screen lands with T-197 — until then this line is the
+  attribution surface, and the string lives in `AmesDataPack.ATTRIBUTION`).
