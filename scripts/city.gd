@@ -602,6 +602,23 @@ var block_pitch: float:
 var city_span: float:
 	get: return blocks_per_side * block_pitch + road_width
 
+
+## The off-world guard's home center Main wires at boot — the world origin
+## here. A method so worlds override it: the Ames map's center is its bake
+## bounds center, not the pack origin (T-173 round-1 review — the origin sits
+## on the map's WEST edge, which put half the skeleton outside the guard).
+func home_center() -> Vector3:
+	return global_position
+
+
+## The off-world guard's home radius Main wires at boot (m) — the apron edge
+## past which the nudge bends the course home. A method (not the property
+## arithmetic) so worlds override it: the Ames map's radius comes from the
+## bake's own bounds, not the Windrow grid math (T-173). The value here is
+## exactly the expression Main used to inline.
+func home_radius() -> float:
+	return city_span * 0.5 + ground_extra
+
 var _rng := RandomNumberGenerator.new()
 ## Dedicated stream for the T-017 shopfront decoration: seeding it separately
 ## keeps the layout stream (floors, colors, lots, parks, props) byte-identical
