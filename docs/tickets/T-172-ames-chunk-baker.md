@@ -1,6 +1,6 @@
 # T-172 — Ames R1 · chunk baker: offline world baking into 256 m tiles
 
-- **Status:** doing · **Category:** code-optimization · **Ring:** R1 The Map ·
+- **Status:** done · **Category:** code-optimization · **Ring:** R1 The Map ·
   **Value (1-5):** 5 · **Risk (1-5):** 3
 - **Depends on:** T-171 (the data pack this bakes)
 - **Refs:** `docs/AMES-MASTERPLAN.md` §2 (bake-then-render), §4 ·
@@ -42,12 +42,13 @@ world assertable, the same way the suite pins everything else.
 
 - [x] Bake runs headless in ≤ 60 s on this machine; total chunk payload
       ≤ 40 MB on disk
-      *(measured: wall clock ≈ 0.4 s, payload 2.14 MB — 172 chunk files +
-      manifest; the tool self-fails past either budget)*
+      *(measured after review round 1's crossing-gap fix: wall clock
+      ≈ 0.5 s, payload 2.22 MB — 172 chunk files + manifest; the tool
+      self-fails past either budget)*
 - [x] Two consecutive bakes → identical SHA-256 manifest (registered in
       the ticket at landing)
       *(two `--script tools/bake_ames_chunks.gd` runs both print
-      total_sha256 `669af4fa0e2626e9d6bdc07cbc8671a2ac4269a233aab22dbf23ce2ab23b9a7a`;
+      total_sha256 `c61fc319b45714cc1a51353a4521f315fe4bbe20a6a2a9cf2365d1587b75573e`;
       the chunks are LF-pinned in `.gitattributes` so the hashes survive
       checkout byte-identically)*
 - [x] *(Gate 1b)* `ames_bake_census` scenario: chunk instance counts sum
@@ -85,20 +86,26 @@ is the arbiter, not taste).
 ## Tuned values (recorded at landing)
 
 - **Bake:** schema `ames_chunks/v1`; 172 chunks under
-  `data/ames/chunks/` (+ `manifest.json`); payload **2.14 MB** (budget
-  40 MB); wall clock **≈ 0.4 s** headless (budget 60 s). Per-chunk
+  `data/ames/chunks/` (+ `manifest.json`); payload **2.22 MB** (budget
+  40 MB); wall clock **≈ 0.5 s** headless (budget 60 s). Per-chunk
   SHA-256s + `total_sha256`
-  `669af4fa0e2626e9d6bdc07cbc8671a2ac4269a233aab22dbf23ce2ab23b9a7a`
+  `c61fc319b45714cc1a51353a4521f315fe4bbe20a6a2a9cf2365d1587b75573e`
   (registered; two consecutive `--script tools/bake_ames_chunks.gd` runs
   produce it identically, and `ames_bake_determinism` re-bakes
   in-scenario to the same hash).
 - **Counts (chunk totals = pack totals):** 3,737 massing boxes (one per
   building; occluder outline 1:1), 3,750 asphalt ribbon quads (every
-  street polyline segment), 113 LaVerne water triangles, 403 creek
-  quads (College+Ioway at 6 m), 1,264 lawn triangles (31 parks), 554
-  ballast quads (5 m strip, 16 m subdivision), 9 at-grade crossing
-  records with real ballast gaps (gap = road-class width ÷ 2 + 3 m,
-  min 10 m).
+  non-degenerate street polyline segment), 113 LaVerne water triangles,
+  403 creek quads (College+Ioway at 6 m), 1,264 lawn triangles (31
+  parks), 1,055 ballast quads (5 m strip, 8 m subdivision), 9 at-grade
+  crossing records with geometrically proven ballast gaps: the road
+  segments near each crossing (within 30 m of the crossing pos — both
+  carriageways of a divided road) block the ballast by quad-overlap SAT
+  with a 0.2 m hairline, so the gap always clears the full asphalt span.
+  (Review round 1 replaced the first landing's midpoint-radius rule,
+  which left 177 m² of ballast painted over crossing asphalt — Kellogg
+  85.5, Clark 63.9, Grand 24.4, North Hazel/Brookridge 1.6 each —
+  including two carriageways with no gap at all.)
 - **District histogram (v0 geometric rule, re-dressed at R5):**
   residential 2,770 · campus 290 · lincolnway 291 · downtown 269 ·
   campustown 117. Rule priority campustown → downtown → campus →

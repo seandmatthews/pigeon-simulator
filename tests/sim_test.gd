@@ -631,7 +631,12 @@ func _scenario_ames_bake_census() -> void:
 		var counts: Dictionary = chunk.get("counts", {})
 		for key: String in ["massing", "ribbons", "water_tris", "creek_quads",
 				"lawn_tris", "ballast_quads", "occluders", "crossings"]:
-			counts_sum[key] = int(counts_sum.get(key, 0)) + int(counts.get(key, 0))
+			var arr: Array = chunk.get(key, [])
+			## The chunk's own counts field must equal its actual arrays.
+			if int(counts.get(key, -1)) != arr.size():
+				bad.append("counts_%s=%s vs array %d in %s" % [
+						key, counts.get(key, -1), arr.size(), entry["file"]])
+			counts_sum[key] = int(counts_sum.get(key, 0)) + arr.size()
 		for c: Dictionary in chunk.get("crossings", []):
 			crossings.append(c)
 	if chunks.is_empty():
@@ -649,6 +654,48 @@ func _scenario_ames_bake_census() -> void:
 			bad.append("totals_%s manifest=%s parsed=%s" % [key, manifest_totals.get(key), counts_sum.get(key)])
 	if int(counts_sum.get("occluders", 0)) != int(counts_sum.get("massing", 0)):
 		bad.append("occluders!=massing %d/%d" % [counts_sum.get("occluders", 0), counts_sum.get("massing", 0)])
+	# derived straight from the pack (independent recomputes): asphalt
+	# ribbons are EVERY non-degenerate street polyline segment; creek quads
+	# are EVERY non-degenerate creek centerline segment; the lawn flat AREA
+	# must equal the 31 park polygons' ring-split area (triangulation may
+	# re-cut the polygons, never lose them)
+	var street_segs := 0
+	for s: Dictionary in AmesDataPack.streets():
+		var pts: Array = s.get("points", [])
+		for i: int in range(pts.size() - 1):
+			var dx := float(pts[i + 1][0]) - float(pts[i][0])
+			var dz := float(pts[i + 1][1]) - float(pts[i][1])
+			if dx * dx + dz * dz > 1e-10:
+				street_segs += 1
+	if int(counts_sum.get("ribbons", 0)) != street_segs:
+		bad.append("ribbons=%d (pack non-degenerate street segments %d)" % [
+				counts_sum.get("ribbons", 0), street_segs])
+	var creek_segs := 0
+	for wtr: Dictionary in AmesDataPack.water():
+		if str(wtr.get("kind", "")) != "creek":
+			continue
+		for line: Array in wtr.get("centerlines", []):
+			for i: int in range(line.size() - 1):
+				var cdx := float(line[i + 1][0]) - float(line[i][0])
+				var cdz := float(line[i + 1][1]) - float(line[i][1])
+				if cdx * cdx + cdz * cdz > 1e-10:
+					creek_segs += 1
+	if int(counts_sum.get("creek_quads", 0)) != creek_segs:
+		bad.append("creek_quads=%d (pack non-degenerate creek segments %d)" % [
+				counts_sum.get("creek_quads", 0), creek_segs])
+	var park_area := 0.0
+	for park: Dictionary in AmesDataPack.parks():
+		park_area += _pack_split_area(park.get("polygon", []))
+	var lawn_area := 0.0
+	for tile: Vector2i in chunks:
+		for t: Dictionary in chunks[tile].get("lawn_tris", []):
+			var lv: Array = t["v"]
+			var la := Vector2(float(lv[0]), float(lv[2]))
+			var lb := Vector2(float(lv[3]), float(lv[5]))
+			var lc := Vector2(float(lv[6]), float(lv[8]))
+			lawn_area += absf((lb.x - la.x) * (lc.y - la.y) - (lc.x - la.x) * (lb.y - la.y)) * 0.5
+	if park_area > 0.0 and absf(lawn_area - park_area) > park_area * 0.01:
+		bad.append("lawn_area=%.1f m2 (park polygons %.1f m2, ±1%%)" % [lawn_area, park_area])
 
 	# --- 2. every building position present in its own tile chunk ---------
 	var massing_by_tile: Dictionary = {} ## Vector2i -> PackedVector2Array of centers.
@@ -699,41 +746,57 @@ func _scenario_ames_bake_census() -> void:
 		bad.append("crossing_names=%s (want %s)" % [got_crossings, want_crossings])
 	if crossings.size() != 9:
 		bad.append("crossing_count=%d (want 9)" % crossings.size())
-	# each crossing has a REAL gap: no baked ballast quad mid-segment inside
-	# the gap radius (width by class per census §7.3, +3 m margin, min 10)
-	var gap_radius := {} ## road -> meters.
-	for road: String in crossing_pos:
-		var cls := "residential"
-		for c: Dictionary in crossings:
-			if str(c.get("road", "")) == road:
-				cls = str(c.get("class", "residential"))
-		var w := 11.0
-		match cls:
-			"primary", "trunk":
-				w = 20.0
-			"motorway":
-				w = 24.0
-			"secondary":
-				w = 16.0
-			"tertiary":
-				w = 13.0
-			"service":
-				w = 7.0
-		gap_radius[road] = maxf(10.0, w * 0.5 + 3.0)
-	var min_gap_seen := {} ## road -> nearest ballast midpoint distance.
+	# each crossing has a REAL gap, proven GEOMETRICALLY on the baked output:
+	# the crossing's road is whatever asphalt the bake actually laid near the
+	# crossing pos — ribbon quads with centers within ROAD_NEAR of it (both
+	# carriageways of a divided road — the pack carries one street entry per
+	# carriageway, and the ballast must clear every one that crosses the
+	# track). The old midpoint-radius form here was tautological — it
+	# measured the baker's own skip rule against itself and could never fail
+	# (red-before measured: ballast painted OVER crossing asphalt at Kellogg
+	# 85.5 m², Clark 63.9, Grand 24.4, North Hazel/Brookridge 1.6 each).
+	const ROAD_NEAR := 40.0
+	var ballast_quads: Array = []
+	var ribbon_quads: Array = []
 	for tile: Vector2i in chunks:
 		for q: Dictionary in chunks[tile].get("ballast_quads", []):
-			var flat: Array = q["q"]
-			var mid := Vector2((float(flat[0]) + float(flat[6])) * 0.5,
-					(float(flat[2]) + float(flat[8])) * 0.5)
-			for road: String in crossing_pos:
-				var d: float = mid.distance_to(crossing_pos[road])
-				min_gap_seen[road] = minf(float(min_gap_seen.get(road, 1e9)), d)
+			ballast_quads.append(q["q"])
+		for q2: Dictionary in chunks[tile].get("ribbons", []):
+			ribbon_quads.append(q2["q"])
+	var road_quads_near: Array = [] ## Ribbon quads near ANY crossing.
+	var roads_per_crossing := {} ## road -> quad count (the no-vacuous-pass arm).
 	for road: String in crossing_pos:
-		var want_gap: float = gap_radius[road]
-		var seen_gap: float = float(min_gap_seen.get(road, 0.0))
-		if seen_gap < want_gap:
-			bad.append("crossing_gap_%s=%.1f m (want ballast-free within %.1f m)" % [road, seen_gap, want_gap])
+		roads_per_crossing[road] = 0
+	for q: Array in ribbon_quads:
+		var q_mid := Vector2((float(q[0]) + float(q[6])) * 0.5,
+				(float(q[2]) + float(q[8])) * 0.5)
+		for road: String in crossing_pos:
+			if q_mid.distance_to(crossing_pos[road]) < ROAD_NEAR:
+				road_quads_near.append(q)
+				roads_per_crossing[road] = int(roads_per_crossing[road]) + 1
+	for road: String in crossing_pos:
+		if int(roads_per_crossing[road]) == 0:
+			bad.append("crossing_%s has no baked road quads within %.0f m — its gap check would be vacuous" % [road, ROAD_NEAR])
+	var overlapped := 0
+	var first_overlap := ""
+	for q: Array in ballast_quads:
+		var b_mid := Vector2((float(q[0]) + float(q[6])) * 0.5,
+				(float(q[2]) + float(q[8])) * 0.5)
+		var near_crossing := false
+		for road: String in crossing_pos:
+			if b_mid.distance_to(crossing_pos[road]) < ROAD_NEAR + 25.0:
+				near_crossing = true
+				break
+		if not near_crossing:
+			continue
+		for rq: Array in road_quads_near:
+			if _flat_quads_overlap(q, rq):
+				overlapped += 1
+				if first_overlap.is_empty():
+					first_overlap = "ballast at (%.1f, %.1f)" % [b_mid.x, b_mid.y]
+				break
+	if overlapped > 0:
+		bad.append("ballast quads over crossing-road asphalt=%d (%s)" % [overlapped, first_overlap])
 
 	# --- 4. LaVerne water flat area: PACK PRESERVATION --------------------
 	# The bake triangulates the lake polygon into `water_tris` (chunked by
@@ -764,6 +827,37 @@ func _scenario_ames_bake_census() -> void:
 		bad.append("laverne_area=%.1f m2 vs pack ring-split shoelace %.1f m2 (±1%%)" % [la_verne, split_area])
 
 	_check(S, bad.is_empty(), "; ".join(bad))
+
+
+## Strict separating-axis test on two flat quads (`[[x, y, z] × 4]` corner
+## arrays, x/z only): TRUE when the quads overlap OR merely touch (a shared
+## edge clears on no axis). The bake keeps a GAP_MARGIN hairline back from
+## crossing asphalt, so any touch of baked ballast with baked road is a real
+## defect. Coded separately from the baker's margined copy on purpose.
+func _flat_quads_overlap(a: Array, b: Array) -> bool:
+	for idx: int in 2:
+		var q: Array = a if idx == 0 else b
+		for i: int in 4:
+			var p := Vector2(float(q[i * 3]), float(q[i * 3 + 2]))
+			var r := Vector2(float(q[((i + 1) % 4) * 3]), float(q[((i + 1) % 4) * 3 + 2]))
+			var e := r - p
+			if e.length_squared() < 1e-12:
+				continue
+			var axis := Vector2(-e.y, e.x).normalized()
+			var amin := INF
+			var amax := -INF
+			var bmin := INF
+			var bmax := -INF
+			for k: int in 4:
+				var da := axis.dot(Vector2(float(a[k * 3]), float(a[k * 3 + 2])))
+				var db := axis.dot(Vector2(float(b[k * 3]), float(b[k * 3 + 2])))
+				amin = minf(amin, da)
+				amax = maxf(amax, da)
+				bmin = minf(bmin, db)
+				bmax = maxf(bmax, db)
+			if maxf(amin - bmax, bmin - amax) > 0.0:
+				return false ## Strictly separated on this axis: clear.
+	return true
 
 
 ## Independent recompute (the no-self-test rule): the ring-split shoelace of

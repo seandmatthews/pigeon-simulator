@@ -24,7 +24,9 @@ class_name AmesBaker
 ##   ear-clip triangulated offline into world-space triangles.
 ## - `creek_quads`: College/Ioway centerlines extruded to 6 m water ribbons.
 ## - `ballast_quads`: the rail centerline extruded to a 5 m ballast strip,
-##   SEGMENTED at the 9 at-grade crossings so the roads show through.
+##   SEGMENTED wherever it would run over a crossing road's own asphalt —
+##   the 9 at-grade crossings' road ribbons (BOTH carriageways of divided
+##   roads) block the ballast geometrically, so the roads show through.
 ## - `occluders`: one simplified building outline (the bbox rectangle) per
 ##   massing box — the feed for baked `ArrayOccluder3D`s (T-173).
 ## - `crossings`: the at-grade rail crossings inside the tile (world facts
@@ -65,7 +67,8 @@ const LEVEL_LADDER: Array[float] = [4.0, 8.0, 11.0, 14.0]
 const FOOTPRINT_LV_BANDS: Array[float] = [300.0, 1000.0]
 
 ## Street widths by class (census §7.3 defaults — the pack carries these per
-## entry; this table sizes only the rail-crossing gaps).
+## entry; the baker reads each street's own `width_m`, this table is only the
+## fallback for a hypothetical entry missing it).
 const ROAD_WIDTH_BY_CLASS: Dictionary = {
 	"primary": 20.0, "secondary": 16.0, "tertiary": 13.0,
 	"residential": 11.0, "unclassified": 11.0, "living_street": 9.0,
@@ -119,8 +122,18 @@ const COLOR_BALLAST := Color(0.545, 0.522, 0.471) ## #8B8578 gravel.
 const CREEK_WIDTH := 6.0
 const BALLAST_WIDTH := 5.0 ## Single main-line track ballast (bake constant).
 ## Rail segments are subdivided to at most this length (m) so the crossing
-## gaps land where the roads cross, never a polyline step away.
-const RAIL_STEP := 16.0
+## gaps hug the roads (a sub-segment is skipped whole, so the step bounds the
+## gap's slack along the track).
+const RAIL_STEP := 8.0
+## Street polyline segments whose midpoint sits within this distance of an
+## at-grade crossing pos are that crossing's road geometry (BOTH carriageways
+## of a divided road — the pack carries one street entry per carriageway).
+## Their baked-width ribbons block the ballast.
+const CROSSING_ROAD_RADIUS := 30.0
+## Hairline the ballast keeps back from the asphalt edge (m): a rail sub-
+## segment quad is skipped when it comes within this of a crossing-road
+## ribbon quad (SAT test), so road paint never reads through ballast.
+const GAP_MARGIN := 0.2
 
 ## District rule constants (v0 first pass — deterministic pure geometry over
 ## the pack's own named data; R5 re-dresses). Campus anchors are landmark
@@ -255,7 +268,13 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 				]
 				(_chunk_at(tiles, _chunk_of(tri_centroid.x, tri_centroid.y))["lawn_tris"] as Array).append({"v": v})
 
-	# --- rail: ballast strip with gaps at the 9 at-grade crossings --------
+	# --- rail: ballast strip, gapped geometrically at crossing roads ------
+	# The blocker set is the ACTUAL road geometry near the 9 at-grade
+	# crossings: every street polyline segment within CROSSING_ROAD_RADIUS of
+	# a crossing pos, extruded at its OWN baked width (so divided roads gap
+	# on both carriageways, and the gap clears the full asphalt span, not a
+	# radius around one point). A rail sub-segment is skipped whole when its
+	# quad would come within GAP_MARGIN of any blocker quad.
 	var crossings: Array[Dictionary] = []
 	for c: Dictionary in AmesDataPack.rail().get("crossings", []):
 		if str(c.get("grade", "")) == "at_grade":
@@ -264,8 +283,22 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 				"pos": Vector2(float(pos[0]), float(pos[1])),
 				"road": str(c.get("road_name", "")),
 				"cls": str(c.get("road_class", "")),
-				"gap": _crossing_gap(str(c.get("road_class", ""))),
 			})
+	var gap_blockers: Array = [] ## Flat ribbon quads of crossing-road segments.
+	for s: Dictionary in AmesDataPack.streets():
+		var pts: Array = s.get("points", [])
+		var width := maxf(float(s.get("width_m",
+				ROAD_WIDTH_BY_CLASS.get(str(s.get("class", "")), 11.0))), 4.0)
+		for i: int in range(pts.size() - 1):
+			var pa := Vector2(float(pts[i][0]), float(pts[i][1]))
+			var pb := Vector2(float(pts[i + 1][0]), float(pts[i + 1][1]))
+			var mid := (pa + pb) * 0.5
+			for c: Dictionary in crossings:
+				if mid.distance_to(c["pos"]) < CROSSING_ROAD_RADIUS:
+					var quad := _extrude_quad(pa, pb, width, RIBBON_Y)
+					if not quad.is_empty():
+						gap_blockers.append(quad)
+					break
 	for line: Array in AmesDataPack.rail().get("centerlines", []):
 		for i: int in range(line.size() - 1):
 			var a := Vector2(float(line[i][0]), float(line[i][1]))
@@ -275,15 +308,15 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 				var sa := a.lerp(b4, float(k) / float(steps))
 				var sb := a.lerp(b4, float(k + 1) / float(steps))
 				var mid := (sa + sb) * 0.5
+				var quad := _extrude_quad(sa, sb, BALLAST_WIDTH, BALLAST_Y)
+				if quad.is_empty():
+					continue
 				var blocked := false
-				for c: Dictionary in crossings:
-					if mid.distance_to(c["pos"]) < float(c["gap"]):
+				for blocker: Array in gap_blockers:
+					if _quads_overlap(quad, blocker, GAP_MARGIN):
 						blocked = true
 						break
 				if blocked:
-					continue
-				var quad := _extrude_quad(sa, sb, BALLAST_WIDTH, BALLAST_Y)
-				if quad.is_empty():
 					continue
 				(_chunk_at(tiles, _chunk_of(mid.x, mid.y))["ballast_quads"] as Array).append({"q": quad})
 
@@ -470,9 +503,35 @@ static func _massing_color(district: String, id: String) -> Color:
 	return palette[id.hash() % palette.size()]
 
 
-static func _crossing_gap(road_class: String) -> float:
-	var width: float = ROAD_WIDTH_BY_CLASS.get(road_class, 11.0)
-	return maxf(10.0, width * 0.5 + 3.0)
+## Separating-axis test on two convex quads (flat `[[x, y, z] × 4]` corner
+## arrays; only x/z are tested). Returns true when the quads come within
+## `margin` on every axis — i.e. they overlap or sit closer than the margin.
+## Used to keep ballast off crossing-road asphalt (both carriageways).
+static func _quads_overlap(a: Array, b: Array, margin: float) -> bool:
+	for q: Array in [a, b]:
+		var n := 4
+		for i: int in n:
+			var p := Vector2(float(q[i * 3]), float(q[i * 3 + 2]))
+			var r := Vector2(float(q[((i + 1) % n) * 3]), float(q[((i + 1) % n) * 3 + 2]))
+			var e := r - p
+			var len_sq := e.length_squared()
+			if len_sq < 1e-12:
+				continue
+			var axis := Vector2(-e.y, e.x) / sqrt(len_sq)
+			var a_lo := INF
+			var a_hi := -INF
+			var b_lo := INF
+			var b_hi := -INF
+			for k: int in 4:
+				var da := axis.dot(Vector2(float(a[k * 3]), float(a[k * 3 + 2])))
+				var db := axis.dot(Vector2(float(b[k * 3]), float(b[k * 3 + 2])))
+				a_lo = minf(a_lo, da)
+				a_hi = maxf(a_hi, da)
+				b_lo = minf(b_lo, db)
+				b_hi = maxf(b_hi, db)
+			if maxf(a_lo - b_hi, b_lo - a_hi) > margin:
+				return false ## Separated by more than the margin.
+	return true
 
 
 ## One asphalt-width quad across segment a→b at height y: `[[x,y,z] × 4]` —
