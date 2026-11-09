@@ -21,3 +21,8 @@
 
 # Shell scripts must stay LF everywhere — CRLF breaks bash (deploy script)
 *.sh text eol=lf
+
+# The Ames data pack must survive checkout BYTE-identically — the T-171
+# gate re-runs tools/ames_distill.py and compares bytes against this file
+# (the distiller writes LF; autocrlf=true would otherwise check it out CRLF)
+data/ames/ames_core.json text eol=lf

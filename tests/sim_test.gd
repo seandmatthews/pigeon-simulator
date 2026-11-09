@@ -170,6 +170,7 @@ func _add_box(box_name: String, size: Vector3, pos: Vector3) -> StaticBody3D:
 
 
 func _run_scenarios() -> void:
+	await _scenario_ames_data_integrity() ## T-171 — FIRST: pure data over the committed Ames pack; touches no rig and no city.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -411,6 +412,188 @@ func _dbg(msg: String) -> void:
 ## Specific energy in metres: height plus speed squared over twice gravity.
 func _energy(y: float, speed: float) -> float:
 	return y + speed * speed / (2.0 * _player.gravity)
+
+
+## --- scenarios (T-171 Ames data pack) -------------------------------------
+
+
+## T-171: the committed Ames city database is load-bearing. Pure data —
+## through the real `AmesDataPack` loader (static class, NO autoload), with
+## the census counts and the sentinel transforms recomputed INDEPENDENTLY
+## here from the closed form and the survey docs' literal coordinates, never
+## through the distiller. Runs before the flight block because it touches no
+## pigeon, no city and no physics.
+func _scenario_ames_data_integrity() -> void:
+	const S := "ames_data_integrity"
+	var bad: PackedStringArray = PackedStringArray()
+	var pack: Dictionary = AmesDataPack.load_pack()
+	var meta: Dictionary = pack.get("meta", {})
+	if str(meta.get("pack", "")) != "ames_core" or int(meta.get("version", 0)) != 1:
+		bad.append("boot: pack=%s version=%s" % [meta.get("pack"), meta.get("version")])
+
+	# --- census counts (BUILD-CENSUS §1/§5/§6 + VENUES + LANDMARKS §5) ---
+	var counts: Dictionary = meta.get("counts", {})
+	if int(counts.get("buildings", 0)) != 3737:
+		bad.append("buildings=%s (census 3737)" % counts.get("buildings"))
+	var named_n := 0
+	var authored_n := 0
+	for b: Dictionary in AmesDataPack.buildings():
+		if b.get("name") != null:
+			named_n += 1
+		if str(b.get("class", "")) == "authored":
+			authored_n += 1
+	if named_n != 512:
+		bad.append("named_buildings=%d (census 512)" % named_n)
+	if authored_n != 512:
+		bad.append("authored=%d (census 512 authored-named)" % authored_n)
+	if AmesDataPack.trees().size() != 5637:
+		bad.append("trees=%d (census 5637)" % AmesDataPack.trees().size())
+	var t1 := AmesDataPack.pois_of(1).size()
+	var t2 := AmesDataPack.pois_of(2).size()
+	var t3 := AmesDataPack.pois_of(3).size()
+	if [t1, t2, t3] != [14, 17, 17]:
+		bad.append("venue_tiers=%d/%d/%d (VENUES 14/17/17)" % [t1, t2, t3])
+	if AmesDataPack.landmarks().size() != 15:
+		bad.append("landmarks=%d (LANDMARKS §5 top-15)" % AmesDataPack.landmarks().size())
+
+	# --- rail: the 9 at-grade vehicular crossings BY NAME (census §5/§7.11) ---
+	var at_grade: Array[String] = []
+	for c: Dictionary in AmesDataPack.rail().get("crossings", []):
+		if str(c.get("grade", "")) == "at_grade":
+			at_grade.append(str(c.get("road_name", "")))
+	var want: Array[String] = ["13th Street", "9th Street", "North Hazel Avenue",
+			"Brookridge Avenue", "", "Duff Avenue", "Grand Avenue",
+			"Kellogg Avenue", "Clark Avenue"]
+	var got_sorted: Array[String] = at_grade.duplicate()
+	got_sorted.sort()
+	var want_sorted: Array[String] = want.duplicate()
+	want_sorted.sort()
+	if got_sorted != want_sorted:
+		bad.append("at_grade_crossings=%s (census 9: %s)" % [at_grade, want])
+
+	# --- street centerline km, BOTH rules the ticket names ---
+	# (a) the graph rule streets[] pins: census §4 midpoint rule, named
+	#     drivable classes (91.93 — the street GRAPH the city code consumes).
+	var km: float = float(meta.get("street_km", {}).get("named_drivable_in_core", 0.0))
+	if km < 91.4 or km > 92.4:
+		bad.append("street_km=%.2f (census §4: 91.9 named of 92.1 drivable)" % km)
+	var km_recomputed := 0.0
+	for s: Dictionary in AmesDataPack.streets():
+		km_recomputed += float(s.get("km", 0.0))
+	if absf(km_recomputed - km) > 0.05:
+		bad.append("street_km_meta_vs_polylines=%.3f/%.3f" % [km, km_recomputed])
+	# (b) the survey statistic: SUMMARY §3's 99.6 km under the extra3.py §5
+	#     rule (named highway ways, NODES filtered to the core bbox, haversine
+	#     over consecutive survivors — folds cycleway/service/pedestrian in;
+	#     the pack carries the figure and its per-class table, and the rule
+	#     re-runs from committed data: python -I docs/references/ames-survey/
+	#     osm/scripts/extra3.py docs/references/ames-survey/osm/ames_merged.json
+	#     docs/references/ames-survey/osm/raw).
+	var km_survey: float = float(meta.get("street_km", {}).get(
+			"named_highway_in_core_extra3_km", 0.0))
+	if km_survey < 99.1 or km_survey > 100.1:
+		bad.append("street_km_extra3=%.2f (SUMMARY §3 / extra3 §5: 99.6)" % km_survey)
+
+	# --- sentinel transforms (independent closed-form expectations) ---
+	var m_lon: float = 111320.0 * cos(deg_to_rad(42.02))
+	var exp_campanile := Vector3((-93.64604 + 93.65015) * m_lon, 0.0,
+			-(42.02543 - 42.02278) * 111074.0)
+	var exp_mu := Vector3((-93.645762 + 93.65015) * m_lon, 0.0,
+			-(42.023667 - 42.02278) * 111074.0)
+	var cam := AmesDataPack.building_by_id("way/183041212")
+	var mu := AmesDataPack.building_by_id("way/183224150")
+	if cam.is_empty() or mu.is_empty():
+		bad.append("sentinel_buildings_missing")
+	else:
+		var cam_c := Vector3(float(cam["centroid"][0]), 0.0, float(cam["centroid"][1]))
+		var mu_c := Vector3(float(mu["centroid"][0]), 0.0, float(mu["centroid"][1]))
+		if cam_c.distance_to(exp_campanile) > 3.0:
+			bad.append("campanile=%s vs expected %s (±3 m)" % [cam_c, exp_campanile])
+		if mu_c.distance_to(exp_mu) > 3.0:
+			bad.append("mu=%s vs expected %s (±3 m)" % [mu_c, exp_mu])
+		# F-06: the MU (2229 Lincoln Way) sits NORTH of Lincoln Way — z ≤ −90 m.
+		if mu_c.z > -90.0:
+			bad.append("mu_not_north z=%.1f" % mu_c.z)
+		# the loader's transform reproduces the pack's STORED coordinates: the
+		# transform of each sentinel's own stored 6-decimal wgs84 lands on the
+		# stored centroid within 0.25 m (the storage roundings: lonlat 1e-6 deg
+		# ≈ 0.11 m, centroid 2 decimals)
+		var cam_w: Array = cam["wgs84"]
+		var mu_w: Array = mu["wgs84"]
+		var t_cam := AmesDataPack.wgs84_to_local(float(cam_w[0]), float(cam_w[1]))
+		var t_mu := AmesDataPack.wgs84_to_local(float(mu_w[0]), float(mu_w[1]))
+		if t_cam.distance_to(cam_c) > 0.25:
+			bad.append("transform_campanile=%s vs pack %s" % [t_cam, cam_c])
+		if t_mu.distance_to(mu_c) > 0.25:
+			bad.append("transform_mu=%s vs pack %s" % [t_mu, mu_c])
+
+	# --- Lincoln Way reads E–W at lat 42.0228 (verification §1) ---
+	var lw_entries := 0
+	var lw_max_abs_z := 0.0
+	var lw_dx := 0.0
+	var lw_dz := 0.0
+	var lw_z_sum := 0.0
+	var lw_pts := 0
+	for s: Dictionary in AmesDataPack.streets():
+		if str(s.get("name", "")) != "Lincoln Way":
+			continue
+		lw_entries += 1
+		var pts: Array = s.get("points", [])
+		for i: int in range(pts.size()):
+			var p: Array = pts[i]
+			var z: float = float(p[1])
+			lw_max_abs_z = maxf(lw_max_abs_z, absf(z))
+			lw_z_sum += z
+			lw_pts += 1
+			if i > 0:
+				var q: Array = pts[i - 1]
+				lw_dx += float(p[0]) - float(q[0])
+				lw_dz += float(p[1]) - float(q[1])
+	if lw_entries == 0 or lw_pts == 0:
+		bad.append("lincoln_way_missing")
+	else:
+		if lw_max_abs_z > 40.0:
+			bad.append("lincoln_way_off_lat max|z|=%.1f m" % lw_max_abs_z)
+		var bearing := absf(rad_to_deg(atan2(lw_dz, lw_dx)))
+		if bearing > 5.0 and bearing < 175.0:
+			bad.append("lincoln_way_not_EW bearing=%.2f deg" % bearing)
+		var mean_lat := AmesDataPack.local_to_wgs84(
+				Vector3(0.0, 0.0, lw_z_sum / float(lw_pts))).y
+		if absf(mean_lat - 42.0228) > 0.0002:
+			bad.append("lincoln_way_mean_lat=%.5f (want 42.0228 ±0.0002)" % mean_lat)
+
+	# --- orientation spot checks (F-06): Cy's Roost SOUTH of Lincoln Way ---
+	for p: Dictionary in AmesDataPack.pois():
+		if str(p.get("id", "")) == "cys_roost":
+			if float(p["position"][1]) < 0.0:
+				bad.append("cys_roost_not_south z=%s" % p["position"][1])
+
+	# --- typed accessors + the attribution constant ---
+	# nearest_street at the ORIGIN must land ON the Lincoln Way × Welch
+	# crossing (within 10 m) on a street of that crossing — the intersection's
+	# own slip lanes are OSM-named "Welch Road", so the family, not one name,
+	# is the pin.
+	var ns: Dictionary = AmesDataPack.nearest_street(Vector3.ZERO)
+	var ns_name := str(ns.get("name", ""))
+	if ns.is_empty() or float(ns.get("distance_m", 1e9)) > 10.0 \
+			or not (ns_name.begins_with("Welch") or ns_name == "Lincoln Way"):
+		bad.append("nearest_street_at_origin=%s" % ns)
+	var cam_poi: Dictionary = {}
+	for p: Dictionary in AmesDataPack.pois():
+		if str(p.get("id", "")) == "campanile":
+			cam_poi = p
+	if cam_poi.is_empty() or str(cam_poi.get("name", "")) != "Campanile" \
+			or int(cam_poi.get("tier", -1)) != 4:
+		bad.append("campanile_poi=%s" % cam_poi)
+	if AmesDataPack.facing_to_yaw(90.0) > -1.5707 or \
+			AmesDataPack.facing_to_yaw(90.0) < -1.5709:
+		bad.append("facing_to_yaw_east=%f" % AmesDataPack.facing_to_yaw(90.0))
+	if AmesDataPack.ATTRIBUTION != "Map data © OpenStreetMap contributors" \
+			or str(meta.get("attribution", "")) != AmesDataPack.ATTRIBUTION:
+		bad.append("attribution=%s/%s" % [AmesDataPack.ATTRIBUTION,
+				meta.get("attribution")])
+
+	_check(S, bad.is_empty(), "; ".join(bad))
 
 
 ## --- scenarios (T-001 flight model) --------------------------------------
