@@ -5,6 +5,10 @@ Verification gates: [`VERIFICATION.md`](../../VERIFICATION.md). Design rationale
 
 ## Current phase
 
+**M4 Ames campaign — drafted, not started** (branch `ames/campaign`): 40 ring
+tickets T-171..T-210 proposed from the master plan; implementation begins with
+T-171 when the owner steers. Historical phase below.
+
 **M3 waves 1–2 — owner-directed batches from the brainstorm**
 ([`../IDEAS.md`](../IDEAS.md)) — wave 1 (T-121..T-126) landed 2026-10-17/18;
 wave 2 (T-127..T-129) landed 2026-10-18/19; T-130 (bigger Fly button, real
@@ -333,3 +337,65 @@ T-001 (feel) and T-004 (world) are independent — run them in parallel. T-002 f
 T-001. T-003 unlocks the ground loop that T-005 needs. T-006 unlocks the target
 tickets T-007/T-008, which unlock T-009. T-010 ties the loop together. T-011, T-012
 and T-013 are polish that can land any time after their dependencies.
+
+## Ames campaign (ring tickets — drafted from the master plan)
+
+The city becomes real Ames, Iowa — owner mandate 2026-11-08, master plan at
+[`../AMES-MASTERPLAN.md`](../AMES-MASTERPLAN.md), research base at
+[`../references/ames-survey/INDEX.md`](../references/ames-survey/INDEX.md).
+Six rings, layer-by-layer; each ring ends in a cutover ticket that flips the
+default world and re-pins the suite. R6 options (day/night, traditions,
+ending relocation) are NOT ticketed — they start only on owner picks
+(master plan §9). Ring order is build order; IDs were minted by deterministic
+scan (T-170 was max; no workflows in flight).
+
+| ID | Ticket | Ring | Depends on | Status |
+| -- | ------ | ---- | ---------- | ------ |
+| T-171 | [Ames data pack](T-171-ames-data-pack.md) | R1 The Map | survey | proposed |
+| T-172 | [Chunk baker](T-172-ames-chunk-baker.md) | R1 The Map | T-171 | proposed |
+| T-173 | [World renderer](T-173-ames-world-renderer.md) | R1 The Map | T-172 | proposed |
+| T-174 | [Skeleton visuals](T-174-ames-skeleton-visuals.md) | R1 The Map | T-173 | proposed |
+| T-175 | [Landmark placeholders](T-175-ames-landmark-placeholders.md) | R1 The Map | T-173 | proposed |
+| T-176 | [Survival rebase](T-176-ames-survival-rebase.md) | R1 The Map | T-173, T-175 | proposed |
+| T-177 | [R1 cutover](T-177-ames-r1-cutover.md) | R1 The Map | T-174..T-176 | proposed |
+| T-178 | [Traffic graph](T-178-ames-traffic-graph.md) | R2 The Life | T-177 | proposed |
+| T-179 | [Traffic calm port](T-179-ames-traffic-calm-port.md) | R2 The Life | T-178 | proposed |
+| T-180 | [Intersections](T-180-ames-intersections.md) | R2 The Life | T-178, T-179 | proposed |
+| T-181 | [Pedestrian zones](T-181-ames-pedestrian-zones.md) | R2 The Life | T-177, T-180 | proposed |
+| T-182 | [Parking](T-182-ames-parking-lots.md) | R2 The Life | T-178 | proposed |
+| T-183 | [Economy scale](T-183-ames-economy-scale.md) | R2 The Life | T-176, T-181, T-182 | proposed |
+| T-184 | [R2 cutover](T-184-ames-r2-cutover.md) | R2 The Life | T-178..T-183 | proposed |
+| T-185 | [Lake LaVerne + the swans](T-185-laverne-swans.md) | R3 The Landmarks | T-177 | proposed |
+| T-186 | [The campanile](T-186-campanile-hero.md) | R3 The Landmarks | T-177 | proposed |
+| T-187 | [Central Campus](T-187-central-campus.md) | R3 The Landmarks | T-177 | proposed |
+| T-188 | [Campus row west](T-188-campus-row-west.md) | R3 The Landmarks | T-177 | proposed |
+| T-189 | [Memorial Union + Parks Library](T-189-mu-parks-heroes.md) | R3 The Landmarks | T-177 | proposed |
+| T-190 | [Marston Water Tower](T-190-marston-tower-hero.md) | R3 The Landmarks | T-177 | proposed |
+| T-191 | [Jack Trice Stadium complex](T-191-stadium-complex.md) | R3 The Landmarks | T-177 | proposed |
+| T-192 | [Downtown heroes](T-192-downtown-heroes.md) | R3 The Landmarks | T-177 | proposed |
+| T-193 | [Civic water towers](T-193-civic-water-towers.md) | R3 The Landmarks | T-177 | proposed |
+| T-194 | [Rail corridor dressing](T-194-rail-corridor-dressing.md) | R3 The Landmarks | T-177, T-180 | proposed |
+| T-195 | [Grain elevators](T-195-grain-elevators.md) | R3 The Landmarks | T-177 | proposed |
+| T-196 | [R3 cutover](T-196-ames-r3-cutover.md) | R3 The Landmarks | T-185..T-195 | proposed |
+| T-197 | [Text capability](T-197-ames-text-capability.md) | R4 The Names | T-196 | proposed |
+| T-198 | [Venue signs tier 1](T-198-venue-signs-tier1.md) | R4 The Names | T-197 | proposed |
+| T-199 | [Venue signs tiers 2–3 + ghost plaques](T-199-venue-signs-tier2-3.md) | R4 The Names | T-198 | proposed |
+| T-200 | [Street name blades](T-200-street-name-blades.md) | R4 The Names | T-197, T-180 | proposed |
+| T-201 | [Campus name plaques](T-201-campus-name-plaques.md) | R4 The Names | T-197 | proposed |
+| T-202 | [R4 cutover](T-202-ames-r4-cutover.md) | R4 The Names | T-198..T-201 | proposed |
+| T-203 | [Bbox east — Bandshell + S Duff](T-203-ames-bbox-east.md) | R5 The Town | T-202 | proposed |
+| T-204 | [South — Reiman Gardens](T-204-ames-extension-south.md) | R5 The Town | T-203 | proposed |
+| T-205 | [North — Ada Hayden + The Cafe](T-205-ames-extension-north.md) | R5 The Town | T-203 | proposed |
+| T-206 | [Filler dressing](T-206-ames-filler-dressing.md) | R5 The Town | T-177 | proposed |
+| T-207 | [Tree canopy](T-207-ames-tree-canopy.md) | R5 The Town | T-172 | proposed |
+| T-208 | [Tailgate dressing](T-208-ames-tailgate-dressing.md) | R5 The Town | T-191, T-182 | proposed |
+| T-209 | [Performance pass + web fork](T-209-ames-perf-pass.md) | R5 The Town | T-206..T-208 | proposed |
+| T-210 | [R5 cutover](T-210-ames-r5-cutover.md) | R5 The Town | T-203..T-209 | proposed |
+
+**Ames build order:** R1 serial (T-171→T-172→T-173→T-174/T-175 parallel→
+T-176→T-177); R2 mostly parallel after T-178; R3 heroes fully parallel after
+their T-177 dependency (recommend the survey's recognition order: stadium →
+LaVerne → campanile → campus → rail); R4 serial after T-197; R5 parallel
+after T-203. Within-ring parallelism rides the per-ticket worktree lanes;
+cross-ring is serial by design. Pipeline runs use `deploy:false` while the
+hosted box is dead.
