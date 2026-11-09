@@ -57,8 +57,18 @@
 		],
 		"creek_quads": [
 			0.275,
-			0.329,
-			0.247
+			0.4,
+			0.388
+		],
+		"ground_quads": [
+			0.38,
+			0.46,
+			0.3
+		],
+		"lane_quads": [
+			0.78,
+			0.7,
+			0.353
 		],
 		"lawn_tris": [
 			0.435,
@@ -70,6 +80,16 @@
 			0.29,
 			0.31
 		],
+		"shore_quads": [
+			0.435,
+			0.561,
+			0.31
+		],
+		"tie_quads": [
+			0.29,
+			0.267,
+			0.227
+		],
 		"water_tris": [
 			0.275,
 			0.329,
@@ -80,14 +100,20 @@
 		"ballast_quads": 2,
 		"creek_quads": 0,
 		"crossings": 0,
+		"ground_quads": 0,
+		"lane_quads": 0,
 		"lawn_tris": 0,
 		"massing": 9,
 		"occluders": 9,
 		"ribbons": 32,
+		"shore_quads": 0,
+		"tie_quads": 2,
 		"water_tris": 0
 	},
 	"creek_quads": [],
 	"crossings": [],
+	"ground_quads": [],
+	"lane_quads": [],
 	"lawn_tris": [],
 	"massing": [
 		{
@@ -868,7 +894,42 @@
 			]
 		}
 	],
-	"schema": "ames_chunks/v1",
+	"schema": "ames_chunks/v2",
+	"shore_quads": [],
+	"tie_quads": [
+		{
+			"q": [
+				524.502,
+				0.12,
+				-1023.466,
+				523.861,
+				0.12,
+				-1022.0,
+				516.564,
+				0.12,
+				-1025.193,
+				517.206,
+				0.12,
+				-1026.659
+			]
+		},
+		{
+			"q": [
+				517.206,
+				0.12,
+				-1026.659,
+				516.564,
+				0.12,
+				-1025.193,
+				509.267,
+				0.12,
+				-1028.386,
+				509.909,
+				0.12,
+				-1029.852
+			]
+		}
+	],
 	"tile": {
 		"max": [
 			768.0,

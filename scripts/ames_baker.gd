@@ -10,7 +10,8 @@ class_name AmesBaker
 ## on the same machine produce byte-identical files, proven per chunk by the
 ## SHA-256 determinism manifest (`ames_bake_determinism`, Gate 1b).
 ##
-## What each chunk carries (ames_chunks/v1):
+## What each chunk carries (ames_chunks/v2 — v1 plus the T-174 dressing
+## families; every family is optional at read time):
 ## - `massing`: ONE axis-aligned box per building footprint — position,
 ##   size, district and vertex color (city.gd's MultiMesh + vertex-color
 ##   house style, ported to data). Procedural filler gets the census §7.4
@@ -19,14 +20,27 @@ class_name AmesBaker
 ##   mount time (T-185+), so the massing doubles as the LOD0 fallback.
 ## - `ribbons`: street centerlines pre-extruded to asphalt quads at the
 ##   pack's per-class widths (primary 20 m four-lane … residential 11 m).
-##   Paint (lane marks) is T-174, not here.
+## - `lane_quads`: (T-174) center dashes on the four named arterials ONLY
+##   (Lincoln Way / Main Street / Duff / Grand — residential streets stay
+##   plain asphalt; crosswalk paint is T-180).
 ## - `water_tris` / `lawn_tris`: Lake LaVerne and the 31 park polygons,
 ##   ear-clip triangulated offline into world-space triangles.
+## - `shore_quads`: (T-174) the lake's mown-lawn shoreline band, extruded
+##   OUTWARD from every ring edge, baked BELOW the water top so it can
+##   never paint the lake — the shore reads as shore, not as a blue hole.
 ## - `creek_quads`: College/Ioway centerlines extruded to 6 m water ribbons.
 ## - `ballast_quads`: the rail centerline extruded to a 5 m ballast strip,
 ##   SEGMENTED wherever it would run over a crossing road's own asphalt —
 ##   the 9 at-grade crossings' road ribbons (BOTH carriageways of divided
 ##   roads) block the ballast geometrically, so the roads show through.
+## - `tie_quads`: (T-174) the dark tie/track stripe riding the ballast
+##   centerlines (the double main reads as track, not as a gray path),
+##   same crossing gaps as the ballast it rides.
+## - `ground_quads`: (T-174, dressing v0) the per-district GROUND — a 32 m
+##   cell grid over the whole pack range, tinted ONLY where the v0 district
+##   rule says a district other than the residential seed stands (the
+##   ground plate wears the residential color, so cells and plate never
+##   disagree). Per-cell district color from `DISTRICT_GROUND`.
 ## - `occluders`: one simplified building outline (the bbox rectangle) per
 ##   massing box — the feed for baked `ArrayOccluder3D`s (T-173).
 ## - `crossings`: the at-grade rail crossings inside the tile (world facts
@@ -41,17 +55,86 @@ class_name AmesBaker
 ## keys; files are written in sorted (cx, cz) order; colors are picked by a
 ## stable hash of the building id (no RNG anywhere).
 
-const SCHEMA := "ames_chunks/v1"
+const SCHEMA := "ames_chunks/v2"
 const CHUNK_SIZE := 256.0
 
-## Bake y conventions (m). Flats stack above 0 so a later ground plate
-## (T-174's ground palettes) can sit at y 0 without z-fighting: water below
-## creek below lawn below road below ballast.
+## Every per-chunk array family (the `_chunk_at` template, the finalize doc,
+## the per-chunk counts and the manifest totals — ONE list, kept in one
+## place; v1's eight plus the T-174 dressing families).
+const FAMILY_KEYS: Array[String] = [
+	"massing", "ribbons", "lane_quads", "water_tris", "shore_quads",
+	"creek_quads", "lawn_tris", "ballast_quads", "tie_quads",
+	"ground_quads", "occluders", "crossings",
+]
+
+## Bake y conventions (m). Flats stack above 0 so the ground plate (top at
+## y 0, T-173) never z-fights: water below creek below lawn below road below
+## ballast. CRITICAL for the T-174 dressing: the water/lawn flats render as
+## FLAT TRIANGLES at their baked y (no thickness), while every rectangle
+## family renders as a 0.02-thick box CENTERED on its baked y — so a box
+## family must keep its TOP (`y + 0.01`) strictly below any triangle it
+## surrounds, or the coplanar/top-heavy faces depth-fight the water away
+## (the first landing had cells topping at exactly the water's 0.02 and the
+## lake read as lawn). Stack, by rendered top: plate 0 < cells 0.014 <
+## shore 0.018 < water 0.02 < lawn 0.04 < creek-top 0.06 < ribbon-top 0.09
+## < ballast/marks-top 0.11 < tie-top 0.13.
 const WATER_Y := 0.02
 const CREEK_Y := 0.05
 const LAWN_Y := 0.04
 const RIBBON_Y := 0.08
 const BALLAST_Y := 0.1
+const GROUND_Y := 0.004 ## District ground cells (T-174): box tops at 0.014.
+const SHORE_Y := 0.008 ## Shore band (T-174): box tops at 0.018, under the water.
+const MARK_Y := 0.1 ## Lane dashes (T-174): box tops at 0.11, over the ribbon top 0.09.
+const TIE_Y := 0.12 ## Tie stripe (T-174): box tops at 0.13, over the ballast top 0.11.
+
+## --- T-174 skeleton-visuals constants --------------------------------------
+
+## District GROUND palettes (dressing v0 — MODELING-SPECS §3 hex estimates,
+## tuned by screenshot): the ground color under each district's streets.
+## The ground PLATE wears the residential seed (the map's default ground —
+## `ames_world.gd` reads this entry); the bake emits ground cells only where
+## the v0 rule says another district stands, so plate and cells never
+## disagree. Downtown brick-warm (§3.2 mid-brick family); campustown
+## scruffy gray (§3.3 cinderblock strip); campus lawn green (§3.7
+## campus-in-green — never bare-ground campus); Lincoln Way commercial
+## strip asphalt (§3.4, worn/approach aprons); residential seed = the
+## T-173 plate color, unchanged.
+const DISTRICT_GROUND: Dictionary = {
+	"campus": Color(0.4, 0.529, 0.298), ## #66874C campus lawn green.
+	"campustown": Color(0.518, 0.494, 0.447), ## #847E72 scruffy gray.
+	"downtown": Color(0.627, 0.439, 0.322), ## #A07052 brick-warm sidewalk.
+	"lincolnway": Color(0.333, 0.322, 0.298), ## #55524C strip asphalt.
+	"residential": Color(0.38, 0.46, 0.3), ## #61754D residential seed (= the plate).
+}
+
+## Flat family colors (T-174 additions). The lake keeps the §1.2 olive-brown
+## (#46543F, unchanged); the creeks become GREEN-BLUE ribbons (they must not
+## read as more lake); the shore is the §1.2 mown shore lawn; the lane dash
+## a weathered centerline yellow; the tie stripe a creosote brown-gray.
+const COLOR_CREEK := Color(0.275, 0.4, 0.388) ## #466663 green-blue (T-174).
+const COLOR_SHORE := Color(0.435, 0.561, 0.31) ## #6F8F4F mown shore lawn (§1.2).
+const COLOR_LANE_MARK := Color(0.78, 0.7, 0.353) ## #C7B35A centerline yellow.
+const COLOR_TIE := Color(0.29, 0.267, 0.227) ## #4A443A tie/track stripe.
+
+## Lane-dash geometry (m): a 3 m dash / 6 m gap urban centerline, 0.4 m wide
+## — real paint would be ~0.15 m, but a HINT must survive a 60 m cruise read.
+const MARK_DASH := 3.0
+const MARK_PERIOD := 9.0
+const MARK_WIDTH := 0.4
+## Street NAME fragments that make a street an arterial for the dash rule —
+## the ticket's four corridors by name, not class (Main's eastern OSM stretches
+## carry residential tags and still get their dash; South Duff/South Grand/
+## East Lincoln Way match their corridor). Everything else stays plain asphalt.
+const ARTERIAL_NAME_KEYS: Array[String] = ["Lincoln Way", "Main Street", "Duff", "Grand"]
+
+## Shore band width (m): the mown ring between lake water and district ground.
+const SHORE_WIDTH := 7.0
+## Tie stripe width (m): the double main's per-track dark line on the ballast.
+const TIE_WIDTH := 1.6
+## District ground cell edge (m): the dressing-v0 grid (256 divides evenly;
+## band edges stair-step at this size — a deliberate v0 coarseness).
+const GROUND_CELL := 32.0
 
 ## Massing height rule. MODELING-SPECS §3.10 heights cap: procedural towers
 ## are FORBIDDEN — the skyline belongs to Marston (51.2 m), the Campanile
@@ -216,24 +299,72 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 		])
 
 	# --- streets: centerlines extruded to asphalt ribbons -----------------
+	# Arterials (T-174) additionally carry the center-dash lane marks: per
+	# non-degenerate segment, dashes at fixed period from the segment start
+	# (pure arithmetic on the same polyline the ribbon used).
 	for s: Dictionary in AmesDataPack.streets():
 		var width := maxf(float(s.get("width_m", 11.0)), 4.0)
+		var arterial := _is_arterial(str(s.get("name", "")))
 		var pts: Array = s.get("points", [])
 		for i: int in range(pts.size() - 1):
 			var a: Array = pts[i]
 			var b2: Array = pts[i + 1]
-			var quad := _extrude_quad(Vector2(float(a[0]), float(a[1])),
-					Vector2(float(b2[0]), float(b2[1])), width, RIBBON_Y)
+			var a2 := Vector2(float(a[0]), float(a[1]))
+			var b3 := Vector2(float(b2[0]), float(b2[1]))
+			var quad := _extrude_quad(a2, b3, width, RIBBON_Y)
 			if quad.is_empty():
 				continue
-			var mid := (Vector2(float(a[0]), float(a[1])) + Vector2(float(b2[0]), float(b2[1]))) * 0.5
+			var mid := (a2 + b3) * 0.5
 			(_chunk_at(tiles, _chunk_of(mid.x, mid.y))["ribbons"] as Array).append({"q": quad})
+			if arterial:
+				var seg := b3 - a2
+				var dashes := int(floorf((seg.length() - MARK_DASH) / MARK_PERIOD)) + 1
+				var dirn := seg / seg.length()
+				for k: int in dashes:
+					var m0 := a2 + dirn * (float(k) * MARK_PERIOD)
+					var mark := _extrude_quad(m0, m0 + dirn * MARK_DASH, MARK_WIDTH, MARK_Y)
+					if mark.is_empty():
+						continue
+					var mmid := (m0 + m0 + dirn * MARK_DASH) * 0.5
+					(_chunk_at(tiles, _chunk_of(mmid.x, mmid.y))["lane_quads"] as Array).append({"q": mark})
 
 	# --- water: Lake LaVerne polygon (triangulated) + creek ribbons -------
+	# The lake's ring loops are collected first: College Creek FEEDS the
+	# lake, and its centerline runs through the pack's lake polygon — a
+	# creek segment whose midpoint lies inside the lake's ring union
+	# (even-odd over the split loops: the basin or the Swan Island lawn)
+	# paints NO ribbon, because the lake flat is that ground's surface
+	# (T-174: the oval must read as one lake, not as a canal crossing it).
+	var lake_rings: Array[PackedVector2Array] = []
+	for lake: Dictionary in AmesDataPack.water():
+		if str(lake.get("kind", "")) == "lake" and lake.has("polygon"):
+			lake_rings.append_array(_split_rings(_pack_points(lake.get("polygon", []))))
 	for wtr: Dictionary in AmesDataPack.water():
 		if str(wtr.get("kind", "")) == "lake" and wtr.has("polygon"):
 			var poly := _pack_points(wtr.get("polygon", []))
 			for ring: PackedVector2Array in _split_rings(poly):
+				# Shore band (T-174): mown-lawn ring extruded OUTWARD from
+				# every ring edge. Baked BELOW the water top so an overlap
+				# can never paint the lake — the water flat renders above.
+				var ccw := _signed_area(ring) >= 0.0
+				for e: int in ring.size():
+					var sa := ring[e]
+					var sb := ring[(e + 1) % ring.size()]
+					var ed := sb - sa
+					if ed.length_squared() < 1e-10:
+						continue
+					var nrm := (Vector2(ed.y, -ed.x) if ccw else Vector2(-ed.y, ed.x)) \
+							/ ed.length()
+					var q0 := sa + nrm * SHORE_WIDTH
+					var q1 := sb + nrm * SHORE_WIDTH
+					var shore: Array = [
+						_r(q0.x), _r(SHORE_Y), _r(q0.y),
+						_r(q1.x), _r(SHORE_Y), _r(q1.y),
+						_r(sb.x), _r(SHORE_Y), _r(sb.y),
+						_r(sa.x), _r(SHORE_Y), _r(sa.y),
+					]
+					var smid := (sa + sb) * 0.5
+					(_chunk_at(tiles, _chunk_of(smid.x, smid.y))["shore_quads"] as Array).append({"q": shore})
 				for tri: Vector3i in _triangulate(ring):
 					var v: Array = [
 						_r(ring[tri.x].x), _r(WATER_Y), _r(ring[tri.x].y),
@@ -253,6 +384,8 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 					if quad.is_empty():
 						continue
 					var mid := (Vector2(float(a[0]), float(a[1])) + Vector2(float(b3[0]), float(b3[1]))) * 0.5
+					if _mid_in_lake(mid, lake_rings):
+						continue
 					(_chunk_at(tiles, _chunk_of(mid.x, mid.y))["creek_quads"] as Array).append({"q": quad})
 
 	# --- parks: lawn polygon flats ----------------------------------------
@@ -319,6 +452,12 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 				if blocked:
 					continue
 				(_chunk_at(tiles, _chunk_of(mid.x, mid.y))["ballast_quads"] as Array).append({"q": quad})
+				# The tie hint (T-174) rides the same unblocked stretch — the
+				# double main reads as two dark track lines on the ballast,
+				# and the crossing gaps stay honest for the stripe too.
+				var tie := _extrude_quad(sa, sb, TIE_WIDTH, TIE_Y)
+				if not tie.is_empty():
+					(_chunk_at(tiles, _chunk_of(mid.x, mid.y))["tie_quads"] as Array).append({"q": tie})
 
 	# --- at-grade crossings are world facts per chunk ---------------------
 	for c: Dictionary in crossings:
@@ -329,13 +468,61 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 			"class": c["cls"],
 		})
 
+	# --- district ground cells (T-174 dressing v0) -------------------------
+	# A 32 m grid over the WHOLE pack tile range, tinted only where the v0
+	# district rule says a district OTHER than the residential seed stands —
+	# the ground plate wears the residential color, so the uncovered cells
+	# ARE the plate and the map never shows a hole. Runs last so the tile
+	# range covers every content tile (crossings included). A tile with no
+	# tinted cells gains no chunk file at all.
+	var lo_t := Vector2i(2147483647, 2147483647)
+	var hi_t := Vector2i(-2147483647, -2147483647)
+	for tile: Vector2i in tiles:
+		lo_t = Vector2i(mini(lo_t.x, tile.x), mini(lo_t.y, tile.y))
+		hi_t = Vector2i(maxi(hi_t.x, tile.x), maxi(hi_t.y, tile.y))
+	var cells_per_side := int(CHUNK_SIZE / GROUND_CELL)
+	var ground_ctx: Dictionary = ctx
+	for tx: int in range(lo_t.x, hi_t.x + 1):
+		for tz: int in range(lo_t.y, hi_t.y + 1):
+			var cells: Array = []
+			for iz: int in cells_per_side:
+				for ix: int in cells_per_side:
+					var ccx := (float(tx) * CHUNK_SIZE) + (float(ix) + 0.5) * GROUND_CELL
+					var ccz := (float(tz) * CHUNK_SIZE) + (float(iz) + 0.5) * GROUND_CELL
+					var district := _district_of(ccx, ccz, ground_ctx)
+					if district == "residential":
+						continue
+					var col: Color = DISTRICT_GROUND.get(district,
+							DISTRICT_GROUND["residential"])
+					cells.append({
+						"q": [
+							_r(ccx - GROUND_CELL * 0.5), _r(GROUND_Y), _r(ccz - GROUND_CELL * 0.5),
+							_r(ccx + GROUND_CELL * 0.5), _r(GROUND_Y), _r(ccz - GROUND_CELL * 0.5),
+							_r(ccx + GROUND_CELL * 0.5), _r(GROUND_Y), _r(ccz + GROUND_CELL * 0.5),
+							_r(ccx - GROUND_CELL * 0.5), _r(GROUND_Y), _r(ccz + GROUND_CELL * 0.5),
+						],
+						"c": [_rc(col.r), _rc(col.g), _rc(col.b)],
+					})
+			if cells.is_empty():
+				continue
+			var tile2 := Vector2i(tx, tz)
+			var chunk: Dictionary = _chunk_at(tiles, tile2)
+			(chunk["ground_quads"] as Array).append_array(cells)
+
 	# --- finalize chunks: aabb, counts, colors, serialize, hash, write ----
 	var array_colors := {
 		"ribbons": [_rc(COLOR_ASPHALT.r), _rc(COLOR_ASPHALT.g), _rc(COLOR_ASPHALT.b)],
+		"lane_quads": [_rc(COLOR_LANE_MARK.r), _rc(COLOR_LANE_MARK.g), _rc(COLOR_LANE_MARK.b)],
 		"water_tris": [_rc(COLOR_WATER.r), _rc(COLOR_WATER.g), _rc(COLOR_WATER.b)],
-		"creek_quads": [_rc(COLOR_WATER.r), _rc(COLOR_WATER.g), _rc(COLOR_WATER.b)],
+		"shore_quads": [_rc(COLOR_SHORE.r), _rc(COLOR_SHORE.g), _rc(COLOR_SHORE.b)],
+		"creek_quads": [_rc(COLOR_CREEK.r), _rc(COLOR_CREEK.g), _rc(COLOR_CREEK.b)],
 		"lawn_tris": [_rc(COLOR_LAWN.r), _rc(COLOR_LAWN.g), _rc(COLOR_LAWN.b)],
 		"ballast_quads": [_rc(COLOR_BALLAST.r), _rc(COLOR_BALLAST.g), _rc(COLOR_BALLAST.b)],
+		"tie_quads": [_rc(COLOR_TIE.r), _rc(COLOR_TIE.g), _rc(COLOR_TIE.b)],
+		## ground_quads entries carry per-cell colors (`c`) — the family entry
+		## is only the renderer's never-fired fallback (residential seed).
+		"ground_quads": [_rc(DISTRICT_GROUND["residential"].r),
+				_rc(DISTRICT_GROUND["residential"].g), _rc(DISTRICT_GROUND["residential"].b)],
 	}
 	var manifest: Dictionary = {
 		"schema": SCHEMA,
@@ -352,11 +539,9 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 	var tiles_sorted: Array = tiles.keys()
 	tiles_sorted.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		return a.x < b.x or (a.x == b.x and a.y < b.y))
-	var totals: Dictionary = {
-		"massing": 0, "ribbons": 0, "water_tris": 0, "creek_quads": 0,
-		"lawn_tris": 0, "ballast_quads": 0, "occluders": 0, "crossings": 0,
-		"chunks": tiles_sorted.size(), "bytes": 0,
-	}
+	var totals: Dictionary = {"chunks": tiles_sorted.size(), "bytes": 0}
+	for key: String in FAMILY_KEYS:
+		totals[key] = 0
 	var district_totals: Dictionary = {}
 	for tile: Vector2i in tiles_sorted:
 		var chunk: Dictionary = tiles[tile]
@@ -371,15 +556,9 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 			"aabb": aabb,
 			"counts": counts,
 			"colors": array_colors,
-			"massing": chunk["massing"],
-			"ribbons": chunk["ribbons"],
-			"water_tris": chunk["water_tris"],
-			"creek_quads": chunk["creek_quads"],
-			"lawn_tris": chunk["lawn_tris"],
-			"ballast_quads": chunk["ballast_quads"],
-			"occluders": chunk["occluders"],
-			"crossings": chunk["crossings"],
 		}
+		for key: String in FAMILY_KEYS:
+			doc[key] = chunk[key]
 		var text := JSON.stringify(doc, "\t")
 		var bytes := text.to_utf8_buffer()
 		var sha := _sha256(bytes)
@@ -389,8 +568,7 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 			return {}
 		fa.store_string(text)
 		fa.close()
-		for key: String in ["massing", "ribbons", "water_tris", "creek_quads",
-				"lawn_tris", "ballast_quads", "occluders", "crossings"]:
+		for key: String in FAMILY_KEYS:
 			totals[key] += counts[key]
 		totals["bytes"] += bytes.size()
 		for m: Dictionary in chunk["massing"]:
@@ -446,10 +624,10 @@ static func _chunk_of(x: float, z: float) -> Vector2i:
 
 static func _chunk_at(tiles: Dictionary, tile: Vector2i) -> Dictionary:
 	if not tiles.has(tile):
-		tiles[tile] = {
-			"massing": [], "ribbons": [], "water_tris": [], "creek_quads": [],
-			"lawn_tris": [], "ballast_quads": [], "occluders": [], "crossings": [],
-		}
+		var fresh := {}
+		for key: String in FAMILY_KEYS:
+			fresh[key] = []
+		tiles[tile] = fresh
 	return tiles[tile]
 
 
@@ -501,6 +679,17 @@ static func _district_of(x: float, z: float, ctx: Dictionary) -> String:
 static func _massing_color(district: String, id: String) -> Color:
 	var palette: Array = DISTRICT_PALETTES.get(district, DISTRICT_PALETTES["residential"])
 	return palette[id.hash() % palette.size()]
+
+
+## The T-174 lane-dash rule: a street is an arterial when its NAME carries
+## one of the ticket's four corridor fragments (`ARTERIAL_NAME_KEYS`) —
+## name-based, not class-based, so Main's residential-tagged eastern
+## stretches stay Main and keep their dash.
+static func _is_arterial(name: String) -> bool:
+	for key: String in ARTERIAL_NAME_KEYS:
+		if name.contains(key):
+			return true
+	return false
 
 
 ## Separating-axis test on two convex quads (flat `[[x, y, z] × 4]` corner
@@ -643,6 +832,27 @@ static func _dedup_consecutive(pts: PackedVector2Array) -> PackedVector2Array:
 	return out
 
 
+## Even-odd point-in-ring (ray cast) — the creek-over-lake skip rule's probe:
+## TRUE when `p` sits inside ANY one ring's boundary, so a lake basin OR the
+## island loop both count (the whole basin paints no creek ribbon).
+static func _mid_in_lake(p: Vector2, rings: Array[PackedVector2Array]) -> bool:
+	for ring: PackedVector2Array in rings:
+		var n := ring.size()
+		if n < 3:
+			continue
+		var inside := false
+		for i: int in n:
+			var a := ring[i]
+			var b := ring[(i + 1) % n]
+			if (a.y > p.y) != (b.y > p.y):
+				var x_at := a.x + (p.y - a.y) / (b.y - a.y) * (b.x - a.x)
+				if p.x < x_at:
+					inside = not inside
+		if inside:
+			return true
+	return false
+
+
 static func _signed_area(pts: PackedVector2Array) -> float:
 	var a := 0.0
 	for i: int in pts.size():
@@ -715,7 +925,8 @@ static func _chunk_aabb(chunk: Dictionary) -> Dictionary:
 		_aabb_grow(acc, Vector3(float(p[0]) + float(s[0]) * 0.5,
 				float(p[1]) + float(s[1]) * 0.5,
 				float(p[2]) + float(s[2]) * 0.5))
-	for quad_key: String in ["ribbons", "creek_quads", "ballast_quads"]:
+	for quad_key: String in ["ribbons", "lane_quads", "shore_quads",
+			"creek_quads", "ballast_quads", "tie_quads", "ground_quads"]:
 		for q: Dictionary in chunk[quad_key]:
 			_aabb_flat(acc, q["q"])
 	for tri_key: String in ["water_tris", "lawn_tris"]:
@@ -738,8 +949,7 @@ static func _aabb_flat(acc: Array, flat: Array) -> void:
 
 static func _chunk_counts(chunk: Dictionary) -> Dictionary:
 	var counts: Dictionary = {}
-	for key: String in ["massing", "ribbons", "water_tris", "creek_quads",
-			"lawn_tris", "ballast_quads", "occluders", "crossings"]:
+	for key: String in FAMILY_KEYS:
 		counts[key] = (chunk[key] as Array).size()
 	return counts
 

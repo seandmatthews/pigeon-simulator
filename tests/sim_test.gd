@@ -176,6 +176,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_bake_determinism() ## T-172 — re-bake in-scenario must reproduce the committed manifest hash.
 	await _scenario_ames_world_render_budget() ## T-173 — the resident bake inside the draw/memory budget.
 	await _scenario_ames_world_api_seam() ## T-173 — the city API over chunk data; the corridor is flyable.
+	await _scenario_ames_skeleton_palette() ## T-174 — the baked dressing: pinned per-district ground colors, lane dashes, shore band, tie stripe.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -632,8 +633,7 @@ func _scenario_ames_bake_census() -> void:
 			continue
 		chunks[tile] = chunk
 		var counts: Dictionary = chunk.get("counts", {})
-		for key: String in ["massing", "ribbons", "water_tris", "creek_quads",
-				"lawn_tris", "ballast_quads", "occluders", "crossings"]:
+		for key: String in AmesBaker.FAMILY_KEYS:
 			var arr: Array = chunk.get(key, [])
 			## The chunk's own counts field must equal its actual arrays.
 			if int(counts.get(key, -1)) != arr.size():
@@ -651,8 +651,7 @@ func _scenario_ames_bake_census() -> void:
 		bad.append("massing_total=%d (pack buildings %d)" % [counts_sum.get("massing", 0), buildings.size()])
 	# self-consistency: manifest counts == parsed chunk arrays, occluders 1:1
 	var manifest_totals: Dictionary = manifest.get("totals", {})
-	for key: String in ["massing", "ribbons", "water_tris", "creek_quads",
-			"lawn_tris", "ballast_quads", "occluders", "crossings"]:
+	for key: String in AmesBaker.FAMILY_KEYS:
 		if int(manifest_totals.get(key, -1)) != int(counts_sum.get(key, -2)):
 			bad.append("totals_%s manifest=%s parsed=%s" % [key, manifest_totals.get(key), counts_sum.get(key)])
 	if int(counts_sum.get("occluders", 0)) != int(counts_sum.get("massing", 0)):
@@ -674,6 +673,12 @@ func _scenario_ames_bake_census() -> void:
 		bad.append("ribbons=%d (pack non-degenerate street segments %d)" % [
 				counts_sum.get("ribbons", 0), street_segs])
 	var creek_segs := 0
+	# (T-174) College Creek FEEDS the lake: centerline segments whose
+	# midpoint lies inside the lake's ring union paint no ribbon — the lake
+	# flat is that ground's surface. The recount here mirrors the rule with
+	# the scenario's OWN ring walk + ray cast.
+	var lake_rings: Array[PackedVector2Array] = _pack_split_rings(
+			AmesDataPack.water()[0].get("polygon", []))
 	for wtr: Dictionary in AmesDataPack.water():
 		if str(wtr.get("kind", "")) != "creek":
 			continue
@@ -682,9 +687,18 @@ func _scenario_ames_bake_census() -> void:
 				var cdx := float(line[i + 1][0]) - float(line[i][0])
 				var cdz := float(line[i + 1][1]) - float(line[i][1])
 				if cdx * cdx + cdz * cdz > 1e-10:
-					creek_segs += 1
+					var cmid := Vector2(
+							(float(line[i][0]) + float(line[i + 1][0])) * 0.5,
+							(float(line[i][1]) + float(line[i + 1][1])) * 0.5)
+					var in_lake := false
+					for ring: PackedVector2Array in lake_rings:
+						if _point_in_ring(cmid, ring):
+							in_lake = true
+							break
+					if not in_lake:
+						creek_segs += 1
 	if int(counts_sum.get("creek_quads", 0)) != creek_segs:
-		bad.append("creek_quads=%d (pack non-degenerate creek segments %d)" % [
+		bad.append("creek_quads=%d (pack non-degenerate creek segments %d, lake-interior skipped)" % [
 				counts_sum.get("creek_quads", 0), creek_segs])
 	var park_area := 0.0
 	for park: Dictionary in AmesDataPack.parks():
@@ -870,6 +884,19 @@ func _flat_quads_overlap(a: Array, b: Array) -> bool:
 ## closes a loop at each repeated vertex and sums |signed area| over the
 ## simple loops. Coded here separately from the baker's splitter on purpose.
 func _pack_split_area(list: Array) -> float:
+	var total := 0.0
+	for loop: PackedVector2Array in _pack_split_rings(list):
+		var a2 := 0.0
+		for i: int in loop.size():
+			a2 += loop[i].cross(loop[(i + 1) % loop.size()])
+		total += absf(a2 * 0.5)
+	return total
+
+
+## The ring walk of `_pack_split_area`, shared with the T-174 shore recount
+## (the shore band is one quad per non-degenerate split-ring edge). Still the
+## scenario's OWN walk — never the baker's `_split_rings`.
+func _pack_split_rings(list: Array) -> Array[PackedVector2Array]:
 	var pts := PackedVector2Array()
 	for p: Array in list:
 		pts.append(Vector2(float(p[0]), float(p[1])))
@@ -902,13 +929,7 @@ func _pack_split_area(list: Array) -> float:
 			cur.append(v)
 	if cur.size() >= 3:
 		loops.append(cur)
-	var total := 0.0
-	for loop: PackedVector2Array in loops:
-		var a2 := 0.0
-		for i: int in loop.size():
-			a2 += loop[i].cross(loop[(i + 1) % loop.size()])
-		total += absf(a2 * 0.5)
-	return total
+	return loops
 
 
 ## T-172: the bake is a pure function of the pack — re-bake IN-SCENARIO into
@@ -961,9 +982,13 @@ func _scenario_ames_bake_determinism() -> void:
 const AMES_WORLD_OFFSET := Vector3(0.0, 0.0, 8000.0)
 
 
-## (T-173) The resident baked world renders the WHOLE committed bake inside
+## (T-173; instances extended by T-174's dressing families) The resident
+## baked world renders the WHOLE committed bake inside
 ## the perf budget, chunk-partitioned: every chunk is one small node family
-## (massing boxes / ground rectangles / lake-park triangles — each ONE
+## (massing boxes / ground rectangles — now including the T-174 dressing
+## flats: district ground cells, arterial lane dashes, the LaVerne shore
+## band, the rail tie stripe, all folded into the same per-chunk box
+## MultiMesh — and lake-park triangles, each ONE
 ## frustum-cullable MultiMesh via its manifest AABB, plus one baked
 ## ArrayOccluder3D), so the draw story is per-chunk culling, not
 ## per-building. Measured, not assumed: the whole-world draw ceiling (every
@@ -993,7 +1018,9 @@ func _scenario_ames_world_render_budget() -> void:
 	var totals: Dictionary = manifest.get("totals", {})
 	var chunk_count := (manifest.get("chunks", []) as Array).size()
 	var expected_instances := int(totals.get("massing", 0)) + int(totals.get("ribbons", 0)) \
+			+ int(totals.get("lane_quads", 0)) + int(totals.get("shore_quads", 0)) \
 			+ int(totals.get("creek_quads", 0)) + int(totals.get("ballast_quads", 0)) \
+			+ int(totals.get("tie_quads", 0)) + int(totals.get("ground_quads", 0)) \
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0))
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
@@ -1017,7 +1044,7 @@ func _scenario_ames_world_render_budget() -> void:
 			mm_per_chunk = maxi(mm_per_chunk,
 					c.find_children("*", "MultiMeshInstance3D", true, false).size())
 	## Baked occlusion rode along: exactly one occluder per MASSING-bearing
-	## chunk (25 of the 172 tiles are flats-only — streets/water with no
+	## chunk (26 of the 173 tiles are flats-only — streets/water/dressing with no
 	## buildings — recomputed from the manifest, not trusted from the build).
 	var massing_chunks := 0
 	for entry: Dictionary in manifest.get("chunks", []):
@@ -1269,6 +1296,321 @@ func _scenario_ames_world_api_seam() -> void:
 			"%s; grounded=%s at y=%.2f, takeoff peak %.2f" % ["; ".join(bad),
 					_player.is_grounded, _player.position.y, peak_y])
 	world.queue_free()
+
+
+## (T-174) The baked skeleton's DRESSING, machine-checked over the committed
+## chunks: the per-district GROUND palette is pinned (the pin is the
+## deliberately duplicated const — a retune must re-pin here) and bound
+## cell-exact to the v0 district rule over EVERY baked ground cell, the flat
+## families carry their pinned colors in every chunk (the vertex-color
+## discipline — dressing rides baked per-instance data, never materials),
+## the arterial lane dashes recount EXACTLY from the pack's polylines on the
+## four named corridors and nowhere else, the LaVerne shore band hugs the
+## lake while staying UNDER the water top (an overlap can never paint the
+## lake), the tie stripe rides the ballast 1:1 through the same honest
+## crossing gaps, and the creek green stays distinct from the lake olive.
+## Windrow is untouched — every read here is over `data/ames/`.
+func _scenario_ames_skeleton_palette() -> void:
+	const S := "ames_skeleton_palette"
+	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	if manifest.is_empty():
+		_check(S, false, "no committed bake at %s" % AMES_CHUNKS_DIR)
+		return
+	var bad: PackedStringArray = PackedStringArray()
+
+	# --- 1. the pinned district ground palette -----------------------------
+	var want_ground := {
+		"campus": Color(0.4, 0.529, 0.298), ## #66874C campus lawn green.
+		"campustown": Color(0.518, 0.494, 0.447), ## #847E72 scruffy gray.
+		"downtown": Color(0.627, 0.439, 0.322), ## #A07052 brick-warm sidewalk.
+		"lincolnway": Color(0.333, 0.322, 0.298), ## #55524C strip asphalt.
+		"residential": Color(0.38, 0.46, 0.3), ## #61754D the plate seed.
+	}
+	if (AmesBaker.DISTRICT_GROUND.keys() as Array).size() != want_ground.size():
+		bad.append("DISTRICT_GROUND keys %s != the pinned five" % str(AmesBaker.DISTRICT_GROUND.keys()))
+	for d: String in want_ground:
+		var got: Color = AmesBaker.DISTRICT_GROUND.get(d, Color(-1.0, -1.0, -1.0))
+		if got != want_ground[d]:
+			bad.append("ground palette %s = %s (pinned %s)" % [d, got, want_ground[d]])
+
+	# --- 2. pinned family colors, present in EVERY chunk -------------------
+	# (Every chunk shares the bake's one colors dict; checking all of them
+	# makes a half-written bake fail the same night.)
+	var want_colors := {
+		"ribbons": Color(0.29, 0.29, 0.31), ## asphalt.
+		"lane_quads": Color(0.78, 0.7, 0.353), ## #C7B35A centerline yellow.
+		"water_tris": Color(0.275, 0.329, 0.247), ## #46543F lake olive-brown.
+		"shore_quads": Color(0.435, 0.561, 0.31), ## #6F8F4F mown shore lawn.
+		"creek_quads": Color(0.275, 0.4, 0.388), ## #466663 green-blue ribbons.
+		"lawn_tris": Color(0.435, 0.561, 0.31), ## #6F8F4F mown lawn.
+		"ballast_quads": Color(0.545, 0.522, 0.471), ## #8B8578 gravel.
+		"tie_quads": Color(0.29, 0.267, 0.227), ## #4A443A tie stripe.
+		"ground_quads": Color(0.38, 0.46, 0.3), ## never-fired fallback (cells carry per-cell colors).
+	}
+	var chunks := 0
+	var lane_count := 0
+	var shore_count := 0
+	var tie_count := 0
+	var ballast_count := 0
+	var ground_count := 0
+	var shore_quads: Array = []
+	var tie_quads: Array = []
+	var ballast_quads: Array = []
+	var ribbon_quads: Array = []
+	var water_ys := {} ## baked water-tri y values (the cannot-paint arm).
+	var ground_cells := {} ## cell center "x,z" -> color triple (the pin leg).
+	var ctx: Dictionary = AmesBaker._build_context()
+	for entry: Dictionary in manifest.get("chunks", []):
+		var chunk: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		if chunk.is_empty():
+			bad.append("chunk_file_missing:%s" % entry["file"])
+			continue
+		chunks += 1
+		var colors: Dictionary = chunk.get("colors", {})
+		for family: String in want_colors:
+			var c: Array = colors.get(family, [])
+			if c.size() != 3 \
+					or absf(float(c[0]) - want_colors[family].r) > 1e-6 \
+					or absf(float(c[1]) - want_colors[family].g) > 1e-6 \
+					or absf(float(c[2]) - want_colors[family].b) > 1e-6:
+				bad.append("colors_%s=%s in %s (pinned %s)" % [
+						family, c, entry["file"], want_colors[family]])
+				break
+		lane_count += (chunk.get("lane_quads", []) as Array).size()
+		ballast_count += (chunk.get("ballast_quads", []) as Array).size()
+		for q: Dictionary in chunk.get("shore_quads", []):
+			shore_quads.append(q["q"])
+			shore_count += 1
+		for q: Dictionary in chunk.get("tie_quads", []):
+			tie_quads.append(q["q"])
+			tie_count += 1
+		for q: Dictionary in chunk.get("ballast_quads", []):
+			ballast_quads.append(q["q"])
+		for q2: Dictionary in chunk.get("ribbons", []):
+			ribbon_quads.append(q2["q"])
+		for t: Dictionary in chunk.get("water_tris", []):
+			water_ys[float(t["v"][1])] = true
+		for q: Dictionary in chunk.get("ground_quads", []):
+			ground_count += 1
+			var gq: Array = q["q"]
+			if absf(float(gq[1]) - 0.004) > 1e-6:
+				bad.append("ground cell y %s != 0.004 (must clear the water flat at 0.02)" % gq[1])
+				break
+			var cx := (float(gq[0]) + float(gq[3])) * 0.5
+			var cz := (float(gq[2]) + float(gq[8])) * 0.5
+			ground_cells["%s,%s" % [cx, cz]] = q.get("c", [])
+	if water_ys.keys() != [0.02]:
+		bad.append("water tri y values %s != the pinned 0.02" % str(water_ys.keys()))
+	# district ground binding over every baked cell: the cell's color must
+	# equal the pinned palette entry of the v0 rule's district at the cell's
+	# own center, and no cell may claim the residential seed (the plate owns
+	# that ground — cells exist only where another district stands).
+	for center: String in ground_cells:
+		var parts := center.split(",")
+		var district := AmesBaker._district_of(float(parts[0]), float(parts[1]), ctx)
+		if district == "residential":
+			bad.append("ground cell at (%s) baked for the residential seed — the plate owns it" % center)
+			continue
+		var want: Color = want_ground.get(district, Color(-1.0, -1.0, -1.0))
+		var got_c: Array = ground_cells[center]
+		if got_c.size() != 3 \
+				or absf(float(got_c[0]) - want.r) > 1e-6 \
+				or absf(float(got_c[1]) - want.g) > 1e-6 \
+				or absf(float(got_c[2]) - want.b) > 1e-6:
+			bad.append("ground cell %s colored %s but rule says %s (%s)" % [
+					center, got_c, district, want])
+	if ground_count != ground_cells.size():
+		bad.append("ground cells %d != unique centers %d (duplicate cell)" % [ground_count, ground_cells.size()])
+	# known-band pins (the api_seam district families + the LW strip east of
+	# the Campustown band, west of the campus reach): the cell UNDER each pin
+	# point exists with its district's pinned color.
+	var cell_pins := {
+		"campustown": Vector2(-300.0, 60.0),
+		"downtown": Vector2(2700.0, -256.0),
+		"campus": Vector2(340.0, -294.0),
+		"lincolnway": Vector2(1000.0, 4.0),
+	}
+	for district: String in cell_pins:
+		var p: Vector2 = cell_pins[district]
+		var tile := Vector2i(floori(p.x / AmesBaker.CHUNK_SIZE), floori(p.y / AmesBaker.CHUNK_SIZE))
+		var local := p - Vector2(tile.x, tile.y) * AmesBaker.CHUNK_SIZE
+		var center: Vector2 = Vector2(tile.x, tile.y) * AmesBaker.CHUNK_SIZE \
+				+ (local / AmesBaker.GROUND_CELL).floor() * AmesBaker.GROUND_CELL \
+				+ Vector2.ONE * (AmesBaker.GROUND_CELL * 0.5)
+		var got_c2: Array = ground_cells.get("%s,%s" % [center.x, center.y], [])
+		var want2: Color = want_ground[district]
+		if got_c2.size() != 3 \
+				or absf(float(got_c2[0]) - want2.r) > 1e-6 \
+				or absf(float(got_c2[1]) - want2.g) > 1e-6 \
+				or absf(float(got_c2[2]) - want2.b) > 1e-6:
+			bad.append("no %s ground cell under %s (cell %s: %s)" % [
+					district, p, center, got_c2])
+
+	# --- 3. arterial lane dashes recount exactly from the pack -------------
+	var corridor_keys: Array[String] = ["Lincoln Way", "Main Street", "Duff", "Grand"]
+	var dashes_per_corridor := {}
+	for key: String in corridor_keys:
+		dashes_per_corridor[key] = 0
+	var want_lanes := 0
+	for s: Dictionary in AmesDataPack.streets():
+		var sname := str(s.get("name", ""))
+		var hit := ""
+		for key: String in corridor_keys:
+			if sname.contains(key):
+				hit = key
+				break
+		if hit.is_empty():
+			continue
+		var pts: Array = s.get("points", [])
+		for i: int in range(pts.size() - 1):
+			var a := Vector2(float(pts[i][0]), float(pts[i][1]))
+			var b := Vector2(float(pts[i + 1][0]), float(pts[i + 1][1]))
+			var seg_len := a.distance_to(b)
+			if seg_len < 3.0: ## MARK_DASH: a shorter segment paints no dash.
+				continue
+			var dashes := int(floorf((seg_len - 3.0) / 9.0)) + 1 ## MARK_DASH / MARK_PERIOD.
+			want_lanes += dashes
+			dashes_per_corridor[hit] = int(dashes_per_corridor[hit]) + dashes
+	if lane_count != want_lanes:
+		bad.append("lane dashes %d != recount %d from the pack's four corridors" % [lane_count, want_lanes])
+	for key: String in corridor_keys:
+		if int(dashes_per_corridor[key]) == 0:
+			bad.append("corridor %s painted no dashes" % key)
+
+	# --- 4. the shore band: hugs the lake, under the water top -------------
+	if shore_count < 50:
+		bad.append("shore quads %d — the band is missing at lake scale" % shore_count)
+	var rings: Array[PackedVector2Array] = _pack_split_rings(
+			AmesDataPack.water()[0].get("polygon", []))
+	var want_shore := 0
+	for ring: PackedVector2Array in rings:
+		for i: int in ring.size():
+			if ring[i].distance_squared_to(ring[(i + 1) % ring.size()]) > 1e-10:
+				want_shore += 1
+	if shore_count != want_shore:
+		bad.append("shore quads %d != lake ring edges %d" % [shore_count, want_shore])
+	var worst_shore := 0.0
+	for q: Array in shore_quads:
+		if absf(float(q[1]) - 0.008) > 1e-6:
+			bad.append("shore quad y %s != 0.008" % q[1])
+			break
+		var mid := Vector2((float(q[0]) + float(q[3]) + float(q[6]) + float(q[9])) * 0.25,
+				(float(q[2]) + float(q[5]) + float(q[8]) + float(q[11])) * 0.25)
+		var best := INF
+		for ring: PackedVector2Array in rings:
+			for i: int in ring.size():
+				best = minf(best, _point_seg_dist(mid, ring[i], ring[(i + 1) % ring.size()]))
+		worst_shore = maxf(worst_shore, best)
+	if worst_shore > 7.0: ## SHORE_WIDTH: a band quad never strays past the ring.
+		bad.append("shore quad center %.2f m off the lake ring (band 7 m)" % worst_shore)
+	## The cannot-paint arm, as baked y values + the renderer's shapes (at
+	## SCENARIO level — it must fire on every bake, not only when the hug
+	## check above already failed): the water is a FLAT TRIANGLE at y 0.02
+	## (no thickness), the shore band a 0.02-thick box centered at 0.008 —
+	## its top (0.018) stays UNDER the water, so wherever the band overlaps
+	## the lake (a sharp ring corner), the WATER renders above. The ground
+	## cells (top 0.014) stay under both — the first landing had cell tops
+	## at exactly 0.02, coplanar with the water triangles, and the lake
+	## depth-fought into lawn.
+	var shore_top := 0.008 + AmesWorld.FLAT_THICKNESS * 0.5
+	var cell_top := 0.004 + AmesWorld.FLAT_THICKNESS * 0.5
+	if shore_top >= 0.02 or cell_top >= shore_top:
+		bad.append("flat stack fights the water: cell top %.3f shore top %.3f water 0.02" % [cell_top, shore_top])
+
+	# --- 5. the tie stripe: rides the ballast, keeps the honest gaps -------
+	if tie_count == 0 or tie_count != ballast_count:
+		bad.append("tie quads %d vs ballast quads %d — ties must ride the ballast 1:1" % [tie_count, ballast_count])
+	## Bucket the ballast by 32 m grid cell so the ride check stays cheap,
+	## then every tie must strictly overlap a ballast quad (it was cut from
+	## the same unblocked stretch).
+	var ballast_buckets := {}
+	for q: Array in ballast_quads:
+		var bmid := Vector2((float(q[0]) + float(q[6])) * 0.5, (float(q[2]) + float(q[8])) * 0.5)
+		var key := Vector2i(floori(bmid.x / 32.0), floori(bmid.y / 32.0))
+		if not ballast_buckets.has(key):
+			ballast_buckets[key] = []
+		(ballast_buckets[key] as Array).append(q)
+	var road_near: Array = [] ## Crossing-road ribbons (the census ROAD_NEAR rule).
+	var crossing_pos := {}
+	for c: Dictionary in AmesDataPack.rail().get("crossings", []):
+		if str(c.get("grade", "")) == "at_grade":
+			var pos: Array = c.get("pos", [0.0, 0.0])
+			crossing_pos[str(c.get("road_name", ""))] = Vector2(float(pos[0]), float(pos[1]))
+	for q: Array in ribbon_quads:
+		var q_mid := Vector2((float(q[0]) + float(q[6])) * 0.5, (float(q[2]) + float(q[8])) * 0.5)
+		for road: String in crossing_pos:
+			if q_mid.distance_to(crossing_pos[road]) < 40.0:
+				road_near.append(q)
+				break
+	var tie_unridden := 0
+	var tie_over_road := 0
+	var first_tie_fault := ""
+	for q: Array in tie_quads:
+		var tmid := Vector2((float(q[0]) + float(q[6])) * 0.5, (float(q[2]) + float(q[8])) * 0.5)
+		var base := Vector2i(floori(tmid.x / 32.0), floori(tmid.y / 32.0))
+		var rides := false
+		for dx: int in [-1, 0, 1]:
+			for dz: int in [-1, 0, 1]:
+				for bq: Array in ballast_buckets.get(base + Vector2i(dx, dz), []):
+					if _flat_quads_overlap(q, bq):
+						rides = true
+						break
+				if rides:
+					break
+			if rides:
+				break
+		if not rides:
+			tie_unridden += 1
+			if first_tie_fault.is_empty():
+				first_tie_fault = "unridden tie at (%.1f, %.1f)" % [tmid.x, tmid.y]
+		for rq: Array in road_near:
+			if _flat_quads_overlap(q, rq):
+				tie_over_road += 1
+				if first_tie_fault.is_empty():
+					first_tie_fault = "tie over crossing asphalt at (%.1f, %.1f)" % [tmid.x, tmid.y]
+				break
+	if tie_unridden > 0:
+		bad.append("ties not riding ballast=%d (%s)" % [tie_unridden, first_tie_fault])
+	if tie_over_road > 0:
+		bad.append("tie quads over crossing-road asphalt=%d (%s)" % [tie_over_road, first_tie_fault])
+
+	# --- 6. the creek green reads distinct from the lake olive -------------
+	var creek_diff := Color(0.275, 0.4, 0.388) - Color(0.275, 0.329, 0.247)
+	var creek_lake_gap: float = sqrt(creek_diff.r * creek_diff.r
+			+ creek_diff.g * creek_diff.g + creek_diff.b * creek_diff.b)
+	if creek_lake_gap <= 0.05:
+		bad.append("creek color too close to the lake olive (%.3f)" % creek_lake_gap)
+	if chunks == 0:
+		bad.append("no chunks loaded")
+	_check(S, bad.is_empty(),
+		"chunks=%d ground_cells=%d lane_dashes=%d shore=%d ties=%d worst_shore_ring_dist=%.2f creek_gap=%.3f; %s"
+				% [chunks, ground_count, lane_count, shore_count, tie_count,
+				worst_shore, creek_lake_gap, "; ".join(bad)])
+
+
+## Point-to-segment distance (the shore-band hug check).
+func _point_seg_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var len_sq := ab.length_squared()
+	var t := 0.0 if len_sq < 1e-12 else clampf((p - a).dot(ab) / len_sq, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+
+## Even-odd point-in-ring ray cast (the T-174 creek-over-lake recount's
+## probe). Coded separately from the baker's `_mid_in_lake` on purpose.
+func _point_in_ring(p: Vector2, ring: PackedVector2Array) -> bool:
+	var n := ring.size()
+	if n < 3:
+		return false
+	var inside := false
+	for i: int in n:
+		var a := ring[i]
+		var b := ring[(i + 1) % n]
+		if (a.y > p.y) != (b.y > p.y):
+			var x_at := a.x + (p.y - a.y) / (b.y - a.y) * (b.x - a.x)
+			if p.x < x_at:
+				inside = not inside
+	return inside
 
 
 ## --- scenarios (T-001 flight model) --------------------------------------

@@ -53,12 +53,18 @@ const PLATE_THICKNESS := 1.0
 ## (T-173 first values, tuned on measurement) Massing fades out between
 ## MASSING_RANGE_END − MASSING_RANGE_FADE and MASSING_RANGE_END from the
 ## camera, dithered. Ribbons/tri patches never fade — the ground read is the
-## skeleton's recognition layer (T-174 dresses it). Retune at Gate 3.
+## skeleton's recognition layer (T-174 dressed it). Retune at Gate 3.
 const MASSING_RANGE_END := 1800.0
 const MASSING_RANGE_FADE := 250.0
-## Plate ground color — a muted lawn base under the bake's stacked flats.
-## T-174's district ground palettes own the real dressing.
-const COLOR_GROUND := Color(0.38, 0.46, 0.30)
+## The flat rect families the renderer folds into ONE box MultiMesh per
+## chunk — the bake's ribbons plus the T-174 dressing (district ground
+## cells, arterial lane dashes, LaVerne shore band, rail tie stripe). All
+## are baked rectangles with a family color from `chunk.colors` (ground
+## cells override per entry with their district color).
+const FLAT_FAMILIES: Array[String] = [
+	"ground_quads", "ribbons", "lane_quads", "shore_quads", "creek_quads",
+	"ballast_quads", "tie_quads",
+]
 
 ## Per-chunk ground records, keyed by tile Vector2i(cx, cz): `ground` —
 ## PackedFloat32Array, 5 floats per massing box (x, z, half_w, half_d, top)
@@ -297,6 +303,10 @@ func _make_chunks_root() -> Node3D:
 ## The ground plate: one physics box (top at y 0, layer 1) + one visual slab
 ## under the bake's stacked flats (the baker's y conventions reserve y 0 for
 ## exactly this plate). Bounds = manifest extents + GROUND_MARGIN per side.
+## The plate IS the residential district's ground (T-174): the bake's ground
+## cells only tint where the v0 rule says another district stands, so the
+## plate color and the un-tinted cells are the same seed by construction —
+## one source of truth in `AmesBaker.DISTRICT_GROUND`.
 func _build_ground_plate() -> void:
 	var size := _bounds_max - _bounds_min + Vector3.ONE * (GROUND_MARGIN * 2.0)
 	var center := (_bounds_min + _bounds_max) * 0.5
@@ -305,7 +315,8 @@ func _build_ground_plate() -> void:
 	var slab := MeshInstance3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(size.x, PLATE_THICKNESS, size.z)
-	mesh.material = _flat_material(COLOR_GROUND)
+	var seed_ground: Color = AmesBaker.DISTRICT_GROUND["residential"]
+	mesh.material = _flat_material(seed_ground)
 	slab.mesh = mesh
 	slab.position = Vector3(center.x, -PLATE_THICKNESS * 0.5, center.z)
 	_static_root.add_child(slab)
@@ -378,16 +389,19 @@ func _massing_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
 
 
 ## One vertex-color unit-box MultiMesh of every baked ground rectangle —
-## street ribbons, creek quads and rail ballast are all rectangles, so all
-## three families share the massing's box mesh at their own per-instance
-## baked family color (`chunk.colors`). Never fades: the ground read stays.
+## street ribbons, creek quads, rail ballast and the T-174 dressing (district
+## ground cells, arterial lane dashes, the LaVerne shore band, the rail tie
+## stripe) are all rectangles, so all seven families share the massing's box
+## mesh at their own per-instance baked family color (`chunk.colors`; ground
+## cells carry a per-cell district color that overrides it). Never fades: the
+## ground read stays.
 func _flats_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
 	var colors: Dictionary = chunk.get("colors", {})
 	var entries: Array = []
-	for family: String in ["ribbons", "creek_quads", "ballast_quads"]:
+	for family: String in FLAT_FAMILIES:
 		var flat_color: Array = colors.get(family, [0.5, 0.5, 0.5])
 		for q: Dictionary in chunk.get(family, []):
-			entries.append([q["q"], flat_color])
+			entries.append([q["q"], q.get("c", flat_color)])
 	if entries.is_empty():
 		return null
 	var mm := _new_multimesh(entries.size())
