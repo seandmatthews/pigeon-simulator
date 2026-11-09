@@ -1,6 +1,6 @@
 # T-198 — Ames R4 · venue signs tier 1: the fourteen names a student says first
 
-- **Status:** proposed · **Ring:** R4 The Names ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R4 The Names ·
   **Value (1-5):** 5 · **Risk (1-5):** 2
 - **Depends on:** T-197 (the capability)
 - **Refs:** `venues/VENUES.md` Tier 1 (14 venues, each with address,

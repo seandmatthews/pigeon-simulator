@@ -1,6 +1,6 @@
 # T-180 — Ames R2 · intersections: crosswalks, stops, signals on real corners
 
-- **Status:** proposed · **Ring:** R2 The Life ·
+- **Status:** proposed · **Category:** worldbuilding · **Ring:** R2 The Life ·
   **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-178 (the graph), T-179 (etiquette reads it)
 - **Refs:** `census/BUILD-CENSUS.md` §4 (20 downtown / 13 Campustown

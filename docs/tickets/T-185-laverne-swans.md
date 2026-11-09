@@ -1,6 +1,6 @@
 # T-185 — Ames R3 · Lake LaVerne + the swans: Lancelot and Elaine, restored
 
-- **Status:** proposed · **Ring:** R3 The Landmarks ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 5 · **Risk (1-5):** 3
 - **Depends on:** T-177 (placeholder slot), T-174 (water v1)
 - **Refs:** `MODELING-SPECS.md` §1 lake-laverne cluster ·

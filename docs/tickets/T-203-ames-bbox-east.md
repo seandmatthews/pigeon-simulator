@@ -1,6 +1,6 @@
 # T-203 — Ames R5 · bbox east: Bandshell Park and the S Duff corridor come inside
 
-- **Status:** proposed · **Ring:** R5 The Town ·
+- **Status:** proposed · **Category:** worldbuilding · **Ring:** R5 The Town ·
   **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-202 (R4 cut over; extension machinery stable)
 - **Refs:** `census/BUILD-CENSUS.md` (Bandshell Park ~30 m outside the

@@ -1,6 +1,6 @@
 # T-175 — Ames R1 · landmark placeholders: true-dim massing so silhouettes read
 
-- **Status:** proposed · **Ring:** R1 The Map ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R1 The Map ·
   **Value (1-5):** 5 · **Risk (1-5):** 2
 - **Depends on:** T-173 (mount points), T-171 (positions/dims)
 - **Refs:** `verification/VERIFICATION.md` top-15-from-the-air ranking ·

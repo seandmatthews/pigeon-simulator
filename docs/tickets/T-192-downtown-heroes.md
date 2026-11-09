@@ -1,6 +1,6 @@
 # T-192 — Ames R3 · downtown: the bandshell, City Hall, Main Street fabric
 
-- **Status:** proposed · **Ring:** R3 The Landmarks ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-177
 - **Refs:** `MODELING-SPECS.md` §1 downtown-main-street ·

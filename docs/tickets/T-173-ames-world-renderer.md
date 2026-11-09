@@ -1,6 +1,6 @@
 # T-173 — Ames R1 · world renderer: resident baked world behind a world flag
 
-- **Status:** proposed · **Ring:** R1 The Map ·
+- **Status:** proposed · **Category:** code-optimization · **Ring:** R1 The Map ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
 - **Depends on:** T-172 (the chunks it renders)
 - **Refs:** `docs/AMES-MASTERPLAN.md` §2 (resident renderer; streaming is

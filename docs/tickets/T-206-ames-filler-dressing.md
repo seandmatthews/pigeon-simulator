@@ -1,6 +1,6 @@
 # T-206 — Ames R5 · filler dressing: anonymous buildings start being Ames
 
-- **Status:** proposed · **Ring:** R5 The Town ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R5 The Town ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-177 (filler is live), independent of R3/R4 timing
   (can move earlier if the owner steers)

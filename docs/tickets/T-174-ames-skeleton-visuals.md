@@ -1,6 +1,6 @@
 # T-174 — Ames R1 · skeleton visuals: streets, water, rail, parks readable from the air
 
-- **Status:** proposed · **Ring:** R1 The Map ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R1 The Map ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-173 (renders the bake this dresses)
 - **Refs:** `MODELING-SPECS.md` §3 (district dressing v0), §1 clusters

@@ -1,6 +1,6 @@
 # T-184 — Ames R2 · CUTOVER: the town lives, the suite re-pins
 
-- **Status:** proposed · **Ring:** R2 The Life ·
+- **Status:** proposed · **Category:** worldbuilding · **Ring:** R2 The Life ·
   **Value (1-5):** 5 · **Risk (1-5):** 5
 - **Depends on:** T-178..T-183 (all R2 tickets green)
 - **Refs:** `docs/AMES-MASTERPLAN.md` §3, §10 · the T-177 cutover

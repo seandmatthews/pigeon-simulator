@@ -1,6 +1,6 @@
 # T-195 — Ames R3 · grain elevators: the SE silo cluster
 
-- **Status:** proposed · **Ring:** R3 The Landmarks ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-177
 - **Refs:** `MODELING-SPECS.md` §1 rail-corridor (elevators) ·

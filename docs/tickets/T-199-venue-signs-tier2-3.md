@@ -1,6 +1,6 @@
 # T-199 — Ames R4 · venue signs tiers 2–3 + the ghost plaques
 
-- **Status:** proposed · **Ring:** R4 The Names ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R4 The Names ·
   **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-198 (tier-1 pattern proven)
 - **Refs:** `venues/VENUES.md` Tiers 2–3 (34 venues) + the 17-entry

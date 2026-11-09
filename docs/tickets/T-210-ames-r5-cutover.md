@@ -1,6 +1,6 @@
 # T-210 — Ames R5 · CUTOVER: the whole town, the suite re-pins
 
-- **Status:** proposed · **Ring**: R5 The Town ·
+- **Status:** proposed · **Category:** worldbuilding · **Ring**: R5 The Town ·
   **Value (1-5):** 4 · **Risk (1-5):** 4
 - **Depends on:** T-203..T-209 (all R5 tickets green)
 - **Refs:** the cutover pattern (T-177/T-184/T-196/T-202) · master

@@ -1,6 +1,6 @@
 # T-188 — Ames R3 · campus row west: Beardshear's dome, Morrill, Farm House
 
-- **Status:** proposed · **Ring:** R3 The Landmarks ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-177
 - **Refs:** `MODELING-SPECS.md` §1 campus-buildings (F-03: Beardshear

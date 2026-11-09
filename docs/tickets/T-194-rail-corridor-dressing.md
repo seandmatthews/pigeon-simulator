@@ -1,6 +1,6 @@
 # T-194 — Ames R3 · rail corridor: the depot, the crossings, the daily coal drag
 
-- **Status:** proposed · **Ring:** R3 The Landmarks ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-177 (corridor flats exist), T-180 (crossing set)
 - **Refs:** `MODELING-SPECS.md` §1 rail-corridor · `census` §5 (9

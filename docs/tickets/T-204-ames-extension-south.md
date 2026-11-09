@@ -1,6 +1,6 @@
 # T-204 — Ames R5 · south: Reiman Gardens and the butterfly wing
 
-- **Status:** proposed · **Ring:** R5 The Town ·
+- **Status:** proposed · **Category:** worldbuilding · **Ring:** R5 The Town ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-203 (the extension pattern proven)
 - **Refs:** QA item 1 (the conservatory split — the WHOLE building is

@@ -1,6 +1,6 @@
 # T-182 — Ames R2 · parking: curbs and lots from the census
 
-- **Status:** proposed · **Ring:** R2 The Life ·
+- **Status:** proposed · **Category:** worldbuilding · **Ring:** R2 The Life ·
   **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-178 (graph curb geometry)
 - **Refs:** `census/BUILD-CENSUS.md` §3 (480 lots / 73.6 ha; the

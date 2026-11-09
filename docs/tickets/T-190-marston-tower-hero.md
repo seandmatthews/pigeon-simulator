@@ -1,6 +1,6 @@
 # T-190 — Ames R3 · Marston Water Tower: the 51.2 m white beacon
 
-- **Status:** proposed · **Ring:** R3 The Landmarks ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-177
 - **Refs:** `landmarks/LANDMARKS.md` (51.2 m; "first elevated steel

@@ -1,6 +1,6 @@
 # T-177 — Ames R1 · CUTOVER: Ames becomes the world, the suite re-pins
 
-- **Status:** proposed · **Ring:** R1 The Map ·
+- **Status:** proposed · **Category:** worldbuilding · **Ring:** R1 The Map ·
   **Value (1-5):** 5 · **Risk (1-5):** 5
 - **Depends on:** T-174, T-175, T-176 (all R1 tickets landed and green)
 - **Refs:** `docs/AMES-MASTERPLAN.md` §3 (cutover pattern), §10 ·

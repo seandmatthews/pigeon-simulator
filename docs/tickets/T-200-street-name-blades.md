@@ -1,6 +1,6 @@
 # T-200 — Ames R4 · street name blades: wayfinding by reading
 
-- **Status:** proposed · **Ring:** R4 The Names ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R4 The Names ·
   **Value (1-5):** 4 · **Risk (1-5):** 1
 - **Depends on:** T-197, T-180 (the intersection set)
 - **Refs:** `osm/SUMMARY.md` (spine streets; Lincoln Way becomes East

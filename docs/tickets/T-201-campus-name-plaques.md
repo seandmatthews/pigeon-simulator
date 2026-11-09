@@ -1,6 +1,6 @@
 # T-201 — Ames R4 · campus name plaques: nominative names, no marks
 
-- **Status:** proposed · **Ring:** R4 The Names ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R4 The Names ·
   **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-197
 - **Refs:** master plan §0 (the legal line: names OK, registered marks

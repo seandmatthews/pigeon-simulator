@@ -1,6 +1,6 @@
 # T-176 — Ames R1 · survival rebase: bread, hunger, spawn on the real map
 
-- **Status:** proposed · **Ring:** R1 The Map ·
+- **Status:** proposed · **Category:** gameplay · **Ring:** R1 The Map ·
   **Value (1-5):** 5 · **Risk (1-5):** 3
 - **Depends on:** T-173 (world), T-175 (crumb hosts)
 - **Refs:** `VENUES.md` (real café/bread spots: Stomping Grounds 300

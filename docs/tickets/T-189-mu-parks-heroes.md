@@ -1,6 +1,6 @@
 # T-189 — Ames R3 · Memorial Union + Parks Library: limestone corner and library block
 
-- **Status:** proposed · **Ring:** R3 The Landmarks ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 5 · **Risk (1-5):** 3
 - **Depends on:** T-177
 - **Refs:** `MODELING-SPECS.md` §1 (F-02: MU = pale gray limestone,

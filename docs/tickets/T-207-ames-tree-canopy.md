@@ -1,6 +1,6 @@
 # T-207 — Ames R5 · tree canopy: the 5,637 mapped trees become a skyline of leaves
 
-- **Status:** proposed · **Ring:** R5 The Town ·
+- **Status:** proposed · **Category:** visual-design · **Ring:** R5 The Town ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-172 (the bake carries them)
 - **Refs:** census §5 (5,637 natural=tree points; 267 ha green) ·

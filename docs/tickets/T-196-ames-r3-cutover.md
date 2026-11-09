@@ -1,6 +1,6 @@
 # T-196 — Ames R3 · CUTOVER: the postcard, the suite re-pins
 
-- **Status:** proposed · **Ring:** R3 The Landmarks ·
+- **Status:** proposed · **Category:** worldbuilding · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
 - **Depends on:** T-185..T-195 (all R3 hero tickets green)
 - **Refs:** the T-177/T-184 cutover pattern · `verification`

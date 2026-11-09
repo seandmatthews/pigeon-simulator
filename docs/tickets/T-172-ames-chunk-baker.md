@@ -1,6 +1,6 @@
 # T-172 — Ames R1 · chunk baker: offline world baking into 256 m tiles
 
-- **Status:** proposed · **Ring:** R1 The Map ·
+- **Status:** proposed · **Category:** code-optimization · **Ring:** R1 The Map ·
   **Value (1-5):** 5 · **Risk (1-5):** 3
 - **Depends on:** T-171 (the data pack this bakes)
 - **Refs:** `docs/AMES-MASTERPLAN.md` §2 (bake-then-render), §4 ·

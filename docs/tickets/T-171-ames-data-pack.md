@@ -1,6 +1,6 @@
 # T-171 — Ames R1 · data pack: the committed city database
 
-- **Status:** proposed · **Ring:** R1 The Map ·
+- **Status:** proposed · **Category:** code-optimization · **Ring:** R1 The Map ·
   **Value (1-5):** 5 · **Risk (1-5):** 2
 - **Depends on:** the ring-0 survey (landed on `ames/campaign`: aa73840, e486d72)
 - **Refs:** `docs/AMES-MASTERPLAN.md` §2 (architecture), §4 ·
