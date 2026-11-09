@@ -1,0 +1,17 @@
+# Ames survey — the QA commit split (QA-REPORT.md item 10, owner-approved 2026-11-09).
+# Everything else in this tree IS committed: deliverable .md files, streets.csv,
+# authored-buildings.csv, ames_merged.json (21 MB), all scripts, and the 90 credited
+# reference photos (~148 MB, covered by docs/references/.gdignore — Godot never imports them).
+
+# Raw OSM tile extracts, 84 MB — re-fetchable via osm/scripts/fetch_tiles.sh;
+# the merged dataset (osm/ames_merged.json) and every distilled number are committed.
+osm/raw/
+
+# Tagged-node cache — re-scannable from the raw tiles by census/scripts/ames_census.py.
+census/scripts/tagged_nodes.json
+
+# Reddit thread JSON cache (3.2 MB) — provenance only; every quote is cited in the .md files.
+community/_cache/
+
+# Reserved by the traditions lane; never created.
+community/_cache2/

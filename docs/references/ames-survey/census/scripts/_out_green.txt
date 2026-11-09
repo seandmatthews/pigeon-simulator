@@ -1,0 +1,39 @@
+== 5. GREEN & WATER
+green areas with centroid in core: 1860, total 267.1 ha
+   38.931 ha  Brookside Park                       (-93.63115, 42.03049) park way44806238
+   16.131 ha  Pammel Woods                         (-93.65202, 42.03243) wood way237025591
+   14.506 ha  Southeast Recreation Complex         (-93.63157, 42.01308) sports_centre way905641427
+   11.619 ha  ISU Arboretum                        (-93.65668, 42.01913) park way183766534
+   11.421 ha  (unnamed)                            (-93.63223, 42.03223) wood way247147456
+    9.897 ha  Stuart Smith Park                    (-93.63121, 42.01956) park way1091918442
+    8.548 ha  Central Campus                       (-93.64619, 42.02648) park way486943973
+    7.290 ha  (unnamed)                            (-93.63135, 42.02520) wood way917962146
+    5.733 ha  (unnamed)                            (-93.62532, 42.01681) wood way917962100
+    5.401 ha  (unnamed)                            (-93.61355, 42.01292) wood way1085670705
+    4.828 ha  Ioway Creek Park                     (-93.62332, 42.01622) park way1085452407
+    4.776 ha  (unnamed)                            (-93.63148, 42.03184) wood way247147452
+    4.291 ha  (unnamed)                            (-93.62890, 42.01933) grass way917962113
+    3.134 ha  (unnamed)                            (-93.61703, 42.01588) wood way917962155
+    3.061 ha  (unnamed)                            (-93.61222, 42.01489) grass way1085670670
+    2.984 ha  Elwood Pasture                       (-93.63257, 42.02545) grass way1091934533
+    2.709 ha  (unnamed)                            (-93.61282, 42.01454) grass way1085670706
+    2.687 ha  (unnamed)                            (-93.62778, 42.01655) grass way905641432
+    1.912 ha  (unnamed)                            (-93.63055, 42.02431) wood way917962147
+    1.905 ha  (unnamed)                            (-93.64419, 42.02377) wood way845202123
+    1.900 ha  (unnamed)                            (-93.63161, 42.02082) wood way917962099
+    1.891 ha  (unnamed)                            (-93.65873, 42.02689) wood way918103369
+    1.836 ha  (unnamed)                            (-93.65789, 42.01817) wood way919626608
+    1.792 ha  (unnamed)                            (-93.63081, 42.02743) wood way917962149
+    1.780 ha  (unnamed)                            (-93.62818, 42.01698) wood way905641423
+    1.601 ha  (unnamed)                            (-93.63035, 42.02078) wood way917962144
+    1.593 ha  (unnamed)                            (-93.64126, 42.02544) wood way845202124
+    1.519 ha  (unnamed)                            (-93.64648, 42.02656) grass way937504600
+    1.391 ha  O'Neil Park                          (-93.62449, 42.01986) park way1107155947
+    1.326 ha  Fitch Family Indoor Aquatic Center   (-93.62290, 42.02351) recreation_ground way1164503058
+individual tree nodes (natural=tree) in core: 5637
+  College Creek      in-core:  10.21 km of centerline/bank, bbox 3310 x 1151 m, lon -93.6710..-93.6310 lat 42.0152..42.0256
+  Ioway Creek        in-core:  33.12 km of centerline/bank, bbox 4915 x 3238 m, lon -93.6555..-93.5961 lat 42.0111..42.0402
+  South Skunk River  in-core: NOTHING (0 segments)
+  Worrell Creek      in-core:   1.55 km of centerline/bank, bbox 852 x 625 m, lon -93.6325..-93.6222 lat 42.0103..42.0159
+  Clear Creek        in-core:   3.56 km of centerline/bank, bbox 1296 x 887 m, lon -93.6644..-93.6487 lat 42.0286..42.0365
+  Lake LaVerne rel 3329428: bbox 236 x 122 m, center (-93.64802, 42.02357), area 11039 m2

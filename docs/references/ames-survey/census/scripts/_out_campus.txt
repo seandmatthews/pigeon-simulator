@@ -1,0 +1,81 @@
+== 3. CAMPUS INVENTORY
+ISU campus relation 3501275 'Iowa State University': 12 outer rings, bbox 3561 x 5160 m center (-93.64745, 42.02428)
+buildings inside ISU polygon AND core bbox: 105; named: 67
+building=* mix (in-campus, in-core): {'university': 48, 'yes': 22, 'roof': 13, 'dormitory': 8, 'shed': 6, 'stadium': 6, 'service': 1, 'apartments': 1}
+
+30 biggest named campus buildings (footprint area):
+  Jack Trice Stadium                     21413 m2   183x 208 m  (-93.63573, 42.01380) lv= way613735866
+  Bergstrom Indoor Training Facility      9401 m2    92x 135 m  (-93.63812, 42.01543) lv= way1052515109
+  Friley Residence Hall                   9060 m2   192x 207 m  (-93.65122, 42.02394) lv=5 way158023222
+  State Gymnasium                         7866 m2   143x 122 m  (-93.65326, 42.02463) lv=3 way183224403
+  Howe Hall                               6526 m2   170x  67 m  (-93.65307, 42.02683) lv=3 way183218202
+  Beyer Hall                              5620 m2    94x  75 m  (-93.65294, 42.02588) lv=3 way158023212
+  Molecular Biology Building              4870 m2    77x  83 m  (-93.64968, 42.03110) lv=5 way183207520
+  Town Engineering Building               4596 m2    80x  88 m  (-93.65274, 42.02955) lv=5 way158023277
+  Armory                                  4439 m2    63x  72 m  (-93.65094, 42.02964) lv=2 way162986350
+  Black Engineering                       4295 m2   103x  75 m  (-93.65106, 42.02601) lv=4 way183217314
+  Coover Hall                             4129 m2    90x  63 m  (-93.65100, 42.02841) lv=4 way14386885
+  Bergstrom Football Complex              3980 m2    52x 125 m  (-93.63727, 42.01545) lv=2 way1052515108
+  Student Innovation Center               3793 m2    63x  64 m  (-93.65132, 42.02723) lv=5 way499168444
+  Ames Lab - Metals Development Buildi    3698 m2    73x  58 m  (-93.64860, 42.03099) lv=2 way183207516
+  Communications Building                 3423 m2    59x  73 m  (-93.65084, 42.03101) lv=2 way183206734
+  Environmental Health & Safety Servic    3406 m2    54x  97 m  (-93.64804, 42.03445) lv=2 way183201816
+  Hoover Hall                             3084 m2   119x  36 m  (-93.65107, 42.02667) lv=3 way158023224
+  Stark Performance Center                3028 m2    62x  67 m  (-93.63687, 42.01556) lv=5 way840743112
+  Union Drive Community Center            3028 m2    67x  49 m  (-93.65150, 42.02497) lv=3 way158023282
+  Helser Residence Hall                   3018 m2    85x 113 m  (-93.65182, 42.02409) lv=4 way183323404
+  Wallace-Wilson Commons                  2867 m2    54x  53 m  (-93.65046, 42.01404) lv=2 way183332705
+  College of Design                       2829 m2    63x 106 m  (-93.65315, 42.02856) lv=5 way11697605
+  Knapp-Storms Dining Complex             2822 m2    54x  53 m  (-93.65049, 42.01525) lv=2 way183332704
+  Hach Hall                               2738 m2    70x  41 m  (-93.64974, 42.03016) lv=4 way183213421
+  Ames Lab - Spedding Hall                2698 m2    75x  56 m  (-93.64862, 42.03008) lv=3 way183763233
+  Sweeney Hall                            2528 m2   109x  44 m  (-93.65102, 42.02786) lv=4 way158023274
+  Durham Center                           2496 m2    49x  73 m  (-93.64980, 42.02755) lv=4 way158023217
+  Geoffroy Hall                           2268 m2    82x  59 m  (-93.64270, 42.02222) lv=8 way377558130
+  Martin Residence Hall                   2211 m2    50x  72 m  (-93.65286, 42.02387) lv=4 way2507890
+  Jacobson Athletic Building              2203 m2    44x  60 m  (-93.63578, 42.01498) lv=3 way42501390
+
+Campanile:
+  way 479976955 name=Penkhus Campanile Garden center=(-93.63667, 42.01097) bbox 33.6 x 33.8 m area=881 m2 bld=None tags={'leisure': 'garden'}
+  way 840743159 name=Reiman Campanile center=(-93.63663, 42.01087) bbox 5.6 x 5.2 m area=17 m2 bld=university tags={'building': 'university'}
+  way 183041212 name=Campanile center=(-93.64604, 42.02543) bbox 6.8 x 6.7 m area=45 m2 bld=university tags={'building': 'university', 'building:levels': '1', 'height': '34', 'man_made': 'tower', 'source': 'Bing', 'tower:construction': 'brick', 'tower:type': 'bell_tower', 'wikidata': 'Q5027921', 'wikipedia': 'en:Campanile (Iowa State University)'}
+  node 8699270338 (-93.64613, 42.02465) tags={'bus': 'yes', 'departures_board': 'no', 'highway': 'bus_stop', 'name': 'Campanile', 'network': 'CyRide', 'network:wikidata': 'Q5197282', 'operator': 'CyRide', 'public_transport': 'platform', 'ref': '2260', 'shelter': 'no'}
+
+Stadiums:
+  way 43827559 'Jack Trice Way' center=(-93.63304, 42.01623) bbox 111 x 1 m area=0 m2 / cap=
+  way 43884623 'Jack Trice Way' center=(-93.63357, 42.01630) bbox 199 x 9 m area=0 m2 / cap=
+  way 43884628 'Jack Trice Way' center=(-93.63603, 42.01625) bbox 207 x 2 m area=0 m2 / cap=
+  way 188284928 'Jack Trice Way' center=(-93.63834, 42.01623) bbox 177 x 2 m area=0 m2 / cap=
+  way 613735866 'Jack Trice Stadium' center=(-93.63573, 42.01380) bbox 183 x 208 m area=21413 m2 /stadium cap=
+  way 1198071931 'Jack Trice Way' center=(-93.63425, 42.01624) bbox 88 x 4 m area=0 m2 / cap=
+  way 16036095 'Hilton Court' center=(-93.64488, 42.00105) bbox 52 x 1 m area=0 m2 / cap=
+  way 1373438562 'Home2 Suites by Hilton Ames' center=(-93.58471, 42.01006) bbox 34 x 60 m area=1536 m2 /yes cap=
+  way 180651868 'Hilton Coliseum' center=(-93.63477, 42.02100) bbox 138 x 105 m area=12334 m2 /stadium cap=
+  way 101135481 'MidAmerican Field' center=(-93.63578, 42.01400) bbox 53 x 113 m area=5678 m2 pitch/ cap=
+  rel 11545732 'Jack Trice Stadium' center=(-93.63576, 42.01401) bbox 234 x 303 m
+
+Parking census (amenity=parking, centroid in core):
+  480 parking areas in core, total 73.6 ha
+    2.313 ha   183319618 (-93.63749, 42.02416)                                surface permit
+    1.616 ha   183209588 (-93.64940, 42.03258)                                 
+    1.538 ha  1052515023 (-93.63048, 42.01341)                                surface yes
+    1.512 ha   840743309 (-93.63730, 42.03229)                                surface permit
+    1.504 ha    16029985 (-93.64836, 42.01249)                                surface permit
+    1.495 ha  1092175036 (-93.63749, 42.02195)                                surface customers
+    1.141 ha   196622610 (-93.61927, 42.02200)                                surface yes
+    0.944 ha    16025094 (-93.63759, 42.02588)                                 
+    0.876 ha   183209457 (-93.64908, 42.03180)                                 
+    0.827 ha   498930228 (-93.62292, 42.02216)                                 
+    0.794 ha   183196578 (-93.64362, 42.03274)                                surface permit
+    0.771 ha   183204573 (-93.64231, 42.03206)                                surface permit
+  Iowa State Center tailgate zone (lat<42.0225, lon -93.6445..-93.6260): 19 lots, 8.9 ha
+    1.538 ha  1052515023 (-93.63048, 42.01341)                            surface yes
+    1.495 ha  1092175036 (-93.63749, 42.02195)                            surface customers
+    0.649 ha  1052515022 (-93.63101, 42.01594)                            surface permit
+    0.591 ha   180763825 (-93.63691, 42.01228)                            surface permit
+    0.549 ha   180764675 (-93.63771, 42.01267)                            surface yes
+    0.547 ha   180650158 (-93.63342, 42.01327)                            surface permit
+    0.543 ha    16026796 (-93.63397, 42.01264)                            surface permit
+    0.526 ha   183770089 (-93.64326, 42.02177)                            surface permit
+    0.501 ha   180650966 (-93.63345, 42.01486)                            surface permit
+    0.495 ha   180650200 (-93.63320, 42.01406)                            surface permit

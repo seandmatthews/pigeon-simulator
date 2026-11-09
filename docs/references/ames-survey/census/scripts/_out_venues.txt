@@ -1,0 +1,36 @@
+== 2b. VENUES.md Tier 1-2 -> OSM anchor cross-check
+
+-- TIER 1
+  Welch Ave Station              addr   207 welch avenue           -> node-addr 2531586094 (-93.65058, 42.02107) core=True  amenity=restaurant name=Pizza Pit [2 hits: node-addr]
+  Paddy's Irish Pub              addr   124 welch avenue           -> node-name 1941751171 (-93.64992, 42.02173) core=True  amenity=bar name=Paddy's Irish Pub [3 hits: node-addr,node-name]
+  Cy's Roost                     addr   121 welch avenue           -> way-addr  241365820 (-93.65046, 42.02195) core=True  amenity=bar building=yes building:levels=2 name=Cy's Roost [2 hits: way-addr,way-name]
+  Sips                           addr   126 welch avenue           -> node-name 8530394477 (-93.64974, 42.02173) core=True  amenity=bar name=Sips
+  Mickey's Irish Pub             addr   109 welch avenue           -> node-name 2531586091 (-93.65033, 42.02236) core=True  amenity=pub name=Mickey's Irish Pub [2 hits: node-addr,node-name]
+  AJ's Ultra Lounge              addr  2401 chamberlain street     -> way-addr  246079558 (-93.64878, 42.02156) core=True  amenity=bar building=yes building:levels=3 name=AJ's Ultralounge [2 hits: way-addr,way-name]
+  Outlaws                        addr  2522 chamberlain street     -> way-addr  272522425 (-93.65124, 42.02123) core=True  amenity=bar building=yes building:levels=2 name=Outlaws [2 hits: way-addr,way-name]
+  Cafe Beaudelaire               addr  2504 lincoln way            -> node-name 2400994656 (-93.65043, 42.02260) core=True  amenity=cafe name=Cafe Beaudelaire [2 hits: node-addr,node-name]
+  Jeff's Pizza Shop              addr  2402 lincoln way            -> node-name 2447728161 (-93.64872, 42.02260) core=True  amenity=restaurant name=Jeff's Pizza Shop [2 hits: node-addr,node-name]
+  Mr. Burrito                    addr  2508 lincoln way            -> node-addr 2531586092 (-93.65051, 42.02260) core=True  amenity=restaurant name=Mr. Burrito
+  Superdog (cart)                addr   208 welch avenue           -> NO OSM ANCHOR
+  Hickory Park                   addr  1404 south duff avenue      -> way-addr  196541966 (-93.60954, 42.01002) core=False amenity=restaurant building=yes name=Hickory Park [2 hits: way-addr,way-name]
+  The Cafe                       addr  2616 northridge parkway     -> node-name 1292348200 (-93.64366, 42.04874) core=False amenity=restaurant name=The Cafe [2 hits: node-addr,node-name]
+  Great Plains Sauce & Dough     addr   129 main street            -> way-addr  237834149 (-93.61182, 42.02537) core=True  amenity=restaurant building=yes name=The Great Plains Sauce & Dough Co [2 hits: way-addr,way-name]
+
+-- TIER 2
+  Mother's Pub & Coffee          addr  2900 west street            -> way-addr  251728629 (-93.65726, 42.02518) core=True  amenity=pub building=yes name=Mother's Pub [2 hits: way-addr,way-name]
+  Thumbs                         addr  2816 west street            -> way-addr  251728624 (-93.65652, 42.02515) core=True  amenity=bar building=yes building:levels=1 name=Thumbs [2 hits: way-addr,way-name]
+  West Street Deli               addr  2810 west street            -> way-addr  251728626 (-93.65624, 42.02517) core=True  amenity=fast_food building=yes building:levels=1 name=West Street Deli [2 hits: way-addr,way-name]
+  BNC Field House                addr   206 welch avenue           -> way-addr  241365816 (-93.64966, 42.02120) core=True  amenity=bar building=yes building:levels=1 name=BNC Field House [2 hits: way-addr,way-name]
+  Blue Owl Bar                   addr   223 welch avenue           -> node-name 2445161035 (-93.65036, 42.02040) core=True  amenity=bar name=The Blue Owl Bar [3 hits: node-addr,node-name]
+  Cornbred Barbecue              addr   526 main street            -> node-name 8395552560 (-93.61828, 42.02446) core=True  amenity=restaurant name=Cornbred Barbeque [5 hits: node-addr,node-name]
+  Whiskey River                  addr   134 main street            -> way-addr  269752175 (-93.61184, 42.02495) core=True  amenity=bar building=yes name=Whiskey River [2 hits: way-addr,way-name]
+  London Underground             addr   212 main street            -> way-addr  269752154 (-93.61247, 42.02492) core=True  amenity=bar building=yes name=London Underground [2 hits: way-addr,way-name]
+  Time Out                       addr   120 kellogg avenue         -> way-addr  236565187 (-93.61325, 42.02380) core=True  amenity=bar building=yes building:levels=1 name=Time Out [2 hits: way-addr,way-name]
+  The Mucky Duck Pub             addr  3100 south duff avenue      -> NO OSM ANCHOR
+  Torrent Brewing                addr   504 burnett avenue         -> way-addr  931902030 (-93.61509, 42.02639) core=True  building=yes building:levels=1 name=Torrent Brewing Company [2 hits: way-addr,way-name]
+  Aunt Maude's                   addr   547 main street            -> node-name 5064244865 (-93.61907, 42.02522) core=True  amenity=restaurant name=Aunt Maude's [2 hits: node-addr,node-name]
+  The Grove Cafe                 addr   124 main street            -> way-addr  269752153 (-93.61154, 42.02497) core=True  amenity=restaurant building=yes name=The Grove Cafe [5 hits: node-name,way-addr,way-name]
+  Provisions Lot F               addr  2400 north loop drive       -> way-addr  846310912 (-93.63569, 42.00052) core=False amenity=restaurant building=yes name=Provisions Lot F [3 hits: way-addr,way-name]
+  The Stan Tap                   addr   216 stanton avenue         -> way-addr  273536249 (-93.64827, 42.02087) core=True  building=residential building:levels=3 [2 hits: node-addr,way-addr]
+  Sam's Place                    addr   125 main street            -> way-addr  237834143 (-93.61170, 42.02539) core=True  amenity=bar building=commercial building:levels=2 name=Sam's Place [2 hits: way-addr,way-name]
+  Lost and Found Lounge          addr   121 welch avenue           -> way-addr  241365820 (-93.65046, 42.02195) core=True  amenity=bar building=yes building:levels=2 name=Cy's Roost

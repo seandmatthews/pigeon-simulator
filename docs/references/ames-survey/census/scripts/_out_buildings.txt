@@ -1,0 +1,601 @@
+== 1. BUILDING CENSUS — game-core bbox (W-93.659 S42.012 E-93.61 N42.0355)
+building ways, centroid-in-core: 3724
+building relations, centroid-in-core: 13
+building ways with >=1 node in core: 3754  (reconciliation aid vs sibling '3733 buildings')
+named (name tag): 512
+with building:levels tag: 586  (15.7 %)
+with height tag (any): 175
+  height m: min 3.5 p50 20.0 p90 40.0 max 100.0
+levels histogram (building:levels, 0.5 buckets):
+    1.0:  187 ############################################################
+    2.0:  158 ############################################################
+    3.0:  154 ############################################################
+    3.5:    1 #
+    4.0:   44 ############################################
+    5.0:   17 #################
+    6.0:    9 #########
+    7.0:    5 #####
+    8.0:    4 ####
+    9.0:    2 ##
+   10.0:    3 ###
+   11.0:    2 ##
+buildings with levels >= 6: 25
+   Wilson Residence Hall                    levels=11 height=40 way 183333365
+   Wallace Residence Hall                   levels=11 height=40 way 183333371
+   Legacy Tower                             levels=10 height=40 way 236800162
+   University Towers                        levels=10 height=27 way 247526947
+   Iowa State University Power Plant        levels=10 height=100 way 183191045
+   Buchanan Residence Hall                  levels=9 height=27 way 183324232
+   Cyclone Plaza                            levels=9 height=40 way 246557466
+   Geoffroy Hall                            levels=8 height=30 way 377558130
+   Willow Residence Hall                    levels=8 height=37.5 way 162989415
+   Larch Residence Hall                     levels=8 height=37.5 way 162989419
+   Maple Residence Hall                     levels=8 height=37.5 way 162989420
+   23 Twenty Lincoln                        levels=7 height=26 way 377558125
+   Campus Flats                             levels=7 height=None way 805223843
+   Ross Hall                                levels=7 height=70 way 158023259
+   Science Hall II                          levels=7 height=70 way 183221039
+   Advanced Teaching and Research Building  levels=7 height=None way 499161009
+   (unnamed)                                levels=6 height=None way 183224148
+   Memorial Union                           levels=6 height=9 way 183224150
+   Chamberlain Lofts                        levels=6 height=None way 241365810
+   Brickstone Place                         levels=6 height=22.5 way 244329939
+closed-polygon footprints: 3737; open/incomplete ways: 0
+total footprint area: 1.207 km^2 = 120.7 ha (11.4 % of the 10.58 km2 core)
+footprint m2: p10 53 p50 127 p90 595 max 21413
+
+top 25 largest footprints in core:
+    2.141 ha  Jack Trice Stadium                     (-93.63573, 42.01380)  bld=stadium lv= way 613735866
+    1.547 ha  Lied Recreation Center                 (-93.63721, 42.02659)  bld=university lv=3 way 33726001
+    1.233 ha  Hilton Coliseum                        (-93.63477, 42.02100)  bld=stadium lv=5 way 180651868
+    1.121 ha  (unnamed)                              (-93.61202, 42.03271)  bld=hospital lv= relation 11700175
+    0.940 ha  Bergstrom Indoor Training Facility     (-93.63812, 42.01543)  bld=university lv= way 1052515109
+    0.906 ha  Friley Residence Hall                  (-93.65122, 42.02394)  bld=dormitory lv=5 way 158023222
+    0.891 ha  Memorial Union                         (-93.64576, 42.02367)  bld=university lv=6 way 183224150
+    0.859 ha  Forker Building                        (-93.64028, 42.02673)  bld=university lv=3 way 162993229
+    0.787 ha  State Gymnasium                        (-93.65326, 42.02463)  bld=university lv=3 way 183224403
+    0.757 ha  Iowa State University Power Plant      (-93.63949, 42.02779)  bld=university lv=10 way 183191045
+    0.729 ha  Parks Library                          (-93.64883, 42.02813)  bld=university lv=5 way 33725897
+    0.711 ha  CyRide                                 (-93.63520, 42.02792)  bld=transportation lv=2 way 183344075
+    0.699 ha  Hy-Vee                                 (-93.61962, 42.02002)  bld=yes lv= way 98658304
+    0.684 ha  (unnamed)                              (-93.61813, 42.02166)  bld=commercial lv=1 way 98658325
+    0.660 ha  General Services Building              (-93.64075, 42.02807)  bld=university lv=2 way 183191043
+    0.653 ha  Howe Hall                              (-93.65307, 42.02683)  bld=university lv=3 way 183218202
+    0.648 ha  Kildee Hall                            (-93.64379, 42.02957)  bld=university lv=4 way 183200718
+    0.640 ha  Agronomy Hall                          (-93.64264, 42.02834)  bld=university lv=4 way 183187995
+    0.622 ha  Food Sciences Building                 (-93.64268, 42.02685)  bld=university lv=3 relation 2507887
+    0.612 ha  Scheman Building                       (-93.63672, 42.02150)  bld=yes lv=2 way 180649660
+    0.605 ha  (unnamed)                              (-93.61234, 42.03175)  bld=parking lv= way 312090985
+    0.562 ha  Beyer Hall                             (-93.65294, 42.02588)  bld=university lv=3 way 158023212
+    0.559 ha  Gilman Hall                            (-93.64858, 42.02943)  bld=university lv=4 way 183214584
+    0.543 ha  East Parking Deck                      (-93.64274, 42.02546)  bld=yes lv= way 183319697
+    0.515 ha  Ames City Hall                         (-93.61775, 42.02636)  bld=yes lv= relation 2560369
+
+== 6. AUTHOR VS PROCEDURAL (computed here; see section 6 of the report)
+named buildings: 512
+unnamed but use-tagged (amenity/shop/leisure/tourism/historic/office/...): 50
+fully anonymous (procedural filler): 3175
+   amenity=shelter: 29
+   amenity=parking: 7
+   man_made=tower: 3
+   leisure=bleachers: 2
+   amenity=fuel: 2
+   healthcare=alternative: 2
+   man_made=storage_tank: 2
+   shop=storage_rental: 1
+   amenity=toilets: 1
+   amenity=fire_station: 1
+
+named building list (the authored list):
+   Jack Trice Stadium                           (-93.63573, 42.01380)   21413 m2 bld=stadium            lv= way613735866
+   Lied Recreation Center                       (-93.63721, 42.02659)   15468 m2 bld=university         lv=3 way33726001
+   Hilton Coliseum                              (-93.63477, 42.02100)   12334 m2 bld=stadium            lv=5 way180651868
+   Bergstrom Indoor Training Facility           (-93.63812, 42.01543)    9401 m2 bld=university         lv= way1052515109
+   Friley Residence Hall                        (-93.65122, 42.02394)    9060 m2 bld=dormitory          lv=5 way158023222
+   Memorial Union                               (-93.64576, 42.02367)    8913 m2 bld=university         lv=6 way183224150
+   Forker Building                              (-93.64028, 42.02673)    8591 m2 bld=university         lv=3 way162993229
+   State Gymnasium                              (-93.65326, 42.02463)    7866 m2 bld=university         lv=3 way183224403
+   Iowa State University Power Plant            (-93.63949, 42.02779)    7567 m2 bld=university         lv=10 way183191045
+   Parks Library                                (-93.64883, 42.02813)    7290 m2 bld=university         lv=5 way33725897
+   CyRide                                       (-93.63520, 42.02792)    7105 m2 bld=transportation     lv=2 way183344075
+   Hy-Vee                                       (-93.61962, 42.02002)    6992 m2 bld=yes                lv= way98658304
+   General Services Building                    (-93.64075, 42.02807)    6604 m2 bld=university         lv=2 way183191043
+   Howe Hall                                    (-93.65307, 42.02683)    6526 m2 bld=university         lv=3 way183218202
+   Kildee Hall                                  (-93.64379, 42.02957)    6480 m2 bld=university         lv=4 way183200718
+   Agronomy Hall                                (-93.64264, 42.02834)    6399 m2 bld=university         lv=4 way183187995
+   Food Sciences Building                       (-93.64268, 42.02685)    6221 m2 bld=university         lv=3 relation2507887
+   Scheman Building                             (-93.63672, 42.02150)    6123 m2 bld=yes                lv=2 way180649660
+   Beyer Hall                                   (-93.65294, 42.02588)    5620 m2 bld=university         lv=3 way158023212
+   Gilman Hall                                  (-93.64858, 42.02943)    5590 m2 bld=university         lv=4 way183214584
+   East Parking Deck                            (-93.64274, 42.02546)    5430 m2 bld=yes                lv= way183319697
+   Ames City Hall                               (-93.61775, 42.02636)    5148 m2 bld=yes                lv= relation2560369
+   Molecular Biology Building                   (-93.64968, 42.03110)    4870 m2 bld=university         lv=5 way183207520
+   Materials Lab                                (-93.62214, 42.02051)    4811 m2 bld=yes                lv= way236094027
+   Union on Lincoln Way                         (-93.65493, 42.02229)    4799 m2 bld=apartments         lv=6 way852963437
+   Lagomarcino Hall                             (-93.64539, 42.02981)    4660 m2 bld=university         lv=3 relation2507889
+   Town Engineering Building                    (-93.65274, 42.02955)    4596 m2 bld=university         lv=5 way158023277
+   Stephens Auditorium                          (-93.63801, 42.02021)    4582 m2 bld=university         lv=5 way180654356
+   Gerdin Business Building                     (-93.64429, 42.02531)    4469 m2 bld=university         lv=3 way158023223
+   Physics Hall                                 (-93.64735, 42.02943)    4450 m2 bld=university         lv=2 way183214402
+   Armory                                       (-93.65094, 42.02964)    4439 m2 bld=university         lv=2 way162986350
+   Black Engineering                            (-93.65106, 42.02601)    4295 m2 bld=university         lv=4 way183217314
+   Ames Public Library                          (-93.61259, 42.02642)    4235 m2 bld=yes                lv=2 way774663109
+   Coover Hall                                  (-93.65100, 42.02841)    4129 m2 bld=university         lv=4 relation14386885
+   Bergstrom Football Complex                   (-93.63727, 42.01545)    3980 m2 bld=university         lv=2 way1052515108
+   McFarland Clinic                             (-93.61207, 42.03367)    3940 m2 bld=hospital           lv=6 way255604119
+   Fitch Family Aquatic Center                  (-93.62282, 42.02328)    3829 m2 bld=yes                lv= way1557704182
+   Seed Science Building                        (-93.64219, 42.02932)    3794 m2 bld=university         lv=3 relation14386886
+   Student Innovation Center                    (-93.65132, 42.02723)    3793 m2 bld=university         lv=5 way499168444
+   Ames Lab - Metals Development Building       (-93.64860, 42.03099)    3698 m2 bld=yes                lv=2 way183207516
+   Ames Intermodal Facility                     (-93.65231, 42.02109)    3654 m2 bld=yes                lv=4 way183767367
+   The Edge                                     (-93.64718, 42.02195)    3436 m2 bld=apartments         lv=1 way486943472
+   Communications Building                      (-93.65084, 42.03101)    3423 m2 bld=university         lv=2 way183206734
+   Environmental Health & Safety Services Build (-93.64804, 42.03445)    3406 m2 bld=university         lv=2 way183201816
+   Warehouse                                    (-93.62332, 42.02017)    3341 m2 bld=yes                lv= way103156222
+   Meats Laboratory                             (-93.64389, 42.03004)    3173 m2 bld=university         lv=2 way183200700
+   Maple-Willow-Larch Commons                   (-93.63821, 42.02375)    3133 m2 bld=university         lv=3 way162990259
+   Hoover Hall                                  (-93.65107, 42.02667)    3084 m2 bld=university         lv=3 way158023224
+   Stark Performance Center                     (-93.63687, 42.01556)    3028 m2 bld=university         lv=5 way840743112
+   Union Drive Community Center                 (-93.65150, 42.02497)    3028 m2 bld=university         lv=3 way158023282
+   Helser Residence Hall                        (-93.65182, 42.02409)    3018 m2 bld=dormitory          lv=4 way183323404
+   Bessey Hall                                  (-93.64463, 42.02848)    2949 m2 bld=university         lv=5 way183187336
+   Oak-Elm Residence Hall                       (-93.64031, 42.02507)    2912 m2 bld=dormitory          lv=4 way183318478
+   Wallace-Wilson Commons                       (-93.65046, 42.01404)    2867 m2 bld=university         lv=2 way183332705
+   College of Design                            (-93.65315, 42.02856)    2829 m2 bld=university         lv=5 relation11697605
+   Printing and Publications Building           (-93.64725, 42.03260)    2828 m2 bld=university         lv=1 way183205859
+   Knapp-Storms Dining Complex                  (-93.65049, 42.01525)    2822 m2 bld=university         lv=2 way183332704
+   Collegiate United Methodist Church           (-93.65261, 42.02233)    2780 m2 bld=yes                lv= relation3324395
+   Simon Estes Music Hall                       (-93.64820, 42.02463)    2770 m2 bld=university         lv=3 way183317249
+   Hach Hall                                    (-93.64974, 42.03016)    2738 m2 bld=university         lv=4 way183213421
+   MacKay Hall                                  (-93.64650, 42.02858)    2726 m2 bld=university         lv=3 way158023238
+   Ames Lab - Spedding Hall                     (-93.64862, 42.03008)    2698 m2 bld=yes                lv=3 way183763233
+   Horticulture Hall                            (-93.64481, 42.02784)    2684 m2 bld=university         lv=2 way183870431
+   Carver Hall                                  (-93.64833, 42.02526)    2664 m2 bld=university         lv=5 way33725618
+   Linden Residence Hall                        (-93.64031, 42.02314)    2605 m2 bld=dormitory          lv=5 way183319184
+   Agronomy Greenhouse                          (-93.64004, 42.02986)    2599 m2 bld=university         lv=1 way183189176
+   Repair Shop                                  (-93.62112, 42.02020)    2596 m2 bld=yes                lv= way103156218
+   Kingland Building                            (-93.64954, 42.02250)    2545 m2 bld=commercial         lv=3 way377558129
+   Hub at Oak and Grand                         (-93.62211, 42.02205)    2544 m2 bld=yes                lv= way236094029
+   23 Twenty Lincoln                            (-93.64755, 42.02235)    2535 m2 bld=apartments         lv=7 way377558125
+   Sweeney Hall                                 (-93.65102, 42.02786)    2528 m2 bld=university         lv=4 way158023274
+   Durham Center                                (-93.64980, 42.02755)    2496 m2 bld=university         lv=4 way158023217
+   800 Lincoln Way                              (-93.62242, 42.02233)    2444 m2 bld=yes                lv=3 way103156214
+   The Crawford                                 (-93.64893, 42.01842)    2307 m2 bld=apartments         lv=3 way855616112
+   Fareway                                      (-93.61586, 42.02742)    2302 m2 bld=yes                lv=1 way102723486
+   Science Hall                                 (-93.64631, 42.02933)    2298 m2 bld=university         lv=5 relation2507891
+   Geoffroy Hall                                (-93.64270, 42.02222)    2268 m2 bld=dormitory          lv=8 way377558130
+   Warren Madden Building                       (-93.64552, 42.03459)    2248 m2 bld=university         lv=2 way183201818
+   Martin Residence Hall                        (-93.65286, 42.02387)    2211 m2 bld=dormitory          lv=4 relation2507890
+   Jacobson Athletic Building                   (-93.63578, 42.01498)    2203 m2 bld=university         lv=3 way42501390
+   CenturyLink                                  (-93.61252, 42.01975)    2187 m2 bld=yes                lv= way782468691
+   Ames First United Methodist Church           (-93.61327, 42.02656)    2175 m2 bld=yes                lv= way853984836
+   Curtiss Hall                                 (-93.64474, 42.02618)    2174 m2 bld=university         lv=3 way122268115
+   Legacy Tower                                 (-93.64900, 42.02195)    2161 m2 bld=apartments         lv=10 way236800162
+   Beardshear Hall                              (-93.64843, 42.02619)    2151 m2 bld=university         lv=4 way33725619
+   Sukup Hall                                   (-93.65323, 42.02765)    2148 m2 bld=university         lv=5 way226914404
+   Eaton Residence Hall                         (-93.65276, 42.02444)    2097 m2 bld=dormitory          lv=4 way231767123
+   Sukup Endzone                                (-93.63572, 42.01288)    2089 m2 bld=stadium            lv= way613735869
+   Wheatsfield Cooperative                      (-93.62173, 42.02523)    2051 m2 bld=yes                lv= way265728169
+   National Laboratory for Agriculture and the  (-93.64209, 42.03017)    2019 m2 bld=university         lv=3 way183200004
+   Advanced Teaching and Research Building      (-93.64538, 42.03084)    2014 m2 bld=university         lv=7 way499161009
+   St Thomas Aquinas Church & Catholic Student  (-93.64497, 42.02224)    2011 m2 bld=yes                lv=2 way246252178
+   Collegiate Presbyterian Church               (-93.65477, 42.02489)    1951 m2 bld=yes                lv= way251728632
+   Collegiate Presbyterian Church               (-93.65477, 42.02489)    1951 m2 bld=yes                lv= relation3377215
+   Extension 4-H Building                       (-93.64573, 42.03524)    1946 m2 bld=university         lv=2 way183202173
+   CenturyLink                                  (-93.61760, 42.02545)    1865 m2 bld=yes                lv= way853984663
+   Pearson Hall                                 (-93.64988, 42.02594)    1849 m2 bld=university         lv=3 way183216667
+   Ames Post Office                             (-93.61423, 42.02657)    1800 m2 bld=yes                lv=2 way310111056
+   Sign Shop                                    (-93.62217, 42.01898)    1792 m2 bld=yes                lv= way236094051
+   Buchanan Residence Hall                      (-93.64368, 42.02222)    1775 m2 bld=dormitory          lv=9 way183324232
+   Southpoint Centre                            (-93.61132, 42.01539)    1754 m2 bld=retail             lv=1 way774663111
+   Science Hall II                              (-93.64633, 42.03008)    1739 m2 bld=university         lv=7 way183221039
+   Thielen Student Health Center                (-93.65390, 42.02576)    1711 m2 bld=university         lv=3 way42501405
+   Troxel Hall                                  (-93.64406, 42.02779)    1702 m2 bld=university         lv=1 way219124288
+   Palmer Building                              (-93.64560, 42.02839)    1695 m2 bld=university         lv=3 way158023252
+   Hamilton Hall                                (-93.64201, 42.02759)    1689 m2 bld=university         lv=2 way183187396
+   Therkildsen Industrial Engineering Building  (-93.65368, 42.02655)    1689 m2 bld=university         lv=4 way1353295731
+   ALDI                                         (-93.61222, 42.01691)    1678 m2 bld=yes                lv= way845880897
+   HPC                                          (-93.61166, 42.02367)    1654 m2 bld=yes                lv=1 way236565197
+   Maplewood Apartments                         (-93.62560, 42.01874)    1649 m2 bld=apartments         lv=3 way310110055
+   Ames Lab - Warehouse                         (-93.64939, 42.03327)    1645 m2 bld=university         lv=1 way183205329
+   Roy J. Carver Co-Lab                         (-93.65082, 42.03234)    1627 m2 bld=university         lv=2 way183206735
+   Medical Arts Building                        (-93.61106, 42.03166)    1598 m2 bld=hospital           lv= way255605672
+   The Stritz                                   (-93.64975, 42.01829)    1596 m2 bld=apartments         lv=3 way830930329
+   Story County Human Services                  (-93.61304, 42.02184)    1531 m2 bld=yes                lv= way236410781
+   Iowa State University Alumni Center          (-93.63860, 42.01812)    1511 m2 bld=university         lv=3 way162993592
+   The Roosevelt                                (-93.62366, 42.03063)    1506 m2 bld=residential        lv= way260496177
+   The Foundry                                  (-93.64684, 42.02250)    1486 m2 bld=apartments         lv=1 way377558124
+   The Sheldon-Munn                             (-93.61412, 42.02534)    1484 m2 bld=apartments         lv=4 way241720035
+   Library Storage Facility                     (-93.64671, 42.03338)    1480 m2 bld=university         lv=1 way183201636
+   Marston Hall                                 (-93.64989, 42.02681)    1475 m2 bld=university         lv=4 way183216666
+   Chamberlain Lofts                            (-93.65132, 42.02170)    1474 m2 bld=apartments         lv=6 way241365810
+   St. John's by the Campus Episcopal Church of (-93.64817, 42.02237)    1466 m2 bld=yes                lv= way247519152
+   South Wing                                   (-93.62210, 42.02148)    1431 m2 bld=yes                lv= way236094028
+   Horse Barn                                   (-93.64372, 42.03087)    1409 m2 bld=university         lv=2 way183198848
+   First National Bank of Ames                  (-93.61584, 42.02616)    1408 m2 bld=yes                lv= way262264540
+   Memorial Lutheran Church                     (-93.64592, 42.02233)    1394 m2 bld=yes                lv= way247519155
+   Historic Tribune Building                    (-93.61474, 42.02626)    1385 m2 bld=commercial         lv=2 way262264538
+   National Swine Research and Information Cent (-93.64276, 42.03015)    1381 m2 bld=university         lv=4 way183200003
+   Zaffarano Physics Addition                   (-93.64731, 42.02993)    1369 m2 bld=university         lv=6 way183214247
+   Welch Crown Center                           (-93.65057, 42.02068)    1361 m2 bld=residential        lv=4 way259249457
+   Hixson-Lied Student Success Center           (-93.63975, 42.02402)    1348 m2 bld=university         lv=3 way183318868
+   Greater Iowa Credit Union                    (-93.62077, 42.02340)    1341 m2 bld=yes                lv= way102239926
+   Southeast Concessions                        (-93.63455, 42.01342)    1330 m2 bld=stadium            lv=1 way180650428
+   CenturyLink                                  (-93.65869, 42.02244)    1324 m2 bld=commercial;service lv= way244329932
+   Lighthouse Campus Fellowship                 (-93.65389, 42.02220)    1320 m2 bld=yes                lv=1 way246079553
+   King Pavilion                                (-93.65345, 42.02881)    1318 m2 bld=university         lv=2 way183218411
+   LeBaron Hall                                 (-93.64721, 42.02814)    1317 m2 bld=university         lv=3 way1569210622
+   Human Nutritional Sciences Building          (-93.64743, 42.02814)    1316 m2 bld=university         lv=3 way183219250
+   Main Street Station                          (-93.61807, 42.02445)    1303 m2 bld=commercial         lv=1 way260524827
+   Elings Hall                                  (-93.65265, 42.02740)    1302 m2 bld=university         lv=5 way305573354
+   Arnold Motor Supply                          (-93.61655, 42.02209)    1288 m2 bld=yes                lv= way236410782
+   Dollar Tree                                  (-93.61094, 42.02113)    1275 m2 bld=yes                lv= way260524828
+   Frederiksen Court 82                         (-93.64106, 42.03179)    1272 m2 bld=apartments         lv=3 way231380176
+   Frederiksen Court 83                         (-93.63967, 42.03185)    1266 m2 bld=apartments         lv=3 way231380180
+   Frederiksen Court 35                         (-93.64220, 42.03535)    1266 m2 bld=apartments         lv=3 way231380167
+   Frederiksen Court 81                         (-93.64074, 42.03241)    1266 m2 bld=apartments         lv=3 way231380173
+   Frederiksen Court 24                         (-93.64356, 42.03274)    1266 m2 bld=apartments         lv=3 way231380160
+   Frederiksen Court 36                         (-93.64116, 42.03535)    1266 m2 bld=apartments         lv=3 way231380170
+   Ross Hall                                    (-93.64418, 42.02663)    1262 m2 bld=university         lv=7 way158023259
+   Southwest Concessions                        (-93.63694, 42.01340)    1258 m2 bld=stadium            lv=1 way180763713
+   Bessey Hall Addition                         (-93.64414, 42.02848)    1257 m2 bld=university         lv= way840622960
+   Biorenewables Research Laboratory            (-93.65265, 42.02772)    1239 m2 bld=university         lv=5 way158023213
+   Ames Lab - Wilhelm Hall                      (-93.64733, 42.03023)    1226 m2 bld=yes                lv=3 way183214248
+   University Towers                            (-93.64675, 42.02201)    1225 m2 bld=apartments         lv=10 way247526947
+   Welch Residence Hall                         (-93.64213, 42.02354)    1223 m2 bld=dormitory          lv=4 way183734212
+   LeBaron Hall                                 (-93.64737, 42.02855)    1213 m2 bld=university         lv=2 way158023234
+   Fredrickson Court Community Center           (-93.64287, 42.03393)    1207 m2 bld=university         lv=1 way183192306
+   Forestry Greenhouse                          (-93.64105, 42.02996)    1202 m2 bld=university         lv=1 way183189042
+   Cyclone Plaza                                (-93.64812, 42.02123)    1189 m2 bld=apartments         lv=9 way246557466
+   Ames Lab - Technical and Administrative Serv (-93.64843, 42.03000)    1188 m2 bld=yes                lv=3 way183763232
+   Plant Pathology Greenhouse                   (-93.64105, 42.02965)    1183 m2 bld=university         lv=1 way183189044
+   Campus Flats                                 (-93.65128, 42.02204)    1166 m2 bld=apartments         lv=7 way805223843
+   Ortho2                                       (-93.61216, 42.01262)    1146 m2 bld=yes                lv=1 way237817477
+   Snedecor Hall                                (-93.64971, 42.02851)    1129 m2 bld=university         lv=3 way158023268
+   Atanasoff Hall                               (-93.64973, 42.02817)    1120 m2 bld=university         lv=3 way158023211
+   Maple Residence Hall                         (-93.63871, 42.02365)    1110 m2 bld=dormitory          lv=8 way162989420
+   First Christian Church                       (-93.61741, 42.02716)    1101 m2 bld=yes                lv= way853984696
+   Willow Residence Hall                        (-93.63771, 42.02393)    1100 m2 bld=dormitory          lv=8 way162989415
+   Boys & Girls Club                            (-93.61287, 42.01708)    1090 m2 bld=yes                lv=1 way774665656
+   The Phoenix                                  (-93.61326, 42.01932)    1083 m2 bld=apartments         lv=3 way905641420
+   Days Inn by Wyndham Ames                     (-93.61080, 42.02059)    1067 m2 bld=yes                lv=2 way98658309
+   Optimae LifeServices                         (-93.62633, 42.02255)    1055 m2 bld=yes                lv= way917962142
+   Bike World                                   (-93.61176, 42.01984)    1051 m2 bld=yes                lv= way196546800
+   Larch Residence Hall                         (-93.63804, 42.02327)    1037 m2 bld=dormitory          lv=8 way162989419
+   Roberts Residence Hall                       (-93.64248, 42.02392)    1030 m2 bld=dormitory          lv=4 way183734204
+   Brickstone Place                             (-93.64884, 42.02095)    1028 m2 bld=apartments         lv=6 way244329939
+   Stanton Heights                              (-93.64815, 42.02034)    1018 m2 bld=apartments         lv=6 way246252176
+   Ames United Church of Christ                 (-93.61333, 42.02720)    1003 m2 bld=yes                lv= way718052513
+   Frederiksen Court 33                         (-93.64064, 42.03462)    1000 m2 bld=apartments         lv=3 way183195765
+   Frederiksen Court 62                         (-93.64048, 42.03327)    1000 m2 bld=apartments         lv=3 way183195768
+   Frederiksen Court 43                         (-93.64196, 42.03277)    1000 m2 bld=apartments         lv=3 way183195767
+   Frederiksen Court 73                         (-93.63860, 42.03299)    1000 m2 bld=apartments         lv=3 way183195593
+   The Annex of Collegiate United Methodist Chu (-93.65389, 42.02154)     999 m2 bld=yes                lv= way246079544
+   Frederiksen Court 34                         (-93.64133, 42.03436)     998 m2 bld=apartments         lv=3 way183194927
+   Frederiksen Court 63                         (-93.64078, 42.03279)     998 m2 bld=apartments         lv=3 way183195498
+   Frederiksen Court 74                         (-93.63928, 42.03272)     998 m2 bld=apartments         lv=3 way183195491
+   Frederiksen Court 41                         (-93.64249, 42.03277)     998 m2 bld=apartments         lv=3 way183195507
+   Frederiksen Court 71                         (-93.63978, 42.03310)     997 m2 bld=apartments         lv=3 way183195582
+   Frederiksen Court 61                         (-93.64111, 42.03327)     997 m2 bld=apartments         lv=3 way183195763
+   Frederiksen Court 72                         (-93.63919, 42.03322)     997 m2 bld=apartments         lv=3 way183195575
+   Frederiksen Court 32                         (-93.64133, 42.03484)     997 m2 bld=apartments         lv=3 way183195478
+   Frederiksen Court 42                         (-93.64224, 42.03326)     997 m2 bld=apartments         lv=3 way183194938
+   Frederiksen Court 31                         (-93.64201, 42.03460)     997 m2 bld=apartments         lv=3 way183195764
+   Student Services                             (-93.65009, 42.02525)     979 m2 bld=university         lv=4 way183216668
+   Northeast Concessions                        (-93.63453, 42.01451)     975 m2 bld=stadium            lv=1 way180650616
+   University Lutheran Center                   (-93.64328, 42.02113)     971 m2 bld=yes                lv= way241726009
+   Delta Tau Delta                              (-93.64280, 42.02102)     970 m2 bld=yes                lv= way292313666
+   Northwest Concessions                        (-93.63699, 42.01448)     959 m2 bld=stadium            lv=1 way180763711
+   Farm House                                   (-93.64482, 42.01978)     953 m2 bld=yes                lv=3 way246252166
+   Firemanship Training                         (-93.63901, 42.03136)     941 m2 bld=university         lv= way183199045
+   First Baptist Church of Ames                 (-93.64590, 42.02073)     941 m2 bld=yes                lv= way247519149
+   US Federal Highway Administration            (-93.61085, 42.02725)     940 m2 bld=yes                lv=1 way853984820
+   Fisher Theater                               (-93.63804, 42.02155)     928 m2 bld=university         lv=3 way180654035
+   Unitarian Universalist Fellowship of Ames    (-93.65615, 42.03158)     922 m2 bld=yes                lv= way1098315342
+   United States Department of Agriculture Gree (-93.64112, 42.02929)     901 m2 bld=university         lv=1 way183189168
+   Buildings & Grounds Shop                     (-93.62323, 42.01905)     885 m2 bld=yes                lv= way236094043
+   Spruce Pointe                                (-93.64686, 42.01937)     882 m2 bld=apartments         lv=4 way247526936
+   Birch Residence Hall                         (-93.64164, 42.02358)     875 m2 bld=dormitory          lv=4 way183734220
+   Mike's Body & Frame                          (-93.62400, 42.02482)     861 m2 bld=yes                lv=1 way238454553
+   Heady Hall                                   (-93.64317, 42.02635)     859 m2 bld=university         lv=6 way183186372
+   Repair Shop Annex                            (-93.62488, 42.01783)     837 m2 bld=yes                lv= way236094033
+   Friedrich Iowa Realty                        (-93.61083, 42.02670)     836 m2 bld=yes                lv=1 way519341373
+   East Hall                                    (-93.64338, 42.02607)     831 m2 bld=university         lv=4 way183186375
+   Alfred's Carpet & Decorating                 (-93.61182, 42.02262)     830 m2 bld=yes                lv=1 way236410775
+   Sweet Carolines                              (-93.61469, 42.02480)     827 m2 bld=yes                lv= way254335401
+   Wells Fargo                                  (-93.61626, 42.02482)     822 m2 bld=yes                lv= way241720048
+   Frederiksen Court 52                         (-93.63864, 42.03424)     822 m2 bld=apartments         lv=3 way183193754
+   Frederiksen Court 53                         (-93.63875, 42.03380)     821 m2 bld=apartments         lv=3 way183193751
+   Frederiksen Court 12                         (-93.64398, 42.03467)     821 m2 bld=apartments         lv=3 way183193991
+   Frederiksen Court 22                         (-93.64395, 42.03361)     821 m2 bld=apartments         lv=3 way183194108
+   Frederiksen Court 51                         (-93.63928, 42.03453)     821 m2 bld=apartments         lv=3 way183193746
+   Frederiksen Court 11                         (-93.64425, 42.03428)     819 m2 bld=apartments         lv=3 way183194115
+   Frederiksen Court 21                         (-93.64423, 42.03318)     819 m2 bld=apartments         lv=3 way183194161
+   Frederiksen Court 13                         (-93.64370, 42.03428)     819 m2 bld=apartments         lv=3 way183194160
+   Frederiksen Court 23                         (-93.64332, 42.03323)     819 m2 bld=apartments         lv=3 way183193990
+   Wallace Residence Hall                       (-93.64990, 42.01425)     819 m2 bld=dormitory          lv=11 way183333371
+   Wilson Residence Hall                        (-93.65104, 42.01387)     819 m2 bld=dormitory          lv=11 way183333365
+   Ames Lab - Mechanical Maintenance            (-93.64863, 42.03303)     813 m2 bld=university         lv=1 way183205330
+   Building 6                                   (-93.62104, 42.02095)     809 m2 bld=yes                lv= way103156217
+   Hokel Machine Supply                         (-93.61008, 42.02445)     809 m2 bld=yes                lv= way312090995
+   U.S. Bank                                    (-93.61570, 42.02535)     806 m2 bld=yes                lv=1 way241720047
+   District 1 Office                            (-93.62455, 42.01887)     802 m2 bld=yes                lv= way236094052
+   North Chilled Water Plant                    (-93.64638, 42.03223)     802 m2 bld=university         lv=1 way183201563
+   CelebrationsWarehouse                        (-93.61402, 42.01988)     799 m2 bld=warehouse          lv=1 way1104795180
+   Zions Agricultural Finance                   (-93.61722, 42.02564)     795 m2 bld=yes                lv=1 way853984664
+   Iowa Farm Bureau Pavilion                    (-93.64330, 42.02920)     782 m2 bld=university         lv=1 way183200917
+   Freeman Residence Hall                       (-93.64168, 42.02477)     773 m2 bld=dormitory          lv=4 way183732080
+   Morrill Hall                                 (-93.64807, 42.02723)     763 m2 bld=university         lv=3 way158023244
+   Delta Chi                                    (-93.64488, 42.02132)     763 m2 bld=yes                lv=2 way246252168
+   Howe's Welding & Metal Fabrication           (-93.61099, 42.01481)     762 m2 bld=yes                lv= way918074884
+   Building 5                                   (-93.62104, 42.02148)     761 m2 bld=office             lv= way103156220
+   Lyon Residence Hall                          (-93.64238, 42.02447)     760 m2 bld=dormitory          lv=4 way183732085
+   Tau Kappa Epsilon                            (-93.64387, 42.02061)     746 m2 bld=yes                lv= way241726008
+   Ames Lab - Maintenance Shops                 (-93.64826, 42.03281)     744 m2 bld=university         lv=1 way183205337
+   Building 4                                   (-93.62105, 42.02201)     737 m2 bld=yes                lv= way103156216
+   Beta Theta Pi                                (-93.64095, 42.02230)     731 m2 bld=yes                lv=2 way238398080
+   AutoZone                                     (-93.61115, 42.01672)     728 m2 bld=yes                lv= way338476422
+   Auction Building                             (-93.62226, 42.01844)     723 m2 bld=yes                lv= way236094039
+   House of Refuge Church                       (-93.62088, 42.02487)     721 m2 bld=church             lv= way265728171
+   Jischke Honors Building                      (-93.64459, 42.02714)     710 m2 bld=university         lv=2 way158023231
+   Ames Probation Parole Administration Buildin (-93.61244, 42.02367)     710 m2 bld=yes                lv=1 way236565195
+   Delta Gamma                                  (-93.64686, 42.01988)     707 m2 bld=yes                lv=3 way247526941
+   YSS Family Counseling and Clinic             (-93.61158, 42.02047)     703 m2 bld=yes                lv= way782468965
+   Texas Roadhouse                              (-93.61109, 42.01625)     696 m2 bld=yes                lv= way338476423
+   Triangle Fraternity                          (-93.64171, 42.02238)     689 m2 bld=yes                lv= way292313667
+   Clock Tower Place                            (-93.64905, 42.02124)     668 m2 bld=apartments         lv=4 way1101564268
+   Catt Hall                                    (-93.64567, 42.02790)     668 m2 bld=university         lv=4 way158023214
+   Kappa Kappa Gamma                            (-93.64606, 42.02195)     666 m2 bld=yes                lv=3 way1212918380
+   Heuss Printing Inc                           (-93.62236, 42.02432)     665 m2 bld=yes                lv= way238454547
+   Enrollment Services Center                   (-93.64914, 42.02508)     664 m2 bld=university         lv=3 way162993480
+   Time Out                                     (-93.61325, 42.02380)     657 m2 bld=yes                lv=1 way236565187
+   Masonic Temple Building                      (-93.61240, 42.02573)     648 m2 bld=office             lv=3 way237834152
+   Hub                                          (-93.64849, 42.02727)     648 m2 bld=university         lv=1 way183785559
+   Alpha Gamma Rho                              (-93.64235, 42.02115)     643 m2 bld=yes                lv= way241725994
+   Office and Lab Building                      (-93.64791, 42.02941)     641 m2 bld=university         lv=3 way162982460
+   Alpha Chi Omega                              (-93.64682, 42.02045)     622 m2 bld=yes                lv=3 way247526960
+   Alpha Delta Pi                               (-93.64162, 42.01985)     617 m2 bld=yes                lv= way241725992
+   Chi Omega                                    (-93.64121, 42.02042)     613 m2 bld=yes                lv= way241725997
+   La Casa Maya                                 (-93.61942, 42.02378)     608 m2 bld=yes                lv= way98658302
+   Perkins                                      (-93.61098, 42.01915)     603 m2 bld=yes                lv= way196546807
+   New Point Law Firm, plc                      (-93.61343, 42.02750)     600 m2 bld=yes                lv=1 way853984850
+   Locker Rooms                                 (-93.64609, 42.01306)     595 m2 bld=yes                lv= way242895555
+   Municipal Building                           (-93.61343, 42.02566)     589 m2 bld=yes                lv=3 way237834146
+   Pyle Office Park                             (-93.62051, 42.02627)     586 m2 bld=office             lv=2 way519341370
+   Town Center                                  (-93.61493, 42.02482)     584 m2 bld=commercial         lv=3 way254335400
+   Press Box                                    (-93.63689, 42.01399)     584 m2 bld=stadium            lv= way183039624
+   phClean - Ames                               (-93.61495, 42.02233)     581 m2 bld=yes                lv=1 way964840705
+   Cardinal Terrace                             (-93.64682, 42.02119)     581 m2 bld=apartments         lv=3 way247526943
+   Celebrations Party & Rental Store            (-93.61360, 42.01987)     577 m2 bld=yes                lv= way782468950
+   Hy-Vee Gas                                   (-93.61909, 42.02260)     574 m2 bld=roof               lv= way236094031
+   Darul Arqum Islamic Centre                   (-93.65853, 42.03386)     563 m2 bld=yes                lv= way652095881
+   TS Bank                                      (-93.61571, 42.02262)     559 m2 bld=yes                lv= way236410772
+   EZPAWN                                       (-93.61397, 42.02317)     557 m2 bld=yes                lv= way236410790
+   Adams Funeral Home                           (-93.61167, 42.02627)     557 m2 bld=yes                lv=2 way853984833
+   Transportation Services                      (-93.63904, 42.03071)     556 m2 bld=university         lv= way183199044
+   Reiman Maintenance Building                  (-93.63822, 42.01259)     556 m2 bld=university         lv=1 way180764674
+   Grandon Funeral & Cremation                  (-93.61603, 42.02258)     555 m2 bld=yes                lv= way236410771
+   Knoll                                        (-93.64360, 42.02362)     554 m2 bld=house              lv=3 way183324739
+   Pyle's Town Centre                           (-93.62181, 42.02656)     549 m2 bld=apartments         lv=2 way774664015
+   Sigma Phi Epsilon                            (-93.64035, 42.02052)     547 m2 bld=yes                lv= way241726006
+   Ames Fire Department Station 2               (-93.64966, 42.02161)     547 m2 bld=yes                lv=1 way231767150
+   Dog·Eared Books                              (-93.61241, 42.02537)     545 m2 bld=retail             lv=2 way237834137
+   Village Inn                                  (-93.61813, 42.02263)     545 m2 bld=yes                lv= way103156221
+   Sigma Kappa                                  (-93.64114, 42.02001)     542 m2 bld=yes                lv= way241726005
+   Advanced Machinery Systems Laboratory        (-93.64700, 42.03095)     541 m2 bld=university         lv=1 way183206444
+   Culver's                                     (-93.61879, 42.02378)     535 m2 bld=yes                lv= way98658327
+   Pyle Office Park                             (-93.62070, 42.02601)     529 m2 bld=office             lv=2 way519341371
+   Pi Beta Phi                                  (-93.64386, 42.02126)     521 m2 bld=yes                lv= way241726004
+   Ames Church of the Nazarene                  (-93.61393, 42.02141)     519 m2 bld=yes                lv= way1104795179
+   600 Fifth                                    (-93.61856, 42.02560)     516 m2 bld=office             lv=3 way519341366
+   Ames Elks Lodge                              (-93.61173, 42.02676)     515 m2 bld=yes                lv=1 way519341372
+   BMO                                          (-93.61807, 42.02525)     512 m2 bld=yes                lv= way853984672
+   Panera Bread                                 (-93.61111, 42.01982)     510 m2 bld=yes                lv= way196546803
+   Ames Lab - Paint and AC                      (-93.64776, 42.03270)     507 m2 bld=university         lv=1 way183205595
+   Delta Delta Delta                            (-93.64391, 42.01984)     504 m2 bld=yes                lv= way241725998
+   Sigma Alpha Epsilon                          (-93.64574, 42.02129)     504 m2 bld=yes                lv= way247519146
+   Phi Delta Theta                              (-93.64112, 42.02165)     502 m2 bld=yes                lv= way238398081
+   Cranford Building                            (-93.64885, 42.02258)     501 m2 bld=commercial         lv=4 way236800163
+   Holy Transfiguration Orthodox Church         (-93.61418, 42.02772)     500 m2 bld=yes                lv= way853984853
+   Torrent Brewing Company                      (-93.61509, 42.02639)     496 m2 bld=yes                lv=1 way931902030
+   Kappa Sigma                                  (-93.64499, 42.02049)     495 m2 bld=yes                lv=3 way246252167
+   Body of Christ Church                        (-93.61124, 42.02571)     485 m2 bld=yes                lv=2 way237834133
+   Laura's Cabinet Gallery                      (-93.61437, 42.02395)     482 m2 bld=yes                lv= way236410786
+   Laboratory Of Mechanics                      (-93.65058, 42.02561)     477 m2 bld=university         lv=3.5 way33725868
+   Alpha Tau Omega                              (-93.64132, 42.02236)     475 m2 bld=yes                lv= way238398079
+   Adelante                                     (-93.64971, 42.01976)     474 m2 bld=yes                lv=2 way272522416
+   Ruminant Nutrition Laboratory                (-93.64275, 42.03087)     472 m2 bld=university         lv=2 way183199395
+   SE Recreation Complex Service Building       (-93.63168, 42.01331)     466 m2 bld=university         lv=1 way845871555
+   Great Harvest Bakery and Café                (-93.61509, 42.02623)     460 m2 bld=yes                lv=1 way853984690
+   Pi Kappa Phi                                 (-93.65047, 42.01885)     458 m2 bld=residential        lv=3 way244329945
+   Barton Residence Hall                        (-93.64163, 42.02422)     454 m2 bld=dormitory          lv=4 way183319404
+   Premier Credit Union                         (-93.61983, 42.02664)     454 m2 bld=yes                lv= way260308165
+   Wild Water Car Wash & Pet Wash               (-93.61642, 42.02382)     453 m2 bld=yes                lv= way236410784
+   Montgomery Ward Building                     (-93.61496, 42.02534)     452 m2 bld=commercial         lv=2 way241720034
+   Theta Chi                                    (-93.64489, 42.02080)     451 m2 bld=yes                lv=3 way246252170
+   Sportsman Lounge                             (-93.61153, 42.02537)     450 m2 bld=yes                lv= way237834144
+   Alpha Omicron Pi                             (-93.64003, 42.02017)     450 m2 bld=yes                lv= way241725995
+   Gamma Phi Beta                               (-93.64211, 42.01978)     448 m2 bld=yes                lv= way241726001
+   Express Pawn                                 (-93.61505, 42.02259)     447 m2 bld=yes                lv= way236410773
+   American Legion Hall                         (-93.61323, 42.02535)     442 m2 bld=yes                lv= way237834140
+   Ames Lab - Construction Storage              (-93.64774, 42.03297)     441 m2 bld=university         lv=1 way183205594
+   Chamberlynn Professional Building            (-93.64672, 42.02140)     441 m2 bld=commercial         lv=2 way247526958
+   Delta Zeta                                   (-93.64240, 42.02016)     437 m2 bld=yes                lv= way241726000
+   Campus View                                  (-93.65143, 42.02103)     437 m2 bld=apartments         lv=3 way272522424
+   Bernard Firm                                 (-93.61325, 42.01989)     437 m2 bld=yes                lv= way782468914
+   Alpha Phi                                    (-93.64476, 42.02024)     434 m2 bld=yes                lv=3 relation14680048
+   Knapp-Tedesco Insurance                      (-93.61966, 42.02534)     432 m2 bld=yes                lv= way265728172
+   Phi Gamma Delta (FIJI)                       (-93.64487, 42.01940)     432 m2 bld=yes                lv=3 way246252169
+   Pi Kappa Alpha                               (-93.64032, 42.02238)     427 m2 bld=yes                lv= way238398083
+   McDonald's                                   (-93.61102, 42.02186)     424 m2 bld=yes                lv= way236410780
+   CarX                                         (-93.61098, 42.01797)     423 m2 bld=yes                lv= way196546801
+   BNC Field House                              (-93.64966, 42.02120)     422 m2 bld=yes                lv=1 way241365816
+   English Bulldog Cigar Lounge                 (-93.61402, 42.02560)     421 m2 bld=yes                lv= way241720042
+   Mercer Advisors Wealth Management            (-93.61438, 42.02607)     421 m2 bld=yes                lv=2 way853984682
+   Kappa Alpha Theta                            (-93.64610, 42.01943)     420 m2 bld=yes                lv=3 way247519137
+   Landscape Architecture Building              (-93.64297, 42.02753)     419 m2 bld=university         lv=2 way183187337
+   Alpha Sigma Phi                              (-93.64679, 42.02074)     419 m2 bld=yes                lv=3 way247526930
+   Everts Flowers Home Gifts                    (-93.61513, 42.02534)     418 m2 bld=retail             lv=1 way241720030
+   Concessions                                  (-93.64642, 42.01302)     418 m2 bld=yes                lv= way242895553
+   Red Lobster                                  (-93.61092, 42.01308)     417 m2 bld=yes                lv= way196541292
+   Crop Genome Informatics Laboratory           (-93.64202, 42.02975)     411 m2 bld=university         lv=1 way183200221
+   Finesse Self Storage                         (-93.61446, 42.01982)     409 m2 bld=yes                lv= way1104795188
+   Sukup Atrium                                 (-93.65281, 42.02758)     409 m2 bld=university         lv=1 way305573355
+   Midas                                        (-93.61123, 42.02316)     409 m2 bld=yes                lv=1 way236780158
+   Payer, Hunziker, Rhodes & Peters, LLP        (-93.61863, 42.02531)     400 m2 bld=yes                lv= way853984674
+   Precision Auto Clinic                        (-93.62112, 42.02438)     400 m2 bld=yes                lv=1 way238454556
+   10Fold Architecture + Engineering            (-93.61401, 42.02574)     398 m2 bld=yes                lv=1 way241720033
+   Alpha Gamma Delta                            (-93.64165, 42.02052)     394 m2 bld=yes                lv= way241725993
+   Phi Kappa Psi                                (-93.64585, 42.01990)     393 m2 bld=yes                lv=3 way247519143
+   Ames Tile Showroom                           (-93.61126, 42.02540)     384 m2 bld=retail             lv=1 way237834142
+   Kappa Delta                                  (-93.64120, 42.02097)     375 m2 bld=yes                lv= way241726003
+   Theta Xi                                     (-93.65053, 42.01976)     375 m2 bld=yes                lv=3 way830930328
+   Greater Iowa Credit Union                    (-93.62142, 42.02365)     373 m2 bld=yes                lv=1 way102239928
+   The Resort                                   (-93.64877, 42.02170)     369 m2 bld=residential        lv=3 way246079551
+   Winning Solutions                            (-93.62188, 42.02389)     369 m2 bld=yes                lv= way102239924
+   Wandling Engineering                         (-93.62340, 42.02423)     369 m2 bld=yes                lv=1 way238454551
+   Sam's Place                                  (-93.61170, 42.02539)     368 m2 bld=commercial         lv=2 way237834143
+   Alpha Kappa Lambda                           (-93.65363, 42.01933)     364 m2 bld=yes                lv=3 way830930330
+   U.S. Bank                                    (-93.65150, 42.02254)     362 m2 bld=yes                lv=2 way246079545
+   Ames History Museum                          (-93.61189, 42.02574)     361 m2 bld=yes                lv=2 way237834127
+   Alliance Ames Brazilian JiuJitsu             (-93.61336, 42.02321)     360 m2 bld=yes                lv=1 way236780163
+   Planned Parenthood - Ames Health Center      (-93.65149, 42.02115)     359 m2 bld=yes                lv=1 way272522421
+   All Star Auto Glass                          (-93.62170, 42.02319)     358 m2 bld=yes                lv=1 way102239931
+   Sigma Pi                                     (-93.64393, 42.02092)     357 m2 bld=yes                lv= way241726007
+   Kocimski Auditorium                          (-93.65311, 42.02828)     355 m2 bld=university         lv=2 way930836768
+   Motor Pool                                   (-93.62094, 42.01973)     354 m2 bld=yes                lv= way103156212
+   Delta Upsilon                                (-93.64487, 42.02203)     349 m2 bld=yes                lv=3 way246252165
+   Casey's General Store                        (-93.61664, 42.02269)     348 m2 bld=roof               lv= way236094032
+   Mass Mutual Financial Group                  (-93.61661, 42.02182)     340 m2 bld=yes                lv=1 way964840703
+   Delta Sigma Phi                              (-93.64676, 42.02025)     339 m2 bld=yes                lv=3 way247526954
+   ACACIA                                       (-93.64160, 42.02159)     338 m2 bld=yes                lv= way238398078
+   Public House                                 (-93.65107, 42.02124)     332 m2 bld=apartments         lv=5 way334936864
+   Beta Sigma Psi                               (-93.64207, 42.02032)     327 m2 bld=yes                lv= way241725996
+   Weber Accounting Services                    (-93.61442, 42.02713)     321 m2 bld=yes                lv= way853984698
+   Dunkin'                                      (-93.65387, 42.02254)     321 m2 bld=yes                lv= way231767127
+   Goldfinch Apartments                         (-93.61312, 42.02776)     321 m2 bld=apartments         lv=4 way853984852
+   Casey's General Store                        (-93.61665, 42.02242)     320 m2 bld=yes                lv= way236094025
+   Farm House Museum                            (-93.64396, 42.02716)     314 m2 bld=university         lv=3 way158023219
+   Theta Delta Chi                              (-93.64490, 42.02106)     313 m2 bld=yes                lv=3 way246252171
+   Iowa House                                   (-93.65210, 42.01881)     301 m2 bld=yes                lv=3 way919933057
+   AJ's Ultralounge                             (-93.64878, 42.02156)     301 m2 bld=yes                lv=3 way246079558
+   Macubana                                     (-93.64988, 42.02207)     301 m2 bld=yes                lv=2 way241365821
+   Pioneer Cleaning & Restoration               (-93.61074, 42.02580)     299 m2 bld=yes                lv=1 way853984842
+   Members 1st Community Credit Union           (-93.61658, 42.02528)     297 m2 bld=yes                lv= way241720026
+   Track Storage                                (-93.64689, 42.01417)     297 m2 bld=yes                lv= way242895558
+   Ames Pantorium                               (-93.61174, 42.02560)     292 m2 bld=commercial         lv=2 way237834148
+   Ames National Corporation                    (-93.61483, 42.02709)     291 m2 bld=yes                lv= way718052516
+   Outlaws                                      (-93.65124, 42.02123)     290 m2 bld=yes                lv=2 way272522425
+   Cy's Roost                                   (-93.65046, 42.02195)     289 m2 bld=yes                lv=2 way241365820
+   Serenity Pet Spa                             (-93.61338, 42.02331)     286 m2 bld=yes                lv=1 way236780162
+   Ames Eye Clinic                              (-93.61259, 42.03140)     285 m2 bld=yes                lv= way260923823
+   Lebeda Matress Factory                       (-93.61063, 42.02039)     278 m2 bld=yes                lv= way98658320
+   Celaya TexMex                                (-93.61069, 42.02095)     278 m2 bld=yes                lv=1 way300409284
+   Skunk River Cycles                           (-93.61423, 42.02483)     275 m2 bld=yes                lv= way254335405
+   The Knittery Nook & Fibre Co.                (-93.61293, 42.02537)     269 m2 bld=yes                lv= way237834147
+   Arby's                                       (-93.61092, 42.01860)     266 m2 bld=commercial         lv= way196546798
+   Dangerous Curves                             (-93.61107, 42.02614)     264 m2 bld=yes                lv=2 way310110557
+   The Parlor                                   (-93.61592, 42.02212)     264 m2 bld=yes                lv=1 way236410783
+   Phi Kappa Theta                              (-93.63988, 42.02238)     264 m2 bld=yes                lv= way238398082
+   Kum & Go                                     (-93.65056, 42.02125)     263 m2 bld=yes                lv= way231767147
+   Triplett Insurance                           (-93.61501, 42.02607)     257 m2 bld=yes                lv=1 way853984691
+   Whiskey River                                (-93.61184, 42.02495)     257 m2 bld=yes                lv= way269752175
+   Morning Bell Coffee Roasters                 (-93.61109, 42.02540)     256 m2 bld=yes                lv= way237834136
+   Abelardo's Mexican Food                      (-93.61842, 42.02323)     253 m2 bld=yes                lv=1 way236094050
+   Pyfferoen Pediatric Dentistry                (-93.61394, 42.02610)     251 m2 bld=yes                lv= way262264537
+   Starbucks                                    (-93.61736, 42.02320)     247 m2 bld=yes                lv=1 way236094026
+   Crystal Clean Windows                        (-93.65110, 42.02103)     246 m2 bld=yes                lv= way272522423
+   The Pumpkin Patch                            (-93.61395, 42.02484)     246 m2 bld=yes                lv= way254335407
+   Taco Bell                                    (-93.61099, 42.01814)     244 m2 bld=yes                lv= way196546809
+   Little Taipei                                (-93.65077, 42.02118)     242 m2 bld=yes                lv= way241365808
+   Heroic Ink Tattoo & Piercing                 (-93.61263, 42.02537)     241 m2 bld=yes                lv= way237834145
+   DQ Grill & Chill                             (-93.61434, 42.02262)     235 m2 bld=yes                lv=1 way236094047
+   Kitchen, Bath & Home                         (-93.61225, 42.02538)     232 m2 bld=retail             lv= way237834132
+   Triplett Companies                           (-93.61517, 42.02607)     232 m2 bld=yes                lv=1 way1105577307
+   Avec Design+Build                            (-93.61191, 42.02537)     231 m2 bld=office             lv=2 way237834141
+   Emerhoff's Footwear                          (-93.61282, 42.02536)     222 m2 bld=retail             lv=2 way237834139
+   Maintenance Building                         (-93.64711, 42.01215)     222 m2 bld=yes                lv= way242895554
+   Moorman Clothiers                            (-93.61289, 42.02489)     222 m2 bld=yes                lv= way269752179
+   Skei Coal & Salt                             (-93.61910, 42.02402)     219 m2 bld=shed               lv= way98658312
+   Melissa Stenstrom Fine Jewelry               (-93.61728, 42.02530)     219 m2 bld=yes                lv=2 way853984669
+   Touchless Laser Car Wash II                  (-93.61562, 42.02385)     217 m2 bld=yes                lv= way236410785
+   Back Alley House Plants                      (-93.61712, 42.02530)     213 m2 bld=yes                lv=2 way853984668
+   Mother's Pub                                 (-93.65726, 42.02518)     212 m2 bld=yes                lv= way251728629
+   Ames Christian Supply                        (-93.61273, 42.02536)     212 m2 bld=retail             lv=2 way237834125
+   The Loft - Ames                              (-93.61355, 42.02535)     211 m2 bld=retail             lv=2 way237834135
+   Campus Garage                                (-93.65524, 42.02304)     211 m2 bld=yes                lv= way317113439
+   Mary Jane's Ames                             (-93.61138, 42.02538)     208 m2 bld=yes                lv= way237834131
+   Cafe Diem                                    (-93.61338, 42.02535)     207 m2 bld=yes                lv= way237834126
+   Family Martial Arts Center                   (-93.61346, 42.02535)     203 m2 bld=yes                lv= way237834128
+   Iowa Subway Development                      (-93.61070, 42.02612)     196 m2 bld=office             lv=2 way853984845
+   Papa Murphy's                                (-93.61165, 42.02308)     196 m2 bld=yes                lv=1 way236780159
+   T-Mobile                                     (-93.61080, 42.01577)     194 m2 bld=yes                lv= way782468336
+   Cooks' Emporium                              (-93.61444, 42.02534)     193 m2 bld=retail             lv=2 way241720041
+   Huss Law Office                              (-93.61891, 42.02551)     191 m2 bld=yes                lv= way519341367
+   Ames Silversmithing                          (-93.61278, 42.02492)     189 m2 bld=yes                lv= way269752173
+   Valor & Violet Salon                         (-93.61433, 42.02488)     187 m2 bld=yes                lv= way254335404
+   Medicap Pharmacy                             (-93.61082, 42.02325)     184 m2 bld=yes                lv= way236780157
+   The Great Plains Sauce & Dough Company       (-93.61182, 42.02537)     183 m2 bld=yes                lv= way237834149
+   Vision Bank                                  (-93.61094, 42.02534)     181 m2 bld=yes                lv= way237834121
+   Ames Smoke Shop                              (-93.61322, 42.02311)     180 m2 bld=yes                lv=1 way236780164
+   Eastman Auto Care                            (-93.61421, 42.02716)     177 m2 bld=yes                lv= way853984699
+   In Spyrit Metaphysical                       (-93.61344, 42.02345)     177 m2 bld=yes                lv=1 way236565191
+   Worldly Goods                                (-93.61310, 42.02535)     174 m2 bld=retail             lv=2 way237834123
+   Dutch Oven Bakery                            (-93.61112, 42.02439)     174 m2 bld=yes                lv=1 way236780154
+   Hoyng Insurance Group                        (-93.61504, 42.02710)     172 m2 bld=yes                lv=1 way718052515
+   SJB Hair Studio                              (-93.61616, 42.02570)     171 m2 bld=yes                lv=1 way241720045
+   Ames Spine & Sport                           (-93.61255, 42.02491)     170 m2 bld=yes                lv= way269752174
+   State Farm                                   (-93.61067, 42.02546)     169 m2 bld=yes                lv= way237834151
+   5th Street Dental Office                     (-93.61912, 42.02562)     166 m2 bld=yes                lv= way519341368
+   West Street Deli                             (-93.65624, 42.02517)     164 m2 bld=yes                lv=1 way251728626
+   Sciota Trading                               (-93.61891, 42.02529)     163 m2 bld=yes                lv=2 way519341365
+   Hickory Shelter                              (-93.63063, 42.03004)     163 m2 bld=roof               lv= way55875377
+   Scooter's Coffee                             (-93.61005, 42.02316)     162 m2 bld=yes                lv= way982317724
+   Hastings, Gartin & Boettger                  (-93.61070, 42.02569)     160 m2 bld=yes                lv=1 way853984844
+   Portobello Road                              (-93.64985, 42.02187)     159 m2 bld=yes                lv=3 way231767129
+   Sloss House                                  (-93.64492, 42.02568)     157 m2 bld=university         lv= way183041219
+   Chester's Coins & Gifts                      (-93.61302, 42.02535)     157 m2 bld=retail             lv=2 way237834134
+   Corsanti Building                            (-93.61121, 42.02613)     156 m2 bld=apartments         lv=2 way310110558
+   Martin House                                 (-93.61299, 42.02270)     154 m2 bld=house              lv=2 way1014233739
+   Marston Water Tower                          (-93.65076, 42.02699)     151 m2 bld=yes                lv= way861201396
+   Heroic Hair                                  (-93.61255, 42.02537)     147 m2 bld=yes                lv= way237834124
+   The Hobby Shop                               (-93.61207, 42.02494)     144 m2 bld=yes                lv= way269752171
+   Little Woods: Herbs and Teas                 (-93.61198, 42.02495)     142 m2 bld=yes                lv= way269752155
+   Chic Beauty Salon                            (-93.61216, 42.02493)     141 m2 bld=yes                lv= way269752172
+   London Underground                           (-93.61247, 42.02492)     138 m2 bld=yes                lv= way269752154
+   1+1 Restaurant & Tea                         (-93.65642, 42.02515)     138 m2 bld=yes                lv=2 way251728622
+   Treats on a Leash                            (-93.61264, 42.02492)     135 m2 bld=yes                lv= way269752180
+   The Frame Shop                               (-93.61239, 42.02492)     133 m2 bld=yes                lv= way269752159
+   Acorn Antiques and Consignments              (-93.61462, 42.02527)     132 m2 bld=retail             lv=2 way241720036
+   AXA Advisors                                 (-93.61517, 42.02756)     131 m2 bld=yes                lv=2 way1105577336
+   Herrick Dental                               (-93.61927, 42.02561)     128 m2 bld=yes                lv= way853984679
+   Ichiban Japanese Restaurant                  (-93.65036, 42.02206)     126 m2 bld=yes                lv=1 way231767126
+   AJ's Liquor                                  (-93.65088, 42.02163)     124 m2 bld=yes                lv=1 way241365811
+   PhotoSynthesis                               (-93.61453, 42.02527)     121 m2 bld=retail             lv=2 way241720032
+   Triad Chiropractic                           (-93.61170, 42.02496)     120 m2 bld=yes                lv= way269752169
+   Maple Shelter                                (-93.62948, 42.02886)     120 m2 bld=roof               lv= way260180372
+   Kum & Go                                     (-93.65029, 42.02127)     115 m2 bld=roof               lv= way231767132
+   The Grove Cafe                               (-93.61154, 42.02497)     112 m2 bld=yes                lv= way269752153
+   Gilger Designs                               (-93.61336, 42.02493)     112 m2 bld=yes                lv= way269752167
+   Edward Jones                                 (-93.61233, 42.02492)     111 m2 bld=yes                lv= way269752166
+   Thumbs                                       (-93.65652, 42.02515)     109 m2 bld=yes                lv=1 way251728624
+   The Pier                                     (-93.65541, 42.02555)     105 m2 bld=house              lv=2 way251810709
+   Aisles Online                                (-93.62007, 42.02081)     104 m2 bld=service            lv=1 way1105093113
+   Paintball Storage                            (-93.65505, 42.01750)     102 m2 bld=university         lv= way854983919
+   Linden Shelter                               (-93.62946, 42.03020)      99 m2 bld=roof               lv= way260180376
+   Fringe Salon                                 (-93.61113, 42.02499)      93 m2 bld=yes                lv= way269752163
+   H&R Block                                    (-93.61162, 42.02496)      87 m2 bld=yes                lv= way269752156
+   Gannon Real Estate & Consulting              (-93.61145, 42.02497)      84 m2 bld=yes                lv= way269752158
+   Dave Fitz Electric                           (-93.61018, 42.02376)      84 m2 bld=yes                lv=1 way312090992
+   Nations Financial Group                      (-93.61359, 42.02761)      72 m2 bld=yes                lv= way1242088604
+   Softball Pressbox                            (-93.64673, 42.01279)      71 m2 bld=yes                lv= way854983921
+   Soccer Pressbox                              (-93.64584, 42.01319)      71 m2 bld=yes                lv= way242895556
+   Times Square Corner                          (-93.64876, 42.02120)      70 m2 bld=residential        lv=3;2 relation14669595
+   Troy's Barber Shop                           (-93.65580, 42.02550)      66 m2 bld=yes                lv=1 way251728627
+   Satellite Communications                     (-93.61116, 42.02533)      59 m2 bld=yes                lv= way237834122
+   A Stitch On Time                             (-93.61133, 42.02498)      58 m2 bld=yes                lv= way269752168
+   Ann's Insurance                              (-93.61127, 42.02499)      58 m2 bld=yes                lv= way269752157
+   Cyclone Barber                               (-93.61104, 42.02500)      48 m2 bld=yes                lv= way269752161
+   Campanile                                    (-93.64604, 42.02543)      45 m2 bld=university         lv=1 way183041212
+   Ames Lock & Security                         (-93.61734, 42.02527)      43 m2 bld=yes                lv= way1246453468
+   Campustown Clock Tower                       (-93.65015, 42.02134)       4 m2 bld=yes                lv= way853592605

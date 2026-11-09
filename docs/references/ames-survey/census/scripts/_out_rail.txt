@@ -1,0 +1,45 @@
+== 5b. RAIL IN CORE
+rail length in core by (railway, service, name/operator):
+  ('rail', '-', 'UP Clinton Subdivision')                                   8.47 km  26 ways
+  ('rail', '-', 'Jewell Subdivision')                                       1.25 km  1 ways
+  ('rail', 'spur', '-')                                                     1.00 km  6 ways
+  ('abandoned', '-', '-')                                                   0.12 km  1 ways
+
+road x rail crossing points in core (dedup 20 m within same road): 37 total (19 at-grade, 18 grade-separated); vehicular 15, foot/bike 22
+  (-93.65415, 42.03499)  GSEP  road='13th Street' (secondary)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.65392, 42.03495)  GSEP  road='13th Street' (secondary)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62708, 42.03456)  AT-GR  road='13th Street' (secondary)  rail=rail/- rail_name=Jewell Subdivision
+  (-93.64471, 42.03224)  GSEP  road='Stange Road' (secondary)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.63866, 42.03027)  GSEP  road='Haber Road' (residential)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62487, 42.03018)  AT-GR  road='9th Street' (residential)  rail=rail/- rail_name=Jewell Subdivision
+  (-93.63218, 42.02814)  GSEP  road='6th Street' (secondary)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62445, 42.02675)  GSEP  road='6th Street' (secondary)  rail=rail/- rail_name=Jewell Subdivision
+  (-93.62671, 42.02640)  AT-GR  road='North Hazel Avenue' (residential)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62662, 42.02637)  AT-GR  road='Brookridge Avenue' (residential)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62532, 42.02560)  AT-GR  road='service' (service)  rail=abandoned/- rail_name=-
+  (-93.61042, 42.02471)  AT-GR  road='Duff Avenue' (secondary)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62026, 42.02445)  AT-GR  road='Grand Avenue' (primary)  rail=rail/spur rail_name=-
+  (-93.61374, 42.02420)  AT-GR  road='Kellogg Avenue' (tertiary)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.61691, 42.02414)  AT-GR  road='Clark Avenue' (tertiary)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.65368, 42.03490)  GSEP  road='cycleway' (cycleway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62713, 42.03465)  AT-GR  road='footway' (footway)  rail=rail/- rail_name=Jewell Subdivision
+  (-93.62703, 42.03446)  AT-GR  road='cycleway' (cycleway)  rail=rail/- rail_name=Jewell Subdivision
+  (-93.65071, 42.03424)  AT-GR  road='path' (path)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.64638, 42.03283)  AT-GR  road='footway' (footway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.64483, 42.03232)  GSEP  road='cycleway' (cycleway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.64462, 42.03221)  GSEP  road='footway' (footway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.64167, 42.03125)  GSEP  road='cycleway' (cycleway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.63868, 42.03031)  GSEP  road='footway' (footway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62486, 42.03010)  AT-GR  road='footway' (footway)  rail=rail/- rail_name=Jewell Subdivision
+  (-93.63207, 42.02815)  GSEP  road='cycleway' (cycleway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62916, 42.02716)  GSEP  road='path' (path)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62908, 42.02713)  GSEP  road='track' (track)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62447, 42.02682)  GSEP  road='footway' (footway)  rail=rail/- rail_name=Jewell Subdivision
+  (-93.62442, 42.02668)  GSEP  road='cycleway' (cycleway)  rail=rail/- rail_name=Jewell Subdivision
+  (-93.62657, 42.02630)  AT-GR  road='footway' (footway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.61028, 42.02474)  AT-GR  road='footway' (footway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.61055, 42.02469)  AT-GR  road='footway' (footway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62040, 42.02453)  GSEP  road='footway' (footway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.62013, 42.02441)  GSEP  road='footway' (footway)  rail=rail/spur rail_name=-
+  (-93.61380, 42.02420)  AT-GR  road='footway' (footway)  rail=rail/- rail_name=UP Clinton Subdivision
+  (-93.61695, 42.02414)  AT-GR  road='footway' (footway)  rail=rail/- rail_name=UP Clinton Subdivision

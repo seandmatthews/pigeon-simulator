@@ -1,0 +1,728 @@
+name,orientation,classes,length_m,ways,bbox_w_m,bbox_h_m,center_lon,center_lat
+190th Street,E-W,secondary,17314,2,17333,55,-93.46166,42.07797
+Lincoln Way,E-W,primary,11124,38,6732,40,-93.65108,42.02285
+200th Street,E-W,residential,8890,2,17850,187,-93.57062,42.06437
+Grand Avenue,N-S,primary,8466,30,252,6127,-93.62163,42.05037
+570th Avenue,N-S,"residential,tertiary",8156,2,412,8019,-93.55809,42.07069
+University Boulevard,N-S,secondary,8110,23,1036,3596,-93.63841,42.01433
+North Dakota Avenue,N-S,"residential,secondary",7076,13,291,5510,-93.67716,42.04783
+George Washington Carver Avenue,N-S,"tertiary,secondary",6996,4,815,6566,-93.65447,42.07735
+Stange Road,N-S,"secondary,residential",5966,20,1215,4467,-93.65202,42.05063
+West 190th Street,E-W,residential,5620,7,5596,54,-93.65453,42.0778
+North Dayton Avenue,N-S,"secondary,residential",5487,3,14,5481,-93.5815,42.06749
+East 13th Street,E-W,secondary,5123,10,3500,26,-93.58951,42.03448
+Airport Road,E-W,"secondary,residential",4952,9,2436,440,-93.62432,41.99918
+Bloomington Road,E-W,"tertiary,secondary,residential",4944,18,2804,137,-93.6355,42.05582
+13th Street,E-W,secondary,4843,7,3720,142,-93.63317,42.03509
+210th Street,E-W,residential,4501,1,4506,31,-93.53333,42.04921
+South Duff Avenue,N-S,primary,4372,33,46,2638,-93.61015,42.01103
+Mortensen Road,E-W,tertiary,4173,11,3974,394,-93.67143,42.01341
+East Lincoln Way,E-W,secondary,4024,10,4028,36,-93.58602,42.02287
+Duff Avenue,N-S,secondary,3705,8,837,3144,-93.61544,42.03705
+South Dakota Avenue,N-S,secondary,3675,21,20,2775,-93.67866,42.01053
+Arrasmith Trail,N-S,residential,3514,4,1353,2396,-93.61407,42.0815
+Stagecoach Road,N-S,residential,3509,3,614,3271,-93.59738,42.0491
+24th Street,E-W,"secondary,tertiary,residential",3294,10,3141,263,-93.63056,42.04661
+Cameron School Road,E-W,tertiary,3245,4,3248,17,-93.67902,42.07072
+Lincoln Highway,E-W,secondary,3211,1,3214,10,-93.54223,42.02308
+Grant Avenue,N-S,tertiary,3211,1,7,3208,-93.63998,42.07795
+Dayton Avenue,N-S,secondary,3197,8,447,3838,-93.58401,42.02554
+South Dayton Avenue,N-S,"residential,secondary",3179,7,470,3203,-93.58378,42.00829
+Northwestern Avenue,N-S,tertiary,3058,7,561,2894,-93.6238,42.03807
+Ontario Street,E-W,secondary,2994,8,2905,15,-93.67321,42.03451
+Kellogg Avenue,N-S,"residential,tertiary",2900,11,405,3309,-93.61609,42.0378
+Southeast 16th Street,E-W,"secondary,residential,tertiary",2866,9,2867,19,-93.59267,42.00834
+State Avenue,N-S,tertiary,2728,4,120,2706,-93.65842,42.01055
+South Grand Avenue,N-S,"tertiary,residential",2676,20,194,1990,-93.62119,42.01384
+Clark Avenue,N-S,"residential,tertiary",2675,15,69,2535,-93.61718,42.03432
+South 16th Street,E-W,secondary,2309,9,1972,357,-93.62192,42.00995
+Burnett Avenue,N-S,residential,2296,3,95,2293,-93.61593,42.03541
+Valley View Road,N-S,residential,2054,2,387,1749,-93.65359,42.0556
+Harrison Road,E-W,residential,2031,2,2067,488,-93.64678,42.06144
+East Riverside Road,E-W,secondary,2024,1,2013,126,-93.59376,42.06415
+6th Street,E-W,secondary,2013,12,1920,207,-93.62209,42.02767
+20th Street,E-W,"tertiary,residential",2000,6,2002,26,-93.62283,42.042
+South 4th Street,E-W,"secondary,residential",1883,10,1537,353,-93.62308,42.01783
+240th Street,E-W,unclassified,1873,1,1661,342,-93.68862,42.00687
+Eisenhower Avenue,N-S,residential,1863,2,365,1717,-93.63587,42.0541
+Ridgewood Avenue,N-S,"residential,tertiary",1849,4,577,1685,-93.62888,42.03433
+Ross Road,E-W,residential,1832,3,1917,154,-93.66725,42.03283
+Mortensen Parkway,diag,tertiary,1779,4,682,376,-93.64334,42.01003
+South Riverside Drive,N-S,residential,1734,7,93,3235,-93.63013,42.00829
+Douglas Avenue,N-S,residential,1716,5,25,2081,-93.61223,42.0345
+Aspen Road,E-W,residential,1691,4,1496,223,-93.64805,42.05075
+215th Street,E-W,residential,1648,1,1650,4,-93.68874,42.04176
+Beach Avenue,N-S,"residential,tertiary",1636,4,121,1593,-93.64013,42.01561
+Old Bloomington Road,E-W,residential,1613,1,1615,22,-93.59125,42.05624
+South Bell Avenue,N-S,residential,1600,3,33,1594,-93.57515,42.0156
+245th Street,E-W,residential,1596,2,9318,300,-93.61196,41.99994
+East 190th Street,E-W,"secondary,residential",1590,4,3262,14,-93.58629,42.07786
+Carroll Avenue,N-S,residential,1583,2,160,1487,-93.60974,42.03265
+Wilson Avenue,N-S,residential,1582,2,18,1580,-93.61844,42.03497
+16th Street,E-W,residential,1577,3,1578,9,-93.62025,42.03829
+Stone Brooke Road,diag,residential,1542,2,954,499,-93.63676,42.06132
+South 3rd Street,E-W,"secondary,residential",1493,7,1836,118,-93.61721,42.01995
+West Riverside Road,E-W,secondary,1487,5,1423,254,-93.61455,42.06586
+Ridgetop Road,N-S,residential,1477,1,377,1056,-93.65519,42.05059
+9th Street,E-W,residential,1460,6,1401,71,-93.61903,42.03049
+Maxwell Avenue,N-S,residential,1416,1,237,1320,-93.60814,42.03604
+Ash Avenue,N-S,tertiary,1414,5,208,1276,-93.64553,42.01707
+Ferndale Avenue,N-S,residential,1354,2,275,1212,-93.62292,42.04569
+Dotson Drive,N-S,tertiary,1347,4,240,1212,-93.67219,42.01751
+Roosevelt Avenue,N-S,residential,1336,2,88,1318,-93.62302,42.03613
+Clemens Boulevard,E-W,residential,1325,3,1201,209,-93.68594,42.01703
+North Hyland Avenue,N-S,secondary,1316,4,10,1314,-93.65565,42.02865
+566th Avenue,N-S,residential,1307,1,216,1163,-93.56907,42.01765
+Deer Run Lane,diag,residential,1286,1,844,527,-93.67352,42.05922
+Northridge Parkway,E-W,residential,1279,4,860,426,-93.64772,42.04702
+Country Club Boulevard,diag,residential,1255,4,403,424,-93.64189,42.01749
+Welch Avenue,N-S,residential,1251,7,71,1209,-93.64978,42.01731
+Scholl Road,N-S,residential,1235,4,269,1065,-93.66383,42.03701
+Kent Avenue,N-S,residential,1232,1,256,1135,-93.64133,42.05057
+Union Drive,diag,"residential,tertiary",1223,10,954,296,-93.64853,42.02404
+Hayward Avenue,N-S,residential,1220,3,10,1219,-93.65172,42.01736
+Hoover Avenue,N-S,"tertiary,residential",1218,4,11,1216,-93.63024,42.05106
+Buchanan Drive,E-W,residential,1189,7,758,188,-93.63487,42.055
+10th Street,E-W,residential,1188,2,1189,7,-93.61777,42.03127
+Weston Drive,E-W,residential,1161,1,1136,143,-93.65468,42.06182
+Hawthorn Court Drive,E-W,residential,1123,10,556,106,-93.64137,42.03389
+12th Street,E-W,residential,1101,2,1098,27,-93.61902,42.03315
+8th Street,E-W,residential,1094,1,1095,25,-93.61715,42.02888
+Toronto Street,E-W,residential,1091,2,1085,107,-93.67617,42.03594
+Edenburn Drive,diag,residential,1084,5,352,265,-93.64239,42.04406
+Southeast 5th Street,E-W,residential,1079,3,2403,60,-93.59583,42.01742
+Arizona Avenue,N-S,residential,1077,3,123,992,-93.67622,42.03167
+Woodland Street,E-W,residential,1066,2,1012,129,-93.66372,42.02589
+Ada Hayden Road,diag,residential,1061,2,854,244,-93.63485,42.07685
+Cartier Avenue,N-S,residential,1057,2,450,843,-93.66418,42.06356
+Top-O-Hollow Road,E-W,residential,1055,1,1044,47,-93.6274,42.05649
+5th Street,E-W,residential,1053,5,1079,32,-93.61697,42.02581
+Sheldon Avenue,N-S,"tertiary,residential",1052,3,130,988,-93.65493,42.02358
+7th Street,E-W,residential,1050,2,1051,21,-93.61685,42.02788
+Delaware Avenue,N-S,residential,1036,2,110,990,-93.67957,42.03243
+Tripp Street,E-W,residential,1022,1,1013,54,-93.66525,42.01991
+South 2nd Street,E-W,residential,1022,2,1592,4,-93.61997,42.02162
+Northwood Drive,diag,residential,1011,2,527,649,-93.61735,42.05103
+Idaho Avenue,N-S,residential,1009,2,83,895,-93.6837,42.03301
+West Street,E-W,residential,992,4,983,52,-93.66024,42.02513
+241st Street,E-W,residential,973,1,891,190,-93.56108,42.00742
+Osborn Drive,E-W,unclassified,957,10,859,6,-93.64671,42.02889
+Pammel Drive,E-W,tertiary,950,3,910,107,-93.65018,42.03004
+Oakland Street,E-W,residential,949,1,947,44,-93.66144,42.02822
+Fletcher Boulevard,E-W,residential,926,2,152,579,-93.63373,42.05904
+South 5th Street,E-W,tertiary,920,3,912,48,-93.61587,42.01719
+Todd Drive,E-W,residential,917,5,855,121,-93.68146,42.02177
+Morrill Road,N-S,"unclassified,residential",913,5,129,1068,-93.64718,42.02764
+510th Avenue,N-S,residential,909,1,162,814,-93.67764,42.08167
+Hamilton Drive,N-S,residential,903,1,394,271,-93.6462,42.00163
+11th Street,E-W,residential,900,10,805,12,-93.61547,42.03206
+Meadow Lane Court,E-W,residential,891,4,352,78,-93.60815,42.0107
+Valley Road,N-S,residential,887,2,204,791,-93.66956,42.07435
+Dawes Drive,N-S,residential,876,1,230,787,-93.62244,42.06025
+Ironwood Court,E-W,residential,864,2,493,245,-93.64231,42.00474
+Melrose Avenue,N-S,residential,863,1,218,755,-93.6237,42.04548
+Harvest Road,N-S,residential,843,1,313,649,-93.6865,42.07367
+Brookridge Avenue,N-S,residential,840,5,101,745,-93.62723,42.02972
+Meadowlane Avenue,N-S,residential,836,1,111,812,-93.60445,42.03818
+Clayton Drive,E-W,residential,833,1,762,136,-93.64415,42.05157
+Hyde Avenue,N-S,"residential,tertiary",830,2,107,801,-93.64064,42.0599
+Main Street,E-W,"residential,tertiary",824,6,825,15,-93.61542,42.02509
+Wheeler Street,E-W,residential,822,2,805,75,-93.6254,42.05363
+Hemingway Drive,E-W,residential,820,1,583,198,-93.6831,42.01791
+Stanton Avenue,N-S,residential,817,1,5,815,-93.64851,42.01918
+Lynn Avenue,N-S,residential,816,2,9,814,-93.64641,42.01917
+Knapp Street,E-W,residential,807,3,808,5,-93.64926,42.01915
+30th Street,E-W,"tertiary,secondary",805,5,805,16,-93.62537,42.05113
+15th Street,E-W,residential,803,1,804,1,-93.61556,42.03702
+Schubert Street,E-W,residential,799,2,773,124,-93.68791,42.0216
+Bristol Drive,E-W,residential,796,2,709,107,-93.64375,42.0475
+Freel Drive,N-S,residential,795,1,4,794,-93.58941,42.01914
+Curtiss Avenue,N-S,residential,782,1,7,781,-93.62467,42.03478
+Harding Avenue,N-S,residential,782,1,7,781,-93.62148,42.03481
+Marston Avenue,N-S,residential,782,1,5,781,-93.62362,42.03479
+Jack Trice Way,E-W,tertiary,781,5,583,13,-93.63589,42.01628
+Johnson Street,E-W,residential,773,1,564,197,-93.62918,42.0497
+Phoenix Street,E-W,residential,771,1,727,117,-93.67443,42.03003
+Welbeck Drive,diag,residential,764,1,261,622,-93.64287,42.0607
+Stafford Avenue,N-S,residential,763,1,8,762,-93.60786,42.03482
+North 2nd Street,E-W,residential,759,1,760,9,-93.62525,42.02404
+505th Avenue,N-S,residential,759,1,4,758,-93.68837,42.07415
+South Maple Avenue,N-S,residential,757,2,17,754,-93.62514,42.01948
+28th Street,E-W,residential,747,3,965,150,-93.62437,42.04871
+South Loop Drive,diag,unclassified,745,1,366,436,-93.63504,41.99876
+North Fork Road,N-S,residential,741,1,169,493,-93.58245,42.0819
+Hartford Drive,N-S,residential,739,3,152,611,-93.68996,42.02561
+Green Hills Drive,diag,residential,736,1,437,310,-93.64205,42.0008
+Aldrin Avenue,N-S,residential,728,1,41,724,-93.66059,42.06221
+Turing St,E-W,tertiary,723,1,722,54,-93.56026,42.0089
+Wallace Road,N-S,"tertiary,residential",715,4,216,635,-93.64281,42.02766
+Wilder Boulevard,diag,residential,706,2,193,658,-93.69018,42.01672
+Dickinson Avenue,N-S,residential,704,3,108,691,-93.68145,42.01392
+Utah Drive,diag,residential,704,2,441,197,-93.68252,42.0297
+Florida Avenue,N-S,residential,697,1,52,682,-93.6813,42.03362
+Beach Road,N-S,tertiary,681,4,210,499,-93.64023,42.02502
+Beedle Drive,N-S,residential,680,1,26,676,-93.67309,42.01994
+E 13th St,E-W,tertiary,680,1,681,5,-93.5627,42.03458
+Monroe Drive,diag,residential,680,1,260,241,-93.63542,42.05035
+Haber Road,N-S,residential,679,4,85,670,-93.63829,42.03159
+Meadow Glen Road,E-W,residential,673,1,610,163,-93.6552,42.00419
+Bayberry Road,E-W,residential,672,1,616,184,-93.65331,42.05433
+Jensen Avenue,N-S,residential,668,3,128,613,-93.61794,42.04512
+Onion Creek Lane,E-W,residential,656,1,652,13,-93.67153,42.04896
+South Walnut Avenue,N-S,tertiary,645,2,5,644,-93.61689,42.02001
+South Dayton Place,N-S,tertiary,644,1,71,617,-93.58165,42.01103
+Issac Newton Drive,E-W,unclassified,638,1,412,146,-93.58673,42.00892
+Strawberry Lane,diag,residential,635,1,327,262,-93.62763,42.00561
+Stevenson Drive,E-W,residential,629,2,433,161,-93.63649,42.0526
+Roxboro Drive,E-W,residential,619,1,491,160,-93.6507,42.05897
+Roy Key Avenue,N-S,residential,619,2,36,612,-93.62321,42.05392
+East 7th Street,E-W,residential,617,2,545,29,-93.60721,42.02798
+Somerset Drive,N-S,residential,616,1,68,600,-93.63985,42.04942
+547th Avenue,N-S,residential,615,1,82,568,-93.60643,42.06216
+Storm Street,E-W,residential,609,3,610,2,-93.64803,42.01614
+South 17th Street,E-W,residential,608,1,583,79,-93.61635,42.00617
+North Franklin Avenue,N-S,residential,608,1,9,607,-93.66484,42.02559
+McKinley Drive,diag,residential,607,1,485,256,-93.62882,42.04368
+Story Street,E-W,residential,606,3,867,53,-93.66371,42.02397
+Hunziker Drive,diag,residential,606,1,260,349,-93.62311,42.04226
+North 4th Street,E-W,residential,598,2,521,231,-93.62527,42.02537
+Campus Avenue,N-S,residential,597,1,1,596,-93.65703,42.02542
+Westbend Drive,E-W,residential,594,1,486,98,-93.68174,42.02473
+Garfield Avenue,N-S,residential,590,3,35,584,-93.66982,42.03283
+North Loop Drive,diag,unclassified,587,3,297,326,-93.63547,41.99971
+Kingman Road,E-W,residential,587,1,437,159,-93.66096,42.03734
+Philadelphia Street,E-W,unclassified,585,3,520,86,-93.58591,42.03579
+Pearson Avenue,diag,residential,584,6,185,296,-93.6426,42.01929
+Center Drive,E-W,unclassified,581,3,580,20,-93.63595,42.0197
+East 14th Street,E-W,residential,578,1,572,51,-93.60723,42.03548
+Edgewater Drive,N-S,residential,577,1,129,550,-93.62947,42.05902
+Cochrane Parkway,E-W,residential,576,1,564,48,-93.67528,42.01693
+Oklahoma Drive,diag,residential,576,4,191,246,-93.68446,42.03241
+Watt Street,E-W,residential,576,1,441,168,-93.58423,42.02844
+East 2nd Street,E-W,residential,575,1,575,21,-93.60691,42.02372
+Prairie View West,diag,residential,574,1,247,351,-93.63829,42.04388
+Coolidge Drive,diag,residential,574,1,272,326,-93.62851,42.0405
+Maryland Street,E-W,residential,570,1,565,33,-93.69227,42.03609
+Kansas Drive,E-W,residential,568,1,559,76,-93.68984,42.03765
+Dayton Parkway,E-W,residential,565,1,526,143,-93.5846,42.07715
+Thackeray Avenue,diag,residential,562,3,255,479,-93.68624,42.02097
+Bissell Road,N-S,tertiary,560,2,2,559,-93.65191,42.02789
+Hickory Hills Drive,N-S,residential,560,1,80,531,-93.68294,42.07311
+Maricopa Drive,E-W,residential,558,2,553,40,-93.67226,42.0086
+Christensen Drive,N-S,residential,558,2,273,333,-93.63372,42.00821
+Ashmore Drive,E-W,residential,557,1,425,172,-93.64197,42.01128
+South Franklin Avenue,N-S,residential,556,1,4,554,-93.66476,42.02037
+South Wilmoth Avenue,N-S,residential,553,1,5,552,-93.66158,42.02028
+Airport Drive,E-W,residential,552,2,140,258,-93.62246,41.99991
+Skycrest Drive,diag,residential,550,2,237,374,-93.61301,42.07316
+East 6th Street,E-W,residential,549,2,550,6,-93.60715,42.027
+26th Street,E-W,residential,547,3,878,54,-93.62153,42.04745
+Hayes Avenue,diag,"tertiary,residential",537,2,180,494,-93.63257,42.04415
+Greene Street,E-W,residential,536,1,536,13,-93.69108,42.02933
+Westwood Drive,N-S,residential,532,2,78,460,-93.66763,42.02627
+Ledges Drive,diag,residential,529,1,364,174,-93.63189,42.07658
+Creekside Drive,N-S,residential,527,5,41,426,-93.624,42.00645
+Adams Street,E-W,residential,527,1,525,11,-93.62607,42.05998
+Northcrest Drive,diag,residential,526,1,223,401,-93.63424,42.04371
+Kingston Drive,E-W,residential,526,2,523,22,-93.64342,42.05222
+Hickory Drive,diag,residential,524,2,284,384,-93.67155,42.02471
+Pinehurst Drive,diag,residential,524,3,239,350,-93.648,42.04386
+South Kellogg Avenue,N-S,residential,521,2,88,1821,-93.61312,42.01471
+Edison Street,E-W,residential,521,1,521,3,-93.58466,42.0253
+Timberland Road,N-S,residential,520,1,19,515,-93.64974,41.99967
+Golden Aspen Drive,N-S,residential,520,8,33,340,-93.61618,42.00781
+Poe Avenue,N-S,residential,519,1,69,497,-93.6842,42.0152
+Billy Sunday Road,E-W,residential,516,1,513,9,-93.60679,42.00281
+Torrey Pines Road,E-W,residential,515,1,237,187,-93.64706,42.04308
+Ford Street,E-W,residential,512,1,502,36,-93.57849,42.02664
+Tabor Drive,E-W,residential,498,1,452,159,-93.68928,42.02606
+Coy Street,E-W,residential,494,1,494,6,-93.66777,42.01788
+Wembley Avenue,N-S,residential,494,1,37,482,-93.65829,42.0608
+Pullman Street,E-W,residential,487,1,480,74,-93.58492,42.02702
+Matthews Road,E-W,residential,487,1,442,114,-93.67021,42.07302
+North Hazel Avenue,N-S,residential,484,3,19,431,-93.62674,42.0248
+Quebec Street,E-W,residential,483,1,482,16,-93.67256,42.03324
+East 16th Street,E-W,residential,483,1,478,24,-93.60781,42.03816
+Reagan Drive,E-W,residential,482,2,189,112,-93.63139,42.05104
+Stockbury Street,E-W,residential,482,1,481,20,-93.6556,42.06226
+Bel Air Drive,diag,residential,480,1,194,325,-93.62802,42.03974
+Browning Street,E-W,residential,476,3,391,19,-93.57918,42.01448
+Buckeye Avenue,N-S,residential,474,2,4,473,-93.61153,42.01055
+Gaskill Drive,N-S,residential,473,1,59,442,-93.64316,42.01376
+Springbrook Drive,diag,residential,470,2,396,233,-93.6907,42.02712
+East 20th Street,E-W,residential,470,2,466,18,-93.60791,42.04192
+Sedwick Street,E-W,residential,470,1,465,12,-93.65558,42.06302
+Lincoln Swing,E-W,residential,467,1,452,65,-93.67598,42.02226
+Thackeray Drive,E-W,residential,466,1,449,85,-93.69049,42.01843
+Bell Avenue,N-S,residential,464,1,42,446,-93.5752,42.02478
+Marigold Drive,E-W,residential,462,1,463,4,-93.6704,42.01887
+North Riverside Avenue,N-S,residential,459,2,121,397,-93.62915,42.02463
+Harris Street,E-W,residential,454,2,408,41,-93.67323,42.01809
+Westlawn Drive,N-S,residential,449,1,140,392,-93.64217,42.06017
+Long Road,N-S,residential,446,2,70,428,-93.64329,42.04099
+Sunset Drive,E-W,residential,445,1,405,143,-93.64193,42.02077
+Murray Drive,E-W,residential,445,1,445,6,-93.62312,42.03926
+Carnegie Avenue,N-S,residential,442,1,8,441,-93.58778,42.02471
+Stotts Road,N-S,residential,440,2,50,425,-93.64115,42.04117
+Chamberlain Street,E-W,residential,438,2,438,15,-93.64909,42.0215
+Gilchrist Street,E-W,residential,436,1,364,122,-93.61588,42.0234
+Felber Street,N-S,residential,435,1,134,328,-93.61009,42.07645
+Washington Avenue,N-S,residential,432,1,4,431,-93.61533,42.02097
+Camden Drive,E-W,residential,431,1,414,46,-93.6423,42.04625
+Rookwood Drive,E-W,residential,431,1,394,72,-93.61828,42.07763
+Gray Avenue,N-S,residential,426,3,112,333,-93.64135,42.0212
+Steinbeck Street,E-W,residential,425,2,424,20,-93.68124,42.01468
+25th Street,E-W,residential,423,2,1017,14,-93.62174,42.04652
+Cleveland Drive,diag,residential,419,1,177,161,-93.63483,42.04843
+Wyngate Drive,N-S,residential,419,1,164,162,-93.6368,42.06123
+Cervantes Drive,E-W,residential,417,1,299,103,-93.69081,42.01759
+Barr Drive,N-S,residential,417,1,125,212,-93.61899,42.04386
+Crawford Avenue,N-S,residential,411,1,8,410,-93.60715,42.02826
+South Hazel Avenue,N-S,residential,407,1,4,406,-93.62677,42.02103
+193rd Street,diag,residential,407,1,304,115,-93.61912,42.07499
+Arbor Street,E-W,residential,406,1,406,1,-93.65668,42.02093
+Pine Grove Lane,N-S,residential,406,1,54,384,-93.67085,42.07964
+Rowling Drive,E-W,residential,402,1,395,27,-93.6914,42.01509
+South Oak Avenue,N-S,residential,402,1,5,402,-93.62378,42.02107
+Glendale Avenue,N-S,residential,402,1,3,401,-93.60588,42.03634
+Everest Avenue,N-S,residential,402,1,10,401,-93.66229,42.06523
+18th Street,E-W,residential,401,2,402,52,-93.618,42.04048
+14th Street,E-W,residential,399,1,399,2,-93.61311,42.0357
+Evergreen Road,diag,residential,397,1,297,200,-93.65541,42.05264
+North Russell Avenue,N-S,residential,396,1,5,395,-93.62838,42.02463
+Southbend Drive,diag,residential,392,3,267,133,-93.68309,42.0237
+Walton Drive,N-S,residential,390,1,92,312,-93.67079,42.00983
+Polk Drive,E-W,residential,390,1,387,10,-93.63634,42.05329
+Prairie View East,N-S,residential,389,1,101,309,-93.63741,42.0441
+Northcrest Circle,diag,residential,388,3,144,125,-93.63492,42.04343
+Truman Place,diag,residential,385,1,255,161,-93.62872,42.05182
+Alumni Lane,N-S,unclassified,384,2,31,375,-93.63749,42.01793
+Lakeside Drive,diag,residential,384,1,163,154,-93.64246,42.06252
+Coconino Road,N-S,residential,383,1,57,366,-93.67595,42.01042
+Mulberry Boulevard,diag,residential,383,1,191,328,-93.62647,42.00689
+Thunder Road,diag,residential,383,1,144,341,-93.67278,42.07415
+North 3rd Street,E-W,residential,380,1,381,3,-93.62758,42.02519
+Emerson Drive,E-W,residential,378,3,259,64,-93.68639,42.0199
+Pierce Avenue,diag,residential,378,1,188,272,-93.63252,42.0476
+Hastings Avenue,N-S,residential,378,1,35,372,-93.65256,42.06129
+Miller Avenue,N-S,residential,377,1,27,374,-93.68677,42.01534
+Shady Grove Lane,E-W,residential,377,1,376,28,-93.57906,42.01312
+Hodge Avenue,N-S,residential,377,1,8,376,-93.62159,42.0285
+Apple Avenue,diag,residential,374,1,181,323,-93.62775,42.00705
+Durant Street,E-W,residential,374,1,374,7,-93.69086,42.02456
+Sheldon Avenue Extension,N-S,unclassified,373,2,75,329,-93.65421,42.02892
+Orchard Drive,N-S,residential,372,2,153,150,-93.62813,42.03368
+Mayfield Drive,N-S,residential,371,1,93,303,-93.6719,42.00987
+Sondrol Avenue,diag,residential,371,1,172,245,-93.59895,42.02386
+O'Neil Drive,diag,residential,370,2,779,3512,-93.61543,42.05603
+Calhoun Avenue,N-S,residential,367,1,7,366,-93.62407,42.0583
+Berkshire Avenue,N-S,residential,367,1,26,362,-93.63901,42.05987
+Westbrook Drive,E-W,residential,366,1,331,116,-93.67527,42.02415
+Paulson Drive,E-W,residential,366,2,278,141,-93.6068,42.04134
+Nebraska Avenue,N-S,residential,365,1,73,341,-93.6893,42.03604
+22nd Street,E-W,residential,363,1,351,42,-93.6152,42.04394
+Yuma Avenue,diag,residential,358,1,125,293,-93.67733,42.03083
+Almond Road,E-W,residential,356,1,351,37,-93.65264,42.05551
+Windrose Lane,diag,residential,356,1,229,242,-93.68698,42.07278
+Purvis Lane,N-S,residential,355,2,84,241,-93.6169,42.06576
+Wanda Daley Drive,diag,unclassified,354,2,235,128,-93.64615,42.03441
+Windfield Drive,E-W,residential,354,1,346,40,-93.63784,42.05809
+River Ridge Road,N-S,residential,354,1,116,325,-93.67567,42.06923
+Hilltop Road,N-S,residential,352,1,15,349,-93.66333,42.01941
+Kildee Street,E-W,residential,351,3,272,88,-93.64107,42.01757
+Baltimore Drive,diag,unclassified,349,1,205,157,-93.58401,42.03612
+Westwind Drive,diag,residential,349,1,265,110,-93.6416,42.06275
+Barcelos Street,E-W,residential,349,1,346,25,-93.66143,42.06421
+Clinton Avenue,N-S,residential,348,1,11,347,-93.65104,42.05777
+Village Drive,E-W,residential,346,1,80,140,-93.66613,42.01951
+Minnesota Avenue,N-S,residential,346,3,8,345,-93.6628,42.03602
+Aberdeen Drive,diag,residential,345,1,245,111,-93.64976,42.06265
+Donald Street,E-W,residential,344,1,344,3,-93.64643,42.017
+Audubon Drive,diag,residential,344,1,286,137,-93.63828,42.07331
+Leopold Drive,E-W,residential,344,1,342,10,-93.63793,42.07396
+Fillmore Avenue,diag,residential,343,1,136,311,-93.63159,42.04416
+Polaris Drive,diag,residential,343,1,141,211,-93.62403,42.05443
+195th Street,N-S,residential,343,1,85,301,-93.61107,42.07362
+Southern Hills Drive,E-W,residential,341,3,250,54,-93.62813,42.00242
+Mcfarland Avenue,N-S,residential,341,2,1,340,-93.6353,42.07641
+Hunt Street,E-W,residential,340,2,340,18,-93.65217,42.02021
+Blankenburg Drive,E-W,residential,339,2,315,100,-93.64294,42.04124
+Furman Drive,diag,residential,339,1,182,149,-93.62239,42.0442
+East O'Neil Drive,E-W,residential,338,1,304,123,-93.60887,42.03967
+Kooser Drive,E-W,unclassified,337,1,309,108,-93.6478,42.03224
+Amherst Drive,E-W,residential,337,2,273,74,-93.65902,42.03739
+Kentucky Avenue,N-S,residential,336,1,3,336,-93.68776,42.03601
+Oak Lane,diag,residential,336,1,192,220,-93.68223,42.07321
+South Russell Avenue,N-S,residential,335,1,4,334,-93.62833,42.02135
+Willow Creek Court,E-W,residential,334,4,192,103,-93.67771,42.02695
+Brickman Avenue,N-S,residential,334,1,86,296,-93.64303,42.06049
+Woodview Drive,E-W,residential,333,1,97,101,-93.64779,41.99998
+Luther Drive,diag,residential,332,1,146,166,-93.61888,42.04863
+Jefferson Street,E-W,residential,331,1,326,24,-93.62833,42.05521
+Copper Beech Avenue,N-S,residential,328,1,0,327,-93.62186,42.00636
+Burnham Drive,E-W,residential,327,1,310,68,-93.65296,42.0574
+Hutchison Street,E-W,residential,326,1,327,2,-93.68078,42.03521
+Irons Way,N-S,residential,326,2,60,267,-93.65867,42.07417
+Cyride Drive,diag,residential,325,2,225,173,-93.63506,42.02833
+Ballentine Drive,diag,residential,325,3,144,287,-93.6474,42.0618
+Greensboro Drive,E-W,residential,324,3,230,64,-93.64624,42.04409
+Southeast 2nd Street,E-W,residential,322,1,317,9,-93.60843,42.02162
+Ketelsen Drive,E-W,residential,322,1,323,2,-93.63725,42.07489
+199th Street,E-W,residential,320,1,320,5,-93.6767,42.06524
+Aplin Road,E-W,residential,319,1,320,4,-93.6733,42.0199
+Dover Drive,E-W,residential,319,2,259,94,-93.68132,42.02818
+Pinon Drive,N-S,residential,318,1,30,312,-93.67476,42.01347
+East 12th Street,E-W,residential,318,1,318,0,-93.60871,42.0332
+East 9th Street,E-W,residential,318,1,318,7,-93.60863,42.03013
+South Duff Frontage Road,diag,residential,317,1,129,200,-93.60884,42.00149
+East 11th Street,E-W,residential,317,1,318,3,-93.60868,42.03202
+Indian Grass Court,E-W,residential,315,2,156,76,-93.64067,42.00966
+Summit Avenue,N-S,residential,315,1,46,297,-93.62938,42.03657
+Cambridge Drive,diag,residential,315,1,190,197,-93.6477,42.05079
+Indiana Avenue,N-S,residential,314,1,10,312,-93.68639,42.0359
+Stonehaven Drive,E-W,residential,312,1,215,118,-93.61966,42.01851
+Thompson Drive,N-S,residential,312,2,51,255,-93.61591,42.04885
+Big Bluestem Court,diag,residential,309,2,64,207,-93.64517,42.01037
+Greeley Street,E-W,residential,309,3,201,78,-93.64068,42.0198
+Orange Avenue,diag,residential,308,1,149,266,-93.62717,42.00676
+London Drive,diag,residential,308,1,121,249,-93.64802,42.04894
+515th Avenue,N-S,residential,306,1,110,242,-93.66972,42.06967
+Grove Avenue,N-S,residential,305,1,2,305,-93.61965,42.05257
+Quarry Drive,N-S,residential,305,1,126,84,-93.62892,42.07699
+South Sherman Avenue,N-S,residential,304,1,4,303,-93.6121,42.02154
+Waterfront Drive,N-S,residential,303,1,114,153,-93.62355,42.0056
+Linden Drive,N-S,residential,303,1,1,302,-93.60492,42.03669
+Waller Street,E-W,residential,302,1,286,93,-93.68605,42.01395
+Little Bluestem Court,E-W,residential,301,1,161,105,-93.64653,42.00983
+Farnham Avenue,N-S,residential,299,1,109,93,-93.65043,42.05729
+Cessna Street,E-W,residential,295,1,291,26,-93.64117,42.01611
+Wood Street,E-W,residential,294,1,294,0,-93.65736,42.02215
+Gateway Hills Park Drive,N-S,residential,293,1,22,290,-93.64922,42.01056
+Friley Road,E-W,residential,293,1,294,3,-93.64118,42.01488
+Colt Street,E-W,residential,293,1,292,9,-93.57868,42.01378
+Abraham Drive,N-S,residential,292,1,2,292,-93.67629,42.02066
+Regency Court,N-S,residential,291,3,20,133,-93.62552,42.05172
+Lark Avenue,N-S,residential,289,2,30,263,-93.60584,42.00954
+Hansen Road,E-W,residential,289,1,282,30,-93.61259,42.07642
+Bruner Drive,E-W,residential,288,2,287,32,-93.64308,42.03911
+Wellons Drive,N-S,residential,287,2,20,244,-93.67522,42.01929
+Eaton Avenue,N-S,residential,287,1,49,239,-93.64587,42.04711
+Van Buren Avenue,diag,residential,286,1,127,245,-93.63034,42.04447
+Deere Street,E-W,residential,284,1,283,10,-93.57877,42.01516
+McCarthy Road,E-W,residential,283,1,283,2,-93.64111,42.01367
+Crestmoor Avenue,diag,residential,283,1,182,176,-93.64542,42.06271
+Truman Drive,diag,residential,281,1,197,94,-93.63145,42.05283
+Alta Vista Road,N-S,residential,280,1,81,233,-93.62671,42.07689
+East 8th Street,E-W,residential,277,1,278,5,-93.60885,42.02894
+Foxley Drive,E-W,residential,268,1,266,24,-93.65646,42.05866
+River Oak Drive,E-W,residential,268,1,259,45,-93.61809,42.05272
+Gable Lane,E-W,residential,266,1,217,69,-93.64308,42.02127
+Alexander Avenue,N-S,residential,266,1,5,265,-93.57746,42.02155
+Orion Drive,diag,residential,265,1,123,157,-93.62243,42.05466
+Howard Avenue,N-S,residential,264,1,4,263,-93.65848,42.02392
+Agg Avenue,diag,residential,264,3,83,155,-93.64104,42.01674
+Evergreen Circle,diag,residential,264,2,118,154,-93.65422,42.05105
+Cullen Drive,diag,residential,264,1,100,164,-93.64349,42.05495
+McDonald Drive,E-W,residential,263,1,192,72,-93.67209,42.02348
+North Maple Avenue,N-S,residential,260,1,2,260,-93.62526,42.02404
+Illinois Avenue,N-S,residential,260,2,20,217,-93.68512,42.03549
+Arthur Drive,diag,residential,259,1,215,92,-93.62816,42.04021
+Dalton Street,E-W,residential,259,1,259,5,-93.64344,42.05421
+220th Street,E-W,tertiary,255,2,129,10,-93.5676,42.03456
+Woodhaven Circle,E-W,residential,254,3,197,26,-93.63345,42.0582
+Bridgeport Drive,diag,residential,253,1,103,167,-93.65546,42.05784
+Sunflower Drive,N-S,residential,252,1,2,251,-93.66761,42.01901
+Sycamore Road,E-W,residential,252,1,252,15,-93.6543,42.04955
+Greenwood Road,E-W,residential,252,1,252,6,-93.65422,42.04864
+Webster Street,E-W,residential,251,1,251,1,-93.68109,42.01704
+Crane Avenue,N-S,residential,251,1,2,251,-93.66619,42.02532
+Fountain View Drive,N-S,residential,250,1,5,250,-93.6228,42.00726
+Colorado Avenue,N-S,residential,249,1,1,249,-93.66301,42.02386
+Beckley Street,E-W,residential,249,1,246,35,-93.65385,42.06054
+High Avenue,N-S,residential,248,1,1,248,-93.60779,42.02176
+Copperstone Drive,diag,residential,248,1,112,143,-93.61271,42.06503
+Twain Street,E-W,residential,246,1,246,1,-93.68229,42.01619
+Rockwell Avenue,N-S,residential,245,2,20,202,-93.68325,42.02098
+North Wilmoth Avenue,N-S,residential,244,1,2,243,-93.66163,42.02386
+British Columbia Avenue,N-S,residential,242,1,15,238,-93.68712,42.03343
+Reliable Street,E-W,residential,240,1,225,26,-93.68016,42.03681
+Maplewood Road,E-W,residential,240,1,221,71,-93.65405,42.04755
+Danbury Road,E-W,residential,240,1,222,33,-93.64957,42.06129
+Yorkshire Street,E-W,residential,239,1,239,3,-93.64356,42.05314
+Laura Court,diag,residential,239,2,41,153,-93.6264,42.06064
+Squaw Road,E-W,residential,239,2,171,57,-93.67181,42.07733
+Borne Avenue,N-S,residential,238,1,7,237,-93.60554,42.02391
+Westfield Road,diag,residential,238,1,161,174,-93.68734,42.02739
+Hughes Street,diag,residential,237,3,152,101,-93.64343,42.01678
+Ridgetop Circle,diag,residential,237,2,111,99,-93.65225,42.04629
+513th Avenue,N-S,residential,235,2,132,189,-93.67397,42.06534
+Forest Hills Drive,E-W,residential,232,1,168,46,-93.65669,42.03067
+Raphael Avenue,diag,residential,231,1,109,146,-93.6803,42.02065
+North Oak Avenue,N-S,residential,230,1,4,230,-93.62368,42.02391
+Peach Lane,E-W,residential,228,1,187,76,-93.6285,42.00529
+Oak Crest Circle,N-S,residential,228,1,81,198,-93.62317,42.07706
+Nixon Avenue,N-S,residential,227,1,42,219,-93.6279,42.05432
+Waterbury Circle,N-S,residential,226,1,107,20,-93.63362,42.06299
+Bach Court,diag,residential,224,1,111,121,-93.68186,42.02134
+Graham Street,E-W,residential,224,1,184,63,-93.57638,42.02008
+Park Way,diag,residential,224,4,152,75,-93.62691,42.03154
+Broadmoor Avenue,N-S,residential,224,2,73,180,-93.61259,42.04492
+Meadow Glen North,N-S,residential,223,1,63,196,-93.65423,42.00502
+George Allen Avenue,N-S,residential,223,1,26,217,-93.60712,42.04098
+Eastgate Drive,N-S,unclassified,222,3,14,111,-93.58395,42.03491
+McKinley Court,E-W,residential,221,2,172,40,-93.62791,42.04409
+Cypress Circle,E-W,residential,221,2,133,64,-93.65118,42.04982
+Oliver Avenue,N-S,residential,219,1,23,216,-93.666,42.02741
+Talon Drive,diag,residential,218,1,159,118,-93.64816,42.05811
+Aspen Ridge Road,diag,residential,217,1,143,80,-93.61601,42.00899
+Mesa Verde Place,N-S,residential,217,1,65,195,-93.67174,42.03136
+Tupelo Circle,E-W,residential,217,2,161,52,-93.65616,42.05238
+Todd Circle,N-S,residential,216,2,20,173,-93.67748,42.02046
+Westfield Drive,E-W,residential,216,1,213,23,-93.6896,42.02827
+Carr Drive,diag,residential,216,1,178,118,-93.6052,42.03874
+Kennedy Street,E-W,residential,215,1,215,4,-93.62589,42.05059
+Forest Glen,N-S,residential,214,1,22,211,-93.66031,42.02731
+Eisenhower Lane,diag,residential,214,2,159,91,-93.63904,42.06224
+Greenbriar Circle,E-W,residential,213,2,170,20,-93.64043,42.01256
+East Avenue,N-S,residential,213,1,3,213,-93.60812,42.02383
+Iowa Avenue,N-S,residential,211,1,2,211,-93.65929,42.03351
+Clinton Court,diag,residential,211,2,20,169,-93.6366,42.05513
+Wisconsin Avenue,N-S,residential,210,1,3,210,-93.66206,42.03352
+Scott Avenue,N-S,residential,210,1,1,209,-93.66062,42.03352
+Hawthorne Avenue,N-S,residential,210,1,3,210,-93.66271,42.02736
+Michigan Avenue,N-S,residential,210,1,1,210,-93.66355,42.03353
+Greensboro Circle,E-W,residential,210,2,105,54,-93.64827,42.04462
+Boston Avenue,N-S,unclassified,209,1,1,209,-93.58277,42.03712
+Buckingham Street,diag,residential,207,1,166,81,-93.64659,42.04775
+Garner Avenue,N-S,residential,207,1,58,195,-93.62671,42.05423
+17th Street,E-W,residential,205,2,162,20,-93.61333,42.03931
+Vermont Circle,diag,residential,204,1,78,141,-93.68164,42.02995
+Lettie Street,E-W,residential,203,1,203,4,-93.66036,42.0215
+Birch Avenue,N-S,residential,203,2,11,200,-93.57685,42.01292
+Sinclair Avenue,N-S,residential,202,1,20,191,-93.68107,42.02086
+Plymouth Drive,E-W,unclassified,202,2,101,13,-93.58215,42.03612
+South Hyland Avenue,N-S,residential,201,1,2,201,-93.65557,42.02183
+Tennyson Avenue,N-S,residential,200,1,1,199,-93.68779,42.01526
+Smiley Avenue,N-S,residential,199,1,2,199,-93.68777,42.01792
+Des Moines Avenue,N-S,residential,199,1,5,199,-93.60975,42.02379
+21st Street,E-W,residential,199,1,199,2,-93.61359,42.04298
+Arkansas Drive,E-W,residential,198,2,156,19,-93.6733,42.03142
+Whitney Avenue,N-S,residential,198,1,0,198,-93.5846,42.02618
+Honeysuckle Road,diag,residential,197,1,77,151,-93.6509,42.05496
+Cardinal Road,N-S,residential,195,1,11,193,-93.60825,42.00924
+Tiverton Court,N-S,residential,195,1,64,127,-93.64482,42.05804
+Wren Avenue,N-S,residential,193,1,0,192,-93.60737,42.00923
+Shelley Avenue,N-S,residential,193,1,0,193,-93.68261,42.01791
+Northridge Lane,E-W,residential,193,1,85,84,-93.64664,42.04812
+Arkansas Avenue,N-S,residential,192,1,19,187,-93.67436,42.03139
+East 3rd Street,E-W,residential,192,1,188,25,-93.60928,42.02473
+Woodstock Avenue,N-S,residential,191,1,2,190,-93.67708,42.03542
+Latimer Lane,E-W,residential,188,1,54,80,-93.66024,42.02013
+Margaret Lane,diag,residential,188,2,148,113,-93.67075,42.07659
+Grayhawk Drive,N-S,residential,187,1,15,185,-93.64921,42.05754
+Trailridge Road,N-S,residential,186,1,12,184,-93.67422,42.02446
+Judy Drive,diag,residential,185,1,110,113,-93.61496,42.07679
+Wheeler Drive,E-W,residential,184,1,184,5,-93.63138,42.05327
+Jackson Drive,E-W,residential,183,1,182,5,-93.63134,42.04965
+Edgewater Court,E-W,residential,181,1,80,21,-93.62914,42.06156
+Tyler Avenue,N-S,residential,179,1,2,179,-93.6279,42.04726
+Taft Avenue,N-S,residential,179,1,22,173,-93.63511,42.05564
+Annear Street,E-W,residential,178,1,178,0,-93.66652,42.03334
+Ellis Street,E-W,residential,177,1,177,5,-93.66054,42.02587
+Baker Street,E-W,residential,176,1,176,1,-93.64746,42.01792
+Seagrave Boulevard,N-S,residential,175,2,13,88,-93.67142,42.01163
+North Elm Avenue,N-S,residential,170,1,2,170,-93.62211,42.02356
+Twain Circle,diag,residential,169,1,110,66,-93.68014,42.0159
+Salk Avenue,N-S,residential,169,1,22,154,-93.57693,42.01451
+Parkridge Circle,diag,residential,168,2,40,114,-93.68238,42.02482
+Crescent Street,N-S,residential,168,2,75,108,-93.62865,42.03504
+Manning Avenue,N-S,residential,167,1,0,167,-93.65988,42.02181
+Crestwood Circle,diag,residential,165,2,28,111,-93.60573,42.0392
+Irons Court,N-S,residential,165,1,4,164,-93.6581,42.07147
+Brookdale Avenue,N-S,residential,163,1,32,156,-93.63681,42.05867
+Milstead Road,diag,residential,163,1,92,111,-93.6486,42.06077
+Jeffrey Lane,diag,residential,162,2,20,119,-93.67431,42.01872
+McCormick Avenue,N-S,unclassified,162,1,2,162,-93.58591,42.03378
+Buchanan Court,diag,residential,162,2,20,118,-93.63148,42.05479
+Pecan Avenue,diag,residential,161,1,49,114,-93.57708,42.01251
+Welch Road,diag,tertiary,161,4,81,133,-93.64966,42.02335
+Nixon Circle,E-W,residential,160,2,105,28,-93.62861,42.05437
+Morse Avenue,N-S,residential,158,1,3,157,-93.57828,42.01448
+Marshall Avenue,N-S,residential,157,1,0,157,-93.66896,42.0235
+Hillcrest Avenue,N-S,residential,157,1,2,157,-93.65948,42.02563
+Kinyon Circle,E-W,residential,157,1,156,9,-93.62877,42.05891
+Alberta Avenue,N-S,residential,156,1,18,153,-93.67369,42.03522
+Dave Circle,E-W,residential,155,2,80,52,-93.61477,42.07606
+Dotson Place,diag,residential,154,1,70,72,-93.67281,42.01491
+Brookdale Circle,E-W,residential,154,2,77,80,-93.63615,42.05973
+543rd Avenue,N-S,residential,154,1,43,134,-93.61349,42.07416
+Bay Drive,E-W,residential,153,1,153,0,-93.62094,42.00665
+Coral Drive,E-W,residential,153,1,153,1,-93.62094,42.00708
+Cove Drive,E-W,residential,153,1,153,0,-93.62094,42.00606
+Sandcastle Drive,E-W,residential,153,1,153,0,-93.62094,42.00547
+Wave Drive,E-W,residential,153,1,153,1,-93.62094,42.00488
+Idaho Court,E-W,residential,153,2,59,90,-93.68351,42.03362
+Barkley Court,diag,residential,153,2,78,75,-93.62765,42.05168
+Ironwood Lane,N-S,residential,152,1,56,107,-93.64488,42.00419
+Sandburg Court,diag,residential,152,2,19,110,-93.68772,42.0218
+Baughman Road,E-W,residential,151,1,151,2,-93.6723,42.02126
+Paxton Avenue,N-S,residential,150,1,8,147,-93.58049,42.01446
+Southridge Circle,diag,residential,150,2,20,108,-93.65043,42.04737
+Bill Brooks Boulevard,N-S,residential,149,1,6,149,-93.61891,42.07469
+Vermont Court,N-S,residential,147,1,2,146,-93.68213,42.03125
+South High Avenue,N-S,residential,146,1,1,146,-93.60736,42.00771
+Oliver Circle,diag,residential,146,2,20,103,-93.66612,42.02885
+Alabama Lane,N-S,residential,145,1,28,137,-93.67217,42.03513
+Goldenrod Circle,E-W,residential,145,2,83,47,-93.65771,42.05331
+Georgia Avenue,N-S,residential,144,1,4,143,-93.68275,42.03518
+Pierce Circle,E-W,residential,142,2,90,51,-93.63207,42.04777
+Sumner Avenue,N-S,residential,141,1,0,141,-93.60906,42.02225
+Idaho Circle,E-W,residential,141,2,98,20,-93.68389,42.03245
+Laurel Street,E-W,residential,141,1,137,21,-93.64528,42.06301
+Alcott Avenue,N-S,residential,140,2,1,139,-93.68224,42.02252
+Morningside Street,E-W,residential,139,1,138,7,-93.66241,42.01781
+East 5th Street,E-W,residential,139,1,139,1,-93.60961,42.02596
+Fawncove Lane,E-W,residential,138,1,139,2,-93.61423,42.06529
+Winlock Road,N-S,unclassified,137,1,3,137,-93.64594,42.03114
+Canterbury Court,E-W,residential,137,2,97,21,-93.66218,42.0363
+Little Street,E-W,residential,136,1,136,0,-93.65091,42.01763
+Jarrett Circle,diag,residential,136,2,19,88,-93.66824,42.03185
+Westbrook Lane,diag,residential,136,1,81,108,-93.67619,42.02503
+North Ridge Circle,diag,residential,136,2,20,93,-93.65043,42.04828
+Greenwood Circle,E-W,residential,136,2,93,20,-93.65631,42.04864
+Ashmore Circle,diag,residential,134,2,23,90,-93.64183,42.0112
+Tangerine Lane,E-W,residential,134,1,132,10,-93.62624,42.00801
+Preston Circle,E-W,residential,134,1,134,0,-93.65754,42.06034
+Shore Drive,E-W,residential,133,1,133,0,-93.62106,42.00783
+Robin Street,E-W,residential,133,1,133,2,-93.60656,42.00855
+Oriole Street,E-W,residential,133,1,133,0,-93.60657,42.00918
+WOI Road,N-S,unclassified,133,1,1,133,-93.65027,42.03112
+Kingsbury Avenue,N-S,residential,132,1,0,132,-93.60651,42.02226
+Willow Road,N-S,residential,132,1,1,132,-93.58058,42.01261
+McKinley Circle,E-W,residential,132,2,62,64,-93.62932,42.04456
+Columbine Avenue,N-S,residential,132,1,3,132,-93.63573,42.05851
+Skycrest Circle,E-W,residential,132,2,26,74,-93.61253,42.07159
+Finch Street,E-W,residential,131,1,131,1,-93.60658,42.00978
+Pinehurst Circle,E-W,residential,130,2,86,21,-93.64604,42.04483
+Stonebrooke Circle,E-W,residential,130,1,31,58,-93.63318,42.05935
+Sherman Avenue,N-S,residential,129,1,3,129,-93.61206,42.02348
+Rose Wood Circle,E-W,residential,128,2,84,20,-93.65342,42.0467
+Falcon Avenue,N-S,residential,128,1,10,125,-93.64767,42.05731
+Pond View Circle,diag,residential,128,1,92,87,-93.67604,42.06808
+Bayberry Circle,E-W,residential,127,2,62,52,-93.65741,42.05539
+Narland Drive,E-W,residential,125,1,124,5,-93.62202,42.04021
+Garner Circle,E-W,residential,125,2,64,34,-93.62628,42.05441
+Panoramic Court,N-S,residential,125,1,61,17,-93.62935,42.06053
+Cherry Avenue,N-S,residential,122,1,1,122,-93.60429,42.02227
+Airport Court,N-S,residential,120,1,1,120,-93.6211,42.0015
+York Drive,E-W,residential,120,1,105,40,-93.64891,42.05021
+Lee Street,E-W,residential,118,1,119,2,-93.62625,42.02847
+Arthur Circle,diag,residential,117,2,21,73,-93.62795,42.04013
+Pierce Court,E-W,residential,117,2,58,52,-93.63199,42.04653
+Arrowwood Circle,E-W,residential,117,2,74,20,-93.65081,42.05256
+Pleasant View Road,E-W,residential,117,1,110,26,-93.66817,42.07204
+Wisconsin Circle,diag,residential,115,2,20,73,-93.66207,42.03479
+Fletcher Circle,N-S,residential,115,3,50,24,-93.63433,42.05715
+Eisenhower Court,diag,residential,115,1,56,92,-93.63828,42.06274
+Hemlock Circle,E-W,residential,114,2,68,26,-93.65311,42.05088
+Madison Court,diag,residential,114,2,22,67,-93.63399,42.05549
+Felber Circle,N-S,residential,114,1,40,69,-93.60906,42.07653
+Bellflower Drive,N-S,residential,113,1,1,112,-93.67186,42.0174
+South Borne Avenue,N-S,residential,113,1,5,112,-93.60546,42.02234
+Maplewood Circle,E-W,residential,111,2,68,19,-93.6558,42.04765
+Bradford Drive,N-S,residential,111,1,30,105,-93.64684,42.04655
+Sumac Circle,diag,residential,111,2,23,66,-93.65604,42.05059
+Frances E Davis Court,diag,residential,110,2,17,74,-93.62771,42.06027
+Spruce Circle,N-S,residential,109,1,2,109,-93.57986,42.01267
+Castlewood Place,E-W,residential,109,2,67,20,-93.6784,42.03553
+Valley View Circle,E-W,residential,109,2,52,51,-93.65204,42.04844
+Alderwood Circle,E-W,residential,109,2,62,22,-93.65755,42.05118
+Joy Circle,diag,residential,109,2,21,65,-93.61847,42.05408
+Sheffield Avenue,N-S,residential,108,1,13,103,-93.64666,42.05248
+Taylor Circle,E-W,residential,108,2,65,20,-93.63758,42.057
+Poplar Circle,N-S,residential,107,1,2,107,-93.57911,42.01264
+Tucson Court,E-W,residential,107,2,60,28,-93.67534,42.03529
+Scott Circle,diag,residential,107,2,20,63,-93.66062,42.03475
+Hampton Street,E-W,residential,107,1,106,5,-93.64635,42.04606
+Ontario Circle,E-W,residential,106,2,27,48,-93.65814,42.03468
+Ashmore Court,diag,residential,105,1,41,46,-93.64333,42.01046
+Pine Circle,N-S,residential,105,1,1,105,-93.57836,42.01261
+Garfield Circle,N-S,residential,102,1,44,25,-93.66937,42.03365
+Northbrook Circle,E-W,residential,102,2,33,52,-93.68044,42.02486
+Brighton Circle,N-S,residential,102,1,25,93,-93.65106,42.06072
+Magnolia Circle,diag,residential,101,2,20,59,-93.65242,42.05323
+Iowa Circle,diag,residential,100,2,21,54,-93.6593,42.03471
+Torrey Pines Circle,E-W,residential,100,2,58,20,-93.64598,42.04304
+Park Vista Circle,E-W,residential,100,2,50,31,-93.65505,42.04588
+Columbine Circle,diag,residential,100,2,20,57,-93.6358,42.05766
+Nevada Circle,E-W,residential,98,1,98,4,-93.68947,42.03678
+Aspen Circle,E-W,residential,98,2,33,48,-93.65591,42.05129
+Doyle Avenue,N-S,residential,97,1,0,97,-93.67958,42.01748
+Keats Street,E-W,residential,97,1,97,1,-93.6872,42.01616
+Graeber Street,diag,residential,97,1,86,43,-93.64383,42.01743
+Brown Court,N-S,residential,96,1,0,96,-93.68549,42.01745
+Eisenhower Circle,E-W,residential,96,2,53,20,-93.63733,42.05148
+Chelsea Court,E-W,residential,95,2,33,44,-93.67944,42.02778
+Monroe Circle,E-W,residential,95,2,31,46,-93.63607,42.05065
+Taft Court,E-W,residential,95,2,31,43,-93.63537,42.05432
+Briggs Circle,diag,residential,94,2,19,53,-93.61596,42.05137
+Jefferson Circle,E-W,residential,94,2,35,39,-93.62614,42.05528
+Sun Lake Circle,E-W,residential,94,1,93,11,-93.67693,42.06985
+Roosevelt Circle,diag,residential,93,2,20,50,-93.62358,42.04229
+Center Avenue,N-S,residential,92,1,0,92,-93.6068,42.02327
+Durrell Circle,E-W,residential,92,2,57,17,-93.61887,42.03973
+Ashton Avenue,N-S,residential,92,1,2,92,-93.65038,42.05729
+Northcrest Court,E-W,residential,91,1,82,27,-93.63347,42.04223
+Colorado Circle,diag,residential,90,2,16,56,-93.66348,42.0252
+Lime Court,E-W,residential,89,1,90,0,-93.62578,42.00523
+Pearle Avenue,N-S,residential,89,1,1,89,-93.61946,42.02542
+Lindenwood Circle,E-W,residential,89,2,45,20,-93.65528,42.04675
+Bel Air Circle,diag,residential,89,1,37,39,-93.62705,42.04109
+Harrison Circle,diag,residential,89,1,69,48,-93.63626,42.06313
+Allan Drive,diag,residential,87,1,43,71,-93.6205,42.02548
+Oxford Avenue,N-S,residential,87,1,29,81,-93.64638,42.05029
+Hunziker Circle,E-W,residential,86,2,32,31,-93.62468,42.04071
+Date Court,E-W,residential,85,1,86,0,-93.62572,42.00596
+Mesa Verde Circle,E-W,residential,85,2,38,27,-93.67126,42.03095
+Quebec Circle,E-W,residential,85,2,20,43,-93.67433,42.03349
+Carey Lane,E-W,residential,84,1,81,15,-93.67011,42.07538
+Lakeview Place,E-W,residential,83,1,83,0,-93.62332,42.00748
+Windsor Court,E-W,residential,83,2,20,40,-93.67096,42.03542
+Balsam Circle,N-S,residential,83,1,36,23,-93.65733,42.05214
+Wellons Circle,E-W,residential,82,2,37,21,-93.67547,42.01892
+Redbud Circle,N-S,residential,82,1,36,25,-93.65108,42.05108
+Schubert Circle,E-W,residential,81,2,20,38,-93.68441,42.0209
+Piccadilly Square,diag,residential,81,1,34,37,-93.6487,42.0521
+Yuma Circle,E-W,residential,80,2,25,33,-93.678,42.03124
+Yorkshire Circle,E-W,residential,80,1,80,4,-93.64163,42.05317
+Westbend Circle,E-W,residential,77,1,20,32,-93.68348,42.02444
+Briarwood Place,N-S,residential,77,1,15,73,-93.66351,42.02676
+Chester Drive,E-W,residential,76,1,74,14,-93.63945,42.04666
+Bradbury Court,E-W,residential,75,1,75,1,-93.68947,42.01434
+Sherwood Avenue,N-S,residential,73,1,10,70,-93.64344,42.04672
+Strawberry Court,E-W,residential,69,1,63,20,-93.62556,42.00659
+Wildflower Drive,diag,residential,66,1,29,59,-93.67245,42.02447
+Mary Circle,E-W,residential,64,1,64,4,-93.66627,42.0276
+Carole Lane,E-W,residential,64,1,62,11,-93.67001,42.07611
+Commerce Avenue,N-S,residential,62,1,0,62,-93.61128,42.02367
+Market Avenue,N-S,residential,62,1,1,62,-93.61285,42.02366
+Phoenix Circle,diag,residential,61,1,35,47,-93.67477,42.03013
+Burr Oak Lane,E-W,residential,61,1,60,6,-93.67036,42.07417
+Poe Circle,N-S,residential,58,1,16,53,-93.68427,42.01768
+Buckingham Court,E-W,residential,57,1,54,19,-93.64815,42.04749
+Blueberry Court,N-S,residential,56,1,0,56,-93.628,42.00469
+Texas Circle,E-W,residential,55,1,52,11,-93.68993,42.03502
+Mulberry Court,diag,residential,54,1,47,24,-93.62549,42.00746
+Grant Circle,E-W,residential,53,1,53,1,-93.64161,42.05699
+Hilton Court,E-W,residential,52,1,52,1,-93.64488,42.00105
+Coneflower Court,E-W,residential,51,1,34,19,-93.64329,42.00915
+Cooper Court,E-W,residential,51,1,51,1,-93.68088,42.02112
+Faulkner Court,E-W,residential,50,1,50,1,-93.68088,42.02045
+Blackberry Court,diag,residential,43,1,22,35,-93.62887,42.00485
+Trailridge Circle,E-W,residential,43,1,43,1,-93.67456,42.02431
+Arizona Circle,E-W,residential,43,1,43,1,-93.67601,42.02868
+New Hampshire Circle,N-S,residential,40,1,7,39,-93.68103,42.03037
+Cornflower Court,N-S,residential,39,2,38,26,-93.64326,42.00901
+Avacado Court,diag,residential,33,1,23,24,-93.62701,42.0045
+Pear Court,E-W,residential,33,1,33,3,-93.62548,42.00464
+Springbrook Circle,diag,residential,33,1,18,27,-93.6882,42.0283

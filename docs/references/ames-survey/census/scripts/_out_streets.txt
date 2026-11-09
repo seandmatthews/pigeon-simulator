@@ -1,0 +1,28 @@
+== 4. STREET & INTERSECTION STOCK (game-core bbox)
+road length by highway=* class inside core (segment midpoints):
+  footway            191.75 km
+  service            123.19 km
+  residential         48.66 km
+  cycleway            28.07 km
+  secondary           16.31 km
+  path                13.68 km
+  tertiary            13.07 km
+  pedestrian          10.65 km
+  primary             10.01 km
+  unclassified         4.05 km
+  proposed             1.07 km
+  steps                1.05 km
+  platform             0.79 km
+  track                0.26 km
+  secondary_link       0.14 km
+  primary_link         0.10 km
+  traffic_island       0.08 km
+  corridor             0.05 km
+drivable total (motorway, trunk, primary, secondary, tertiary, unclassified, residential, living_street): 92.1 km; of which named 91.9 km
+intersection census (way-degree per node; OSM splits ways at junctions):
+  downtown window (Clark..Duff, Main..6th): nodes touched by >=3 road ways (intersections): 20; deg3=14, deg4=6
+  Campustown window (State..Stanton, LW..Hunt+): nodes touched by >=3 road ways (intersections): 13; deg3=6, deg4=6, deg5=1
+signalized nodes (highway=traffic_signals) in core: 78
+  downtown: 6
+  Campustown: 8
+pedestrian crossing nodes (highway=crossing) in core: 1801 (126 signal-controlled)

@@ -1,0 +1,53 @@
+== 2. AUTHORED DISTRICTS
+
+polygon 'Downtown' way 918949337: 95 pts, bbox 995 x 411 m, center (-93.61652, 42.02605)
+  buildings with centroid inside: 158 (named 113); total footprint 7.27 ha; p50 246 m2 p90 836 m2
+
+polygon 'Campustown' way 918491523: 104 pts, bbox 748 x 269 m, center (-93.65101, 42.02150)
+  buildings with centroid inside: 71 (named 38); total footprint 4.14 ha; p50 294 m2 p90 1361 m2
+
+downtown cross-street centerlines (measured):
+  Northwestern Avenue      lon -93.62161
+  Grand Avenue             lon -93.62022
+  Pearle Avenue            lon -93.61946
+  Clark Avenue             lon -93.61687
+  Burnett Avenue           lon -93.61539
+  Kellogg Avenue           lon -93.61371
+  Douglas Avenue           lon -93.61211
+  Duff Avenue              lon -93.61043
+  Main Street              lat 42.02508
+  5th Street               lat 42.02586
+  6th Street               lat 42.02689
+  Douglas Avenue           lat 42.03358
+
+downtown per-block buildings (Main Street band lat 42.02388..42.02628):
+  Northwestern Ave -> Grand Avenue     (  115 m):   7 bldgs, p50   529 m2
+  Grand Avenue     -> Pearle Avenue    (   63 m):   1 bldgs, p50   432 m2
+  Pearle Avenue    -> Clark Avenue     (  214 m):  19 bldgs, p50   219 m2
+  Clark Avenue     -> Burnett Avenue   (  122 m):  12 bldgs, p50   544 m2
+  Burnett Avenue   -> Kellogg Avenue   (  139 m):  29 bldgs, p50   398 m2
+  Kellogg Avenue   -> Douglas Avenue   (  133 m):  33 bldgs, p50   207 m2
+  Douglas Avenue   -> Duff Avenue      (  138 m):  38 bldgs, p50   181 m2
+Main->5th spacing: 86 m (5th is N of Main)
+5th->6th spacing: 115 m
+setbacks to Main St centerline (n=92 buildings within 60 m): min 9.5 p25 11.7 p50 12.4 p75 12.6 max 48.5 m
+
+Campustown centerlines (measured):
+  State Avenue       lon -93.65913
+  South Hyland Avenue lon -93.65557
+  Sheldon Avenue     lon -93.65422
+  Hayward Avenue     lon -93.65175
+  Welch Avenue       lon -93.65013
+  Stanton Avenue     lon -93.64849
+  Lincoln Way        lat 42.02277
+  Chamberlain Street lat 42.02147
+  Hunt Street        lat 42.02022
+
+Campustown per-block buildings (Lincoln Way south frontage band lat 42.02117..42.02257):
+  State Avenue   -> South Hyland A (  295 m):  67 bldgs, p50    93 m2
+  South Hyland A -> Sheldon Avenue (  112 m):   7 bldgs, p50   323 m2
+  Sheldon Avenue -> Hayward Avenue (  204 m):   7 bldgs, p50   321 m2
+  Hayward Avenue -> Welch Avenue   (  134 m):  28 bldgs, p50   224 m2
+  Welch Avenue   -> Stanton Avenue (  136 m):  18 bldgs, p50   301 m2
+setbacks to Welch Ave centerline (n=39 buildings within 50 m): min 0.2 p25 10.8 p50 16.6 p75 23.6 max 43.2 m
+setbacks to Lincoln Way centerline, SOUTH side only (n=54 buildings within 60 m): min 9.7 p25 11.3 p50 20.7 p75 38.3 max 49.3 m
