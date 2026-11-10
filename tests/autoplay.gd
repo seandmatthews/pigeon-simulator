@@ -8,6 +8,19 @@ extends Node3D
 ## pigeon alive and the restart clean; the caller greps the output for
 ## SCRIPT ERROR lines. Run windowed so it renders for real:
 ##   godot --path . res://tests/autoplay.tscn
+##
+## World-scoped Ames run (T-176): boot with `AMES_AUTOPLAY=1` in the
+## environment (or `PIGEON_WORLD=ames`) and the SAME pilot plays the REAL
+## ames world through the T-173 world-flag swap — spawn over Central Campus,
+## the cruise band over the real massing, and a survival loop that FLIES to
+## the nearest ground-class crumb, LANDS beside it, WADDLES in and EATS it
+## (the Gate 2 pattern, world-scoped). The Ames window is longer (the map is
+## district-scale, so the first bread lives a few hundred metres out) and the
+## pilot stages a denser live crumb spread for the demo window (the shipped
+## BreadSpawner target is a Windrow-era feel knob — the Ames run prints its
+## staged target in the DONE line; the district-wide SUPPLY itself is
+## `ames_bread_reach`'s contract, not the pilot's). The Ames gate adds
+## `eaten >= 1` to ok — the loop must actually close.
 
 const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
 const RUN_SECONDS: float = 30.0
@@ -34,6 +47,28 @@ const CRUMB_SEEK_RADIUS: float = 22.0
 const POOP_START: float = 4.0
 const POOP_PERIOD: float = 2.0
 
+## --- T-176 world-scoped Ames run -------------------------------------------
+## The env switch that scopes the pilot to the resident Ames world.
+const AMES_ENV := "AMES_AUTOPLAY"
+## Ames cruise band (m): above the district massing (the bake's height cap is
+## 40; the hero silhouettes top at Marston's 51 — the band stays under the
+## cruise-relevant campus roofline and the pilot's steer-at-bread legs keep
+## it clear of the towers it flies toward).
+const AMES_CRUISE_FLOOR: float = 30.0
+const AMES_CRUISE_CEIL: float = 38.0
+## Ames run window (s): district-scale map, so the fly-to-bread leg gets a
+## real budget; the restart leg follows it unchanged.
+const AMES_RUN_SECONDS: float = 100.0
+## The staged live-crumb spread for the Ames demo window (see the header):
+## nearest-live-bread ≈ a city block or two, so one loop fits the window.
+const AMES_CRUMB_TARGET: int = 400
+## Flat distance from the target crumb where the descent commits (m) and the
+## final landing ring it steers into; the waddle covers the last metres.
+const AMES_APPROACH: float = 110.0
+const AMES_LAND_RING: float = 28.0
+## Grounded waddle budget per touchdown (s) before the pilot flaps back out.
+const AMES_WADDLE_SECONDS: float = 7.0
+
 var _game: Node
 var _player: Player
 var _hunger: Hunger
@@ -41,6 +76,15 @@ var _spawner: BreadSpawner
 var _tourists: TouristSpawner
 var _cars: CarSpawner
 var _elders: ElderSpawner
+## (T-176) The world this run plays (true on the AMES_AUTOPLAY/PIGEON_WORLD
+## ames boot) and its pilot anchors: the home flat (the spawn area on ames,
+## the plaza on windrow — byte-identical there) and the crumb the flight leg
+## is currently working toward.
+var _ames: bool = false
+var _home_flat: Vector2 = Vector2.ZERO
+var _ames_target: BreadCrumb
+var _touchdown_at: float = -1.0
+var _eaten_at_touchdown: int = 0
 var _elapsed: float = 0.0
 var _next_shot: float = 1.0
 var _shot_dir: String = ""
@@ -77,7 +121,19 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_shot_dir = ProjectSettings.globalize_path("res://.godot/autoplay")
 	DirAccess.make_dir_recursive_absolute(_shot_dir)
+	## (T-176) The world-scope switch, BEFORE Main instantiates — the same
+	## seam the T-173 boot flag drives: AMES_AUTOPLAY=1 (this pilot's own
+	## switch) or PIGEON_WORLD=ames (the shared boot flag) play the resident
+	## Ames world; anything else stays the Windrow run byte-as-today.
+	_ames = OS.get_environment(AMES_ENV) == "1" \
+			or OS.get_environment("PIGEON_WORLD") == "ames"
+	if _ames:
+		Game.world = "ames"
 	_game = MAIN_SCENE.instantiate()
+	if _ames:
+		## The staged demo spread (see the header): set before add_child, so
+		## Main's boot populate seeds it — the shipped target stays untouched.
+		(_game.get_node("BreadSpawner") as BreadSpawner).target_count = AMES_CRUMB_TARGET
 	add_child(_game)
 	_game.process_mode = Node.PROCESS_MODE_PAUSABLE
 	_player = _game.get_node("Player") as Player
@@ -86,6 +142,12 @@ func _ready() -> void:
 	_tourists = _game.get_node("TouristSpawner") as TouristSpawner
 	_cars = _game.get_node("CarSpawner") as CarSpawner
 	_elders = _game.get_node("ElderSpawner") as ElderSpawner
+	if _ames:
+		## The Ames anchor: the survival spawn over Central Campus (the world
+		## swap already happened inside Main's _ready, so `city` IS the Ames
+		## world here). Windrow keeps the plaza-relative ZERO anchor untouched.
+		var spawn: Vector3 = _game.city.spawn_point
+		_home_flat = Vector2(spawn.x, spawn.z)
 	_player.pooped.connect(_on_pilot_pooped)
 
 
@@ -99,7 +161,10 @@ func _physics_process(delta: float) -> void:
 	_fps_sum += Engine.get_frames_per_second()
 	_fps_samples += 1
 	_trace(_elapsed)
-	_drive(_elapsed, delta)
+	if _ames:
+		_drive_ames(_elapsed, delta)
+	else:
+		_drive(_elapsed, delta)
 	_watch_poses()
 	_watch_juice()
 	if _elapsed >= _next_shot:
@@ -107,13 +172,19 @@ func _physics_process(delta: float) -> void:
 		_capture(int(_elapsed))
 	match _restart_phase:
 		0:
-			if _elapsed >= RUN_SECONDS:
+			if _elapsed >= _run_seconds():
 				_begin_restart_phase()
 		1:
 			_watch_score_screen()
 		2:
-			if _elapsed >= RUN_SECONDS + RESTART_PLAY_SECONDS:
+			if _elapsed >= _run_seconds() + RESTART_PLAY_SECONDS:
 				_finish()
+
+
+## The run window: the Ames world gets the district-scale budget (see the
+## header); the Windrow run keeps its 30 s.
+func _run_seconds() -> float:
+	return AMES_RUN_SECONDS if _ames else RUN_SECONDS
 
 
 ## The DONE line: alive + a clean T-010 restart + live audio (T-012) all gate
@@ -140,16 +211,21 @@ func _finish() -> void:
 	var audio_ok: bool = Sfx.ambience_playing \
 			and int(Sfx.played_counts.get("flap", 0)) >= 1
 	var ok: bool = alive and _restart_ok and audio_ok
+	## (T-176) The Ames loop must CLOSE: the run proves the survival circle —
+	## fly, land, waddle, EAT — not just flight. `eaten >= 1` is the gate.
+	var loop_ok: bool = not _ames or eaten >= 1
 	var poses := _poses_seen.keys()
 	poses.sort()
-	print("AUTOPLAY DONE ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d shares=%d relocations=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d poses=%s effects=%d shake_peak=%.2f sfx=%s ambience=%s" % [
-			ok, _elapsed, fps, where.x, where.y, where.z,
+	print("AUTOPLAY DONE ok=%s world=%s crumb_target=%d loop_ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d shares=%d relocations=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d poses=%s effects=%d shake_peak=%.2f sfx=%s ambience=%s" % [
+			ok, "ames" if _ames else "windrow",
+			AMES_CRUMB_TARGET if _ames else _spawner.target_count, loop_ok,
+			_elapsed, fps, where.x, where.y, where.z,
 			_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
 			tourists, panics, honks, shares, relocations, Game.score, Game.high_score,
 			_restart_ok, _pre_score, _pre_tourists, _pre_cars, ",".join(poses),
 			_max_live_effects, _peak_trauma,
 			",".join(sfx_bits), Sfx.ambience_playing])
-	get_tree().quit(0 if ok else 1)
+	get_tree().quit(0 if ok and loop_ok else 1)
 
 
 ## T-010 restart phase, step 1: starve the pigeon on purpose (the score screen
@@ -227,6 +303,20 @@ func _trace(t: float) -> void:
 			_hunger.value if _hunger != null and is_instance_valid(_hunger) else -1.0])
 
 
+## The shared poop trigger (T-006/T-007/T-008): air-only dropping, released
+## wherever the bird happens to be flying, with the early lead-shot trigger
+## when a strolling tourist (or car — the wider tolerance) lines up under the
+## predicted impact, plus the cadence tap. Both pilots call it; on the Ames
+## run the tourist/car spawners simply hold nobody (they early-return on the
+## empty world arrays), so the cadence taps cover the lob evidence.
+func _maybe_poop(t: float, delta: float) -> void:
+	_lead_ceiling = 18.0 if (t >= GROUND_VISIT_START and t < GROUND_VISIT_END) else 14.0
+	if t >= POOP_START and not _player.is_grounded \
+			and (_tourist_in_lead() or _car_in_lead() or _pursuit_shot()
+					or fmod(t - POOP_START, POOP_PERIOD) < delta):
+		Input.action_press("poop")
+
+
 ## City-aware flight pattern (T-004). The pilot flies state-based, never
 ## timed-into-a-loop: below the cruise band it climbs hard (the spawn faces up
 ## the road corridor, clear of buildings at every height); at cruise it holds a
@@ -242,17 +332,7 @@ func _drive(t: float, delta: float) -> void:
 		if Input.is_action_pressed(action):
 			Input.action_release(action)
 
-	# T-006: air-only dropping, released wherever the bird happens to be
-	# flying — over the roofs, over the plaza, on the way down to land —
-	# with the T-007 addition that the pilot pulls the trigger early when a
-	# walking tourist lines up under the predicted impact point, and the T-008
-	# addition that cars count too (bigger tolerance — the easy targets).
-	# Grounded taps are skipped (the pigeon doesn't poop on the ground).
-	_lead_ceiling = 18.0 if (t >= GROUND_VISIT_START and t < GROUND_VISIT_END) else 14.0
-	if t >= POOP_START and not _player.is_grounded \
-			and (_tourist_in_lead() or _car_in_lead() or _pursuit_shot()
-					or fmod(t - POOP_START, POOP_PERIOD) < delta):
-		Input.action_press("poop")
+	_maybe_poop(t, delta)
 
 	if t >= GROUND_VISIT_START and t < GROUND_VISIT_END:
 		_drive_ground_visit(t, delta)
@@ -537,6 +617,139 @@ func _hold_nose(target: float) -> void:
 		Input.action_press("pitch_down")
 	elif nose < target - 0.03:
 		Input.action_press("pitch_up")
+
+
+## --- (T-176) the Ames survival-loop pilot ----------------------------------
+
+
+## One survival loop over the real map, world-scoped: fly the band toward the
+## nearest living GROUND-class crumb (the class a grounded pigeon eats from —
+## the only "reachable" bread for this pilot), commit the descent inside
+## AMES_APPROACH, steer into the landing ring, touchdown, waddle in, EAT
+## (the crumb_eaten → Hunger.eat chain through the real Main wiring), flap
+## back out, repeat until the window closes. Poop rides the shared trigger.
+## All pitch stays nose-bounded like the Windrow pilot.
+func _drive_ames(t: float, delta: float) -> void:
+	for action in ["flap", "poop", "turn_left", "turn_right", "pitch_up", "pitch_down"]:
+		if Input.is_action_pressed(action):
+			Input.action_release(action)
+	_maybe_poop(t, delta)
+	var target := _ames_ground_crumb()
+	if target != _ames_target:
+		_ames_target = target
+		_touchdown_at = -1.0 ## A fresh crumb re-arms the waddle budget.
+	if _player.is_grounded:
+		_drive_ames_ground(t, delta)
+	else:
+		_drive_ames_air(t, delta)
+
+
+## The working target: the nearest living crumb seeded on a GROUND-class spot.
+## Hand-placed crumbs (spot_index < 0) are skipped — on this world they do not
+## exist yet (no elders, no tailgates), and the guard keeps the class read
+## honest against the live city arrays.
+func _ames_ground_crumb() -> BreadCrumb:
+	if _spawner == null or not is_instance_valid(_spawner):
+		return null
+	var city: City = _game.city
+	if city == null or not is_instance_valid(city):
+		return null
+	var best: BreadCrumb = null
+	var best_d := INF
+	for crumb in _spawner.living_crumbs():
+		if crumb.spot_index < 0 or crumb.spot_index >= city.bread_spot_kinds.size():
+			continue
+		if city.bread_spot_kinds[crumb.spot_index] != City.BreadKind.GROUND:
+			continue
+		var d := _player.position.distance_to(crumb.global_position)
+		if d < best_d:
+			best_d = d
+			best = crumb
+	return best
+
+
+## Grounded leg: waddle toward the target crumb (home when none — the T-005
+## land-and-peck path), flap back out once the eat booked or the waddle budget
+## burned.
+func _drive_ames_ground(t: float, delta: float) -> void:
+	if _touchdown_at < 0.0:
+		_touchdown_at = t
+		_eaten_at_touchdown = _spawner.eaten_count
+	var dest := _home_flat
+	if _ames_target != null and is_instance_valid(_ames_target):
+		dest = Vector2(_ames_target.global_position.x, _ames_target.global_position.z)
+	_steer_toward_point(dest)
+	Input.action_press("pitch_up") ## Waddle forward — toward the crumb.
+	if _spawner.eaten_count > _eaten_at_touchdown \
+			or t - _touchdown_at >= AMES_WADDLE_SECONDS:
+		if fmod(t, 0.4) < delta:
+			Input.action_press("flap") ## The eat is in; take off again.
+
+
+## Airborne leg: cruise the band toward the crumb, commit the descent at
+## AMES_APPROACH, flare into the landing ring; a no-bread frame keeps the
+## band near home instead.
+func _drive_ames_air(t: float, delta: float) -> void:
+	var vy := _player.velocity.y
+	var speed := _player.velocity.length()
+	if _ames_target == null or not is_instance_valid(_ames_target):
+		## Nothing to work toward — keep the band near the spawn area.
+		var flat_home := Vector2(_player.position.x - _home_flat.x,
+				_player.position.z - _home_flat.y)
+		if flat_home.length() > HOME_RADIUS or _player.position.y < AMES_CRUISE_FLOOR:
+			_steer_toward_point(_home_flat)
+			var hold := _governor_pitch_ames(vy, speed)
+			if hold > 0.0:
+				Input.action_press("pitch_up")
+			elif hold < 0.0:
+				Input.action_press("pitch_down")
+			if _player.position.y < AMES_CRUISE_CEIL and vy < 5.0 \
+					and fmod(t, 0.4) < delta:
+				Input.action_press("flap")
+		return
+	var tp := Vector2(_ames_target.global_position.x, _ames_target.global_position.z)
+	var d := Vector2(_player.position.x - tp.x, _player.position.z - tp.y).length()
+	if vy < -10.0 and _nose_y() < 0.45:
+		Input.action_press("pitch_up") ## Safety pull-up beats any target.
+		_steer_toward_point(tp)
+		return
+	if d > AMES_APPROACH or _player.position.y > AMES_CRUISE_CEIL + 8.0:
+		## Cruise leg: hold the band, steer at the crumb.
+		_steer_toward_point(tp)
+		var pitch := _governor_pitch_ames(vy, speed)
+		if pitch > 0.0:
+			Input.action_press("pitch_up")
+		elif pitch < 0.0:
+			Input.action_press("pitch_down")
+		if _player.position.y < AMES_CRUISE_CEIL and vy < 6.0 \
+				and fmod(t, 0.5) < delta:
+			Input.action_press("flap")
+		return
+	## Descent leg: commit, glide down, flare into the ring; bleed speed first
+	## when the arrival is hot.
+	_steer_toward_point(tp)
+	var target_nose: float
+	if d > AMES_LAND_RING:
+		target_nose = -0.30 if _player.position.y > 14.0 else -0.12
+	else:
+		target_nose = -0.05 if _player.position.y > 5.0 else -0.02
+	if speed > 17.0 and _player.position.y < 25.0:
+		target_nose = maxf(target_nose, 0.05)
+	_hold_nose(target_nose)
+
+
+## The Ames cruise governor — the Windrow one's band values re-pinned to the
+## district massing (AMES_CRUISE_FLOOR/CEIL), same discipline.
+func _governor_pitch_ames(vy: float, speed: float) -> float:
+	if vy < -6.0 and _nose_y() < 0.45:
+		return 1.0 ## Pull out of any steep dive — always.
+	if _player.position.y < AMES_CRUISE_FLOOR and vy < 1.0 and _nose_y() < 0.45:
+		return 1.0 ## Keep the band.
+	if speed < 15.0 and vy > -6.0 and _nose_y() > -0.55:
+		return -1.0 ## Too slow: trade a little height for airspeed.
+	if vy > 4.0 and _nose_y() > -0.55:
+		return -1.0 ## Arrest zooms.
+	return 0.0
 
 
 func _capture(at_seconds: int) -> void:

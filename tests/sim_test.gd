@@ -179,6 +179,8 @@ func _run_scenarios() -> void:
 	await _scenario_ames_skeleton_palette() ## T-174 — the baked dressing: pinned per-district ground colors, lane dashes, shore band, tie stripe.
 	await _scenario_ames_placeholder_dims() ## T-175 — the placeholders at their survey dims: authored slots, venue fixups, hero AABBs, the ranking's water/green/rail landmarks.
 	await _scenario_ames_placeholder_landable() ## T-175 — the campanile cap accepts the landing state; shaft/bowl colliders probe; the cap crumb rides ANCHOR_CRUMB_LIFT.
+	await _scenario_ames_bread_reach() ## T-176 — the survival re-base: spawn over Central Campus, the core-wide bread reach grid, the Windrow-baseline crumb supply, café tables at real cafés.
+	await _scenario_ames_hunger_pins() ## T-176 — the drain quartet + favor ceiling diff-proven across the ames build.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -1289,11 +1291,34 @@ func _scenario_ames_world_api_seam() -> void:
 		var got_d: String = world.district_at(world.to_global(pos))
 		if got_d != districts[pos]:
 			bad.append("district_at %s = %s != %s" % [pos, got_d, districts[pos]])
-	## Spawn corridor equivalent: the pack origin, above the plate.
+	## Spawn corridor: since T-176 the survival spawn is Central Campus near
+	## the campanile (owner-decided 2026-11-09, master plan §11.1) — the
+	## campanile POI plus the world's east offset, at the ground answer plus
+	## the drop (massing-clear there — the plate, not a roof), replacing the
+	## T-173 pack-origin pin (this scenario's comment always said T-176
+	## re-pins it).
 	var spawn_local := world.to_local(world.spawn_point)
-	if Vector2(spawn_local.x, spawn_local.z).length() > 0.001 \
-			or absf(spawn_local.y - world.spawn_drop_height) > 0.001:
-		bad.append("spawn corridor off the pack origin: local %s" % spawn_local)
+	var cam_poi := Vector2.ZERO
+	for poi: Dictionary in AmesDataPack.landmarks():
+		if str(poi.get("id", "")) == "campanile":
+			var p: Array = poi.get("position", [0.0, 0.0])
+			cam_poi = Vector2(float(p[0]), float(p[1]))
+			break
+	if cam_poi == Vector2.ZERO:
+		bad.append("campanile POI missing — spawn corridor unverifiable")
+	else:
+		var want := Vector2(cam_poi.x + world.SPAWN_CAMPANILE_OFFSET_X, cam_poi.y)
+		if Vector2(spawn_local.x, spawn_local.z).distance_to(want) > 0.01:
+			bad.append("spawn corridor off the campanile: local %s want %s" % [
+					Vector2(spawn_local.x, spawn_local.z), want])
+		var want_y := world.ground_height(world.to_global(Vector3(want.x, 0.0, want.y))) \
+				+ world.spawn_drop_height
+		if absf(spawn_local.y - want_y) > 0.001:
+			bad.append("spawn corridor height %.3f != ground %.3f + drop" % [
+					spawn_local.y, want_y])
+		if world.ground_height(world.spawn_point) != 0.0:
+			bad.append("spawn corridor not massing-clear: ground %.2f" % \
+					world.ground_height(world.spawn_point))
 	## ... and flyable: a drop into the corridor settles grounded on the
 	## plate (top y 0 — the pigeon stands at its own 0.3 half-height), then
 	## the flap_takes_off_ground contract: one grounded flap returns to flight.
@@ -2015,6 +2040,247 @@ func _scenario_ames_placeholder_landable() -> void:
 				world.bread_spots.size()])
 	_check(S, bad.is_empty(), "; ".join(bad))
 	world.queue_free()
+
+
+## (T-176) The survival re-base, machine-checked against the committed data —
+## every expected value recomputed INDEPENDENTLY here (the no-self-test rule):
+## SPAWN over Central Campus near the campanile (master plan §11.1) — the
+## spawn local XZ is the campanile POI plus the world's east offset, the
+## district lookup answers "campus" there, the plate answers the drop (the
+## spot is massing-clear), a real drop settles grounded and flies off, and
+## the first bread (nearest GROUND-class spot, the waddle-reachable class) is
+## within 60 m flat; REACH — nearest spot ≤ 150 m from ANY sampled point of
+## the pack's core window (the meta `core_bbox_wsen` through the pack's
+## pinned transform, a 100 m grid, a 100 m-cell spatial hash recomputed here
+## from `world.bread_spots` — never through world internals); SUPPLY — the
+## crumb total is at least the Windrow baseline count, measured live off the
+## standing default-seed city (never a hard-coded number); CAFÉS — every
+## in-bounds café venue of the VENUES.md coffee list (the name-token rule)
+## carries a table spot near its POI with a TABLE-class crumb on the
+## tabletop, and at least 3 real cafés are served.
+func _scenario_ames_bread_reach() -> void:
+	const S := "ames_bread_reach"
+	const REACH_STEP := 100.0 ## Sample-grid cadence over the core window.
+	const REACH_BAR := 150.0 ## The AC's nearest-bread bar (m, flat).
+	const FIRST_BREAD_BAR := 60.0 ## The AC's first-bread-from-spawn bar.
+	var bad: PackedStringArray = PackedStringArray()
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	## --- spawn ---------------------------------------------------------------
+	var cam_pos := Vector2.ZERO
+	for poi: Dictionary in AmesDataPack.landmarks():
+		if str(poi.get("id", "")) == "campanile":
+			var pos: Array = poi.get("position", [0.0, 0.0])
+			cam_pos = Vector2(float(pos[0]), float(pos[1]))
+			break
+	if cam_pos == Vector2.ZERO:
+		bad.append("campanile POI missing from the pack")
+	else:
+		var spawn_local := world.to_local(world.spawn_point)
+		var want_spawn := Vector2(cam_pos.x + world.SPAWN_CAMPANILE_OFFSET_X, cam_pos.y)
+		if Vector2(spawn_local.x, spawn_local.z).distance_to(want_spawn) > 0.01:
+			bad.append("spawn %s != campanile+%s" % [Vector2(spawn_local.x, spawn_local.z),
+					want_spawn])
+		if world.district_at(world.spawn_point) != "campus":
+			bad.append("spawn district %s != campus" % world.district_at(world.spawn_point))
+		if world.ground_height(world.spawn_point) != 0.0:
+			bad.append("spawn not massing-clear: ground %.2f" % world.ground_height(world.spawn_point))
+		## First bread: the nearest GROUND-class spot (flat) — the class a
+		## grounded pigeon eats from.
+		var first_bread := INF
+		for i: int in world.bread_spots.size():
+			if world.bread_spot_kinds[i] != City.BreadKind.GROUND:
+				continue
+			var spot := world.bread_spots[i]
+			first_bread = minf(first_bread,
+					Vector2(spot.x - spawn_local.x, spot.z - spawn_local.z).length())
+		print("SIM DATA %s: spawn=%s first ground bread %.1f m (bar %.0f)" % [
+				S, spawn_local, first_bread, FIRST_BREAD_BAR])
+		if first_bread > FIRST_BREAD_BAR:
+			bad.append("first bread %.1f m > %.0f m" % [first_bread, FIRST_BREAD_BAR])
+		## ... and flyable: a drop over the spawn settles grounded, a flap
+		## returns it to flight (the corridor contract, re-pinned).
+		await _set_up(true, world.spawn_point + Vector3.UP * 3.0, Vector3.ZERO)
+		await _await_grounded(150)
+		var grounded_ok := _player.is_grounded and _player.velocity.is_finite()
+		var peak_y := _player.position.y
+		await _tap("flap")
+		for _i in 60:
+			await get_tree().physics_frame
+			peak_y = maxf(peak_y, _player.position.y)
+			if not _player.is_grounded and peak_y > 0.8:
+				break
+		if not (grounded_ok and not _player.is_grounded and peak_y > 0.8):
+			bad.append("spawn drop/flight failed: grounded=%s peak=%.2f" % [
+					grounded_ok, peak_y])
+	## --- reach grid over the core window --------------------------------------
+	var meta := AmesDataPack.meta()
+	var bbox: Array = meta.get("core_bbox_wsen", [])
+	if bbox.size() < 4:
+		bad.append("pack meta carries no core_bbox_wsen")
+	else:
+		var west := AmesDataPack.wgs84_to_local(float(bbox[0]), float(bbox[3])).x
+		var east := AmesDataPack.wgs84_to_local(float(bbox[2]), float(bbox[3])).x
+		var north := AmesDataPack.wgs84_to_local(float(bbox[2]), float(bbox[3])).z
+		var south := AmesDataPack.wgs84_to_local(float(bbox[2]), float(bbox[1])).z
+		var buckets: Dictionary = {} ## 100 m cell -> Array of spot indices.
+		for i: int in world.bread_spots.size():
+			var spot := world.bread_spots[i]
+			var key := Vector2i(floori(spot.x / REACH_STEP), floori(spot.z / REACH_STEP))
+			if not buckets.has(key):
+				buckets[key] = []
+			(buckets[key] as Array).append(i)
+		var worst := 0.0
+		var worst_at := Vector2.ZERO
+		var over := 0
+		var samples := 0
+		var x := west
+		while x <= east:
+			var z := north
+			while z <= south:
+				samples += 1
+				var bx := floori(x / REACH_STEP)
+				var bz := floori(z / REACH_STEP)
+				var best := INF
+				for dx in range(-2, 3):
+					for dz in range(-2, 3):
+						var cell: Array = buckets.get(Vector2i(bx + dx, bz + dz), [])
+						for idx: int in cell:
+							var spot := world.bread_spots[idx]
+							var dd := (spot.x - x) * (spot.x - x) \
+									+ (spot.z - z) * (spot.z - z)
+							if dd < best:
+								best = dd
+				var dist := sqrt(best)
+				if dist > worst:
+					worst = dist
+					worst_at = Vector2(x, z)
+				if dist > REACH_BAR:
+					over += 1
+				z += REACH_STEP
+			x += REACH_STEP
+		print("SIM DATA %s: reach grid %d samples, over-%.0f m: %d, worst %.1f m at (%.0f, %.0f)" % [
+				S, samples, REACH_BAR, over, worst, worst_at.x, worst_at.y])
+		if over > 0:
+			bad.append("reach: %d/%d samples past %.0f m (worst %.1f at %s)" % [
+					over, samples, REACH_BAR, worst, worst_at])
+	## --- supply: crumb total ≥ the Windrow baseline ---------------------------
+	var baseline := _city.bread_spots.size()
+	var total := world.bread_spots.size()
+	print("SIM DATA %s: ames crumb spots %d vs windrow baseline %d" % [S, total, baseline])
+	if total < baseline:
+		bad.append("crumb total %d < windrow baseline %d" % [total, baseline])
+	## --- café tables at real cafés -------------------------------------------
+	var served := 0
+	for venue: Dictionary in AmesDataPack.venues():
+		var lower := str(venue.get("name", "")).to_lower()
+		var is_cafe := false
+		for token: String in ["cafe", "café", "coffee"]:
+			if lower.contains(token):
+				is_cafe = true
+				break
+		if not is_cafe:
+			continue
+		var pos: Variant = venue.get("position")
+		if not (pos is Array):
+			continue ## Unplaced venue (Labyrinth Coffee) — no invented table.
+		var vx := float((pos as Array)[0])
+		var vz := float((pos as Array)[1])
+		## In-bounds café (the T-175 in-core rule): the venue must stand
+		## inside the world's manifest extents ± the placement slack —
+		## recomputed here from render_metrics(), never through internals.
+		var metrics: Dictionary = world.render_metrics()
+		var bmin: Vector3 = metrics.bounds_min
+		var bmax: Vector3 = metrics.bounds_max
+		if vx < bmin.x - 60.0 or vx > bmax.x + 60.0 \
+				or vz < bmin.z - 60.0 or vz > bmax.z + 60.0:
+			continue ## Out-of-core venue (The Cafe, …) — honestly unserved.
+		## A table spot near the POI (within the outset ladder's reach) whose
+		## tabletop crumb rides the TABLE class.
+		var table_ok := false
+		for t: Transform3D in world.cafe_spots:
+			var tl := Vector2(t.origin.x - vx, t.origin.z - vz)
+			if tl.length() > 21.0:
+				continue
+			## The tabletop crumb: spot origin + basis.x inset + lift — recomputed
+			## here and matched against the world's TABLE spots.
+			var want_crumb := t.origin + t.basis.x * City.CAFE_CRUMB_SIT_INSET \
+					+ Vector3(0.0, City.CAFE_CRUMB_TABLE_LIFT, 0.0)
+			for i: int in world.bread_spots.size():
+				if world.bread_spot_kinds[i] == City.BreadKind.TABLE \
+						and world.bread_spots[i].distance_to(want_crumb) < 0.005:
+					table_ok = true
+					break
+			if table_ok:
+				break
+		if table_ok:
+			served += 1
+		else:
+			bad.append("café %s rides no table (nearest none within 21 m)" % venue.get("name"))
+	print("SIM DATA %s: café tables served at %d real cafés (bar 3), world tables %d" % [
+			S, served, world.cafe_spots.size()])
+	if served < 3:
+		bad.append("café tables at %d cafés < 3" % served)
+	if world.cafe_spots.size() != served:
+		bad.append("world tables %d != served cafés %d" % [world.cafe_spots.size(), served])
+	_check(S, bad.is_empty(), "; ".join(bad))
+	world.queue_free()
+
+
+## (T-176) The economy pins, diff-proven: the hunger drain quartet and the
+## favor ceiling are byte-identical to the Windrow values the earlier pins
+## locked — pinned here as deliberately duplicated literals (the
+## `DISTRICT_GROUND` pin pattern), read off a FRESH clock, the LIVE autoload
+## clock, and re-read across a full ames world build+fill so the re-base's
+## code path provably never touches the clock. Favor stays at the T-115
+## ceiling; elder logic is untouched here (elder bench placement is T-183).
+func _scenario_ames_hunger_pins() -> void:
+	const S := "ames_hunger_pins"
+	const PIN_DRAIN := 0.45
+	const PIN_FLAP_MULT := 2.0
+	const PIN_FLAP_HEAT := 0.7
+	const PIN_GROUNDED_MULT := 0.6
+	const PIN_MAX := 100.0
+	const PIN_FAVOR_MAX := 100
+	var bad: PackedStringArray = PackedStringArray()
+	if Game.favor_max != PIN_FAVOR_MAX:
+		bad.append("favor_max %d != %d" % [Game.favor_max, PIN_FAVOR_MAX])
+	var fresh := Hunger.new()
+	if fresh.drain_per_second != PIN_DRAIN or fresh.flap_drain_multiplier != PIN_FLAP_MULT \
+			or fresh.flap_heat_seconds != PIN_FLAP_HEAT \
+			or fresh.grounded_drain_multiplier != PIN_GROUNDED_MULT \
+			or fresh.max_value != PIN_MAX:
+		bad.append("fresh clock off the pins: drain %s flap %s heat %s grounded %s max %s" % [
+				fresh.drain_per_second, fresh.flap_drain_multiplier,
+				fresh.flap_heat_seconds, fresh.grounded_drain_multiplier, fresh.max_value])
+	fresh.free()
+	## The live autoload clock, BEFORE the ames build.
+	if Game.hunger.drain_per_second != PIN_DRAIN or Game.hunger.flap_drain_multiplier != PIN_FLAP_MULT \
+			or Game.hunger.flap_heat_seconds != PIN_FLAP_HEAT \
+			or Game.hunger.grounded_drain_multiplier != PIN_GROUNDED_MULT:
+		bad.append("live clock off the pins (before build)")
+	## A full ames build+fill must leave the clock byte-identical (the
+	## re-base's placement-only contract, diff-proven around the build).
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var spots := world.bread_spots.size()
+	world.queue_free()
+	if Game.hunger.drain_per_second != PIN_DRAIN or Game.hunger.flap_drain_multiplier != PIN_FLAP_MULT \
+			or Game.hunger.flap_heat_seconds != PIN_FLAP_HEAT \
+			or Game.hunger.grounded_drain_multiplier != PIN_GROUNDED_MULT \
+			or Game.hunger.max_value != PIN_MAX:
+		bad.append("live clock moved across the ames build (drain %s max %s)" % [
+				Game.hunger.drain_per_second, Game.hunger.max_value])
+	if spots <= 0:
+		bad.append("ames world built no crumb spots — the build arm is vacuous")
+	print("SIM DATA %s: quartet %.2f/%.1f/%.2f/%.2f favor_max %d held across a %d-spot build" % [
+			S, PIN_DRAIN, PIN_FLAP_MULT, PIN_FLAP_HEAT, PIN_GROUNDED_MULT,
+			PIN_FAVOR_MAX, spots])
+	_check(S, bad.is_empty(), "; ".join(bad))
 
 
 ## --- scenarios (T-001 flight model) --------------------------------------

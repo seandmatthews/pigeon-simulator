@@ -1,6 +1,6 @@
 # T-176 — Ames R1 · survival rebase: bread, hunger, spawn on the real map
 
-- **Status:** proposed · **Category:** gameplay · **Ring:** R1 The Map ·
+- **Status:** doing · **Category:** gameplay · **Ring:** R1 The Map ·
   **Value (1-5):** 5 · **Risk (1-5):** 3
 - **Depends on:** T-173 (world), T-175 (crumb hosts)
 - **Refs:** `VENUES.md` (real café/bread spots: Stomping Grounds 300
@@ -36,17 +36,28 @@ Feel constants are frozen; only placement follows the data.
 
 ## Acceptance criteria
 
-- [ ] Spawn over Central Campus; first bread reachable ≤ 60 m
-- [ ] *(Gate 1b)* `ames_bread_reach`: nearest-bread ≤ 150 m from ANY
+- [x] Spawn over Central Campus; first bread reachable ≤ 60 m
+- [x] *(Gate 1b)* `ames_bread_reach`: nearest-bread ≤ 150 m from ANY
       point in the core (sampled grid); crumb total ≥ the Windrow
       baseline count; café crumb tables present at ≥ 3 real cafés
-- [ ] *(Gate 1b)* hunger constants byte-identical to the Windrow pins
+- [x] *(Gate 1b)* hunger constants byte-identical to the Windrow pins
       (the drain quartet untouched — diff-proven in the scenario)
-- [ ] `AMES_AUTOPLAY`-style env or world-scoped autoplay flies, eats,
+- [x] `AMES_AUTOPLAY`-style env or world-scoped autoplay flies, eats,
       survives one loop on `ames` (Gate 2's pattern, world-scoped)
-- [ ] *(Gate 1/2)* clean; `windrow` full suite still green
+- [x] *(Gate 1/2)* clean; `windrow` full suite still green
 
-## Verification (proposed)
+## Verification (landed)
 
-Gate 1 · Gate 1b + two new rows · Gate 2 (windrow) + world-scoped Ames
-autoplay green · Gate 3 folded into T-177's owner flight.
+Gate 1 clean (import + boot). Gate 1b: two new rows — `ames_bread_reach`
+(spawn district/flight arms + first ground bread 20.6 m; reach grid 1,107
+samples at 100 m over the pack core window, ZERO over 150 m, worst 110.6;
+crumb supply 11,346 vs the Windrow baseline 778 measured live; café tables
+at 6 real cafés) and `ames_hunger_pins` (drain quartet 0.45 / 2.0 / 0.7 /
+0.6 + favor_max 100 diff-proven across a full ames build) — plus the
+`ames_world_api_seam` spawn-corridor arm re-pinned to the new spawn (the
+re-pin its landing note anticipated); full suite 0 failures. Gate 2: the
+windrow autoplay green (`ok=true restart=true`) and the world-scoped Ames
+autoplay green (`AMES_AUTOPLAY=1` → `ok=true world=ames loop_ok=true
+restart=true eaten=21` — the staged demo spread `AMES_CRUMB_TARGET=400` is
+pilot-side only, disclosed in the DONE line and the Gate 2 section). Gate 3
+folded into T-177's owner flight.
