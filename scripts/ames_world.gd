@@ -12,10 +12,10 @@ extends City
 ## R3); lighting stays the
 ## one-sun contract — vertex-colored massing, no per-building lights, ever.
 ##
-## Selection: the `world` setting (`Game.world`, "windrow" | "ames", default
-## "windrow" — the suite stays byte-green until T-177 flips the default).
-## main.tscn keeps the Windrow `City` scene; `Main._ready` swaps THIS root in
-## when the setting says "ames". Gameplay never knows which world is live: the
+## Selection: the `world` setting (`Game.world`, default AND only value "ames"
+## since the T-177 cutover — the Windrow generate path was retired, no debug
+## toggle; main.tscn keeps the staged Windrow `City` scene and `Main._ready`
+## swaps THIS root in on every boot). Gameplay never knows which world is live: the
 ## class extends `City`, so every public API gameplay reads — the spawn
 ## corridor, `home_radius()`, `to_global`/`to_local`, `regenerated`, the
 ## stepped-boot slices — answers with identical signatures, implemented over

@@ -1,101 +1,28 @@
 class_name City
 extends Node3D
-## Procedural city blockout (T-004): builds a street grid of raised blocks with
-## sidewalks, building volumes with flat landable roofs, and street props
-## (benches, lamp posts, trash bins) at scene load. Every solid element is a
-## plain layer-1 (`world`) static body; the visuals are a handful of MultiMeshes
-## so the whole city stays well inside the frame budget.
+## The world-root base class — the gameplay seam (T-173). After the R1
+## cutover (T-177, owner fork 2026-11-09 — master plan §11.2) the one world
+## is the resident Ames bake: `AmesWorld extends City` and implements the
+## build (`generate` + the three stepped-boot slices) over the committed
+## chunk data. THIS class carries only the world-agnostic surface every
+## consumer reads — the spawn corridor, the bread/elder/cafe spot arrays,
+## the `regenerated` signal, the `world`-layer collision helpers (`_group`/
+## `_add_collider`), and the shared layout constants the citizen systems
+## and the route grid are defined against (crumb lifts, table offsets,
+## crosswalk bands, stop-line outset).
 ##
-## Determinism: the layout is a pure function of `seed_value` — the same seed
-## always regenerates the identical city (see `fingerprint`), and every seed
-## keeps the M1 guarantees checked by `report()`: a clear spawn plaza, street
-## widths fit for flight, roof heights under the cruise floor, and enough
-## bread-capable surfaces (benches, sidewalks, roofs, parks) for T-005.
+## The Windrow procedural city (T-004-T-136) was RETIRED at the cutover: its
+## generate path — the seeded RNG layout, the MultiMesh builders, the visual
+## palettes and the M1 guarantee report — is deleted, no debug toggle (the
+## owner fork; git history keeps the old city, and `city.tscn` survives only
+## as the staged node `main.tscn` swaps away). The base `generate()`/
+## `generate_step_*` below are loud stubs: only an `AmesWorld` (or an R2+
+## world) may build. The grid math the citizen systems still reference —
+## `sidewalk_loop`, `traffic_loop`, `parking_spots`, the T-134 route grid —
+## stays: it is the seam those systems re-point onto real Ames data in R2,
+## and on the Ames world the citizens' empty spot arrays keep every consumer
+## inert (the spawners early-return; nothing on Ames reaches this math yet).
 
-## Per-district facade palettes (T-013): the city reads as neighborhoods from
-## the air. The locked low-poly palette colors, regrouped into four district
-## families — a building picks its color from its district's palette only, so
-## each quadrant wears a coherent range while the whole city stays in style.
-## Index with `district_of()`.
-const DISTRICT_PALETTES: Array = [
-	[Color(0.78, 0.48, 0.38), Color(0.72, 0.4, 0.32), Color(0.84, 0.56, 0.44)], ## Warm brick.
-	[Color(0.88, 0.82, 0.68), Color(0.82, 0.73, 0.55), Color(0.9, 0.86, 0.76)], ## Sandy cream.
-	[Color(0.52, 0.6, 0.7), Color(0.44, 0.53, 0.64), Color(0.6, 0.67, 0.76)], ## Cool blue-gray.
-	[Color(0.55, 0.64, 0.48), Color(0.47, 0.58, 0.43), Color(0.62, 0.69, 0.54)], ## Sage green.
-]
-const COLOR_ASPHALT := Color(0.29, 0.29, 0.31)
-const COLOR_GRASS := Color(0.36, 0.5, 0.30)
-const COLOR_SIDEWALK := Color(0.56, 0.55, 0.53)
-const COLOR_PLAZA := Color(0.60, 0.57, 0.51)
-const COLOR_PARK := Color(0.42, 0.55, 0.34)
-const COLOR_ROOF := Color(0.33, 0.33, 0.36)
-const COLOR_LANE_MARK := Color(0.85, 0.82, 0.60)
-const COLOR_BENCH_WOOD := Color(0.55, 0.38, 0.24)
-const COLOR_METAL := Color(0.25, 0.26, 0.28)
-const COLOR_BIN := Color(0.16, 0.30, 0.20)
-const COLOR_TANK := Color(0.45, 0.53, 0.58) ## Dull plastic rooftop water tanks (T-032).
-const COLOR_STONE := Color(0.44, 0.42, 0.38) ## Gray limestone plaza landmark plinth (T-029) — clearly darker than the pale plaza slab.
-const COLOR_BRONZE := Color(0.34, 0.26, 0.17) ## Dark oxidized bronze plaza landmark figure (T-029).
-const COLOR_LAMP_GLOW := Color(1.0, 0.9, 0.6)
-const COLOR_DOOR := Color(0.18, 0.14, 0.12)
-const COLOR_SIGNBOARD := Color(0.92, 0.87, 0.74) ## Blank cream signboard plaque over every door (T-090) — clearly lighter than every shopfront band and the dark door slab.
-const COLOR_CROSSWALK := Color(0.78, 0.78, 0.75) ## Worn-white zebra paint (T-069) — clearly not the yellow lane mark.
-const COLOR_STOP_SIGN := Color(0.78, 0.10, 0.10) ## R1-1 octagon red (T-134) — the closeup photo's bright red, clearly not the worn crosswalk white.
-const COLOR_SIGN_WHITE := Color(0.94, 0.94, 0.92) ## Raised sign faces (T-134) — brighter than the worn COLOR_CROSSWALK paint so the raised sign reads against the flat paint.
-## City-edge rim greens (T-088 commit 1, executing T-047): the hedge band and
-## tree crowns must read against the grass apron they sit on — both hold ≥ 0.15
-## Euclidean RGB from COLOR_GRASS (0.188 / 0.195 at these values), a floor the
-## `city_apron_rim_present` scenario asserts and prints informationally.
-const COLOR_RIM_HEDGE := Color(0.24, 0.38, 0.22)
-const COLOR_RIM_CROWN := Color(0.22, 0.42, 0.19) ## The hedge green family, a touch deeper.
-## Ground-floor shopfront palette (T-017): cafés, bakeries, bookshops and delis,
-## so the street level reads as shop rows instead of blank office walls. Kept
-## well apart from all four district families (the harness asserts the means
-## stay > 0.1 apart in RGB).
-const SHOPFRONT_PALETTE: Array[Color] = [
-	Color(0.62, 0.28, 0.22), ## Café red-brown.
-	Color(0.85, 0.72, 0.45), ## Bakery cream.
-	Color(0.34, 0.48, 0.36), ## Bookshop green.
-	Color(0.26, 0.42, 0.48), ## Deli teal.
-]
-## Per-district signboard tints (T-136): the T-090 plaque over every door moves
-## to the vertex-color material (the `anchor_head` precedent) and takes one
-## tint per district — d0 keeps the marquee photo's cream, the others dress to their
-## theme (banner gold on the tailgate lot, limestone cream on the campus,
-## muted white-sage on the residential row). Post-roll pure math: the tint
-## rides the queue's per-instance color, touches no RNG stream and no `_fp`
-## entry (the `["shop"]` ledger entry keeps its shape).
-const SIGNBOARD_TINTS: Array[Color] = [
-	COLOR_SIGNBOARD, ## d0 NW main street — the marquee photo's cream letter board.
-	Color(0.90, 0.78, 0.50), ## d1 NE tailgate — banner gold, the visitor pairing.
-	Color(0.88, 0.85, 0.74), ## d2 SW campus — limestone cream.
-	Color(0.88, 0.90, 0.82), ## d3 SE residential — muted white-sage.
-]
-## Per-district awning tints (T-136): each awning lerps its shop-derived color
-## toward its district's target at the matching weight (d0's marquee-photo dark
-## green is the strongest read — green awnings on warm brick IS the photo's main
-## street). Post-roll pure math on the already-rolled `shop_color`: the
-## `has_awning` roll and `awning_chance` stay untouched, so no stream and no
-## `_fp` entry moves.
-const AWN_TINTS: Array[Color] = [
-	Color(0.16, 0.35, 0.27), ## d0 — the marquee photo's dark green.
-	Color(0.62, 0.48, 0.18), ## d1 — banner gold.
-	Color(0.30, 0.40, 0.50), ## d2 — collegiate slate.
-	Color(0.60, 0.64, 0.55), ## d3 — porch sage.
-]
-const AWN_TINT_WEIGHTS: Array[float] = [0.65, 0.35, 0.35, 0.35] ## Lerp weight per district.
-## Shopfront door faces: 0=+x 1=-x 2=+z 3=-z — the same order `_add_shopfront`
-## indexes its normals with. The T-031 cafe placement reads it too.
-const FACE_NORMALS: Array[Vector3] = [
-	Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD,
-]
-## Sidewalk cafe table layout (T-031): the table sits `CAFE_STANDOFF` out from
-## the shop-band face plane and `CAFE_SIDE_OFFSET` along the face from the
-## (centered) door — corner-ward, the side the `lot_offset` sign picks. Pure
-## layout numbers; the placement draws no RNG.
-const CAFE_FACE_OUTSET := 0.12 ## The shop band's outset (the `_add_shopfront` band_outset).
-const CAFE_STANDOFF := 1.9 ## Table center out from the face plane (m).
-const CAFE_SIDE_OFFSET := 2.2 ## Table center along the face from the door center (m).
 
 ## Tabletop crumb layout (T-112): one TABLE bread spot per awninged building,
 ## riding its own cafe table. The spot's y is CAFE_CRUMB_TABLE_LIFT above the
@@ -109,6 +36,8 @@ const CAFE_SIDE_OFFSET := 2.2 ## Table center along the face from the door cente
 ## and appends no `_fp` entry, so the layout fingerprint stays byte-identical.
 const CAFE_CRUMB_TABLE_LIFT := 0.78 ## Spot y above the table spot origin: collider top 0.72 + crumb lift 0.06.
 const CAFE_CRUMB_SIT_INSET := 0.25 ## Spot XZ offset along the table's local +X, toward the first sitter.
+
+const ANCHOR_CRUMB_LIFT := 0.06 ## Crumb height above the cap's top face (the T-032 roof-crumb pattern).
 
 ## Intersection crosswalk layout (T-069, bars re-oriented longitudinal by
 ## T-102): one zebra band per intersection approach, its center CROSSWALK_OUTSET
@@ -127,8 +56,7 @@ const CAFE_CRUMB_SIT_INSET := 0.25 ## Spot XZ offset along the table's local +X,
 ## appends no `_fp` entry.
 const CROSSWALK_OUTSET := 6.2 ## Band center out from the node (m).
 const CROSSWALK_BAND_DEPTH := 2.4 ## Band depth along the road (m).
-const CROSSWALK_BAR_PITCH := 1.0 ## Bar spacing across the road (m).
-const CROSSWALK_BAR_WIDTH := 0.5 ## Bar width across the road (m).
+
 ## How far a crosswalk band reaches from its node: center plus half depth
 ## (7.4 m at the defaults) — the T-069 approach-existence rule's reach, shared
 ## by the T-134 stop-control furniture so paint and cars agree on which
@@ -160,263 +88,6 @@ const ROUTE_TURN_RIGHT := 1
 ## zero colliders (visual-only, the T-017 decision). Pinned by
 ## `intersection_furniture_oriented`.
 const STOP_LINE_OUTSET := 8.8 ## Stop-line bar center out from the node (m) — 1.2 m beyond the crosswalk band's 7.4 m edge plus half the bar width (MUTCD ≥ 4 ft before the crosswalk).
-const STOP_LINE_WIDTH := 0.4 ## Bar thickness along travel (m).
-## Bar span across the road (m), centered on the incoming lane center — the
-## lane center sits `traffic_lane_offset` (3.5) BEYOND THE BLOCK EDGE, i.e.
-## `road_width * 0.5 − traffic_lane_offset` (1.5) right of the road centerline
-## (the `traffic_loop` convention this ticket freezes). A 4.0 m bar cannot fit
-## that lane: it would paint under the parallel-parked row (which occupies
-## 3.0–4.9 m off the centerline on the same side) or cross the centerline, so
-## the landed span is the clear lane-width asphalt between centerline and
-## parked cars (ticket deviation, recorded in T-134).
-const STOP_LINE_SPAN := 2.8
-const STOP_SIGN_OUTSET := 9.3 ## Stop-sign assembly out from the node (m) — 0.5 m beyond the stop line.
-const SIGN_SIDE_OFFSET := 5.2 ## Sign assemblies' offset off the road centerline (m) — 0.2 m onto the sidewalk slab past the 5.0 m road edge.
-const SPEED_SIGN_OUTSET := 12.0 ## Speed-limit sign out from the node (m).
-const SIGN_POST_SIZE := Vector3(0.08, 2.2, 0.08) ## Metal post, rising from the sidewalk slab.
-const STOP_SIGN_ACROSS := 0.75 ## Red octagon across flats (m) — the research note's 30 in.
-const STOP_SIGN_BAR := 0.31 ## One bar's short side (m) — 0.75·(√2−1) rounded; the four-bar union is the regular octagon.
-const STOP_SIGN_BORDER_ACROSS := 0.81 ## White border octagon across flats (m) — reads ≈ 0.03 m of border all around.
-const STOP_SIGN_BORDER_BAR := 0.34 ## Border bar short side (m).
-const STOP_SIGN_THICKNESS := 0.086 ## (T-143) Red bar thickness (m) — sits ~0.028 proud of the 0.03 border on both faces. The T-134 0.036 (0.003 proud) put the two layers near-coplanar, and the renderer interleaved them at gameplay distances: every sign read white with hairline red seams (probe-verified correct transforms; the relief, not the layout, was the defect).
-const SIGN_BORDER_THICKNESS := 0.03 ## White border/plaque/speed-face thickness (m).
-const ALL_WAY_PLAQUE_SIZE := Vector3(0.42, 0.14, 0.03) ## Blank white plaque below the octagon (the T-090 blank-signboard convention).
-const SPEED_SIGN_SIZE := Vector3(0.45, 0.6, 0.03) ## White portrait rectangle (m) — the Southbridge photo's shape, no legend.
-const STOP_SIGN_CENTER_Y := 2.525 ## Red/border octagon center over the asphalt (m): bottom ≈ 2.1 (MUTCD mount height) + the 0.375 across-flats half.
-const PLAQUE_DROP := 0.495 ## Plaque center below the octagon center (m): the 0.375 half + 0.05 gap + the 0.07 plaque half.
-const SPEED_SIGN_CENTER_Y := 2.4 ## Speed-sign face center over the asphalt (m).
-## Speed-sign approach scan order (T-134): the node's first EXISTING approach
-## in +x/−x/+z/+… order — indices into `ROUTE_DIRS` (+x, −x, +z, −z).
-const SIGN_DIR_ORDER: Array[int] = [0, 2, 1, 3]
-
-## Rooftop clutter layout (T-032): per building, 1-3 props sit at ±0.25·footprint
-## per axis in the three non-(+,+) corner quadrants and one roof crumb at
-## ±0.28·footprint in the remaining (+,+) quadrant — both mirrored through the
-## lot_offset signs, so the geometry is corner-relative per lot. Since T-051 the
-## footprint itself varies per lot and per axis in [0.78, 1.0]·(lot − lot_gap),
-## so at the 5.54 m minimum (7.1 × 0.78) prop centers sit √2·0.25·5.54 ≈ 1.96 m
-## from the footprint center — the `city_roof_landable` drop point at the exact
-## center stays ≥ 0.96 m clear of the worst prop (the 1.4 m water tank's 0.99 m
-## half-diagonal) — and the tank keeps 2.77 − 1.385 − 0.7 ≈ 0.685 m inside every
-## roof edge. Pure layout numbers: the placement draws no RNG of any stream.
-const ROOF_PROP_INSET := 0.25 ## Prop center offset from the footprint center, × footprint.
-const ROOF_BREAD_INSET := 0.28 ## Roof crumb offset from the footprint center, × footprint.
-const ROOF_PROP_KINDS: Array[String] = ["ac_box", "water_tank", "roof_vent"]
-const ROOF_PROP_SIZES: Dictionary = {
-	"ac_box": Vector3(1.2, 0.8, 1.2), ## Metal AC unit.
-	"water_tank": Vector3(1.4, 2.0, 1.4), ## Dull plastic tank.
-	"roof_vent": Vector3(0.5, 0.9, 0.5), ## Metal vent housing.
-}
-
-## City-edge rim layout (T-088 commit 1): one hedge band per side on the grass
-## apron just outside the outer road edge, plus two trees flanking every street
-## exit (`blocks_per_side + 1` road centers per side). RIM_TREE_CLEARANCE is
-## measured from the road edge, so tree centers sit `road_width * 0.5 + 1.5` m
-## along the side axis from their road center. Pure layout numbers; the
-## placement draws no RNG of any stream and appends no `_fp` entry.
-const RIM_HEDGE_SETBACK := 0.5 ## Hedge center line out from the outer road edge (m).
-const RIM_HEDGE_HEIGHT := 1.2 ## Hedge band height (m).
-const RIM_HEDGE_DEPTH := 0.8 ## Hedge band thickness (m).
-const RIM_TREE_CLEARANCE := 1.5 ## Tree center clear of the road edge (m).
-const RIM_TRUNK_SIZE := Vector3(0.35, 2.2, 0.35) ## Rising from the apron (y 0).
-const RIM_CROWN_SIZE := Vector3(2.6, 2.2, 2.6) ## Centered 3.3 m up — sits on the 2.2 m trunk.
-const RIM_CROWN_CENTER_Y := 3.3 ## Crown box center height (m).
-
-## Park tree layout (T-030, themed per district by T-136): each park block
-## plants its district's fixed layout — every offset a constant, ZERO RNG and
-## zero `_fp` entries (the T-030 convention holds: the park branch draws
-## NOTHING, and since T-136 neither do the tree positions — a pure function of
-## the block center and `district_of`). d0 NW keeps a formal axial pair (the
-## main-street photo's canyon is treeless; the square keeps a ceremonial
-## pair); d1 NE plants the plaza-facing half only (the anchor-facing half
-## stays bare — the tailgate lots are treeless asphalt); d2 SW frames an
-## open middle with corner + edge-midpoint clusters (the campanile photo's
-## lawn); d3 SE buries the whole block (the tower-aerial photo's canopy) at
-## a small-crown scale. Trunks rise
-## from the slab, crowns sit on them (crown bottom at trunk top — the crown
-## center drops by half the scale shrink), all visual-only so the pigeon
-## brushes through at park-cruise altitude (the T-017 awning decision), so the
-## seeded streams carry no park-tree trace. City-wide park
-## trees 16 → 19. Pinned by `city_park_trees_present` and
-## `city_district_theming_present`.
-const PARK_TREE_OFFSET := 5.0 ## Tree center out from the block center, per axis (m).
-const PARK_TRUNK_SIZE := Vector3(0.35, 2.2, 0.35) ## Rising from the slab.
-const PARK_CROWN_SIZE := Vector3(2.6, 2.2, 2.6) ## Centered 3.3 m up — sits on the 2.2 m trunk.
-const PARK_CROWN_CENTER_Y := 3.3 ## Crown box center height above the slab top (m).
-## Per-district park tree layouts (T-136), keyed on `district_of` — offsets
-## from the park block center. The d2 edge midpoints sit ±7.5 m out: their
-## crowns overhang the sidewalk ring's inner edge (8.5 m) by ≤ 0.84 m —
-## brush-through, no collider anywhere (the T-030 visual-only rule).
-const PARK_TREE_LAYOUTS: Array = [
-	[ ## d0 NW main street — the formal axial pair (2).
-		Vector2(PARK_TREE_OFFSET, 0.0), Vector2(-PARK_TREE_OFFSET, 0.0),
-	],
-	[ ## d1 NE tailgate lot — the plaza-facing (−x/+z) half (3).
-		Vector2(-PARK_TREE_OFFSET, 0.0), Vector2(0.0, PARK_TREE_OFFSET),
-		Vector2(-PARK_TREE_OFFSET, PARK_TREE_OFFSET),
-	],
-	[ ## d2 SW campus — corners plus edge midpoints, an open middle (8).
-		Vector2(PARK_TREE_OFFSET, PARK_TREE_OFFSET),
-		Vector2(PARK_TREE_OFFSET, -PARK_TREE_OFFSET),
-		Vector2(-PARK_TREE_OFFSET, PARK_TREE_OFFSET),
-		Vector2(-PARK_TREE_OFFSET, -PARK_TREE_OFFSET),
-		Vector2(7.5, 0.0), Vector2(-7.5, 0.0),
-		Vector2(0.0, 7.5), Vector2(0.0, -7.5),
-	],
-	[ ## d3 SE residential — the buried block: corners plus two mid-edge (6).
-		Vector2(PARK_TREE_OFFSET, PARK_TREE_OFFSET),
-		Vector2(PARK_TREE_OFFSET, -PARK_TREE_OFFSET),
-		Vector2(-PARK_TREE_OFFSET, PARK_TREE_OFFSET),
-		Vector2(-PARK_TREE_OFFSET, -PARK_TREE_OFFSET),
-		Vector2(6.5, 0.0), Vector2(-6.5, 0.0),
-	],
-]
-## Per-district crown scale (T-136): the residential canopy runs small dense
-## crowns (0.8×), every other district the standard 1.0.
-const PARK_CROWN_SCALE_BY_DISTRICT: Array[float] = [1.0, 1.0, 1.0, 0.8]
-## Themed park slabs (T-136): one lawn tint per district, applied when
-## `is_park` (the plaza keeps `COLOR_PLAZA`, every other block
-## `COLOR_SIDEWALK`). All within ≈ 0.06 RGB of base `COLOR_PARK`
-## (0.42/0.55/0.34) so the city stays coherent while each quadrant's lawn
-## reads as its place (photo-sampled values, the T-136 ticket's table). Zero
-## RNG, zero `_fp` (the slab entries carry only booleans). Pinned by
-## `city_district_theming_present`.
-const PARK_SLAB_TINTS: Array[Color] = [
-	Color(0.46, 0.52, 0.30), ## d0 NW main street — the formal warm square.
-	Color(0.48, 0.50, 0.28), ## d1 NE tailgate lot — dry sandy-green edge.
-	Color(0.36, 0.58, 0.32), ## d2 SW campus — lush cool quad lawn.
-	Color(0.44, 0.56, 0.33), ## d3 SE residential — sage lawn.
-]
-
-## District anchor layout (T-091): one tall clock post per district quadrant, at
-## the pinned blocks' alley-cross centers — the one spot on EVERY block the
-## layout math keeps clear (lot centers sit ±4.25 m out per axis, footprints are
-## ≤ 7.1 m wide, so every building's inner face stays 0.70–1.48 m off the block
-## center per axis; block props sit ≥ 8 m out, the ground bread ring ≥ 6.5 m per
-## axis and the tourist loop on the 10.9 m curb line). The gate sits OUTSIDE the
-## plaza/park/building branch, so the post stands in parks too — the (±5, ±5)
-## park trees leave 5.0 − 1.84 crown half-diagonal − 0.99 plinth half-diagonal
-## ≈ 2.2 m per axis clear. The ANCHOR_BLOCKS pins assume the M1 `blocks_per_side`
-## 7. Four tiers of MultiMesh boxes rise from the slab top — plinth, shaft,
-## head, cap — the cap's top face (slab + 17.3 m) the landable pad, under
-## `max_roof_height` and the 23 m autoplay cruise floor. Zero RNG of any stream
-## (no draw touches `_rng`/`_shop_rng`) and exactly one `_fp` entry per anchor,
-## so every seeded sequence and every pinned count stays byte-identical and the
-## fingerprint tracks the anchors' positions. The anchors deliberately do NOT
-## feed `_max_roof` — the `city_district_anchors_present` scenario re-pins
-## `report.max_roof_height` to the building roofs so the rule is guarded. The
-## T-136 restyle dresses each post as its district's signature — marquee /
-## water tower / campanile / silo (the D-A fork): per-district tier tints, one
-## widened d3 shaft, and visual-only detail boxes on the `anchor_detail` key
-## (see the tier-tint consts below).
-const ANCHOR_BLOCKS: Array[Vector2i] = [
-	Vector2i(1, 1), Vector2i(5, 1), Vector2i(1, 5), Vector2i(5, 5),
-]
-
-## Pinned park blocks (T-135): exactly one open park per district quadrant, at
-## the midpoint of each plaza↔anchor diagonal — the spawn plaza is (3,3) and
-## the T-091 anchors sit at (1,1)/(5,1)/(1,5)/(5,5), so (2,2)/(4,2)/(2,4)/(4,4)
-## put every park one block diagonal from both, one per `district_of`
-## ((2,2)→0 NW warm brick, (4,2)→1 NE sandy cream, (2,4)→2 SW cool blue-gray,
-## (4,4)→3 SE sage green). Block centers land at (±32, ±32) — 45.25 m from the
-## plaza center, outside the 16 m `city_plaza_props_clear` census and ≥ 35.8 m
-## from the spawn-corridor drop (16, 0.6, 0) — and 45.25 m center-to-center
-## from each district's anchor. The list replaces the old per-block 12%
-## `park_chance` roll: park count and position are seed-independent identity,
-## zero RNG draws (the `ANCHOR_BLOCKS` precedent), asserted disjoint from the
-## plaza and `ANCHOR_BLOCKS` by the `city_one_park_per_district` scenario so a
-## future const edit fails loudly.
-const PARK_BLOCKS: Array[Vector2i] = [
-	Vector2i(2, 2), Vector2i(4, 2), Vector2i(2, 4), Vector2i(4, 4),
-]
-
-const ANCHOR_PLINTH_SIZE := Vector3(1.4, 1.0, 1.4) ## Alley-cross footing, rising from the slab.
-const ANCHOR_SHAFT_SIZE := Vector3(0.7, 13.6, 0.7) ## The post — slab+1.0 up to slab+14.6.
-const ANCHOR_HEAD_SIZE := Vector3(1.8, 2.2, 1.8) ## The clock/bell housing — district-tinted.
-const ANCHOR_CAP_SIZE := Vector3(2.0, 0.5, 2.0) ## The landable pad.
-const ANCHOR_CRUMB_LIFT := 0.06 ## Crumb height above the cap's top face (the T-032 roof-crumb pattern).
-## T-136 anchor restyle consts (the D-A fork): per-district tier tints and the
-## d3 silo's widened shaft. The tier STACK stays exact — plinth 1.4 × 1.0 × 1.4
-## / shaft 0.7 (d3: 1.4) × 13.6 × 0.7 (d3: 1.4) / head 1.8 × 2.2 × 1.8 / cap
-## 2.0 × 0.5 × 2.0, top 17.3 above the slab (17.42 global), crumb at cap_top +
-## 0.06 — so the landing, crumb, top/cap_top and plinth-daylight guarantees
-## hold; the d3 shaft's 1.4 m footprint equals the plinth's own, so the
-## per-seed plinth-daylight derivation covers it at every height by the same
-## arithmetic. Detail boxes queue on ONE `"anchor_detail"` vertex-color key and
-## carry NO collider — the Props shape count stays 4 per anchor, 3 above the
-## y 5.0 window (pinned by `city_district_anchors_present` and
-## `city_district_theming_present`).
-const ANCHOR_SHAFT_SIZES: Array[Vector3] = [
-	Vector3(0.7, 13.6, 0.7), ## d0 marquee post / d1 riser / d2 campanile shaft.
-	Vector3(0.7, 13.6, 0.7),
-	Vector3(0.7, 13.6, 0.7),
-	Vector3(1.4, 13.6, 1.4), ## d3 silo — the widened drum (≈ 11:1, honestly stylized).
-]
-const ANCHOR_SHAFT_TINTS: Array[Color] = [
-	Color(0.16, 0.35, 0.27), ## d0 — the marquee photo's blade green.
-	COLOR_METAL, ## d1 — the water tower's riser steel.
-	Color(0.60, 0.65, 0.72), ## d2 — cool limestone (the campanile photo's tan, re-tinted cool).
-	Color(0.68, 0.67, 0.64), ## d3 — light concrete gray (the silo photo's stave type).
-]
-const ANCHOR_HEAD_TINTS: Array[Color] = [
-	COLOR_SIGNBOARD, ## d0 — the marquee's cream letter board.
-	Color(0.88, 0.86, 0.80), ## d1 — the tank cream.
-	Color(0.60, 0.65, 0.72), ## d2 — the belfry's cool limestone.
-	Color(0.68, 0.67, 0.64), ## d3 — the upper drum, the same concrete gray.
-]
-const ANCHOR_CAP_TINTS: Array[Color] = [
-	Color(0.16, 0.35, 0.27), ## d0 — the dark-green landing pad.
-	Color(0.88, 0.86, 0.80), ## d1 — the tank roof, cream.
-	Color(0.22, 0.24, 0.28), ## d2 — the slate spire mass.
-	Color(0.68, 0.67, 0.64), ## d3 — the dome, gray.
-]
-
-## Distant skyline layout (T-088 commit 2): a ring of flat-shaded background
-## towers on the grass apron — the horizon reads as a larger city under haze
-## instead of a void edge. Placement is a deterministic hash chain (one
-## `_skyline_roll` per attribute, each with its own salt): ZERO draws from
-## `_rng`/`_shop_rng` (both sequences stay byte-identical), ZERO `_fp` entries
-## and ZERO `_add_collider` calls (visual-only, the T-017 decision — colliders
-## live only under `Static`).
-const SKYLINE_COUNT := 64 ## Total background towers (the harness gates [40, 80]).
-const SKYLINE_TALL_TARGET := 6 ## Landmark towers the class roll aims at (the harness gates [2, 8]).
-const SKYLINE_SALT_RADIUS := 101
-const SKYLINE_SALT_ANGLE := 211
-const SKYLINE_SALT_CLASS := 307
-const SKYLINE_SALT_HEIGHT := 401
-const SKYLINE_SALT_WIDTH := 503
-const SKYLINE_SALT_SHADE := 601
-## (T-148) The haze the skyline ring dissolves into: `scenes/main.tscn`'s
-## `sky_horizon_color` (ProceduralSkyMaterial) — keep the two in sync when
-## retuning either. Each tower's district shade lerps toward this by
-## `maxf(SKYLINE_HAZE_MIN, its normalized band radius × SKYLINE_HAZE_MAX)`, so
-## the apron monoliths read as horizon haze instead of landable foreground
-## buildings. Color-only: no RNG draw, no `_fp` entry, no layout change.
-const SKYLINE_HAZE := Color(0.85, 0.8, 0.7)
-const SKYLINE_HAZE_MAX := 0.85
-## (T-155) The floor of that dissolve: even the innermost band's blend weight
-## never drops below this, because the ring has no streets, doors or colliders
-## to earn a foreground read — an un-hazed inner monolith promises content that
-## is not there. Tunable at Gate 3 within 0.35–0.55.
-const SKYLINE_HAZE_MIN := 0.45
-
-## Plaza landmark layout (T-029): a bronze pigeon on a limestone plinth at the
-## exact center of the spawn plaza — the square's heart, the one fixed volume
-## to steer home by. Built from fixed offsets at the plaza center like every
-## city visual: ZERO draws from `_rng`/`_shop_rng` and exactly one `_fp` entry
-## (`["landmark", center.x, center.z]`), so the RNG streams stay byte-identical
-## and the fingerprint tracks the anchor's position. The plinth is landable
-## through ONE layer-1 `Props` collider (the bench pattern) whose top face is
-## the cap top at `block_slab_height + LANDMARK_PLINTH_TOP`; the figure above
-## stays visual-only (the T-017 awning decision) — flight passes through it
-## rather than snagging at perch-climb altitude. Total top
-## `block_slab_height + LANDMARK_FIGURE_TOP` ≈ 5.07 m: under the ticket's 5.5 m
-## bar, deep inside the 12 m spawn-clear guarantee and far below both
-## `max_roof_height` and the 23 m cruise floor.
-const LANDMARK_PLINTH_BASE := Vector3(2.4, 0.9, 2.4) ## Plinth base box, rising from the slab.
-const LANDMARK_PLINTH_CAP := Vector3(1.8, 1.1, 1.8) ## Plinth cap box on the base — its top is the landing surface.
-const LANDMARK_PLINTH_TOP := 2.0 ## Cap top above the slab top (m) — base 0.9 + cap 1.1.
-const LANDMARK_FIGURE_TOP := 4.95 ## Figure's highest point above the slab top (m) — a ~3 m pigeon on the cap.
 
 @export_group("Layout")
 ## Fixed M1 seed — same city every run so runs and scores stay comparable.
@@ -434,68 +105,26 @@ const LANDMARK_FIGURE_TOP := 4.95 ## Figure's highest point above the slab top (
 ## always.
 @export var hold_generate: bool = false
 
-@export_group("Guarantees")
-## report() flags a city whose streets are narrower than this as unflyable.
-@export var min_flyable_street: float = 8.0
-## report() flags roofs taller than this; the autoplay pilot cruises just above it.
-@export var max_roof_height: float = 20.0
-## Minimum count of landable/eatable surfaces report() must guarantee.
-@export var min_bread_surfaces: int = 150
-## No building footprint may come this close to the plaza center (m).
-@export var spawn_clear_radius: float = 12.0
-
-@export_group("Surfaces")
-@export var sidewalk_width: float = 2.5 ## Raised sidewalk ring inside each block edge (m).
+## (T-004, kept for the citizen seam) Top of the raised block slab — the
+## height the sidewalk-loop and route math ride; on the Ames world the
+## plate is flat and this stays the documented default the route grid
+## answers against until R2 re-points it.
 ## Top of the raised block slab — sidewalk and courtyards (m). Steps stay below
 ## r·(1−cos45°) ≈ 0.09 m for the 0.3 m pigeon collider: taller curbs are walls,
 ## shorter ones roll under the sphere so the waddle climbs them.
 @export var block_slab_height: float = 0.12
 @export var road_slab_height: float = 0.05 ## Top of the asphalt slab (m).
-@export var roof_slab_height: float = 0.25 ## Thickness of the roof cap on every building (m).
-
-@export_group("Buildings")
-@export var floor_height: float = 3.0 ## Roof heights are whole floors of this height.
-@export var building_floors_min: int = 2
-@export var building_floors_max: int = 6
-@export var lot_gap: float = 1.4 ## Alley between buildings inside one block (m).
 
 @export_group("Spawn")
 ## Height above the road surface the pigeon drops in from. Keep small: the
 ## spawn drop is straight down, so anything tall turns into a skid.
 @export var spawn_drop_height: float = 0.6
 
-@export_group("Props")
-## Per-district prop-mix weights (T-136): how often a block edge gets a bench
-## and a block gets a trash bin, keyed on `district_of` — the old single
-## `bench_chance`/`bin_chance` exports, split per district so each quadrant
-## dresses like its place (the T-135 `park_chance` precedent: the exports are
-## gone, the consts are the law). Same single draw site per edge and per block
-## (`_build_block_props`), so the streams stay single-sited; the hit-count
-## shift re-rolls every downstream draw — the T-136 fingerprint re-derivation
-## paid for that (see the T-136 ticket's Known pin breaks).
-const BENCH_CHANCE_BY_DISTRICT: Array[float] = [
-	0.90, ## d0 NW main street — the walked canyon's high street furniture.
-	0.50, ## d1 NE tailgate lot — the open lot keeps its edges bare.
-	0.90, ## d2 SW campus — quad seating.
-	0.50, ## d3 SE residential — the quiet porch rhythm.
-]
-const BIN_CHANCE_BY_DISTRICT: Array[float] = [
-	0.70, ## d0 — curbside bins along the row.
-	0.90, ## d1 — party litter everywhere.
-	0.40, ## d2 — a mown lawn with few bins (the campanile photo shows none).
-	0.70, ## d3 — curb bins on collection day.
-]
-
-@export_group("Shopfronts")
-@export var awning_chance: float = 0.6 ## Share of buildings whose shop door gets an awning (T-017).
-
-@export_group("Traffic")
-## Driving-lane center beyond the block edge (m) — ring-road corners sit at
-## this offset. With the 1.9 m car width this keeps ~0.55 m to the parked
-## cars and a ~1.1 m center gap to the oncoming lane.
+## Driving-lane center beyond the block edge (m) — the route grid's lane
+## convention (`lane_center_off`).
 @export var traffic_lane_offset: float = 3.5
-## Parking-lane center beyond the block edge (m) — parked cars sit a hand's
-## width off the curb, outside the driving lane.
+## Parking-lane center beyond the block edge (m) — `parking_spots`' curb
+## convention.
 @export var parking_offset: float = 1.05
 
 ## Where the pigeon starts: plaza center plus the spawn drop (global coords).
@@ -504,9 +133,6 @@ var spawn_point: Vector3
 var fingerprint: int = 0
 ## One entry per building: `center` (global footprint center), `size` (XZ
 ## footprint), `top` (global roof height), plus the T-013 palette members
-## (`district`, `color`) and the T-017 shopfront members (`lot_offset`,
-## `shop_color`, `door_face`, `has_awning`). Tests and later tickets read this.
-var buildings: Array[Dictionary] = []
 ## Summary of the last generation — the sim harness asserts the guarantees on it.
 var last_report: Dictionary = {}
 
@@ -565,41 +191,6 @@ var elder_seat_districts: Array[int] = []
 ## fingerprints and the pinned awning count stay byte-identical.
 var cafe_spots: Array[Transform3D] = []
 
-## Rooftop clutter (T-032): one entry per roof prop, appended in
-## `_add_building()` — `center` (global prop center), `size` (prop box),
-## `top` (global y of the prop's top face) and `kind` (`ac_box`,
-## `water_tank` or `roof_vent`). Pure layout math from the building's own
-## record (floors, footprint, lot_offset): zero RNG of any stream and no `_fp`
-## entry, so the layout fingerprint stays byte-identical to pre-T-032 builds;
-## the props are pinned by the `city_roofs_inhabited` scenario, like
-## `cafe_spots`.
-var roof_props: Array[Dictionary] = []
-
-## District anchors (T-091): one record per pinned anchor post, appended by
-## `_build_district_anchor` — `center` (global), `district`, `top` (the anchor's
-## total height above the slab top: the pure tier-constant sum, 17.3 m at the
-## defaults) and `cap_top` (global y of the cap's top face — the landing
-## surface). Pure layout math at fixed block centers: zero RNG of any stream
-## and exactly one `_fp` entry per anchor, so the layout fingerprint tracks the
-## anchors while every seeded stream stays byte-identical. The anchors are NOT
-## folded into `_max_roof` (see the `ANCHOR_BLOCKS` const note); the
-## `city_district_anchors_present` scenario pins that rule.
-var anchors: Array[Dictionary] = []
-
-## City-edge rim (T-088 commit 1): one transform per hedge band — origin at the
-## band's box center on the boundary line, basis scale = its oriented
-## (city_span, 1.2, 0.8) size — and, in `rim_tree_spots`, one per rim tree.
-## Appended by `_build_rim()` as pure functions of the grid constants, the
-## `elder_spots`/`cafe_spots`/`roof_props` precedent: zero RNG of any stream,
-## zero `_fp` entries and zero colliders, so the layout fingerprint stays
-## byte-identical to pre-T-088 builds; pinned by the `city_apron_rim_present`
-## scenario.
-var rim_hedge_spots: Array[Transform3D] = []
-
-## The rim trees of the same pass (see `rim_hedge_spots`): origin at the trunk
-## base on the apron (y 0) — the trunk mesh rises 2.2 m from it and the crown
-## is centered 3.3 m up.
-var rim_tree_spots: Array[Transform3D] = []
 
 ## Center (city-local) of every generated block — the tourist service (T-007)
 ## picks its sidewalk walking loops from these.
@@ -630,21 +221,7 @@ func home_center() -> Vector3:
 func home_radius() -> float:
 	return city_span * 0.5 + ground_extra
 
-var _rng := RandomNumberGenerator.new()
-## Dedicated stream for the T-017 shopfront decoration: seeding it separately
-## keeps the layout stream (floors, colors, lots, parks, props) byte-identical
-## to the pre-shopfront city — only the decoration and the fingerprint entries
-## it appends are new.
-var _shop_rng := RandomNumberGenerator.new()
-var _meshes: Dictionary = {} ## MultiMesh key -> shared unit BoxMesh for that key.
-var _visuals: Dictionary = {} ## MultiMesh key -> {xfs: Array, colors: Array}.
-var _static_root: Node3D
-var _visual_root: Node3D
-var _counts: Dictionary = {}
-var _fp: Array = []
-var _max_roof: float = 0.0
-var _plaza_clear: bool = true
-var _plaza_center := Vector3.ZERO
+var _static_root: Node3D ## (T-093) The `Static/` root the `_group` bodies hang under.
 
 
 func _ready() -> void:
@@ -653,163 +230,52 @@ func _ready() -> void:
 	generate()
 
 
-## Rebuilds the whole city for `new_seed`. Deterministic: the same seed always
-## produces the same fingerprint. Safe to call again at any time (restart flow,
-## sim harness determinism checks).
+## Rebuilds the whole world. (T-177) The base class CANNOT build: the Windrow
+## generator was retired at the cutover — only an `AmesWorld` (or a future
+## world root) overrides this and the three stepped-boot slices. A bare City
+## reaching this fails loudly, never silently builds nothing.
 ##
-## Same-seed fast path (T-033): when a build already stands (`fingerprint != 0`)
-## and `new_seed` equals its seed, the rebuild is skipped entirely — the layout
-## is a pure function of the seed, so the standing build IS the rebuild output
-## (`city_same_seed_deterministic` proves it byte-identical). `regenerated`
-## still emits, because that is what a restart actually needs: the spawners
-## re-seed fresh nodes off it. `force_rebuild = true` opts out — the sim
-## harness's determinism scenarios use it so "a real rebuild reproduces X"
-## keeps proving a real rebuild.
-##
-## (T-129) The body is exactly the three `generate_step_*` slices run
-## back-to-back, so the synchronous path and the stepped boot perform the
-## identical work in the identical order — the layout RNG streams and the
-## fingerprint cannot tell the two paths apart (`stepped_boot_pins` proves it).
+## Same-seed fast path (T-033, the AmesWorld override): when a build already
+## stands (`fingerprint != 0`) and `new_seed` equals its seed, the rebuild is
+## skipped entirely — `regenerated` still emits, because that is what a
+## restart actually needs: the spawners re-seed fresh nodes off it.
 func generate(new_seed: int = seed_value, force_rebuild: bool = false) -> void:
-	if generate_step_ground(new_seed, force_rebuild):
-		generate_step_blocks()
-		generate_step_finish()
+	push_error("City.generate: the Windrow generator was retired at the T-177 cutover — build through AmesWorld")
 
-
-## (T-129) Stepped boot, slice 1 of 3 — "ground/slabs": state reset, shared
-## meshes, the ground apron, the skyline ring, roads, rim and crosswalk paint.
-## Returns true when more slices remain; false means the T-033 same-seed fast
-## path already emitted `regenerated` and skipped the build (the stepped boot
-## never hits this — it only runs on a cold city — but the honest answer keeps
-## `generate()` a plain composition of the slices).
+## (T-129) Stepped boot, slice 1 of 3 — "ground/slabs". (T-177) Loud stub on
+## the base class — only the world override builds; see `generate`. The
+## same-seed fast path check stays (the override's contract keeps the shape).
 func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = false) -> bool:
 	if fingerprint != 0 and new_seed == seed_value and not force_rebuild:
 		regenerated.emit()
 		return false
-	seed_value = new_seed
-	build_count += 1
-	_clear()
-	_rng.seed = seed_value
-	_shop_rng.seed = seed_value
-	_meshes = {}
-	_visuals = {}
-	_counts = {"buildings": 0, "parks": 0, "benches": 0, "lamps": 0, "bins": 0}
-	_fp = []
-	_max_roof = 0.0
-	_plaza_clear = true
-	buildings = []
-	bread_spots = []
-	bread_spot_kinds = []
-	elder_spots = []
-	elder_seat_districts = []
-	cafe_spots = []
-	roof_props = []
-	anchors = []
-	rim_hedge_spots = []
-	rim_tree_spots = []
-	block_centers = []
-	_static_root = Node3D.new()
-	_static_root.name = "Static"
-	add_child(_static_root)
-	_visual_root = Node3D.new()
-	_visual_root.name = "Visuals"
-	add_child(_visual_root)
-	var plaza_i := int(roundf((blocks_per_side - 1) * 0.5))
-	_plaza_center = _block_center(plaza_i, plaza_i)
-	_make_meshes()
-	_build_ground()
-	_build_skyline() ## T-088 commit 2 — the distant background towers, visual-only.
-	_build_roads()
-	_build_rim() ## T-088 commit 1 — the city-edge rim, visual-only.
-	_build_crossings() ## T-069 — intersection paint, visual-only.
-	_build_intersection_furniture() ## T-134 — stop lines and signs, visual-only.
+	push_error("City.generate_step_ground: the Windrow generator was retired at the T-177 cutover — build through AmesWorld")
 	return true
 
-
-## (T-129) Stepped boot, slice 2 of 3 — "buildings": the per-block loop (slabs,
-## buildings, props, plaza, parks, anchors) plus the cafe spots derived from the
-## finished building records. Must run after `generate_step_ground`, before
-## `generate_step_finish`.
+## (T-129) Stepped boot, slice 2 of 3 — "buildings". (T-177) Loud stub on the
+## base class — only the world override builds; see `generate`.
 func generate_step_blocks() -> void:
-	var plaza_i := int(roundf((blocks_per_side - 1) * 0.5))
-	for bx in blocks_per_side:
-		for bz in blocks_per_side:
-			_build_block(bx, bz, bx == plaza_i and bz == plaza_i)
-	_build_park_elder_seats() ## (T-137) AFTER the block loop, in PARK_BLOCKS order,
-	## so the plaza ring keeps elder_spots 0-7 and the park benches take 8-11.
-	_build_cafe_spots() ## T-031 — after the block loop, from the buildings[] records.
+	push_error("City.generate_step_blocks: the Windrow generator was retired at the T-177 cutover — build through AmesWorld")
 
-
-## (T-129) Stepped boot, slice 3 of 3 — "visuals": the queued MultiMesh
-## instances become nodes, then the spawn point, the layout fingerprint, the
-## guarantees report and the `regenerated` emission close the build exactly as
-## the synchronous `generate()` always has.
+## (T-129) Stepped boot, slice 3 of 3 — "visuals". (T-177) Loud stub on the
+## base class — only the world override builds; see `generate`.
 func generate_step_finish() -> void:
-	_spawn_visuals()
-	## Spawn on the road centerline next to the plaza, facing along the street:
-	## roads are the one corridor guaranteed clear of buildings at every
-	## height, so the opening climb is always safe.
-	spawn_point = to_global(_plaza_center
-			+ Vector3(block_size * 0.5 + road_width * 0.5, spawn_drop_height, 0.0))
-	fingerprint = _fp.hash()
-	last_report = _make_report()
-	regenerated.emit()
-
+	push_error("City.generate_step_finish: the Windrow generator was retired at the T-177 cutover — build through AmesWorld")
 
 func _clear() -> void:
 	for child in get_children():
 		remove_child(child)
 		child.free()
 	_static_root = null
-	_visual_root = null
 
-
-## --- layout math ---------------------------------------------------------
-
-
-func _block_center(ix: int, iz: int) -> Vector3:
-	var half := (blocks_per_side - 1) * 0.5
-	return Vector3((ix - half) * block_pitch, 0.0, (iz - half) * block_pitch)
-
-
-## Which district a block belongs to: the city's four quadrants (the middle
-## column/row folds into the east/south side). A pure function of the block
-## coordinates, so the district map is deterministic per seed.
-func district_of(bx: int, bz: int) -> int:
-	var half := (blocks_per_side - 1) * 0.5
-	return (0 if bx <= half else 1) + (0 if bz <= half else 2)
-
-
-## Stable per-lot, per-axis footprint scale (T-051): a pure hash fold of
-## (block x/z, quadrant, axis, seed) mapped to [0.78, 1.0], so building
-## footprints vary — some squat-wide, some slim, occasional near-full-lot slabs
-## — without the roofscape reading as a waffle grid of equal squares. ZERO
-## draws from `_rng`/`_shop_rng` (the hash chain `_skyline_roll` precedent):
-## every seeded roll keeps its exact place in its stream, so the floor tally,
-## the palette draws and the pinned 104-of-146 awning count stay byte-identical.
-## The scale never exceeds 1.0, so a footprint never grows past
-## `lot - lot_gap` — alleys only widen and every layout guarantee (clear
-## plaza, flyable streets, capped roofs, bread surfaces) holds by
-## construction. Deterministic and machine-recomputable: the sim harness
-## owns its copy of this fold (`city_footprints_vary`).
-func _lot_footprint_scale(bx: int, bz: int, qx: int, qz: int, axis: int) -> float:
-	var h := hash(Vector4i(bx, bz, qx * 2 + qz, axis + 1))
-	h = hash(h ^ seed_value)
-	return 0.78 + 0.22 * float(h % 1001) / 1000.0
-
-
-## --- construction --------------------------------------------------------
+## --- citizen-seam layout math ---------------------------------------------
 
 
 ## Waypoint loop (city-local) for one block's tourists (T-007): a rectangle on
 ## the sidewalk's outer curb line. The radius matters: the loop's legs must be
-## clear of everything that shares the block. Buildings reach 7.8 m from the
-## block center, benches sit 9.5–10.0 m out along the edges, lamps and bins
-## crowd the diagonals up to ~10.3 m — so the only band where the sides AND
-## the corners stay clear is the curb line just inside the slab edge (11.0 m):
-## sides keep ~0.6–0.9 m off every prop, corners ~0.9 m off the worst-case
-## (max-jitter) corner bin. Anything tighter (e.g. a diamond through the edge
-## midpoints) chords straight through the building footprints.
+## clear of everything that shares the block. (T-177) The Windrow block ring
+## this derives from is retired; the method stays as the seam TouristSpawner
+## reads — empty until R2 fills real pedestrian zones over the Ames data.
 func sidewalk_loop(center: Vector3) -> PackedVector3Array:
 	var ring := block_size * 0.5 - 0.1
 	var y := block_slab_height
@@ -820,28 +286,13 @@ func sidewalk_loop(center: Vector3) -> PackedVector3Array:
 		center + Vector3(ring, y, -ring),
 	])
 
-
-## Four sidewalk spots per block for bread crumbs (T-005), placed at the
-## diagonal corners of the sidewalk ring: off the bench line (benches slide
-## ±4 m along each edge plus their seat length) and clear of the corner lamps
-## and bins, so a crumb never spawns inside a prop.
-func _bread_ring_spots(center: Vector3) -> void:
-	var ring := block_size * 0.5 - sidewalk_width * 0.5
-	var mid := block_size * 0.5 - 4.5
-	var y := block_slab_height + 0.06
-	for sx: float in [ring, -ring]:
-		for sz: float in [mid, -mid]:
-			bread_spots.append(center + Vector3(sx, y, sz))
-			bread_spot_kinds.append(BreadKind.GROUND)
-			bread_spots.append(center + Vector3(sz, y, sx))
-			bread_spot_kinds.append(BreadKind.GROUND)
-
-
 ## Corner waypoints (city-local) for one block's traffic loop (T-008): the
 ## ring road around the block, right-hand traffic. The traversal order turns
 ## right at every corner, so of the four loops meeting at an intersection each
 ## cuts a disjoint corner (offsets ±traffic_lane_offset sit 3 m apart against
 ## a 1.9 m car width) — cross traffic can never meet, it can only queue.
+## (T-177) Kept as the citizen seam, inert until R2 re-points traffic onto
+## the real Ames street graph.
 func traffic_loop(center: Vector3) -> PackedVector3Array:
 	var o := block_size * 0.5 + traffic_lane_offset
 	var y := road_slab_height
@@ -852,11 +303,11 @@ func traffic_loop(center: Vector3) -> PackedVector3Array:
 		center + Vector3(o, y, -o),
 	])
 
-
 ## Eight curb parking spots (city-local) for one block (T-008): two per edge,
 ## well clear of the intersection corners, each yaw-aligned with the adjacent
 ## driving lane so parked cars face with the traffic. Purely derived from the
-## layout — no RNG — so it is deterministic per seed.
+## layout — no RNG — so it is deterministic per seed. (T-177) Kept as the
+## citizen seam, inert until R2 re-points parking onto the real curbs.
 func parking_spots(center: Vector3) -> Array[Dictionary]:
 	var edge := block_size * 0.5
 	var p := edge + parking_offset
@@ -876,222 +327,6 @@ func parking_spots(center: Vector3) -> Array[Dictionary]:
 			"pos": center + Vector3(-p, y, a), "yaw": 0.0,
 		})
 	return spots
-
-
-## One shared unit BoxMesh per visual key; instances scale it via their transform.
-func _make_meshes() -> void:
-	_meshes = {
-		"road": _unit_box(_flat_material(COLOR_ASPHALT)),
-		"dash": _unit_box(_flat_material(COLOR_LANE_MARK)),
-		"crosswalk": _unit_box(_flat_material(COLOR_CROSSWALK)),
-		"slab": _unit_box(_vertex_color_material()),
-		"roof": _unit_box(_flat_material(COLOR_ROOF)),
-		"bench_seat": _unit_box(_flat_material(COLOR_BENCH_WOOD)),
-		"bench_leg": _unit_box(_flat_material(COLOR_METAL)),
-		"lamp_post": _unit_box(_flat_material(COLOR_METAL)),
-		"lamp_head": _unit_box(_glow_material(COLOR_LAMP_GLOW)),
-		"bin": _unit_box(_flat_material(COLOR_BIN)),
-		"shopfront": _unit_box(_vertex_color_material()),
-		"awning": _unit_box(_vertex_color_material()),
-		"door": _unit_box(_flat_material(COLOR_DOOR)),
-		"sign": _unit_box(_vertex_color_material()), ## (T-136) per-district plaque tints.
-		"ac_box": _unit_box(_flat_material(COLOR_METAL)),
-		"water_tank": _unit_box(_flat_material(COLOR_TANK)),
-		"roof_vent": _unit_box(_flat_material(COLOR_METAL)),
-		"rim_hedge": _unit_box(_flat_material(COLOR_RIM_HEDGE)),
-		"rim_trunk": _unit_box(_flat_material(COLOR_BENCH_WOOD)),
-		"rim_crown": _unit_box(_flat_material(COLOR_RIM_CROWN)),
-		"tree_trunk": _unit_box(_flat_material(COLOR_BENCH_WOOD)),
-		"tree_crown": _unit_box(_flat_material(COLOR_RIM_CROWN)),
-		"skyline": _unit_box(_vertex_color_material()),
-		"skyline_tall": _unit_box(_vertex_color_material()),
-		"plinth": _unit_box(_flat_material(COLOR_STONE)),
-		"figure": _unit_box(_flat_material(COLOR_BRONZE)),
-		"anchor_plinth": _unit_box(_flat_material(COLOR_STONE)),
-		"anchor_shaft": _unit_box(_vertex_color_material()), ## (T-136) per-district tints.
-		"anchor_head": _unit_box(_vertex_color_material()),
-		"anchor_cap": _unit_box(_vertex_color_material()), ## (T-136) per-district tints.
-		"anchor_detail": _unit_box(_vertex_color_material()), ## (T-136) visual-only restyle boxes.
-		"stop_line": _unit_box(_flat_material(COLOR_SIGN_WHITE)), ## (T-134) brighter than the worn crosswalk paint.
-		"sign_post": _unit_box(_flat_material(COLOR_METAL)),
-		"stop_sign": _unit_box(_flat_material(COLOR_STOP_SIGN)),
-		"stop_sign_border": _unit_box(_flat_material(COLOR_SIGN_WHITE)),
-		"all_way_plaque": _unit_box(_flat_material(COLOR_SIGN_WHITE)),
-		"speed_sign": _unit_box(_flat_material(COLOR_SIGN_WHITE)),
-	}
-	## Facades (T-049): one key per floor count a building can have — each its
-	## own material drawing exactly that many window rows, so a BoxMesh face
-	## maps one row per real floor instead of one fixed sticker at five scales.
-	for f: int in range(building_floors_min, building_floors_max + 1):
-		_meshes["facade%d" % f] = _unit_box(_facade_material(f))
-
-
-func _build_ground() -> void:
-	var size := city_span + ground_extra * 2.0
-	_add_collider("Ground", Vector3(size, 1.0, size), Vector3(0.0, -0.5, 0.0))
-	## T-093 ground-mesh trap: the grass visual used to ride the old
-	## single-shape ground body — body at (0, -0.5, 0), mesh local (0, -0.5, 0),
-	## world (0, -1.0, 0), half a metre below the collision surface at y 0.
-	## The merged Ground body sits at the group origin, so parenting the mesh
-	## explicitly under it (decision: stays with its collider) at city-local
-	## (0.0, -1.0, 0.0) keeps it exactly where it has always been; the old
-	## LOCAL offset here would raise the grass slab 0.5 m into the roads,
-	## sidewalks and the plaza — invisible to every headless scenario.
-	var mesh_instance := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3(size, 1.0, size)
-	mesh.material = _flat_material(COLOR_GRASS)
-	mesh_instance.mesh = mesh
-	mesh_instance.position = Vector3(0.0, -1.0, 0.0)
-	_group("Ground").add_child(mesh_instance)
-	_fp.append(["ground", size])
-
-
-## One normalized [0, 1] roll of the skyline's deterministic hash chain (T-088
-## commit 2): folds `hash(Vector3i(i, seed_value, salt))` — a pure function of
-## the tower index, the seed and the attribute's salt. No RNG stream is
-## touched, so `_rng`/`_shop_rng` sequences and the layout fingerprint stay
-## byte-identical to pre-T-088 builds.
-func _skyline_roll(i: int, salt: int) -> float:
-	return float(hash(Vector3i(i, seed_value, salt)) & 0x7fffffff) / 2147483647.0
-
-
-## Distant skyline (T-088 commit 2, executing T-050): a ring of slim background
-## towers on the apron, every origin at ground radius
-## [city_span * 0.5 + ground_extra * 0.3, city_span * 0.5 + ground_extra - 20.0]
-## (192-347 m at defaults — beyond the blocks, ON the apron box; the planning
-## sketch's 1.3-2.2x span overran the apron edge, so the top of the range is
-## clamped). Heights 15-60 m with the `skyline_tall` landmarks at 40-60, XZ
-## footprints 6-18 m, muted DISTRICT_PALETTES members darkened() 0.30-0.45 —
-## the tower's angle quadrant picks its district family, so the ring reads as
-## the city's wider surroundings, each shade lerped toward `SKYLINE_HAZE` by
-## `maxf(SKYLINE_HAZE_MIN, its normalized band radius × SKYLINE_HAZE_MAX)`
-## (T-148, floored by T-155) so the ring dissolves into the horizon at
-## every depth. Box origins sit at height/2: the apron top
-## is y 0, the towers rise from the grass. Zero RNG draws from any stream,
-## zero `_fp` entries, zero colliders (visual-only, the T-017 decision);
-## pinned by the `city_horizon_skyline` scenario (layout) and its
-## `city_skyline_haze` check (instance colors).
-func _build_skyline() -> void:
-	var half := city_span * 0.5
-	var inner := half + ground_extra * 0.3
-	var outer := half + ground_extra - 20.0
-	for i in SKYLINE_COUNT:
-		var radius := inner + _skyline_roll(i, SKYLINE_SALT_RADIUS) * (outer - inner)
-		var angle := _skyline_roll(i, SKYLINE_SALT_ANGLE) * TAU
-		var tall := _skyline_roll(i, SKYLINE_SALT_CLASS) \
-				< float(SKYLINE_TALL_TARGET) / float(SKYLINE_COUNT)
-		var height: float = 40.0 + _skyline_roll(i, SKYLINE_SALT_HEIGHT) * 20.0
-		if not tall:
-			height = 15.0 + _skyline_roll(i, SKYLINE_SALT_HEIGHT) * 30.0
-		var width := 6.0 + _skyline_roll(i, SKYLINE_SALT_WIDTH) * 12.0
-		var pos := Vector3(cos(angle) * radius, height * 0.5, sin(angle) * radius)
-		var palette: Array = DISTRICT_PALETTES[int(angle / (PI * 0.5)) % 4]
-		var shade: Color = (palette[i % palette.size()] as Color).darkened(
-				0.3 + _skyline_roll(i, SKYLINE_SALT_SHADE) * 0.15)
-		## (T-148, floored by T-155) The haze dissolve: blend the shade toward
-		## `SKYLINE_HAZE` by the tower's normalized radius across the band —
-		## the outer edge sits at `SKYLINE_HAZE_MAX` toward the sky-horizon
-		## haze, and even the innermost band never drops below `SKYLINE_HAZE_MIN`
-		## (the ring has no streets, doors or colliders to earn a foreground
-		## read). Pure post-roll math: re-reads this tower's already-drawn
-		## radius, adds no RNG draw and no `_fp` entry, so the fingerprint pins
-		## stay byte-identical.
-		var radius_norm := clampf((radius - inner) / (outer - inner), 0.0, 1.0)
-		shade = shade.lerp(SKYLINE_HAZE, maxf(SKYLINE_HAZE_MIN, radius_norm * SKYLINE_HAZE_MAX))
-		_add_mm("skyline_tall" if tall else "skyline",
-				_box_xf(pos, Vector3(width, height, width)), shade)
-
-
-## Streets: two slab families (5 mm apart at crossings to avoid z-fighting),
-## plus dashed lane marks that skip the intersections.
-func _build_roads() -> void:
-	var half := city_span * 0.5
-	var centers: Array[float] = []
-	for i in blocks_per_side + 1:
-		centers.append(-half + road_width * 0.5 + i * block_pitch)
-	for c: float in centers:
-		var v_size := Vector3(road_width, road_slab_height, city_span)
-		_add_mm("road", _box_xf(Vector3(c, road_slab_height * 0.5, 0.0), v_size))
-		_add_collider("Roads", v_size, Vector3(c, road_slab_height * 0.5, 0.0))
-		var h_size := Vector3(city_span, road_slab_height, road_width)
-		_add_mm("road", _box_xf(Vector3(0.0, road_slab_height * 0.5 - 0.005, c), h_size))
-		## Colliders stay flush with the vertical slabs: the 5 mm visual offset
-		## (z-fighting) must not become a physical lip at every crossing — the
-		## box-shaped car collider (T-008) can't climb even a 5 mm seam.
-		_add_collider("Roads", h_size, Vector3(0.0, road_slab_height * 0.5, c))
-		var z := -half + 3.0
-		while z < half - 3.0:
-			if not _near_road(z, centers):
-				_add_mm("dash", _box_xf(
-						Vector3(c, road_slab_height + 0.005, z), Vector3(0.15, 0.01, 1.8)))
-				_add_mm("dash", _box_xf(
-						Vector3(z, road_slab_height - 0.005 + 0.005, c), Vector3(1.8, 0.01, 0.15)))
-			z += 4.0
-	_fp.append(["roads", city_span, road_width])
-
-
-func _near_road(z: float, centers: Array[float]) -> bool:
-	for c: float in centers:
-		if absf(z - c) < road_width * 0.5 + 1.5:
-			return true
-	return false
-
-
-## Zebra crosswalks (T-069, longitudinal bars per T-102): one bar-tiled band
-## per unblocked intersection approach, painted like the lane dashes — queued
-## MultiMesh instances, no new nodes per bar, and ZERO colliders (the T-017
-## visual-only decision), so cars and pigeon never sense the paint. Zero RNG
-## draws and zero `_fp.append` calls (the T-031 precedent): the fingerprint and
-## every RNG stream stay byte-identical to pre-T-069 builds. The dash gate
-## (`_near_road`) already skips everything within `road_width * 0.5 + 1.5` =
-## 6.5 m of a node, so the bands never overlap a center dash — the nearest dash
-## sits 10.0 m out and its 1.8 m length stops 9.1 m out, 1.7 m clear of the
-## band's 7.4 m outer edge.
-func _build_crossings() -> void:
-	var half := city_span * 0.5
-	var centers: Array[float] = []
-	for i in blocks_per_side + 1:
-		centers.append(-half + road_width * 0.5 + i * block_pitch)
-	## How far the band reaches from the node: band center plus half depth
-	## (6.2 + 2.4 * 0.5 = 7.4 m at the defaults).
-	var reach := CROSSWALK_OUTSET + CROSSWALK_BAND_DEPTH * 0.5
-	for cx: float in centers:
-		for cz: float in centers:
-			## Approaches along x — bands on the horizontal road (its centerline
-			## is z = cz), heights from the horizontal-dash recipe. Skips the
-			## rim's outward +x / -x approaches: the road ends at ±half and the
-			## stripes would paint grass.
-			if cx + reach <= half:
-				_add_crosswalk_band(Vector3(cx, 0.0, cz), true, 1.0)
-			if cx - reach >= -half:
-				_add_crosswalk_band(Vector3(cx, 0.0, cz), true, -1.0)
-			## Approaches along z — bands on the vertical road (centerline
-			## x = cx), heights from the vertical-dash recipe.
-			if cz + reach <= half:
-				_add_crosswalk_band(Vector3(cx, 0.0, cz), false, 1.0)
-			if cz - reach >= -half:
-				_add_crosswalk_band(Vector3(cx, 0.0, cz), false, -1.0)
-
-
-## Queues one band's bars for one intersection approach (T-069, T-102).
-## `along_x` picks the road family the band paints (true = the horizontal road
-## the ±x approaches cross), `side` the approach direction. The band is one
-## CROSSWALK_BAND_DEPTH-deep run of road centered CROSSWALK_OUTSET out from the
-## node on the road centerline; its bars run WITH the road and repeat ACROSS it
-## at CROSSWALK_BAR_PITCH on centers, each CROSSWALK_BAR_WIDTH across x 0.01
-## thick, 5 mm proud of its slab family.
-func _add_crosswalk_band(node: Vector3, along_x: bool, side: float) -> void:
-	var bars := int(road_width / CROSSWALK_BAR_PITCH)
-	var out := side * CROSSWALK_OUTSET
-	for j in bars:
-		var across := (float(j) - (float(bars) - 1.0) * 0.5) * CROSSWALK_BAR_PITCH
-		var size := Vector3(CROSSWALK_BAND_DEPTH, 0.01, CROSSWALK_BAR_WIDTH) if along_x \
-				else Vector3(CROSSWALK_BAR_WIDTH, 0.01, CROSSWALK_BAND_DEPTH)
-		var y := road_slab_height if along_x else road_slab_height + 0.005
-		var pos := node + (Vector3(out, y, across) if along_x else Vector3(across, y, out))
-		_add_mm("crosswalk", _box_xf(pos, size))
-
 
 ## --- route grid (T-134) -----------------------------------------------------
 
@@ -1262,792 +497,13 @@ func crosswalk_band_rects(node: Vector2i) -> Array[Rect2]:
 				Vector2(absf(along_hi - along_lo), absf(cross_hi - cross_lo))))
 	return rects
 
+## --- collision -------------------------------------------------------------
 
-## --- intersection stop-control furniture (T-134, visual-only) ---------------
 
-
-## Stop lines, stop signs with ALL-WAY plaques, and speed-limit signs: pure
-## layout math over the T-069 road-center grid and its approach-existence skip
-## rule (224 existing approaches at the defaults), like `_build_crossings`.
-## Zero RNG draws, zero `_fp.append` calls (the layout fingerprint stays
-## byte-identical to pre-T-134 builds), zero colliders (the T-017 decision).
-##
-## Paint orientation is the research note's first MUST: the stop line is one
-## solid bar ACROSS the road, perpendicular to travel, spanning the incoming
-## lane only — centered on the incoming lane center, `traffic_lane_offset`
-## beyond the block edge (`lane_center_off()` off the centerline) so it paints
-## the clear asphalt between the centerline and the parallel-parked row —
-## never mid-road, never on the outgoing side. Signs mount on the approach's
-## RIGHT side (right relative to travel), 0.2 m onto the sidewalk slab, faces
-## perpendicular to travel readable by the approaching driver.
-func _build_intersection_furniture() -> void:
-	var centers := road_node_coords()
-	for cx in centers.size():
-		for cz in centers.size():
-			var node := Vector2i(cx, cz)
-			for dir in 4:
-				if not approach_exists(node, dir):
-					continue
-				_queue_stop_line(node, dir)
-				_queue_stop_sign(node, dir)
-			for dir in SIGN_DIR_ORDER:
-				if approach_exists(node, dir):
-					_queue_speed_sign(node, dir)
-					break
-
-
-## Queues one approach's stop-line bar: `STOP_LINE_WIDTH` along travel ×
-## `STOP_LINE_SPAN` across, centered on the incoming lane center
-## `STOP_LINE_OUTSET` out from the node, at its road family's paint height
-## (the two dash-family recipes — horizontal roads at slab height, vertical
-## 5 mm proud).
-func _queue_stop_line(node: Vector2i, dir: int) -> void:
-	var along_x := ROUTE_DIRS[dir].x != 0
-	var center := route_lane_point(node, dir, STOP_LINE_OUTSET)
-	center.y = road_slab_height if along_x else road_slab_height + 0.005
-	var size := Vector3(STOP_LINE_WIDTH, 0.01, STOP_LINE_SPAN) if along_x \
-			else Vector3(STOP_LINE_SPAN, 0.01, STOP_LINE_WIDTH)
-	_add_mm("stop_line", _box_xf(center, size))
-
-
-## Queues one approach's stop-sign assembly: metal post rising from the
-## sidewalk slab at `STOP_SIGN_OUTSET` out / `SIGN_SIDE_OFFSET` right, the red
-## octagon and its white border each read as the union of FOUR equal bars per
-## layer (the only unit-box recipe that draws a real 8-sided sign — the
-## two-square union is a 4-sided square, a 4-sided diamond, or a 16-sided
-## blob at every size ratio), red ~0.028 m prouder than the border on both
-## faces (T-143: real relief — the T-134 0.003 read as a white sign with
-## hairline red seams at gameplay distances), with the blank ALL-WAY plaque
-## below.
-func _queue_stop_sign(node: Vector2i, dir: int) -> void:
-	var a := ROUTE_DIR_VECS[dir]
-	var r := right_of_dir(dir)
-	var base := road_node_pos(node) - a * STOP_SIGN_OUTSET + r * SIGN_SIDE_OFFSET
-	var post_pos := base
-	post_pos.y = block_slab_height + SIGN_POST_SIZE.y * 0.5
-	_add_mm("sign_post", _box_xf(post_pos, SIGN_POST_SIZE))
-	var center := base
-	center.y = STOP_SIGN_CENTER_Y
-	for angle: float in [0.0, PI * 0.5, PI * 0.25, -PI * 0.25]:
-		_add_mm("stop_sign_border", _sign_bar_xf(center, a, r, angle,
-				STOP_SIGN_BORDER_ACROSS, STOP_SIGN_BORDER_BAR, SIGN_BORDER_THICKNESS))
-		_add_mm("stop_sign", _sign_bar_xf(center, a, r, angle,
-				STOP_SIGN_ACROSS, STOP_SIGN_BAR, STOP_SIGN_THICKNESS))
-	var plaque_pos := base
-	plaque_pos.y = STOP_SIGN_CENTER_Y - PLAQUE_DROP
-	_add_mm("all_way_plaque", Transform3D(
-			Basis(r * ALL_WAY_PLAQUE_SIZE.x, Vector3.UP * ALL_WAY_PLAQUE_SIZE.y,
-					a * ALL_WAY_PLAQUE_SIZE.z),
-			plaque_pos))
-
-
-## Queues the node's speed-limit sign: white portrait rectangle on its own
-## post, `SPEED_SIGN_OUTSET` out from the node on the first existing approach
-## (the caller walked `SIGN_DIR_ORDER`), face turned along its approach.
-func _queue_speed_sign(node: Vector2i, dir: int) -> void:
-	var a := ROUTE_DIR_VECS[dir]
-	var r := right_of_dir(dir)
-	var base := road_node_pos(node) - a * SPEED_SIGN_OUTSET + r * SIGN_SIDE_OFFSET
-	var post_pos := base
-	post_pos.y = block_slab_height + SIGN_POST_SIZE.y * 0.5
-	_add_mm("sign_post", _box_xf(post_pos, SIGN_POST_SIZE))
-	var face_pos := base
-	face_pos.y = SPEED_SIGN_CENTER_Y
-	_add_mm("speed_sign", Transform3D(
-			Basis(r * SPEED_SIGN_SIZE.x, Vector3.UP * SPEED_SIGN_SIZE.y,
-					a * SPEED_SIGN_SIZE.z),
-			face_pos))
-
-
-## One octagon bar's transform: `across` × `bar` in the sign's face plane,
-## the long axis rotated `angle` off the ACROSS-the-approach axis (`r`),
-## thickness along the travel axis (`a`) — 0° lies across the approach (flats
-## facing ±travel), 90° in profile, ±45° the diagonal flats.
-func _sign_bar_xf(center: Vector3, a: Vector3, r: Vector3, angle: float,
-		across: float, bar: float, thickness: float) -> Transform3D:
-	var long_axis := r * cos(angle) + Vector3.UP * sin(angle)
-	var short_axis := -r * sin(angle) + Vector3.UP * cos(angle)
-	return Transform3D(
-			Basis(long_axis * across, short_axis * bar, a * thickness),
-			center)
-
-
-
-## City-edge rim (T-088 commit 1, executing T-047): a low hedge band on the
-## grass apron just outside the outer road edge — the boundary's at-a-glance
-## "in town / at the rim / gone" read at cruise — plus two trees flanking every
-## street exit, marking where a street still leads home. Pure layout math on
-## the grid constants, the `elder_spots`/`cafe_spots`/crosswalk precedent:
-## ZERO RNG draws (every stream stays byte-identical), ZERO `_fp` entries (the
-## fingerprint stays byte-identical to pre-T-088 builds) and ZERO
-## `_add_collider` calls (visual-only, the T-017 decision). Small corner gaps
-## where the four hedge sides meet are accepted.
-func _build_rim() -> void:
-	var edge := city_span * 0.5
-	var hedge_line := edge + RIM_HEDGE_SETBACK
-	var tree_offset := road_width * 0.5 + RIM_TREE_CLEARANCE
-	for side: int in 4: ## 0=+x 1=-x 2=+z 3=-z — the FACE_NORMALS order.
-		var normal: Vector3 = FACE_NORMALS[side]
-		var along := Vector3(-normal.z, 0.0, normal.x) ## The side axis.
-		var hedge_xf := _box_xf(
-				normal * hedge_line + Vector3.UP * (RIM_HEDGE_HEIGHT * 0.5),
-				along.abs() * city_span + Vector3.UP * RIM_HEDGE_HEIGHT
-						+ normal.abs() * RIM_HEDGE_DEPTH)
-		_add_mm("rim_hedge", hedge_xf)
-		rim_hedge_spots.append(hedge_xf)
-		for i in blocks_per_side + 1:
-			var road_center := -edge + road_width * 0.5 + i * block_pitch
-			for s: float in [1.0, -1.0]:
-				var pos := normal * hedge_line + along * (road_center + s * tree_offset)
-				rim_tree_spots.append(Transform3D(Basis.IDENTITY, pos))
-				_add_mm("rim_trunk", _box_xf(
-						pos + Vector3.UP * (RIM_TRUNK_SIZE.y * 0.5), RIM_TRUNK_SIZE))
-				_add_mm("rim_crown", _box_xf(
-						pos + Vector3.UP * RIM_CROWN_CENTER_Y, RIM_CROWN_SIZE))
-
-
-func _build_block(bx: int, bz: int, is_plaza: bool) -> void:
-	var center := _block_center(bx, bz)
-	## Pinned parks (T-135): the four `PARK_BLOCKS` blocks, zero RNG — the old
-	## per-block `park_chance` roll (one `_rng.randf()` draw per block) is gone,
-	## so every downstream layout draw at every seed shifts by the removed
-	## draws; the cross-version fingerprint pins were re-derived for it.
-	var is_park: bool = (not is_plaza) and PARK_BLOCKS.has(Vector2i(bx, bz))
-	## (T-136) Park slabs wear their district's tint (PARK_SLAB_TINTS); the
-	## plaza keeps COLOR_PLAZA, every other block COLOR_SIDEWALK.
-	var slab_color := COLOR_PLAZA if is_plaza \
-			else (PARK_SLAB_TINTS[district_of(bx, bz)] if is_park else COLOR_SIDEWALK)
-	var slab_size := Vector3(block_size, block_slab_height, block_size)
-	_add_mm("slab", _box_xf(center + Vector3(0.0, block_slab_height * 0.5, 0.0), slab_size), slab_color)
-	_add_collider("Blocks", slab_size, center + Vector3(0.0, block_slab_height * 0.5, 0.0))
-	_fp.append(["slab", center.x, center.z, is_plaza, is_park])
-	_bread_ring_spots(center)
-	block_centers.append(center)
-	if is_plaza:
-		_build_plaza(center)
-	elif is_park:
-		_counts.parks += 1
-		_build_park_trees(center, district_of(bx, bz))
-	else:
-		_build_block_buildings(center, district_of(bx, bz), bx, bz)
-	## District anchor (T-091) — OUTSIDE the plaza/park/building branch, so the
-	## post stands in parks too (the pinned blocks' alley cross is clear there
-	## by the same layout math; see the ANCHOR_BLOCKS const note).
-	if ANCHOR_BLOCKS.has(Vector2i(bx, bz)):
-		_build_district_anchor(center, district_of(bx, bz))
-	_build_block_props(center, district_of(bx, bz), is_plaza)
-
-
-## Park trees (T-030, themed per district by T-136): each park block plants its
-## district's fixed `PARK_TREE_LAYOUTS` offsets — d0 a formal axial pair, d1
-## the plaza-facing half, d2 a corner+midpoint frame, d3 the buried block —
-## with the d3 crowns at their small-crown scale (PARK_CROWN_SCALE_BY_DISTRICT;
-## the crown center drops by half the shrink so the bottom stays on the trunk
-## top, the T-030 convention). Trunks rise from the slab, all visual-only so
-## the pigeon brushes through at park-cruise altitude (the T-017 awning
-## decision). Zero RNG and zero `_fp` entries: every tree position is a pure
-## function of the block center and `district_of` (the park branch draws
-## NOTHING — `PARK_BLOCKS` decides). Pinned by `city_park_trees_present` and
-## `city_district_theming_present`.
-func _build_park_trees(center: Vector3, district: int) -> void:
-	var crown_scale: float = PARK_CROWN_SCALE_BY_DISTRICT[district]
-	var crown_size: Vector3 = PARK_CROWN_SIZE * crown_scale
-	var crown_y: float = PARK_CROWN_CENTER_Y \
-			- (PARK_CROWN_SIZE.y - crown_size.y) * 0.5
-	for offset: Vector2 in PARK_TREE_LAYOUTS[district]:
-		var base := center + Vector3(offset.x, block_slab_height, offset.y)
-		_add_mm("tree_trunk", _box_xf(
-				base + Vector3.UP * (PARK_TRUNK_SIZE.y * 0.5), PARK_TRUNK_SIZE))
-		_add_mm("tree_crown", _box_xf(base + Vector3.UP * crown_y, crown_size))
-
-
-## The four park elder seats (T-137): ONE pinned, zero-RNG bench per T-135
-## park at the fixed (0, 0, +3) offset from the block center, facing the
-## center (yaw 0 - the elder's forward is -basis.z), via the ordinary
-## `_add_bench` recipe (seat-top bread spot, `_counts.benches` bookkeeping)
-## with its fingerprint entry suppressed (`pin_fingerprint = false`): the
-## ticket mandates zero `_fp` entries so every cross-version fingerprint pin
-## stays byte-identical, and the deviation is recorded in the T-137 ticket.
-## Each bench's seat is appended to `elder_spots` (indices 8-11, one per park
-## in `PARK_BLOCKS` order, so districts 0,1,2,3 in order) with its
-## `district_of` in `elder_seat_districts`. Zero RNG draws of any stream.
-## Placement margins (re-measured, the `city_park_trees_present` re-measure):
-## the bench crumb sits 2.00 m XZ from the nearest tree - d1's (0, +5) axial
-## tree vs the (0, +3) crumb - still green on the >= 2.0 m leg (the ticket
-## sketch's "4.24 m" measured the corner trees only; d1's axial tree pins the
-## true worst), and >= 6.7 m from every lamp/bin/bread-ring position (worst
-## ring spot ~9.37 m).
-func _build_park_elder_seats() -> void:
-	for park: Vector2i in PARK_BLOCKS:
-		var center := _block_center(park.x, park.y)
-		var pos := center + Vector3(0.0, 0.0, 3.0)
-		_add_bench(pos, 0.0, false)
-		elder_spots.append(Transform3D(
-				Basis(Vector3.UP, 0.0),
-				Vector3(pos.x, block_slab_height + 0.60, pos.z)))
-		elder_seat_districts.append(district_of(park.x, park.y))
-
-
-## One district anchor (T-091, restyled per district by T-136 — the D-A fork):
-## the four-tier post at `center` (a block center) wears its district's
-## signature — d0 the movie marquee (blade-green shaft, cream letter
-## board, warm corner bulbs), d1 the water tower (steel riser, cream tank, gold
-## name band, cap-top antenna), d2 the campanile (limestone shaft, dark belfry
-## insets on every face, a clock per face, slate spire with corner pinnacles),
-## d3 the grain silo (the widened concrete drum with hoop bands). The tier
-## STACK stays exact (see the T-136 const note above the tint tables): every
-## tier carries its own layer-1 `Props` box (the T-093 shape-per-group pattern
-## — the cap's top face is the landing surface); the detail boxes queue on the
-## visual-only `"anchor_detail"` key and carry NO collider, so the Props shape
-## count stays 4 per anchor, 3 above the y 5.0 window. Appends the cap crumb
-## to `bread_spots` (the T-032 roof-crumb pattern) and the record to `anchors`,
-## and leaves the one `["anchor", center.x, center.z, district]` `_fp` entry —
-## zero RNG of any stream.
-func _build_district_anchor(center: Vector3, district: int) -> void:
-	var shaft_size: Vector3 = ANCHOR_SHAFT_SIZES[district]
-	var y := block_slab_height
-	var pos := center + Vector3(0.0, y + ANCHOR_PLINTH_SIZE.y * 0.5, 0.0)
-	_add_mm("anchor_plinth", _box_xf(pos, ANCHOR_PLINTH_SIZE))
-	_add_collider("Props", ANCHOR_PLINTH_SIZE, pos)
-	y += ANCHOR_PLINTH_SIZE.y
-	pos = center + Vector3(0.0, y + shaft_size.y * 0.5, 0.0)
-	_add_mm("anchor_shaft", _box_xf(pos, shaft_size), ANCHOR_SHAFT_TINTS[district])
-	_add_collider("Props", shaft_size, pos)
-	y += shaft_size.y
-	pos = center + Vector3(0.0, y + ANCHOR_HEAD_SIZE.y * 0.5, 0.0)
-	_add_mm("anchor_head", _box_xf(pos, ANCHOR_HEAD_SIZE), ANCHOR_HEAD_TINTS[district])
-	_add_collider("Props", ANCHOR_HEAD_SIZE, pos)
-	_anchor_details(center, district, y) ## The restyle's visual-only boxes (head base passed).
-	y += ANCHOR_HEAD_SIZE.y
-	pos = center + Vector3(0.0, y + ANCHOR_CAP_SIZE.y * 0.5, 0.0)
-	_add_mm("anchor_cap", _box_xf(pos, ANCHOR_CAP_SIZE), ANCHOR_CAP_TINTS[district])
-	_add_collider("Props", ANCHOR_CAP_SIZE, pos)
-	y += ANCHOR_CAP_SIZE.y
-	if district == 1: ## The tank's cap-top antenna — the photos put it central,
-		## moved off-center here because the cap center hosts the crumb/landing spot.
-		_add_mm("anchor_detail", _box_xf(
-				center + Vector3(0.55, y + 0.45, 0.55), Vector3(0.08, 0.9, 0.08)),
-				Color(0.88, 0.86, 0.80))
-	bread_spots.append(center + Vector3(0.0, y + ANCHOR_CRUMB_LIFT, 0.0))
-	bread_spot_kinds.append(BreadKind.ROOF) ## The anchor's cap crumb (T-112 kinds).
-	anchors.append({
-		"center": to_global(center),
-		"district": district,
-		"top": y - block_slab_height, ## Total height above the slab top.
-		"cap_top": to_global(Vector3(0.0, y, 0.0)).y, ## Global cap-top face y.
-	})
-	_fp.append(["anchor", center.x, center.z, district])
-
-
-## The T-136 restyle's detail boxes: visual-only instances on the one
-## `"anchor_detail"` key — zero colliders, zero RNG, zero `_fp` entries.
-## `head_base` is the head tier's base in city-local y (slab + 14.6 at the
-## stack constants); the caller queues these between the head and cap tiers.
-func _anchor_details(center: Vector3, district: int, head_base: float) -> void:
-	match district:
-		0: ## Marquee: one warm bulb box at each head corner — the bulb border
-			## that runs the box perimeter in the marquee photo, approximated.
-			for sx: float in [0.9, -0.9]:
-				for sz: float in [0.9, -0.9]:
-					_add_mm("anchor_detail", _box_xf(center + Vector3(sx,
-							head_base + ANCHOR_HEAD_SIZE.y * 0.5, sz),
-							Vector3(0.12, ANCHOR_HEAD_SIZE.y, 0.12)),
-							Color(1.0, 0.85, 0.50))
-		1: ## Water tower: the horizontal gold name band at head mid-height —
-			## the band that carries the town's name in the photos (no letters).
-			_add_mm("anchor_detail", _box_xf(center + Vector3(0.0,
-					head_base + ANCHOR_HEAD_SIZE.y * 0.5, 0.0),
-					Vector3(1.84, 0.4, 1.84)), Color(0.72, 0.55, 0.15))
-		2: ## Campanile: four dark belfry insets (ALL four faces pierced), four
-			## white clocks at the head's lower band (a clock on EVERY face —
-			## never one side only), and four slate pinnacles rising from the
-			## cap's corners (the pad center stays clear for landings/crumb).
-			for face: int in 4:
-				var n: Vector3 = FACE_NORMALS[face]
-				var inset_size := Vector3(0.1, 1.4, 1.2) if absf(n.x) > 0.5 \
-						else Vector3(1.2, 1.4, 0.1)
-				_add_mm("anchor_detail", _box_xf(center + n * 0.95
-						+ Vector3(0.0, head_base + ANCHOR_HEAD_SIZE.y * 0.5, 0.0),
-						inset_size), Color(0.20, 0.22, 0.26))
-				var clock_size := Vector3(0.06, 0.5, 0.5) if absf(n.x) > 0.5 \
-						else Vector3(0.5, 0.5, 0.06)
-				_add_mm("anchor_detail", _box_xf(center + n * 0.93
-						+ Vector3(0.0, head_base + 0.25, 0.0),
-						clock_size), Color(0.92, 0.92, 0.90))
-			for sx: float in [0.9, -0.9]:
-				for sz: float in [0.9, -0.9]:
-					_add_mm("anchor_detail", _box_xf(center + Vector3(sx,
-							head_base + ANCHOR_HEAD_SIZE.y + 0.25, sz),
-							Vector3(0.14, 0.5, 0.14)), Color(0.22, 0.24, 0.28))
-		3: ## Silo: three hoop bands (0.02 m proud of the 1.4 m drum) at
-			## slab+4/+8/+12 — the stave-and-hoop read at box scale.
-			for band_y: float in [4.0, 8.0, 12.0]:
-				_add_mm("anchor_detail", _box_xf(center + Vector3(0.0,
-						block_slab_height + band_y, 0.0),
-						Vector3(1.44, 0.12, 1.44)), Color(0.55, 0.54, 0.52))
-
-
-## Subdivides a block interior into 2x2 lots and fills 2–4 of them with
-## buildings whose heights snap to whole floors. The block's district picks
-## the palette the buildings wear. Each building's footprint varies per lot
-## AND per axis through the stable `_lot_footprint_scale` hash (T-051) — a
-## pure function of the block coordinates, the lot's quadrant and the seed,
-## so the roofscape reads as individual volumes instead of a waffle grid of
-## equal 7.1 m squares. No RNG draw: the floors/palette roll sequences are
-## untouched.
-func _build_block_buildings(center: Vector3, district: int, bx: int, bz: int) -> void:
-	var interior := block_size - sidewalk_width * 2.0
-	var lot := interior * 0.5
-	var footprint_max := lot - lot_gap
-	var lots: Array[Vector2] = [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]
-	var roll := _rng.randf()
-	if roll < 0.45:
-		pass ## Quad — all four lots filled.
-	elif roll < 0.70:
-		lots.remove_at(_rng.randi_range(0, lots.size() - 1)) ## Trio — one courtyard.
-	else:
-		var keep_low := _rng.randi_range(0, 1) == 0
-		var kept: Array[Vector2] = []
-		for q in lots:
-			if (q.x < 0.0) == keep_low:
-				kept.append(q)
-		lots = kept ## Duo — one alley through the block.
-	for q in lots:
-		var lot_offset := Vector2(q.x * lot * 0.5, q.y * lot * 0.5)
-		var footprint := Vector2(
-				footprint_max * _lot_footprint_scale(bx, bz, int(q.x), int(q.y), 0),
-				footprint_max * _lot_footprint_scale(bx, bz, int(q.x), int(q.y), 1))
-		_add_building(center + Vector3(lot_offset.x, 0.0, lot_offset.y), footprint, district,
-				lot_offset)
-
-
-func _add_building(base_center: Vector3, footprint: Vector2, district: int,
-		lot_offset: Vector2) -> void:
-	var floors := _rng.randi_range(building_floors_min, building_floors_max)
-	var wall_h := floors * floor_height
-	var total_h := wall_h + roof_slab_height
-	var palette: Array = DISTRICT_PALETTES[district]
-	var color: Color = palette[_rng.randi_range(0, palette.size() - 1)]
-	_add_mm("facade%d" % floors, _box_xf(
-			base_center + Vector3(0.0, block_slab_height + wall_h * 0.5, 0.0),
-			Vector3(footprint.x, wall_h, footprint.y)), color)
-	_add_mm("roof", _box_xf(
-			base_center + Vector3(0.0, block_slab_height + wall_h + roof_slab_height * 0.5, 0.0),
-			Vector3(footprint.x, roof_slab_height, footprint.y)))
-	var shop := _add_shopfront(base_center, footprint, district, lot_offset)
-	_add_collider("Buildings",
-			Vector3(footprint.x, total_h, footprint.y),
-			base_center + Vector3(0.0, block_slab_height + total_h * 0.5, 0.0))
-	## Rooftop clutter (T-032): 1-3 deterministic props in the three non-(+,+)
-	## corner quadrants plus one roof-corner crumb spot in the remaining (+,+)
-	## quadrant — every position a pure function of this building's own layout
-	## data (floors, footprint, lot_offset). Zero RNG of any stream and no `_fp`
-	## entry, so the layout fingerprint stays byte-identical to pre-T-032
-	## builds. Each prop carries a small layer-1 collider (the bench pattern)
-	## and is landable cover; the (+,+) quadrant never hosts a prop (count ≤ 3)
-	## and nothing ever touches the footprint center — the
-	## `city_roof_landable` drop point.
-	var roof_top := block_slab_height + wall_h + roof_slab_height
-	var kind: String = ROOF_PROP_KINDS[buildings.size() % ROOF_PROP_KINDS.size()]
-	var prop_count := 1 + ((floors - building_floors_min) % 3)
-	var prop_quadrants: Array[Vector2] = [
-		Vector2(-1.0, -1.0), Vector2(1.0, -1.0), Vector2(-1.0, 1.0)]
-	for i in prop_count:
-		var quadrant := prop_quadrants[i]
-		var prop_size: Vector3 = ROOF_PROP_SIZES[kind]
-		var prop_pos := base_center + Vector3(
-				quadrant.x * signf(lot_offset.x) * footprint.x * ROOF_PROP_INSET,
-				roof_top + prop_size.y * 0.5,
-				quadrant.y * signf(lot_offset.y) * footprint.y * ROOF_PROP_INSET)
-		_add_mm(kind, _box_xf(prop_pos, prop_size))
-		_add_collider("Props", prop_size, prop_pos)
-		roof_props.append({
-			"center": to_global(prop_pos),
-			"size": prop_size,
-			"top": to_global(Vector3(0.0, roof_top + prop_size.y, 0.0)).y,
-			"kind": kind,
-		})
-	bread_spots.append(base_center + Vector3(
-			signf(lot_offset.x) * footprint.x * ROOF_BREAD_INSET,
-			roof_top + 0.06,
-			signf(lot_offset.y) * footprint.y * ROOF_BREAD_INSET))
-	bread_spot_kinds.append(BreadKind.ROOF) ## The roof-corner crumb (T-112 kinds).
-	buildings.append({
-		"center": to_global(Vector3(base_center.x, 0.0, base_center.z)),
-		"size": footprint,
-		"top": to_global(Vector3(0.0, block_slab_height + total_h, 0.0)).y,
-		"district": district, ## Which district palette the facade wore (T-013).
-		"color": color, ## The facade color itself — tests assert palette membership (T-013).
-		"lot_offset": lot_offset, ## City-local offset from the block center (T-017 street-face rule).
-		"shop_color": shop.color, ## Ground-floor band color — tests assert palette membership (T-017).
-		"door_face": shop.door_face, ## 0=+x 1=-x 2=+z 3=-z — must be one of the lot's street faces (T-017).
-		"has_awning": shop.has_awning, ## Whether the door got its awning (T-017).
-	})
-	_max_roof = maxf(_max_roof, total_h)
-	_counts.buildings += 1
-	_fp.append(["b", base_center.x, base_center.z, footprint.x, footprint.y, wall_h,
-			color.r, color.g, color.b])
-	_fp.append(["shop", base_center.x, base_center.z, shop.color.r, shop.color.g, shop.color.b,
-			shop.door_face, 1 if shop.has_awning else 0])
-	## Spawn-plaza guarantee: no footprint may intrude into the clear radius.
-	var closest := Vector2(
-			clampf(_plaza_center.x, base_center.x - footprint.x * 0.5,
-					base_center.x + footprint.x * 0.5),
-			clampf(_plaza_center.z, base_center.z - footprint.y * 0.5,
-					base_center.z + footprint.y * 0.5))
-	if Vector2(_plaza_center.x, _plaza_center.z).distance_to(closest) < spawn_clear_radius:
-		_plaza_clear = false
-
-
-## Ground-floor shopfront (T-017): a colored band around the whole ground floor,
-## plus a door — and often an awning over it — on ONE street-facing face. All
-## rolls come from the dedicated `_shop_rng`, so the layout stream is untouched.
-## Face indices: 0=+x, 1=-x, 2=+z, 3=-z. The street faces of a lot are the two
-## whose outward normal points away from the block center; the other two look
-## into the `lot_gap` alley, where facing awnings at the same height would
-## interpenetrate. The awning is deliberately visual-only (no collider — see
-## the ticket's Decisions). Since T-136 the signboard plaque and the awning
-## take their district's tint (`SIGNBOARD_TINTS` / the `AWN_TINTS` lerp) —
-## post-roll pure math on the already-rolled `shop_color`: no stream and no
-## `_fp` entry moves.
-func _add_shopfront(base_center: Vector3, footprint: Vector2, district: int,
-		lot_offset: Vector2) -> Dictionary:
-	var shop_color: Color = SHOPFRONT_PALETTE[
-			_shop_rng.randi_range(0, SHOPFRONT_PALETTE.size() - 1)]
-	var band_h := 2.4
-	var band_outset := 0.12
-	_add_mm("shopfront", _box_xf(
-			base_center + Vector3(0.0, block_slab_height + band_h * 0.5, 0.0),
-			Vector3(footprint.x + band_outset, band_h, footprint.y + band_outset)), shop_color)
-	var street_faces: Array[int] = []
-	if lot_offset.x > 0.0:
-		street_faces.append(0) ## +x
-	elif lot_offset.x < 0.0:
-		street_faces.append(1) ## -x
-	if lot_offset.y > 0.0:
-		street_faces.append(2) ## +z
-	elif lot_offset.y < 0.0:
-		street_faces.append(3) ## -z
-	var door_face: int = street_faces[_shop_rng.randi_range(0, street_faces.size() - 1)]
-	var face_normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][door_face]
-	## T-051: the footprint extent ALONG the face normal decides the face plane;
-	## the awning's along-face span uses the OTHER axis.
-	var face_out := footprint.x if absf(face_normal.x) > 0.5 else footprint.y
-	## T-103: the door lies flush in the band face — thin 0.1 m depth on the
-	## face-normal axis, 0.95 m width along the wall (the awning's convention;
-	## the landed branches had the two axes swapped and every door read as a
-	## fin). Pure scale, derived from the already-rolled `face_normal` — no RNG.
-	var door_size := Vector3(0.1, 2.05, 0.95) if absf(face_normal.x) > 0.5 \
-			else Vector3(0.95, 2.05, 0.1)
-	_add_mm("door", _box_xf(
-			base_center + face_normal * (face_out * 0.5 + band_outset + 0.01)
-					+ Vector3(0.0, block_slab_height + 1.025, 0.0),
-			door_size))
-	## Signboard plaque (T-090): one blank cream plaque per building, centered
-	## above the door on the shop band — spanning slab+2.30 to slab+2.80, so it
-	## clears the door top (slab+2.05) below and the awning underside
-	## (slab+2.855) above when one is present. Orientation follows the door's
-	## and AWNING's shared convention — the thin depth on the face-normal axis,
-	## the 2.2 m width along the wall — so the plaque hangs flush. Visual-only
-	## like the awning, and pure layout: zero RNG draws of any stream, zero
-	## `_fp` entries, so every pinned count and the layout fingerprint stay
-	## byte-identical.
-	var sign_size := Vector3(0.08, 0.5, 2.2) if absf(face_normal.x) > 0.5 \
-			else Vector3(2.2, 0.5, 0.08)
-	_add_mm("sign", _box_xf(
-			base_center + face_normal * (face_out * 0.5 + band_outset + 0.05)
-					+ Vector3(0.0, block_slab_height + 2.55, 0.0),
-			sign_size), SIGNBOARD_TINTS[district])
-	var has_awning := _shop_rng.randf() < awning_chance
-	if has_awning:
-		var awn_depth := 1.3
-		var awn_along := footprint.y if absf(face_normal.x) > 0.5 else footprint.x
-		var awn_size := Vector3(awn_depth, 0.09, awn_along * 0.55) if absf(face_normal.x) > 0.5 \
-				else Vector3(awn_along * 0.55, 0.09, awn_depth)
-		_add_mm("awning", _box_xf(
-				base_center + face_normal * (face_out * 0.5 + awn_depth * 0.5)
-						+ Vector3(0.0, block_slab_height + 2.9, 0.0),
-				awn_size), shop_color.darkened(0.15).lerp(
-						AWN_TINTS[district], AWN_TINT_WEIGHTS[district]))
-	return {"color": shop_color, "door_face": door_face, "has_awning": has_awning}
-
-
-## Sidewalk cafe tables (T-031): one spot per awninged building, appended after
-## the block loop from the public `buildings[]` records. Pure math — ZERO new
-## RNG (no `_shop_rng` draws, no layout-stream draws, no `_fp` entry), so the
-## pinned awning count and the layout fingerprint stay byte-identical; the
-## spots are pinned by the `city_cafe_tables_present` scenario directly, like
-## `elder_spots`.
-##
-## Since T-112 each table also seeds one TABLE-class bread spot on its own
-## tabletop (`bread_spot_kinds`, appended in lockstep): the crumb rides the
-## table's walkable top face (spot origin + CAFE_CRUMB_TABLE_LIFT — collider
-## top 0.72 + the 0.06 crumb lift) inset CAFE_CRUMB_SIT_INSET along the
-## table's local +X toward the first sitter — the diner's-edge plate. Still
-## zero RNG and zero `_fp` entries: `bread_spots` was never fingerprinted, so
-## every pinned count and the fingerprint stay byte-identical.
-func _build_cafe_spots() -> void:
-	for info in buildings:
-		if info.has_awning:
-			var spot := cafe_spot_for(info)
-			cafe_spots.append(spot)
-			bread_spots.append(spot.origin + spot.basis.x * CAFE_CRUMB_SIT_INSET
-					+ Vector3(0.0, CAFE_CRUMB_TABLE_LIFT, 0.0))
-			bread_spot_kinds.append(BreadKind.TABLE)
-
-
-## The transform for one building's cafe table (T-031) — a pure function of its
-## `buildings[]` record (`door_face`, `size`, `lot_offset`), recomputable by
-## tests: 1.9 m out from the shop-band face plane along the door-face normal,
-## ±2.2 m along the face from the centered door — the side the lot_offset sign
-## picks (toward the lot's own outer corner), y at slab level, yaw facing the
-## street. The center lands 9.82 m out along the normal, 6.45 m along the face:
-## on the sidewalk band with the tourist loop's ~0.63 m walker clearance to the
-## 10.9 m curb line, ~1.28 m edge-to-edge clear of the door, and structurally
-## ≥ 1.0 m off the block's bread spots at every seed (bench jitter ±4 m can
-## never reach the corner-ward line).
-func cafe_spot_for(info: Dictionary) -> Transform3D:
-	var normal: Vector3 = FACE_NORMALS[int(info.door_face)]
-	var lot: Vector2 = info.lot_offset
-	var size: Vector2 = info.size
-	var face_axis_x := absf(normal.x) > 0.5
-	var along := Vector3(0.0, 0.0, signf(lot.y)) if face_axis_x \
-			else Vector3(signf(lot.x), 0.0, 0.0)
-	var pos: Vector3 = to_local(info.center) \
-			+ normal * ((size.x if face_axis_x else size.y) * 0.5
-					+ CAFE_FACE_OUTSET + CAFE_STANDOFF) \
-			+ along * CAFE_SIDE_OFFSET
-	pos.y = block_slab_height
-	return Transform3D(Basis(Vector3.UP, atan2(-normal.x, -normal.z)), pos)
-
-
-## The spawn plaza: an open paved block — benches around a landmarked middle,
-## lamps on the corners, bins on the diagonals just outside the bench ring.
-## The center carries the T-029 landmark (the bronze pigeon on its plinth);
-## everything else stays on the 8 m ring and beyond.
-func _build_plaza(center: Vector3) -> void:
-	for i in 8:
-		var ang := TAU * i / 8.0
-		var pos := center + Vector3(sin(ang) * 8.0, 0.0, cos(ang) * 8.0)
-		_add_bench(pos, ang + PI * 0.5)
-		## Elder seat (T-020): the same bench, recorded as a pure-layout spot —
-		## position on the seat top (slab + 0.60, the `_add_bench` math), yaw =
-		## the bench's own. No RNG: appending here never touches the layout
-		## stream, so the fingerprints stay byte-identical. (T-137) The plaza
-		## seats carry the sentinel migration district -1 - the plaza is the
-		## center, not district 0's block, so EVERY park differs from it.
-		elder_spots.append(Transform3D(
-				Basis(Vector3.UP, ang + PI * 0.5),
-				Vector3(pos.x, block_slab_height + 0.60, pos.z)))
-		elder_seat_districts.append(-1)
-	for corner: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-		_add_lamp(center + Vector3(corner.x * 9.8, 0.0, corner.y * 9.8))
-		## (T-104) The bins keep the diagonal azimuths but sit radially OUTSIDE
-		## the 8 m bench ring: (7.0, 7.0) puts the bin center at r ≈ 9.9 m,
-		## 0.611 m clear of the bench colliders' outer end (8.9 m) — the probed
-		## minimum is ~6.6 per axis, (6.5, 6.5) still clips. On the slab
-		## (per-axis reach 7.389 ≪ 11.0), 3.96 m from the lamps, 5.0 m from the
-		## sim harness's PLAZA_DROP_OFFSET landing point.
-		_add_bin(center + Vector3(corner.x * 7.0, 0.0, corner.y * 7.0))
-	_add_landmark(center) ## T-029 — after the ring, at the center.
-
-
-## The plaza landmark (T-029): a stylized bronze pigeon on a limestone plinth,
-## standing at the exact plaza center. Plinth = base box plus cap box, the cap
-## top at `block_slab_height + LANDMARK_PLINTH_TOP` (2.12 m global) — the one
-## landing surface, carried by a single layer-1 `Props` box collider (the bench
-## pattern). Figure = legs, body, tail fan, neck, head and beak as boxes (the
-## T-011 hand-built-primitives recipe), facing +x, highest point at
-## `block_slab_height + LANDMARK_FIGURE_TOP` (≈ 5.07 m global) — visual-only,
-## the T-017 awning decision. Pure layout: fixed offsets, zero RNG of any
-## stream, one `_fp` entry so the fingerprint pins the anchor's position.
-func _add_landmark(center: Vector3) -> void:
-	var slab := block_slab_height
-	_add_mm("plinth", _box_xf(center + Vector3(0.0,
-			slab + LANDMARK_PLINTH_BASE.y * 0.5, 0.0), LANDMARK_PLINTH_BASE))
-	_add_mm("plinth", _box_xf(center + Vector3(0.0,
-			slab + LANDMARK_PLINTH_BASE.y + LANDMARK_PLINTH_CAP.y * 0.5, 0.0),
-			LANDMARK_PLINTH_CAP))
-	_add_collider("Props",
-			Vector3(LANDMARK_PLINTH_BASE.x, LANDMARK_PLINTH_TOP, LANDMARK_PLINTH_BASE.z),
-			center + Vector3(0.0, slab + LANDMARK_PLINTH_TOP * 0.5, 0.0))
-	_add_mm("figure", _box_xf(center + Vector3(-0.55, slab + 2.35, 0.0),
-			Vector3(0.28, 0.7, 0.28))) ## Legs (paired).
-	_add_mm("figure", _box_xf(center + Vector3(0.55, slab + 2.35, 0.0),
-			Vector3(0.28, 0.7, 0.28)))
-	_add_mm("figure", _box_xf(center + Vector3(0.0, slab + 3.3, 0.0),
-			Vector3(1.8, 1.2, 1.0))) ## Body — chest to tail along +x.
-	_add_mm("figure", _box_xf(center + Vector3(-0.98, slab + 3.4, 0.0),
-			Vector3(0.16, 1.1, 0.8))) ## Tail fan, rising behind the body.
-	_add_mm("figure", _box_xf(center + Vector3(0.6, slab + 4.1, 0.0),
-			Vector3(0.4, 0.6, 0.4))) ## Neck.
-	_add_mm("figure", _box_xf(center + Vector3(0.7, slab + 4.6, 0.0),
-			Vector3(0.7, 0.7, 0.7))) ## Head.
-	_add_mm("figure", _box_xf(center + Vector3(1.24, slab + 4.6, 0.0),
-			Vector3(0.38, 0.16, 0.16))) ## Beak.
-	_fp.append(["landmark", center.x, center.z])
-
-
-## Benches along the edges, lamps on the corners, the occasional bin — at the
-## block district's prop-mix weights (T-136: BENCH_CHANCE_BY_DISTRICT /
-## BIN_CHANCE_BY_DISTRICT). Same single draw site per edge and per block as
-## ever; only the chances are per-district now.
-func _build_block_props(center: Vector3, district: int, is_plaza: bool) -> void:
-	if is_plaza:
-		return ## The plaza places its own ring.
-	for corner: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
-		_add_lamp(center + Vector3(corner.x * 9.8, 0.0, corner.y * 9.8))
-	var edges: Array[Vector3] = [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]
-	for n: Vector3 in edges:
-		if _rng.randf() < BENCH_CHANCE_BY_DISTRICT[district]:
-			var perp := Vector3(-n.z, 0.0, n.x)
-			var offset := _rng.randf_range(-4.0, 4.0)
-			var pos := center + n * 9.75 + perp * offset
-			_add_bench(pos, atan2(-perp.z, perp.x))
-	if _rng.randf() < BIN_CHANCE_BY_DISTRICT[district]:
-		var corner: Vector2 = [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)][
-				_rng.randi_range(0, 3)]
-		_add_bin(center + Vector3(
-				corner.x * 9.0 + _rng.randf_range(-1.0, 1.0), 0.0,
-				corner.y * 9.0 + _rng.randf_range(-1.0, 1.0)))
-
-
-## --- props (visual via MultiMesh, collision via a small static body) ------
-
-
-func _add_bench(pos: Vector3, yaw: float, pin_fingerprint: bool = true) -> void:
-	var base := Vector3(pos.x, block_slab_height, pos.z)
-	var xf := Transform3D(Basis(Vector3.UP, yaw), base)
-	bread_spots.append(base + Vector3(0.0, 0.60, 0.0)) ## Seat top — crumb sits on the bench (T-005).
-	bread_spot_kinds.append(BreadKind.GROUND)
-	_add_mm("bench_seat", xf * _box_xf(Vector3(0.0, 0.5, 0.0), Vector3(1.8, 0.08, 0.5)))
-	_add_mm("bench_leg", xf * _box_xf(Vector3(-0.75, 0.25, 0.0), Vector3(0.1, 0.5, 0.44)))
-	_add_mm("bench_leg", xf * _box_xf(Vector3(0.75, 0.25, 0.0), Vector3(0.1, 0.5, 0.44)))
-	_add_collider("Props", Vector3(1.8, 0.55, 0.5), base + Vector3(0.0, 0.275, 0.0), yaw)
-	_counts.benches += 1
-	if pin_fingerprint:
-		_fp.append(["bench", base.x, base.z, yaw])
-
-
-func _add_lamp(pos: Vector3) -> void:
-	var base := Vector3(pos.x, block_slab_height, pos.z)
-	var xf := Transform3D(Basis.IDENTITY, base)
-	_add_mm("lamp_post", xf * _box_xf(Vector3(0.0, 2.2, 0.0), Vector3(0.12, 4.4, 0.12)))
-	_add_mm("lamp_head", xf * _box_xf(Vector3(0.0, 4.45, 0.0), Vector3(0.55, 0.2, 0.3)))
-	_add_cylinder("Props", 0.14, 4.6, base + Vector3(0.0, 2.3, 0.0))
-	_counts.lamps += 1
-	_fp.append(["lamp", base.x, base.z])
-
-
-func _add_bin(pos: Vector3) -> void:
-	var base := Vector3(pos.x, block_slab_height, pos.z)
-	_add_mm("bin", _box_xf(base + Vector3(0.0, 0.4, 0.0), Vector3(0.5, 0.8, 0.5)))
-	_add_collider("Props", Vector3(0.55, 0.8, 0.55), base + Vector3(0.0, 0.4, 0.0))
-	_counts.bins += 1
-	_fp.append(["bin", base.x, base.z])
-
-
-## --- visuals --------------------------------------------------------------
-
-
-## Queues one instance for the MultiMesh registered under `key`.
-func _add_mm(key: String, xf: Transform3D, color: Color = Color.WHITE) -> void:
-	if not _visuals.has(key):
-		_visuals[key] = {"xfs": [], "colors": []}
-	_visuals[key].xfs.append(xf)
-	_visuals[key].colors.append(color)
-
-
-## Turns the queued instances into one MultiMeshInstance3D per key.
-func _spawn_visuals() -> void:
-	for key: String in _visuals:
-		var data: Dictionary = _visuals[key]
-		var xfs: Array = data.xfs
-		var colors: Array = data.colors
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.use_colors = true
-		mm.mesh = _meshes[key]
-		mm.instance_count = xfs.size()
-		for i in xfs.size():
-			mm.set_instance_transform(i, xfs[i])
-			mm.set_instance_color(i, colors[i])
-		var node := MultiMeshInstance3D.new()
-		node.name = key.to_pascal_case()
-		node.multimesh = mm
-		_visual_root.add_child(node)
-
-
-## --- materials & meshes ---------------------------------------------------
-
-
-func _flat_material(color: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.95
-	return mat
-
-
-## Block slabs take their color per MultiMesh instance.
-func _vertex_color_material() -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 1.0
-	return mat
-
-
-## Facades: a tiny procedural window grid, tinted per building via instance
-## color. One material per floor count (T-049): exactly `floors` window rows,
-## with the row pitch derived from the count so every row sits fully inside the
-## 64 px texture with even spacing at any count in
-## `building_floors_min..building_floors_max` — the old fixed 15 px pitch would
-## push a 5th row past y 64. The count rides the material as `window_rows`
-## metadata, the machine-readable test channel (no GPU readback).
-func _facade_material(floors: int) -> StandardMaterial3D:
-	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
-	img.fill(Color(0.95, 0.95, 0.95))
-	var pitch := (64.0 - 8.0) / float(floors)
-	var window_h := int(pitch) - 5
-	for row in floors:
-		for col in 3:
-			img.fill_rect(Rect2i(5 + col * 20, 4 + int(float(row) * pitch), 13, window_h),
-					Color(0.25, 0.30, 0.38))
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = ImageTexture.create_from_image(img)
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.9
-	mat.set_meta("window_rows", floors)
-	return mat
-
-
-func _glow_material(color: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.emission_enabled = true
-	mat.emission = color
-	mat.emission_energy_multiplier = 1.5
-	return mat
-
-
-func _unit_box(material: StandardMaterial3D) -> BoxMesh:
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3.ONE
-	mesh.material = material
-	return mesh
-
-
-## Transform for one unit-box instance: scaled to `size`, offset by `offset`.
-func _box_xf(offset: Vector3, size: Vector3) -> Transform3D:
-	return Transform3D(Basis.from_scale(size), offset)
-
-
-## --- collision ------------------------------------------------------------
-
-
-## One StaticBody3D per group name (T-093): every collider the city builds is
+## One StaticBody3D per group name (T-093): every collider the world builds is
 ## a positioned CollisionShape3D child of its group's single body instead of a
-## single-shape body of its own — same layer (1 `world`), same mask (0), same
-## spot under `Static/`. Five bodies replace ~840; shapes carry the transforms.
+## single-shape body of its own — same layer (1 `world`), same mask (0). The
+## AmesWorld build hangs its ground plate on it.
 func _group(group: String) -> StaticBody3D:
 	if not _static_root.has_node(group):
 		var body := StaticBody3D.new()
@@ -2069,37 +525,3 @@ func _add_collider(group: String, size: Vector3, pos: Vector3, yaw: float = 0.0)
 	shape.rotation.y = yaw
 	_group(group).add_child(shape)
 	return shape
-
-
-## One cylinder collider in `group`'s body — the `_add_collider` pattern with a
-## CylinderShape3D. Returns the shape.
-func _add_cylinder(group: String, radius: float, height: float, pos: Vector3) -> CollisionShape3D:
-	var shape := CollisionShape3D.new()
-	var cyl := CylinderShape3D.new()
-	cyl.radius = radius
-	cyl.height = height
-	shape.shape = cyl
-	shape.position = pos
-	_group(group).add_child(shape)
-	return shape
-
-
-## --- reporting -------------------------------------------------------------
-
-
-func _make_report() -> Dictionary:
-	return {
-		"seed": seed_value,
-		"span": city_span,
-		"street_width": road_width,
-		"max_roof_height": _max_roof,
-		"plaza_clear": _plaza_clear,
-		"bread_surfaces": _counts.benches + blocks_per_side * blocks_per_side
-				+ _counts.buildings + _counts.parks,
-		"blocks": blocks_per_side * blocks_per_side,
-		"buildings": _counts.buildings,
-		"parks": _counts.parks,
-		"benches": _counts.benches,
-		"lamps": _counts.lamps,
-		"bins": _counts.bins,
-	}
