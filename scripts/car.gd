@@ -137,11 +137,17 @@ const PASS_CORRIDOR_RIGHT := 3.5
 ## stand still.
 var path: PackedVector3Array = PackedVector3Array()
 ## The route's stop entries, one per intersection node still ahead on the
-## route, in path order: {node: Vector2i, pos: Vector3 (node, global),
-## dir: int (approach travel dir), turn: int (−1/0/+1), line: Vector3 (stop
+## route, in path order: {node: int (the route system's node id — a grid
+## encoding on the Windrow seam, an AmesTrafficGraph node on Ames),
+## pos: Vector3 (node, global), dir: int (grid compass index), axis: Vector3
+## (flat unit approach axis — present on both systems since T-178, the
+## protocol's direction read), turn: int (−1/0/+1), line: Vector3 (stop
 ## line center, global), corner: Vector3 (turn waypoint, global),
-## bands: Array[Rect2] (the node's padded crosswalk bands, global),
-## registered: bool, committed: bool}. The car resolves them front to back.
+## bands: Array[Rect2] (the node's padded crosswalk bands, global — empty on
+## the Ames graph until real crosswalks land), cruise: float (the leg's speed
+## class cruise, Ames only), edge: int (the arriving directed edge, Ames
+## only), registered: bool, committed: bool}. The car resolves them front to
+## back.
 var stops: Array[Dictionary] = []
 var waypoint_index: int = 0
 var mode: Mode = Mode.TRAFFIC
@@ -152,9 +158,11 @@ var block_center: Vector3 = Vector3.ZERO
 ## Block-assignment changes taken while driving — the routes evidence the
 ## `traffic_routes_multi_block` scenario counts.
 var block_changes: int = 0
-## The grid node this route ends on — the extension deals the next route from
-## here. Spawner-owned bookkeeping the car carries.
-var route_end_node := Vector2i.ZERO
+## The node this route ends on — the extension deals the next route from
+## here. Spawner-owned bookkeeping the car carries: a grid-route id on the
+## Windrow seam, a `AmesTrafficGraph` node id on the resident Ames world
+## (T-178).
+var route_end_node: int = 0
 ## The four-way-stop ledger — assigned by the spawner before _ready (the
 ## `bread_spawner` service precedent). Null skips the protocol entirely: the
 ## car just follows its path (every bare-rig scenario and the harness escape
@@ -382,13 +390,17 @@ func _drive(delta: float) -> void:
 	## The previous frame's motion may have carried us past the active node —
 	## release before anything else reads the entry.
 	entry = _advance_past_entry(entry)
+	## (T-178) The leg's cruise: the current stop entry's `cruise` (the speed
+	## class of the street being driven — Lincoln Way faster, residential
+	## calm), falling back to the car's own `cruise_speed` on the Windrow seam.
+	var cruise := _leg_cruise()
 	## The careful pass overrides the zone cap outright: the pass IS the exit
 	## from a zone the ordinary cap can never open (a stopped car has no
 	## lateral velocity, so the blocker stays parked in its front zone at
 	## exactly the follow gap forever). It steers a near-field offset waypoint
 	## at `corner_speed` instead.
 	var target_speed := corner_speed if _passing \
-			else minf(cruise_speed * pace, _gap_speed())
+			else minf(cruise * pace, _gap_speed(cruise))
 	var held := false
 	## The pass overrides the protocol outright, not just the zone cap: a car
 	## breaking a hold must never be re-pinned by the very entry it is
@@ -407,7 +419,7 @@ func _drive(delta: float) -> void:
 		_stalled += delta
 	else:
 		_stalled = 0.0
-	if held or target_speed < cruise_speed * pace * 0.5 or _stalled > 1.0:
+	if held or target_speed < cruise * pace * 0.5 or _stalled > 1.0:
 		_patience += delta
 		## (T-166) One accumulated clock; the threshold reads the CURRENT hold
 		## class each frame — `held` (a registered ladder denial or a crosswalk
@@ -487,13 +499,22 @@ func _current_entry() -> Dictionary:
 	return stops[_stop_index] if _stop_index < stops.size() else {}
 
 
+## The active stop entry's approach axis: the entry's stored `axis` (flat,
+## unit, global — the Ames graph entries carry the real street direction,
+## T-178) with the grid compass as the Windrow-seam fallback.
+func _entry_axis(entry: Dictionary) -> Vector3:
+	if entry.has("axis"):
+		return entry["axis"]
+	return City.ROUTE_DIR_VECS[int(entry.get("dir", 0))]
+
+
 ## Releases and steps past the active entry once the body is clearly through
 ## its node (center 1 m past along the approach axis) — the committed
 ## movement frees the box exactly here.
 func _advance_past_entry(entry: Dictionary) -> Dictionary:
 	if entry.is_empty():
 		return entry
-	var a := City.ROUTE_DIR_VECS[entry.dir]
+	var a := _entry_axis(entry)
 	var past := Vector3(global_position - entry.pos).dot(a)
 	if past > 1.0:
 		_finish_entry(entry)
@@ -506,7 +527,7 @@ func _advance_past_entry(entry: Dictionary) -> Dictionary:
 func _protocol_speed(entry: Dictionary, hspeed: float, target_speed: float) -> Vector2:
 	if entry.is_empty() or traffic == null:
 		return Vector2(target_speed, false)
-	var a := City.ROUTE_DIR_VECS[entry.dir]
+	var a := _entry_axis(entry)
 	var nose := global_position + _flat_forward() * HALF_LENGTH
 	var to_line := Vector3(entry.line - nose)
 	to_line.y = 0.0
@@ -539,7 +560,7 @@ func _protocol_speed(entry: Dictionary, hspeed: float, target_speed: float) -> V
 		var cap := sqrt(2.0 * brake_decel * maxf(0.0, along - STOP_MARGIN))
 		if hspeed <= full_stop_speed and along <= 1.0 and along >= -3.0:
 			entry.registered = true
-			traffic.register_arrival(self, entry.node, entry.dir, entry.turn)
+			traffic.register_arrival(self, entry.node, _entry_axis(entry), entry.turn)
 		return Vector2(minf(target_speed, cap), cap <= 0.0)
 	## Committed and rolling the box: a late-entering body re-holds the car
 	## before its nose crosses the bar; past the bar the box is ours.
@@ -618,7 +639,7 @@ func _break_hold(entry: Dictionary) -> void:
 			## breaks. Falling through to a wedge pass here would drive the
 			## registered car THROUGH the box it must respect.
 			return
-		traffic.force_commit(self, entry.node, entry.dir, entry.turn)
+		traffic.force_commit(self, entry.node, _entry_axis(entry), entry.turn)
 		entry.committed = true
 		return
 	var blocker := _nearest_blocker()
@@ -690,7 +711,7 @@ func _play_patience_honk() -> void:
 func _leg_axis() -> Vector3:
 	var entry := _current_entry()
 	if not entry.is_empty():
-		return City.ROUTE_DIR_VECS[entry.dir]
+		return _entry_axis(entry)
 	if waypoint_index < path.size():
 		var to := path[waypoint_index] - global_position
 		to.y = 0.0
@@ -970,13 +991,26 @@ func _flat_forward() -> Vector3:
 	return fwd.normalized()
 
 
+## The CURRENT leg's cruise speed (m/s, before pace): the active stop entry's
+## `cruise` — the speed class of the street this leg rides (T-178) — falling
+## back past the last entry to its leg's cruise, and to the car's own
+## `cruise_speed` when no entry carries one (the Windrow seam, byte-identical).
+func _leg_cruise() -> float:
+	if _stop_index < stops.size():
+		if stops[_stop_index].has("cruise"):
+			return float(stops[_stop_index]["cruise"])
+	elif not stops.is_empty() and stops[stops.size() - 1].has("cruise"):
+		return float(stops[stops.size() - 1]["cruise"])
+	return cruise_speed
+
+
 ## Speed cap from the nearest body in the front zone: zero at the follow gap,
 ## rising with `follow_gain` per metre until cruise. No blocker → cruise.
-func _gap_speed() -> float:
+func _gap_speed(cruise: float) -> float:
 	var d := _blocker_distance()
 	if d == INF:
-		return cruise_speed * pace
-	return clampf((d - follow_gap) * follow_gain, 0.0, cruise_speed * pace)
+		return cruise * pace
+	return clampf((d - follow_gap) * follow_gain, 0.0, cruise * pace)
 
 
 ## Forward distance to the nearest player·npc·vehicle in the front zone (m),
@@ -1064,7 +1098,7 @@ func honk() -> void:
 ## blinker, patience, pass.
 func start_route(pos: Vector3, new_path: PackedVector3Array,
 		new_stops: Array[Dictionary], new_block: Vector3,
-		block_centers: PackedVector3Array, new_end: Vector2i) -> void:
+		block_centers: PackedVector3Array, new_end: int) -> void:
 	mode = Mode.TRAFFIC
 	_release_crumb()
 	global_position = pos
@@ -1099,18 +1133,23 @@ func start_route(pos: Vector3, new_path: PackedVector3Array,
 
 
 ## The extension deal (spawner): append the next route's waypoints and stop
-## entries onto the live drive, update the end node's provisional straight
-## entry with the real turn (so the blinker can arm for it), and carry the new
-## end node. No teleport, no stop — the car rolls from one route into the next.
+## entries onto the live drive, update the OLD end node's provisional straight
+## entry with the real turn from the dealt route's first leg (so the blinker
+## can arm for the imminent turn), and carry the new end node. No teleport, no
+## stop — the car rolls from one route into the next. (T-178) The patch now
+## targets the entry the comment always named — the OLD end node's provisional,
+## still unresolved at extension time (the car adopts one waypoint before the
+## end); the previous new-end match landed on the fresh deal's own last entry,
+## which is provisional in its own right and carried the wrong turn until its
+## own extension.
 func extend_route(path_tail: PackedVector3Array, new_stops: Array[Dictionary],
-		turn_at_end: int, new_end: Vector2i) -> void:
+		turn_at_end: int, new_end: int) -> void:
 	path.append_array(path_tail)
 	stops.append_array(new_stops)
+	var old_end := route_end_node
 	route_end_node = new_end
-	## The end node's provisional straight entry gets the real turn from the
-	## dealt route's first leg — the blinker can arm for it.
 	for i in range(_stop_index, stops.size()):
-		if stops[i].node == new_end:
+		if stops[i].node == old_end:
 			stops[i].turn = turn_at_end
 			break
 

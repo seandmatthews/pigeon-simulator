@@ -339,6 +339,7 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	_campanile_cap = Vector3.ZERO
 	_roof_spots = []
 	_hero_roof_tops = {}
+	traffic_graph = null ## (T-178) The graph rebuilds with the world.
 	_manifest = AmesBaker.read_manifest(CHUNKS_DIR)
 	if _manifest.is_empty():
 		push_error("AmesWorld: no chunk bake at %s — world builds empty" % CHUNKS_DIR)
@@ -362,10 +363,13 @@ func generate_step_blocks() -> void:
 
 
 ## Slice 3 of 3 — "visuals" analog: the survival re-base (T-176 — spawn,
-## bread spots, café tables), then the report, the fingerprint and the
-## `regenerated` emission close the build exactly as the parent's slice does.
+## bread spots, café tables), the traffic graph (T-178 — the car fleet's
+## route system over the real streets), then the report, the fingerprint and
+## the `regenerated` emission close the build exactly as the parent's slice
+## does.
 func generate_step_finish() -> void:
 	_build_survival()
+	_build_traffic_graph()
 	last_report = {
 		"world": WORLD_ID,
 		"chunks": _chunks.size(),
@@ -377,12 +381,24 @@ func generate_step_finish() -> void:
 		"span_z": _bounds_max.z - _bounds_min.z,
 		"crumb_spots": bread_spots.size(),
 		"cafe_tables": cafe_spots.size(),
+		"traffic_nodes": traffic_graph.node_count() if traffic_graph != null else 0,
+		"traffic_runs": traffic_graph.run_count() if traffic_graph != null else 0,
+		"traffic_km": snappedf(traffic_graph.total_km(), 0.01) if traffic_graph != null else 0.0,
 	}
 	## Deterministic identity: the bake manifest's total hash — a re-bake that
 	## moves a byte moves the fingerprint, exactly the layout-fingerprint
 	## discipline the parent's seed hash serves.
 	fingerprint = str(_manifest.get("total_sha256", "")).hash()
 	regenerated.emit()
+
+
+## (T-178) The traffic graph: welded junctions, right-hand lane polylines,
+## speed classes and the rail-crossing facts over the committed pack — a pure
+## function of that data (zero RNG of any stream), built once per world build
+## BEFORE the spawners populate, so the car fleet deals routes off it on the
+## first `regenerated`.
+func _build_traffic_graph() -> void:
+	traffic_graph = AmesTrafficGraph.new()
 
 
 ## --- T-176 survival re-base ------------------------------------------------

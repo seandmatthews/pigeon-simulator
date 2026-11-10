@@ -1,6 +1,6 @@
 # T-178 — Ames R2 · traffic graph: cars drive the real streets
 
-- **Status:** proposed · **Category:** worldbuilding · **Ring:** R2 The Life ·
+- **Status:** doing · **Category:** worldbuilding · **Ring:** R2 The Life ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
 - **Depends on:** T-177 (Ames is the default world)
 - **Refs:** `osm/SUMMARY.md` (street classes: Lincoln Way primary,
