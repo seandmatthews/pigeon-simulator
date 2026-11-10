@@ -6,8 +6,10 @@ extends City
 ## frustum-cullable MultiMeshes (massing boxes, ground rectangles, lake/park
 ## triangles) plus one baked `ArrayOccluder3D` — resident, NO streaming
 ## (master plan §2: streaming is the conditional upgrade path, built only if
-## the perf gate demands, never on spec). Massing fades by distance band;
-## heroes mount into their chunk (`mount_hero`, T-175+); lighting stays the
+## the perf gate demands, never on spec). Massing fades by distance band
+## (the T-175 placeholder silhouettes never fade — the from-the-air read is
+## the point); authored hero SCENES mount into their chunk (`mount_hero`,
+## R3); lighting stays the
 ## one-sun contract — vertex-colored massing, no per-building lights, ever.
 ##
 ## Selection: the `world` setting (`Game.world`, "windrow" | "ames", default
@@ -22,13 +24,17 @@ extends City
 ## re-base tickets (T-176/T-178+) fill them; every consumer already handles an
 ## empty world (the spawners early-return on empty block centers / spot lists).
 ##
-## Collision story (the bake bakes none, by ticket): the world carries ONE
-## flat ground plate (physics + visual, bounds derived from the manifest)
-## under the bake's stacked flats (water 0.02 … ballast 0.1 — the baker's y
-## conventions leave y 0 for exactly this plate), and the gameplay seam
-## answers "how high is the massing here" as a query, not geometry:
-## `ground_height()` scans the retained per-chunk ground records. Roofs become
-## landable in T-175 (placeholder collision), not here.
+## Collision story (T-175): the world carries ONE flat ground plate (physics +
+## visual, bounds derived from the manifest) under the bake's stacked flats
+## (water 0.02 … ballast 0.1 — the baker's y conventions leave y 0 for exactly
+## this plate), the gameplay seam answers "how high is the massing here" as a
+## query, not geometry (`ground_height()` scans the retained per-chunk ground
+## records), and every AUTHORED position is solid — one placeholder StaticBody
+## per chunk carrying box shapes for the authored massing slots (the bake's
+## `a` flag), the hero silhouette parts (true-dim stand-ins for the R3 hero
+## scenes — the campanile cap's top face is the landable pad, crumb spot at
+## `ANCHOR_CRUMB_LIFT`) and the venue fixups. Procedural filler stays
+## visual-only.
 ##
 ## Boot cost discipline: each chunk file is read once, its SHA-256 checked
 ## against the bake manifest (a corrupted bake refuses the chunk, loudly), the
@@ -74,6 +80,15 @@ var _chunks_root: Node3D
 ## The bake manifest as read (`{}` = no bake — the world builds empty and
 ## every gate fails loudly on the missing chunks).
 var _manifest: Dictionary = {}
+## (T-175) the hero building ids whose bbox massing the placeholder
+## silhouettes supersede (the bake manifest's `heroes` list, as a set) —
+## those boxes are skipped for drawing, occluding, ground records and slot
+## colliders alike, so the silhouette IS the hero at every layer.
+var _hero_ids: Dictionary = {}
+## (T-175) the campanile cap's world-local position — the landable pad; the
+## finish step hangs the cap crumb at `ANCHOR_CRUMB_LIFT` above it (the
+## anchor-cap rule, re-targeted).
+var _campanile_cap := Vector3.ZERO
 ## Cached baker district-rule context (`AmesBaker._build_context`), built once
 ## on first `district_at()`.
 var _district_ctx: Dictionary = {}
@@ -146,7 +161,8 @@ func chunk_aabb(tile: Vector2i) -> AABB:
 	return AABB(lo, hi - lo)
 
 
-## Mounts an authored hero scene INTO its chunk (T-175+): the instance is
+## Mounts an authored hero scene INTO its chunk (R3 — T-175 bakes the
+## placeholder stand-ins; this is the authored-scene seam): the instance is
 ## parented under the chunk's node — chunk lifecycle, culling and LOD swaps
 ## are the chunk's business — and offset by the tile center so an origin
 ## authored in world coordinates stays at its true world position. Returns
@@ -217,6 +233,8 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	_buffer_bytes = 0
 	_bounds_min = Vector3.ZERO
 	_bounds_max = Vector3.ZERO
+	_hero_ids = {}
+	_campanile_cap = Vector3.ZERO
 	_manifest = AmesBaker.read_manifest(CHUNKS_DIR)
 	if _manifest.is_empty():
 		push_error("AmesWorld: no chunk bake at %s — world builds empty" % CHUNKS_DIR)
@@ -224,6 +242,8 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	if (_manifest.get("chunks", []) as Array).is_empty():
 		push_error("AmesWorld: bake manifest carries no chunks — world builds empty")
 		return true
+	for hero_id: Variant in _manifest.get("heroes", []):
+		_hero_ids[str(hero_id)] = true
 	_bounds_from_manifest()
 	_build_static_root()
 	_build_ground_plate()
@@ -261,6 +281,14 @@ func generate_step_finish() -> void:
 	## moves a byte moves the fingerprint, exactly the layout-fingerprint
 	## discipline the parent's seed hash serves.
 	fingerprint = str(_manifest.get("total_sha256", "")).hash()
+	## (T-175) the landable campanile cap keeps the crumb rule: one ROOF spot
+	## at the cap top + ANCHOR_CRUMB_LIFT — the city.gd anchor-cap pattern,
+	## re-targeted. T-176 files the rest of the crumb set; until then this is
+	## the Ames world's only bread spot, and the spawner's contract handles
+	## the short list.
+	if _campanile_cap != Vector3.ZERO:
+		bread_spots.append(_campanile_cap + Vector3.UP * ANCHOR_CRUMB_LIFT)
+		bread_spot_kinds.append(BreadKind.ROOF)
 	regenerated.emit()
 
 
@@ -356,6 +384,11 @@ func _build_chunk(entry: Dictionary) -> void:
 		_add_chunk_mm(chunk_root, "Massing", massing, aabb,
 				MASSING_RANGE_END, MASSING_RANGE_FADE)
 
+	var placeholders := _placeholders_multimesh(chunk, center)
+	if placeholders != null:
+		## Never fades: the silhouettes ARE the from-the-air read (T-175).
+		_add_chunk_mm(chunk_root, "Placeholders", placeholders, aabb, 0.0, 0.0)
+
 	var flats := _flats_multimesh(chunk, center)
 	if flats != null:
 		_add_chunk_mm(chunk_root, "Ribbons", flats, aabb, 0.0, 0.0)
@@ -365,22 +398,61 @@ func _build_chunk(entry: Dictionary) -> void:
 		_add_chunk_mm(chunk_root, "Patches", tris, aabb, 0.0, 0.0)
 
 	_build_chunk_occluder(chunk_root, chunk, center)
+	_build_chunk_colliders(chunk_root, chunk, center)
 	_build_ground_record(chunk)
 
 
 ## One vertex-color unit-box MultiMesh from the chunk's massing entries
 ## (position/size/vertex color straight from the bake — the city.gd house
-## style, ported to data).
+## style, ported to data). (T-175) the hero buildings' bbox boxes are
+## skipped: their true-dim silhouettes supersede them in the placeholders
+## family, and a hero must not render twice (the bowl's solid bbox would
+## fill the ellipse the ring is there to draw).
 func _massing_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
 	var massing: Array = chunk.get("massing", [])
-	if massing.is_empty():
+	var count := 0
+	for m: Dictionary in massing:
+		if not _is_hero_massing(m):
+			count += 1
+	if count == 0:
 		return null
-	var mm := _new_multimesh(massing.size())
-	for i in massing.size():
-		var m: Dictionary = massing[i]
+	var mm := _new_multimesh(count)
+	var i := 0
+	for m: Dictionary in massing:
+		if _is_hero_massing(m):
+			continue
 		var p: Array = m["p"]
 		var s: Array = m["s"]
 		var c: Array = m["c"]
+		mm.set_instance_transform(i, Transform3D(
+				Basis.from_scale(Vector3(s[0], s[1], s[2])),
+				Vector3(p[0], p[1], p[2]) - center))
+		mm.set_instance_color(i, Color(c[0], c[1], c[2]))
+		i += 1
+	return mm
+
+
+## (T-175) TRUE when a massing entry is one of the hero buildings whose
+## bbox massing the placeholder silhouettes supersede.
+func _is_hero_massing(m: Dictionary) -> bool:
+	return _hero_ids.has(str(m.get("id", "")))
+
+
+## (T-175) One vertex-color unit-box MultiMesh of the chunk's placeholder
+## entries — the hero silhouette parts (true-dim gray masses) and the venue
+## fixup boxes. Per-entry baked colors; never fades (the silhouette read is
+## the deliverable this ring). Slot collision comes from
+## `_build_chunk_colliders`, which consumes the same entries.
+func _placeholders_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
+	var placeholders: Array = chunk.get("placeholders", [])
+	if placeholders.is_empty():
+		return null
+	var mm := _new_multimesh(placeholders.size())
+	for i in placeholders.size():
+		var ph: Dictionary = placeholders[i]
+		var p: Array = ph["p"]
+		var s: Array = ph["s"]
+		var c: Array = ph["c"]
 		mm.set_instance_transform(i, Transform3D(
 				Basis.from_scale(Vector3(s[0], s[1], s[2])),
 				Vector3(p[0], p[1], p[2]) - center))
@@ -442,7 +514,9 @@ func _tris_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
 ## The baked occluders: one ArrayOccluder3D per chunk — each massing box's
 ## four side walls as triangle soup (both windings; the engine's occlusion
 ## raster culls whichever facing it wants). Heights ride the index-aligned
-## massing entry (the bake writes one outline per box, 1:1).
+## massing entry (the bake writes one outline per box, 1:1). (T-175) hero
+## outlines are skipped with their boxes: the superseded bbox must not
+## occlude for a silhouette that no longer fills it.
 func _build_chunk_occluder(chunk_root: Node3D, chunk: Dictionary, center: Vector3) -> void:
 	var outlines: Array = chunk.get("occluders", [])
 	var massing: Array = chunk.get("massing", [])
@@ -451,6 +525,8 @@ func _build_chunk_occluder(chunk_root: Node3D, chunk: Dictionary, center: Vector
 	var verts := PackedVector3Array()
 	for i in outlines.size():
 		var o: Array = outlines[i]
+		if i < massing.size() and _is_hero_massing(massing[i]):
+			continue
 		var top := 0.0
 		if i < massing.size():
 			top = float(massing[i]["s"][1])
@@ -481,6 +557,43 @@ func _build_chunk_occluder(chunk_root: Node3D, chunk: Dictionary, center: Vector
 	_buffer_bytes += verts.size() * 3 * 4 ## PackedVector3Array: 3 floats/vertex.
 
 
+## (T-175) The placeholder collision, per chunk: ONE layer-1 `world`
+## StaticBody3D under the chunk node (chunk lifecycle owns it), carrying one
+## box CollisionShape3D per placeholder — every authored building's massing
+## slot (the bake's `a` flag), every hero silhouette part and every venue
+## fixup. Solid at flight speeds; the campanile cap's top face is the
+## landable pad (the anchor-cap rule). Procedural filler stays visual-only
+## massing — the ticket's scope is the ~540 authored positions. (The ~600
+## shapes are not counted in `render_metrics().buffer_bytes` — the metric
+## covers the GPU-side resident estimate, not physics shapes.)
+func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vector3) -> void:
+	var entries: Array = []
+	for m: Dictionary in chunk.get("massing", []):
+		if m.get("a", false) and not _is_hero_massing(m):
+			entries.append(m)
+	for ph: Dictionary in chunk.get("placeholders", []):
+		entries.append(ph)
+	if entries.is_empty():
+		return
+	var body := StaticBody3D.new()
+	body.name = "Placeholders"
+	body.collision_layer = 1 ## world
+	body.collision_mask = 0
+	chunk_root.add_child(body)
+	for e: Dictionary in entries:
+		var p: Array = e["p"]
+		var s: Array = e["s"]
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(float(s[0]), float(s[1]), float(s[2]))
+		shape.shape = box
+		shape.position = Vector3(float(p[0]), float(p[1]), float(p[2])) - center
+		body.add_child(shape)
+		if str(e.get("id", "")) == "way/183041212" and str(e.get("part", "")) == "cap":
+			_campanile_cap = Vector3(float(p[0]), float(p[1]) + float(s[1]) * 0.5,
+					float(p[2]))
+
+
 ## The compact ground record the seam queries: per box (x, z, half_w, half_d,
 ## top) in WORLD-LOCAL coordinates (the `ground_height()` query frame). Each
 ## box is indexed into EVERY tile its footprint touches — 401 of 3,737 baked
@@ -488,31 +601,19 @@ func _build_chunk_occluder(chunk_root: Node3D, chunk: Dictionary, center: Vector
 ## centroid-tile-only filing answered the plate (0.0) for points standing
 ## under those overhangs. The parsed JSON is dropped after this, so the
 ## resident footprint stays proportional to the geometry (the crossing
-## duplicates add ~25 KB).
+## duplicates add ~25 KB). (T-175) hero massing boxes are skipped (the
+## silhouettes file their own true tops instead — the bowl interior must
+## answer the plate, not its superseded 25 m bbox) and the placeholder
+## entries file alongside.
 func _build_ground_record(chunk: Dictionary) -> void:
 	var tiles: Dictionary = {} ## tile Vector2i -> Array of floats, packed below.
 	var bytes := 0
 	for m: Dictionary in chunk.get("massing", []):
-		var p: Array = m["p"]
-		var s: Array = m["s"]
-		var cx := float(p[0])
-		var cz := float(p[2])
-		var hw := float(s[0]) * 0.5
-		var hd := float(s[2]) * 0.5
-		var top := float(p[1]) + float(s[1]) * 0.5
-		var entry: Array = [cx, cz, hw, hd, top]
-		var s_size := AmesBaker.CHUNK_SIZE
-		var tx0 := floori((cx - hw) / s_size)
-		var tx1 := floori((cx + hw) / s_size)
-		var tz0 := floori((cz - hd) / s_size)
-		var tz1 := floori((cz + hd) / s_size)
-		for tx in range(tx0, tx1 + 1):
-			for tz in range(tz0, tz1 + 1):
-				var key := Vector2i(tx, tz)
-				var arr: Array = tiles.get(key, [])
-				arr.append_array(entry)
-				tiles[key] = arr
-				bytes += entry.size() * 4
+		if _is_hero_massing(m):
+			continue
+		bytes += _file_ground_box(tiles, m["p"], m["s"])
+	for ph: Dictionary in chunk.get("placeholders", []):
+		bytes += _file_ground_box(tiles, ph["p"], ph["s"])
 	for key: Vector2i in tiles:
 		var packed := PackedFloat32Array(tiles[key])
 		var record: Dictionary = _chunks.get(key, {})
@@ -521,6 +622,32 @@ func _build_ground_record(chunk: Dictionary) -> void:
 		record["ground"] = ground
 		_chunks[key] = record
 	_buffer_bytes += bytes
+
+
+## One box into the per-tile ground accumulator (shared by the massing and
+## placeholder families); returns the bytes it appended (ints pass by
+## value — the caller adds the return to its own total).
+func _file_ground_box(tiles: Dictionary, p: Array, s: Array) -> int:
+	var cx := float(p[0])
+	var cz := float(p[2])
+	var hw := float(s[0]) * 0.5
+	var hd := float(s[2]) * 0.5
+	var top := float(p[1]) + float(s[1]) * 0.5
+	var entry: Array = [cx, cz, hw, hd, top]
+	var s_size := AmesBaker.CHUNK_SIZE
+	var tx0 := floori((cx - hw) / s_size)
+	var tx1 := floori((cx + hw) / s_size)
+	var tz0 := floori((cz - hd) / s_size)
+	var tz1 := floori((cz + hd) / s_size)
+	var bytes := 0
+	for tx in range(tx0, tx1 + 1):
+		for tz in range(tz0, tz1 + 1):
+			var key := Vector2i(tx, tz)
+			var arr: Array = tiles.get(key, [])
+			arr.append_array(entry)
+			tiles[key] = arr
+			bytes += entry.size() * 4
+	return bytes
 
 
 ## --- chunk node plumbing ---------------------------------------------------

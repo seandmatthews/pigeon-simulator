@@ -1209,6 +1209,7 @@
 		"lawn_tris": 36,
 		"massing": 0,
 		"occluders": 0,
+		"placeholders": 0,
 		"ribbons": 52,
 		"shore_quads": 0,
 		"tie_quads": 71,
@@ -1690,6 +1691,7 @@
 	],
 	"massing": [],
 	"occluders": [],
+	"placeholders": [],
 	"ribbons": [
 		{
 			"q": [
@@ -2524,7 +2526,7 @@
 			]
 		}
 	],
-	"schema": "ames_chunks/v2",
+	"schema": "ames_chunks/v3",
 	"shore_quads": [],
 	"tie_quads": [
 		{

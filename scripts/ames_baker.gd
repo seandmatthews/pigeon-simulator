@@ -10,14 +10,19 @@ class_name AmesBaker
 ## on the same machine produce byte-identical files, proven per chunk by the
 ## SHA-256 determinism manifest (`ames_bake_determinism`, Gate 1b).
 ##
-## What each chunk carries (ames_chunks/v2 — v1 plus the T-174 dressing
-## families; every family is optional at read time):
+## What each chunk carries (ames_chunks/v3 — v2 plus the T-175 placeholder
+## family and the massing `a` flag; every family is optional at read time):
 ## - `massing`: ONE axis-aligned box per building footprint — position,
 ##   size, district and vertex color (city.gd's MultiMesh + vertex-color
-##   house style, ported to data). Procedural filler gets the census §7.4
+##   house style, ported to data), plus `a` (T-175): TRUE when the building
+##   is one of the 512 AUTHORED buildings — the renderer gives those boxes
+##   collision (the placeholder slots heroes replace in R3, the roof-crumb
+##   hosts T-176 files under). Procedural filler gets the census §7.4
 ##   level ladder (bbox+levels, footprint bands where OSM tags nothing);
-##   authored buildings get their bbox massing too — heroes REPLACE them at
-##   mount time (T-185+), so the massing doubles as the LOD0 fallback.
+##   authored buildings get their bbox massing too — the 8 hero buildings'
+##   bbox boxes are SUPERSeded by their true-dim silhouettes (the renderer
+##   hides the ids the manifest's `heroes` list names), the rest stay the
+##   LOD0 fallback exactly as before.
 ## - `ribbons`: street centerlines pre-extruded to asphalt quads at the
 ##   pack's per-class widths (primary 20 m four-lane … residential 11 m).
 ## - `lane_quads`: (T-174) center dashes on the four named arterials ONLY
@@ -43,28 +48,41 @@ class_name AmesBaker
 ##   disagree). Per-cell district color from `DISTRICT_GROUND`.
 ## - `occluders`: one simplified building outline (the bbox rectangle) per
 ##   massing box — the feed for baked `ArrayOccluder3D`s (T-173).
+## - `placeholders`: (T-175) the landmark placeholders as ONE box each per
+##   entry — hero silhouette PARTS (true-dim gray masses, `part` names the
+##   role: plinth/shaft/head/cap …) and venue FIXUPS (a storefront box at
+##   every placed IN-CORE venue POI that is not a pack-marked prop and
+##   whose position no authored building's bbox covers — the census §2
+##   anchors that OSM never polygonized; the Superdog cart and Carlos
+##   Quesadilla's truck are props, the four out-of-core venues are
+##   boundary decisions, neither gets a box). These are
+##   the slots the R3 hero scenes replace and the shapes the from-the-air
+##   recognition bar reads; the renderer draws them, collides them and
+##   files them under `ground_height()`.
 ## - `crossings`: the at-grade rail crossings inside the tile (world facts
 ##   for R2's traffic graph; machine-checked by `ames_bake_census`).
 ##
-## NOT baked (by ticket): heroes/landmarks (mount as authored scenes,
-## T-175/T-185+), the 5,637 tree points (R5·tree canopy), collision
-## (T-173's gameplay seam answers ground queries over chunk data).
+## NOT baked (by ticket): authored hero SCENES (mount at R3, T-185+ — T-175's
+## silhouettes are the stand-ins), the 5,637 tree points (R5·tree canopy),
+## collision (the renderer builds it from the `a` flag + placeholders;
+## T-173's gameplay seam answers ground queries over chunk data).
 ##
 ## Determinism discipline: pack arrays are consumed in order; every float is
 ## snapped (positions 0.001 m, colors 0.0001); JSON is serialized with sorted
 ## keys; files are written in sorted (cx, cz) order; colors are picked by a
 ## stable hash of the building id (no RNG anywhere).
 
-const SCHEMA := "ames_chunks/v2"
+const SCHEMA := "ames_chunks/v3"
 const CHUNK_SIZE := 256.0
 
 ## Every per-chunk array family (the `_chunk_at` template, the finalize doc,
 ## the per-chunk counts and the manifest totals — ONE list, kept in one
-## place; v1's eight plus the T-174 dressing families).
+## place; v1's eight, the T-174 dressing families, and T-175's
+## placeholders).
 const FAMILY_KEYS: Array[String] = [
 	"massing", "ribbons", "lane_quads", "water_tris", "shore_quads",
 	"creek_quads", "lawn_tris", "ballast_quads", "tie_quads",
-	"ground_quads", "occluders", "crossings",
+	"ground_quads", "occluders", "placeholders", "crossings",
 ]
 
 ## Bake y conventions (m). Flats stack above 0 so the ground plate (top at
@@ -243,6 +261,76 @@ const DISTRICT_DIST_SPINE := 90.0
 const DISTRICT_DIST_LW := 90.0
 const DISTRICT_DIST_LW_BAND := 160.0
 
+## --- T-175 landmark placeholders --------------------------------------------
+##
+## Every AUTHORED position is occupied (the massing `a` flag = the slot);
+## venues whose address anchor OSM never polygonized get a fixup box; the
+## from-the-air heroes get TRUE-DIM gray silhouettes as `placeholders` part
+## boxes. Dims are the survey's settled numbers (docs/references/ames-survey/
+## verification/VERIFICATION.md §5 + MODELING-SPECS §1): campanile 33.5 m
+## (shaft ~4.9 sq on a 6.8 m plinth — §1.1, OSM bbox 6.8 × 6.7), Marston
+## 51.2 m (tank 12.2 m × 7.3 m dia on lattice legs — §1.4), Jack Trice bowl
+## ellipse 183 × 208 m long axis N–S with the north grass-berm wedge
+## (V-09/V-11) and the 53 × 113 m N–S pitch, Hilton 12-sided drum 138 × 105 m
+## (§1.3), MU 110 × 110 block with the squat corner tower (§1.2 — tower
+## height UNKNOWN-model-to-look per V-30, kept squat), Parks 95 × 123 with
+## the addition roofline step (§1.4), Beardshear block + oxidized-copper
+## dome hint (§1.4), the Durham bandshell arc at its POI position (census
+## §5: the park polygon itself lies outside the distilled core — the shell
+## is hand-placed), the 1906 depot's long low mass + platform canopy
+## (§1.8), plus two municipal water-tank bulbs and the SE grain-elevator
+## cluster (LANDMARKS T7/T8 — no sourced position exists, V-30: heights are
+## the 30–40 m UNVERIFIED placeholder, positions survey-anchored
+## approximations recorded right here). The 8 hero buildings' bbox massing
+## is superseded: the renderer hides the ids the manifest's `heroes` list
+## carries and draws the silhouettes instead.
+const HERO_BUILDING_IDS: Array[String] = [
+	"way/183041212", ## Campanile.
+	"way/861201396", ## Marston Water Tower.
+	"way/613735866", ## Jack Trice Stadium bowl.
+	"way/180651868", ## Hilton Coliseum.
+	"way/33725619", ## Beardshear Hall.
+	"way/183224150", ## Memorial Union.
+	"way/33725897", ## Parks Library.
+	"way/260524827", ## The 1906 depot (today's "Main Street Station").
+]
+
+## Venue fixup box (m): the census §2 storefront anchor — 2 levels of
+## strip-frontage mass at the address position (footprint 12 × 10, the
+## Campustown/downtown row band). Axis-aligned like every massing box.
+## (Round 1: the depth is 10 — at the round-1 16 the boxes of the
+## Lincoln Way south-frontage venues (Café Beaudelaire, Mr Burrito)
+## crossed the road's z 10 edge, and the Superdog CART fixup stood square
+## in Welch Ave; every baked fixup now clears every street ribbon quad,
+## machine-pinned by the `ames_placeholder_dims` road-clearance arm.)
+const VENUE_FIXUP_SIZE := Vector3(12.0, 8.0, 10.0)
+
+## Survey-anchored approximations (V-30 UNVERIFIED — no OSM mapping exists;
+## recorded here so a survey fix re-pins one constant):
+const CITY_TANK_NORTH_POS := Vector2(2600.0, -1280.0) ## BRET stand-in — north Ames (LANDMARKS T8).
+const CITY_TANK_EAST_POS := Vector2(3480.0, 620.0) ## One of T8's "two others", east side.
+const ELEVATOR_CLUSTER_POS := Vector2(3420.0, -20.0) ## SE along the UP line (LANDMARKS T7).
+
+## Ring segmentation: the bowl reads round from 36 axis-aligned chord boxes,
+## the 12-sided Hilton drum from 12 (§1.3: "low 12-sided concrete drum").
+const BOWL_SEGMENTS := 36
+const DRUM_SEGMENTS := 12
+
+## Placeholder palette (gray masses — the from-the-air read is the point;
+## greens only where the shape IS green: pitch, berms, dome copper).
+const HERO_CONCRETE := Color(0.62, 0.62, 0.6) ## Bowl rim, drum, blocks.
+const HERO_STEEL := Color(0.45, 0.45, 0.46) ## Lattice legs, depot canopy.
+const HERO_LIMESTONE := Color(0.78, 0.76, 0.7) ## Campanile/Beardshear/MU/Parks pale stone.
+const HERO_SLATE := Color(0.25, 0.27, 0.31) ## Campanile cap, MU tower cap.
+const HERO_COPPER := Color(0.37, 0.56, 0.41) ## Beardshear dome hint.
+const HERO_GRASS := Color(0.31, 0.48, 0.23) ## Bowl pitch, north berms.
+const HERO_BRICK := Color(0.6, 0.25, 0.19) ## Depot brick.
+const HERO_ROOF_TILE := Color(0.69, 0.29, 0.2) ## Depot red tile hip.
+const HERO_TANK := Color(0.9, 0.9, 0.88) ## Municipal bulb white.
+const HERO_SILO := Color(0.85, 0.82, 0.77) ## Elevator pale concrete.
+const HERO_SHELL := Color(0.86, 0.91, 0.86) ## Bandshell pale mint (§1.7).
+const HERO_SHELL_ARCH := Color(0.29, 0.35, 0.34) ## Bandshell weathered copper arch.
+
 
 ## Bakes the committed pack into `out_dir` (`res://...` or an absolute or
 ## user:// path). Wipes stale `chunk_*.json`/`manifest.json` first, writes
@@ -272,6 +360,9 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 	var tiles: Dictionary = {} ## Vector2i(cx, cz) -> chunk Dictionary.
 
 	# --- buildings: one massing box + one occluder outline each -----------
+	# (T-175) each entry carries `a`: the building is one of the 512 AUTHORED
+	# buildings — the renderer gives authored boxes collision (the placeholder
+	# slots); procedural filler stays visual-only massing.
 	for b: Dictionary in AmesDataPack.buildings():
 		var centroid: Array = b.get("centroid", [0.0, 0.0])
 		var x := float(centroid[0])
@@ -287,6 +378,7 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 		(chunk["massing"] as Array).append({
 			"id": str(b.get("id", "")),
 			"d": district,
+			"a": str(b.get("class", "")) == "authored",
 			"p": [_r(x), _r(h * 0.5), _r(z)],
 			"s": [_r(w), _r(h), _r(d)],
 			"c": [_rc(color.r), _rc(color.g), _rc(color.b)],
@@ -297,6 +389,66 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 			_r(x - hw), _r(z - hd), _r(x + hw), _r(z - hd),
 			_r(x + hw), _r(z + hd), _r(x - hw), _r(z + hd),
 		])
+
+	# --- placeholders (T-175): hero silhouettes + venue fixups ------------
+	# Hero parts first (their `p`/`s` are true-dim masses in world
+	# coordinates; each carries its `part` role so tests can union the
+	# survey-pinned subsets), then one fixup box per placed venue whose
+	# position no authored building's bbox covers — recomputed here from the
+	# pack (the fixup set is a pure function of the pack, never a hand list).
+	for b: Dictionary in AmesDataPack.buildings():
+		var bid := str(b.get("id", ""))
+		if not bid in HERO_BUILDING_IDS:
+			continue
+		for part: Dictionary in _hero_parts(bid, b):
+			(_chunk_at(tiles, _chunk_of(float(part["p"][0]), float(part["p"][2])))
+					["placeholders"] as Array).append(part)
+	for poi: Dictionary in AmesDataPack.pois():
+		if str(poi.get("kind", "")) != "venue" or not poi.get("placed", false):
+			continue
+		## (round 1) the pack's own exclusions: `in_core=false` venues (The
+		## Cafe, Provisions Lot F, Szechuan House, Hickory Park) are boundary
+		## decisions outside the map — a fixup there is a lone collision box
+		## on empty plate that silently grows the world bounds everything
+		## (the ground plate, the off-world guard) derives from; and a venue
+		## the pack marks a PROP (`note` carries "prop" — the Superdog hot-dog
+		## CART, Carlos Quesadilla's TRUCK) is street furniture, not a
+		## storefront slot: box-ing it walls the street.
+		if not poi.get("in_core", false):
+			continue
+		if str(poi.get("note", "")).contains("prop"):
+			continue
+		var vx := float(poi["position"][0])
+		var vz := float(poi["position"][1])
+		if _venue_covered(vx, vz):
+			continue
+		(_chunk_at(tiles, _chunk_of(vx, vz))["placeholders"] as Array).append({
+			"id": str(poi.get("id", "")),
+			"part": "fixup",
+			"p": [_r(vx), _r(VENUE_FIXUP_SIZE.y * 0.5), _r(vz)],
+			"s": [_r(VENUE_FIXUP_SIZE.x), _r(VENUE_FIXUP_SIZE.y), _r(VENUE_FIXUP_SIZE.z)],
+			"c": [_rc(HERO_CONCRETE.r), _rc(HERO_CONCRETE.g), _rc(HERO_CONCRETE.b)],
+		})
+	# The non-building heroes: the bandshell arc at its POI position, the two
+	# municipal bulbs and the SE elevator cluster at the recorded
+	# approximations (see the const block — V-30, no sourced positions).
+	var bandshell_pos := Vector2.ZERO
+	for poi: Dictionary in AmesDataPack.pois():
+		if str(poi.get("id", "")) == "downtown_bandshell" and poi.get("position") != null:
+			bandshell_pos = Vector2(float(poi["position"][0]), float(poi["position"][1]))
+	if bandshell_pos != Vector2.ZERO:
+		for part: Dictionary in _bandshell_parts(bandshell_pos):
+			(_chunk_at(tiles, _chunk_of(float(part["p"][0]), float(part["p"][2])))
+					["placeholders"] as Array).append(part)
+	for part: Dictionary in _water_tank_parts(CITY_TANK_NORTH_POS, "city_water_tank_north"):
+		(_chunk_at(tiles, _chunk_of(CITY_TANK_NORTH_POS.x, CITY_TANK_NORTH_POS.y))
+				["placeholders"] as Array).append(part)
+	for part: Dictionary in _water_tank_parts(CITY_TANK_EAST_POS, "city_water_tank_east"):
+		(_chunk_at(tiles, _chunk_of(CITY_TANK_EAST_POS.x, CITY_TANK_EAST_POS.y))
+				["placeholders"] as Array).append(part)
+	for part: Dictionary in _elevator_parts(ELEVATOR_CLUSTER_POS):
+		(_chunk_at(tiles, _chunk_of(ELEVATOR_CLUSTER_POS.x, ELEVATOR_CLUSTER_POS.y))
+				["placeholders"] as Array).append(part)
 
 	# --- streets: centerlines extruded to asphalt ribbons -----------------
 	# Arterials (T-174) additionally carry the center-dash lane marks: per
@@ -582,6 +734,13 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 		})
 	totals["districts"] = district_totals
 	manifest["totals"] = totals
+	## (T-175) the hero building ids whose bbox massing the placeholder
+	## silhouettes supersede — the renderer reads this list and hides those
+	## boxes (visual, occluder, ground record and slot collider alike); the
+	## silhouettes replace them wholly.
+	var heroes: Array[String] = HERO_BUILDING_IDS.duplicate()
+	heroes.sort()
+	manifest["heroes"] = heroes
 	var digest_lines := PackedStringArray()
 	for entry: Dictionary in manifest["chunks"]:
 		digest_lines.append("%s %s" % [entry["file"], entry["sha256"]])
@@ -679,6 +838,195 @@ static func _district_of(x: float, z: float, ctx: Dictionary) -> String:
 static func _massing_color(district: String, id: String) -> Color:
 	var palette: Array = DISTRICT_PALETTES.get(district, DISTRICT_PALETTES["residential"])
 	return palette[id.hash() % palette.size()]
+
+
+## --- T-175 placeholder builders (pure pack/const arithmetic) ---------------
+
+
+## TRUE when an authored building's bbox massing covers the point — the
+## venue-fixup rule: a placed venue POI whose address anchor OSM never
+## polygonized gets its own fixup slot; one riding an authored building
+## uses that building's slot and gets nothing.
+static func _venue_covered(vx: float, vz: float) -> bool:
+	for b: Dictionary in AmesDataPack.buildings():
+		if str(b.get("class", "")) != "authored":
+			continue
+		var c: Array = b.get("centroid", [0.0, 0.0])
+		var s: Array = b.get("bbox_m", [0.0, 0.0])
+		if absf(vx - float(c[0])) <= float(s[0]) * 0.5 \
+				and absf(vz - float(c[1])) <= float(s[1]) * 0.5:
+			return true
+	return false
+
+
+## One placeholder box entry (the massing entry's shape: id, role, center,
+## size, snapped color).
+static func _part(id: String, part: String, center: Vector3, size: Vector3,
+		color: Color) -> Dictionary:
+	return {
+		"id": id,
+		"part": part,
+		"p": [_r(center.x), _r(center.y), _r(center.z)],
+		"s": [_r(size.x), _r(size.y), _r(size.z)],
+		"c": [_rc(color.r), _rc(color.g), _rc(color.b)],
+	}
+
+
+## The hero silhouettes: per-building part lists at the survey's settled
+## dims (see the const block for the citations). `b` is the pack building
+## (centroid/bbox anchor the stacks; the settled heights are literals, not
+## the OSM tags — census §3 records several bogus `height` defaults).
+static func _hero_parts(id: String, b: Dictionary) -> Array:
+	var centroid: Array = b.get("centroid", [0.0, 0.0])
+	var cx := float(centroid[0])
+	var cz := float(centroid[1])
+	var parts: Array = []
+	match id:
+		"way/183041212": ## Campanile — 33.5 m slender stack (§1.1).
+			var plinth := Vector3(6.8, 2.0, 6.7) ## The OSM bbox includes the plinth.
+			var shaft := Vector3(4.9, 24.4, 4.9) ## "keep the shaft ~5 m".
+			var head := Vector3(6.0, 4.5, 5.9) ## The belfry.
+			var cap := Vector3(5.0, 2.6, 4.9) ## The pyramidal cap's mass — its top is the LANDABLE pad.
+			var y := 0.0
+			parts.append(_part(id, "plinth", Vector3(cx, y + plinth.y * 0.5, cz), plinth, HERO_LIMESTONE))
+			y += plinth.y
+			parts.append(_part(id, "shaft", Vector3(cx, y + shaft.y * 0.5, cz), shaft, HERO_LIMESTONE))
+			y += shaft.y
+			parts.append(_part(id, "head", Vector3(cx, y + head.y * 0.5, cz), head, HERO_LIMESTONE))
+			y += head.y
+			parts.append(_part(id, "cap", Vector3(cx, y + cap.y * 0.5, cz), cap, HERO_SLATE))
+			y += cap.y ## 33.5 exactly.
+			if absf(y - 33.5) > 0.001:
+				push_error("AmesBaker: campanile stack %f != settled 33.5" % y)
+		"way/861201396": ## Marston — 51.2 m tank on lattice legs (§1.4).
+			var leg := Vector3(0.9, 36.0, 0.9)
+			for sx: float in [-2.4, 2.4]:
+				for sz: float in [-2.4, 2.4]:
+					parts.append(_part(id, "legs",
+							Vector3(cx + sx, leg.y * 0.5, cz + sz), leg, HERO_STEEL))
+			parts.append(_part(id, "tank", Vector3(cx, 36.0 + 6.1, cz),
+					Vector3(7.3, 12.2, 7.3), HERO_TANK)) ## 12.2 m tall × 7.3 dia.
+			parts.append(_part(id, "cap", Vector3(cx, 48.2 + 1.5, cz),
+					Vector3(5.2, 3.0, 5.2), HERO_STEEL)) ## Conical cap's mass — top 51.2.
+		"way/613735866": ## Jack Trice — bowl ellipse 183 × 208, N–S (V-09).
+			parts.append_array(_ring_parts(id, "bowl",
+					Vector2(cx, cz), 91.5, 104.0, BOWL_SEGMENTS, 20.0, 14.0, HERO_CONCRETE))
+			parts.append(_part(id, "pitch", Vector3(cx, 0.3, cz),
+					Vector3(53.0, 0.6, 113.0), HERO_GRASS)) ## MidAmerican Field, N–S.
+			## The north grass-berm wedge (V-11: GA berms in the NE/NW corners).
+			parts.append(_part(id, "berm", Vector3(cx - 42.0, 4.0, cz - 113.0),
+					Vector3(60.0, 8.0, 24.0), HERO_GRASS))
+			parts.append(_part(id, "berm", Vector3(cx + 42.0, 4.0, cz - 113.0),
+					Vector3(60.0, 8.0, 24.0), HERO_GRASS))
+		"way/180651868": ## Hilton — 12-sided drum 138 × 105 (§1.3).
+			parts.append_array(_ring_parts(id, "drum",
+					Vector2(cx, cz), 69.0, 52.5, DRUM_SEGMENTS, 12.0, 20.0, HERO_CONCRETE))
+			parts.append(_part(id, "roof", Vector3(cx, 21.5, cz),
+					Vector3(118.0, 3.0, 90.0), HERO_CONCRETE)) ## Shallow arc roof's mass.
+		"way/33725619": ## Beardshear — block + oxidized-copper dome hint (§1.4).
+			var size: Array = b.get("bbox_m", [41.0, 66.0])
+			var block := Vector3(float(size[0]), 14.0, float(size[1]))
+			parts.append(_part(id, "block", Vector3(cx, 7.0, cz), block, HERO_LIMESTONE))
+			parts.append(_part(id, "dome", Vector3(cx + 12.0, 16.0, cz),
+					Vector3(9.0, 4.0, 9.0), HERO_COPPER)) ## Drum over the east entrance.
+			parts.append(_part(id, "dome_cap", Vector3(cx + 12.0, 19.0, cz),
+					Vector3(6.0, 2.0, 6.0), HERO_COPPER))
+		"way/183224150": ## Memorial Union — block + squat corner tower (§1.2).
+			var size: Array = b.get("bbox_m", [110.0, 110.0])
+			var block := Vector3(float(size[0]), 20.0, float(size[1]))
+			parts.append(_part(id, "block", Vector3(cx, 10.0, cz), block, HERO_LIMESTONE))
+			## The SW corner tower (Lincoln Way × Morrill Rd/Lynn — V-08), squat
+			## per §1.2's photos; the tower height is UNKNOWN-model-to-look (V-30).
+			var corner_x := cx - block.x * 0.5 + 5.0
+			var corner_z := cz + block.z * 0.5 - 5.0
+			parts.append(_part(id, "tower", Vector3(corner_x, 13.0, corner_z),
+					Vector3(10.0, 26.0, 10.0), HERO_LIMESTONE))
+			parts.append(_part(id, "tower_cap", Vector3(corner_x, 27.5, corner_z),
+					Vector3(8.0, 3.0, 8.0), HERO_SLATE))
+		"way/33725897": ## Parks Library — block + addition roofline step (§1.4).
+			var size: Array = b.get("bbox_m", [95.0, 123.0])
+			var block := Vector3(float(size[0]), 24.0, float(size[1]))
+			parts.append(_part(id, "block", Vector3(cx, 12.0, cz), block, HERO_LIMESTONE))
+			parts.append(_part(id, "addition", Vector3(cx, 28.0, cz - block.z * 0.25),
+					Vector3(block.x * 0.5, 8.0, block.z * 0.4),
+					Color(0.65, 0.66, 0.68))) ## The 1960s–80s pavilion's dark concrete.
+		"way/260524827": ## The 1906 depot — long low brick mass, tile hip, canopy (§1.8).
+			var size: Array = b.get("bbox_m", [92.0, 20.0])
+			var block := Vector3(float(size[0]), 7.0, float(size[1]))
+			parts.append(_part(id, "wall", Vector3(cx, 3.5, cz), block, HERO_BRICK))
+			parts.append(_part(id, "roof", Vector3(cx, 8.25, cz),
+					Vector3(block.x * 0.95, 2.5, block.z * 0.85), HERO_ROOF_TILE))
+			## The platform canopy rides the rail (north) face.
+			parts.append(_part(id, "canopy", Vector3(cx, 3.6, cz - block.z * 0.5 - 1.0),
+					Vector3(block.x * 0.92, 0.8, 4.0), HERO_STEEL))
+	return parts
+
+
+## One axis-aligned ring around an ellipse (the bowl, the drum): each segment
+## is the chord box covering its arc, shifted INWARD half its width so the
+## ring's union AABB lands ON the survey envelope (the OSM way bbox is the
+## OUTER edge of both). Returns the part list.
+static func _ring_parts(id: String, part: String, center: Vector2, rx: float,
+		rz: float, segments: int, width: float, height: float,
+		color: Color) -> Array:
+	var parts: Array = []
+	for k: int in segments:
+		var a0 := TAU * float(k) / float(segments)
+		var a1 := TAU * float(k + 1) / float(segments)
+		var p0 := Vector2(center.x + rx * cos(a0), center.y + rz * sin(a0))
+		var p1 := Vector2(center.x + rx * cos(a1), center.y + rz * sin(a1))
+		var mid := (p0 + p1) * 0.5
+		var ext := Vector2(absf(p1.x - p0.x) + width, absf(p1.y - p0.y) + width)
+		var from_center := mid - center
+		var inward := from_center / maxf(from_center.length(), 0.001) * (width * 0.5)
+		var box_center := Vector3(mid.x - inward.x, height * 0.5, mid.y - inward.y)
+		parts.append(_part(id, part, box_center, Vector3(ext.x, height, ext.y), color))
+	return parts
+
+
+## The Durham bandshell: a pale semicircular shell arc (opening east onto
+## the park) + the stage slab — hand-placed at the POI position (census §5:
+## the park polygon itself is outside the distilled core).
+static func _bandshell_parts(pos: Vector2) -> Array:
+	var parts: Array = []
+	for k: int in 7:
+		var ang := PI * 0.5 + PI * float(k) / 6.0 ## 90°..270°: the west half circle.
+		parts.append(_part("downtown_bandshell", "shell",
+				Vector3(pos.x + 6.5 * cos(ang), 4.0, pos.y + 6.5 * sin(ang)),
+				Vector3(3.2, 8.0, 3.2), HERO_SHELL))
+	parts.append(_part("downtown_bandshell", "stage",
+			Vector3(pos.x, 0.6, pos.y), Vector3(8.0, 1.2, 10.0), HERO_CONCRETE))
+	return parts
+
+
+## One municipal water-tank bulb (LANDMARKS T8: mushroom bulb on a stem).
+static func _water_tank_parts(pos: Vector2, id: String) -> Array:
+	var parts: Array = []
+	parts.append(_part(id, "stem",
+			Vector3(pos.x, 8.0, pos.y), Vector3(3.0, 16.0, 3.0), HERO_STEEL))
+	parts.append(_part(id, "bulb",
+			Vector3(pos.x, 22.0, pos.y), Vector3(20.0, 12.0, 20.0), HERO_TANK))
+	parts.append(_part(id, "cap",
+			Vector3(pos.x, 29.0, pos.y), Vector3(7.0, 2.0, 7.0), HERO_TANK))
+	return parts
+
+
+## The SE grain-elevator cluster (LANDMARKS T7): a pale silo bank +
+## headhouse + attached steel bins, heights the 30–40 m UNVERIFIED
+## placeholder (V-30).
+static func _elevator_parts(pos: Vector2) -> Array:
+	var parts: Array = []
+	for k: int in 4:
+		parts.append(_part("grain_elevators", "silo",
+				Vector3(pos.x - 13.5 + 9.0 * float(k), 17.0, pos.y),
+				Vector3(7.0, 34.0, 7.0), HERO_SILO))
+	parts.append(_part("grain_elevators", "headhouse",
+			Vector3(pos.x, 19.0, pos.y - 8.0), Vector3(10.0, 38.0, 10.0), HERO_SILO))
+	parts.append(_part("grain_elevators", "bin",
+			Vector3(pos.x - 8.0, 6.0, pos.y + 8.0), Vector3(5.0, 12.0, 5.0), HERO_SILO))
+	parts.append(_part("grain_elevators", "bin",
+			Vector3(pos.x + 8.0, 6.0, pos.y + 8.0), Vector3(5.0, 12.0, 5.0), HERO_SILO))
+	return parts
 
 
 ## The T-174 lane-dash rule: a street is an arterial when its NAME carries
@@ -925,6 +1273,14 @@ static func _chunk_aabb(chunk: Dictionary) -> Dictionary:
 		_aabb_grow(acc, Vector3(float(p[0]) + float(s[0]) * 0.5,
 				float(p[1]) + float(s[1]) * 0.5,
 				float(p[2]) + float(s[2]) * 0.5))
+	for ph: Dictionary in chunk["placeholders"]: ## (T-175) hero masses join the AABB.
+		var pp: Array = ph["p"]
+		var ps: Array = ph["s"]
+		_aabb_grow(acc, Vector3(float(pp[0]) - float(ps[0]) * 0.5, 0.0,
+				float(pp[2]) - float(ps[2]) * 0.5))
+		_aabb_grow(acc, Vector3(float(pp[0]) + float(ps[0]) * 0.5,
+				float(pp[1]) + float(ps[1]) * 0.5,
+				float(pp[2]) + float(ps[2]) * 0.5))
 	for quad_key: String in ["ribbons", "lane_quads", "shore_quads",
 			"creek_quads", "ballast_quads", "tie_quads", "ground_quads"]:
 		for q: Dictionary in chunk[quad_key]:

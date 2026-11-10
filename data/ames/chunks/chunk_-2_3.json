@@ -72,6 +72,7 @@
 		"lawn_tris": 0,
 		"massing": 1,
 		"occluders": 1,
+		"placeholders": 0,
 		"ribbons": 0,
 		"shore_quads": 0,
 		"tie_quads": 0,
@@ -84,6 +85,7 @@
 	"lawn_tris": [],
 	"massing": [
 		{
+			"a": false,
 			"c": [
 				0.706,
 				0.682,
@@ -115,8 +117,9 @@
 			774.08
 		]
 	],
+	"placeholders": [],
 	"ribbons": [],
-	"schema": "ames_chunks/v2",
+	"schema": "ames_chunks/v3",
 	"shore_quads": [],
 	"tie_quads": [],
 	"tile": {
