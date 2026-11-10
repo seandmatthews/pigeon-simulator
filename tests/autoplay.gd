@@ -14,12 +14,12 @@ extends Node3D
 ## ames world through the T-173 world-flag swap — spawn over Central Campus,
 ## the cruise band over the real massing, and a survival loop that FLIES to
 ## the nearest ground-class crumb, LANDS beside it, WADDLES in and EATS it
-## (the Gate 2 pattern, world-scoped). The Ames window is longer (the map is
-## district-scale, so the first bread lives a few hundred metres out) and the
-## pilot stages a denser live crumb spread for the demo window (the shipped
-## BreadSpawner target is a Windrow-era feel knob — the Ames run prints its
-## staged target in the DONE line; the district-wide SUPPLY itself is
-## `ames_bread_reach`'s contract, not the pilot's). The Ames gate adds
+## (the Gate 2 pattern, world-scoped). The run uses the SHIPPED BreadSpawner
+## target (40) — the world's boot ring (`City.boot_bread_spots`, the ground
+## spots nearest the spawn, seeded first on every populate) puts real bread
+## ~20 m out at boot, so one loop fits the window with nothing staged; the
+## district-wide crumb SUPPLY itself is `ames_bread_reach`'s contract and the
+## live-count bound is `ames_bread_spawner`'s. The Ames gate adds
 ## `eaten >= 1` to ok — the loop must actually close.
 
 const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
@@ -56,12 +56,9 @@ const AMES_ENV := "AMES_AUTOPLAY"
 ## it clear of the towers it flies toward).
 const AMES_CRUISE_FLOOR: float = 30.0
 const AMES_CRUISE_CEIL: float = 38.0
-## Ames run window (s): district-scale map, so the fly-to-bread leg gets a
-## real budget; the restart leg follows it unchanged.
+## Ames run window (s): the world's boot ring puts bread ~20 m out at boot,
+## so the loop closes many times over; the restart leg follows unchanged.
 const AMES_RUN_SECONDS: float = 100.0
-## The staged live-crumb spread for the Ames demo window (see the header):
-## nearest-live-bread ≈ a city block or two, so one loop fits the window.
-const AMES_CRUMB_TARGET: int = 400
 ## Flat distance from the target crumb where the descent commits (m) and the
 ## final landing ring it steers into; the waddle covers the last metres.
 const AMES_APPROACH: float = 110.0
@@ -130,10 +127,6 @@ func _ready() -> void:
 	if _ames:
 		Game.world = "ames"
 	_game = MAIN_SCENE.instantiate()
-	if _ames:
-		## The staged demo spread (see the header): set before add_child, so
-		## Main's boot populate seeds it — the shipped target stays untouched.
-		(_game.get_node("BreadSpawner") as BreadSpawner).target_count = AMES_CRUMB_TARGET
 	add_child(_game)
 	_game.process_mode = Node.PROCESS_MODE_PAUSABLE
 	_player = _game.get_node("Player") as Player
@@ -218,7 +211,7 @@ func _finish() -> void:
 	poses.sort()
 	print("AUTOPLAY DONE ok=%s world=%s crumb_target=%d loop_ok=%s t=%.1f fps=%.0f player=(%.1f, %.1f, %.1f) speed=%.2f hunger=%.0f eaten=%d splats=%d tourists=%d panics=%d honks=%d shares=%d relocations=%d score=%d high=%d restart=%s run_score=%d run_tourists=%d run_cars=%d poses=%s effects=%d shake_peak=%.2f sfx=%s ambience=%s" % [
 			ok, "ames" if _ames else "windrow",
-			AMES_CRUMB_TARGET if _ames else _spawner.target_count, loop_ok,
+			_spawner.target_count if _spawner != null and is_instance_valid(_spawner) else -1, loop_ok,
 			_elapsed, fps, where.x, where.y, where.z,
 			_player.velocity.length() if alive else 0.0, _hunger.value, eaten, _splats,
 			tourists, panics, honks, shares, relocations, Game.score, Game.high_score,

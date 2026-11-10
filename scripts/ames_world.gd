@@ -143,6 +143,14 @@ const FILLER_ROOF_MIN_DIM := 12.0
 ## Crumb lift over every surface the spots sit on — the T-032 roof-corner /
 ## ANCHOR_CRUMB_LIFT convention (City's constant is the cap crumb's same 0.06).
 const SPOT_LIFT := 0.06
+## The boot ring (round 1): how many of the GROUND spots nearest the spawn the
+## BreadSpawner seeds FIRST on every populate (`City.boot_bread_spots`). At 40
+## live crumbs across 11k+ spots the seeded shuffle alone landed the nearest
+## crumb ~300 m out — the "first bread reachable ≤ 60 m" acceptance bar was a
+## fact about the spot supply, not the spread. The nearest boot spot measured
+## 20.6 m from the spawn; every populate re-seeds the ring, so the guarantee
+## renews across restarts.
+const BOOT_BREAD_COUNT := 8
 ## A ground-ring/lattice point whose query answers taller than this is inside
 ## a building footprint — dropped (the box's own roof spot serves it).
 const GROUND_COVER_MAX := 0.5
@@ -389,6 +397,7 @@ func _build_survival() -> void:
 	bread_spots.clear()
 	bread_spot_kinds.clear()
 	cafe_spots.clear()
+	boot_bread_spots.clear()
 	## The spawn (master plan §11.1, owner-decided 2026-11-09): the campanile
 	## POI + SPAWN_CAMPANILE_OFFSET_X east, at the plate plus the drop. The
 	## offset clears the campanile shaft's own collider (the 4.9 m shaft is
@@ -409,6 +418,26 @@ func _build_survival() -> void:
 	_append_roof_spots()
 	_add_field_lattice()
 	_add_cafe_tables()
+	## (T-176 round 1) The boot ring: the BOOT_BREAD_COUNT GROUND spots nearest
+	## the spawn become `City.boot_bread_spots` — the BreadSpawner seeds them
+	## FIRST on every populate, so real bread (not just spot supply) sits
+	## within reach at boot. Sorted by flat distance with index tiebreaks —
+	## deterministic per fingerprint; the nearest boot spot is the world's
+	## nearest ground spot (20.6 m at the spawn), well inside the 60 m bar the
+	## `ames_bread_reach` row now measures against the LIVE spread.
+	var ground_order: Array[int] = []
+	for i: int in bread_spots.size():
+		if bread_spot_kinds[i] == BreadKind.GROUND:
+			ground_order.append(i)
+	ground_order.sort_custom(func(a: int, b: int) -> bool:
+		var da := (bread_spots[a].x - spawn_local.x) * (bread_spots[a].x - spawn_local.x) \
+				+ (bread_spots[a].z - spawn_local.z) * (bread_spots[a].z - spawn_local.z)
+		var db := (bread_spots[b].x - spawn_local.x) * (bread_spots[b].x - spawn_local.x) \
+				+ (bread_spots[b].z - spawn_local.z) * (bread_spots[b].z - spawn_local.z)
+		if da != db:
+			return da < db
+		return a < b)
+	boot_bread_spots = ground_order.slice(0, BOOT_BREAD_COUNT)
 	## (T-175, kept) the landable campanile cap keeps the crumb rule: one ROOF
 	## spot at the cap top + ANCHOR_CRUMB_LIFT — the city.gd anchor-cap
 	## pattern. The hero-top pass below deliberately skips the campanile (its

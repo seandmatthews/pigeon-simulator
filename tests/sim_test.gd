@@ -180,6 +180,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_placeholder_dims() ## T-175 — the placeholders at their survey dims: authored slots, venue fixups, hero AABBs, the ranking's water/green/rail landmarks.
 	await _scenario_ames_placeholder_landable() ## T-175 — the campanile cap accepts the landing state; shaft/bowl colliders probe; the cap crumb rides ANCHOR_CRUMB_LIFT.
 	await _scenario_ames_bread_reach() ## T-176 — the survival re-base: spawn over Central Campus, the core-wide bread reach grid, the Windrow-baseline crumb supply, café tables at real cafés.
+	await _scenario_ames_bread_spawner() ## T-176 round 1 — the Ames spawner at the shipped target: boot ring ≤ 60 m, the live count held at target across top-up cycles, eat-and-refill reconverges exactly.
 	await _scenario_ames_hunger_pins() ## T-176 — the drain quartet + favor ceiling diff-proven across the ames build.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
@@ -2048,11 +2049,18 @@ func _scenario_ames_placeholder_landable() -> void:
 ## spawn local XZ is the campanile POI plus the world's east offset, the
 ## district lookup answers "campus" there, the plate answers the drop (the
 ## spot is massing-clear), a real drop settles grounded and flies off, and
-## the first bread (nearest GROUND-class spot, the waddle-reachable class) is
-## within 60 m flat; REACH — nearest spot ≤ 150 m from ANY sampled point of
+## the first bread is a fact about the LIVE spread: the real BreadSpawner
+## seeds the world at the shipped target and the nearest living crumb sits
+## within 60 m flat of the spawn (the boot ring's doing — round 1);
+## REACH — nearest spot ≤ 150 m from ANY sampled point of
 ## the pack's core window (the meta `core_bbox_wsen` through the pack's
 ## pinned transform, a 100 m grid, a 100 m-cell spatial hash recomputed here
 ## from `world.bread_spots` — never through world internals); SUPPLY — the
+## crumb total is at least the Windrow baseline count, measured live off the
+## standing default-seed city (never a hard-coded number); CAFÉS — every
+## in-bounds café venue of the VENUES.md coffee list (the name-token rule)
+## carries a table spot near its POI with a TABLE-class crumb on the
+## tabletop, and at least 3 real cafés are served.
 ## crumb total is at least the Windrow baseline count, measured live off the
 ## standing default-seed city (never a hard-coded number); CAFÉS — every
 ## in-bounds café venue of the VENUES.md coffee list (the name-token rule)
@@ -2087,19 +2095,42 @@ func _scenario_ames_bread_reach() -> void:
 			bad.append("spawn district %s != campus" % world.district_at(world.spawn_point))
 		if world.ground_height(world.spawn_point) != 0.0:
 			bad.append("spawn not massing-clear: ground %.2f" % world.ground_height(world.spawn_point))
-		## First bread: the nearest GROUND-class spot (flat) — the class a
-		## grounded pigeon eats from.
+		## First bread, LIVE (round 1): the bar is a fact about the seeded
+		## spread, not the spot supply — the real BreadSpawner seeds this
+		## world (shipped target 40) and the nearest living crumb is measured
+		## flat from the spawn. The spot-side measure is context only: the
+		## world's boot ring (`City.boot_bread_spots`, the ground spots
+		## nearest the spawn, seeded first) is what puts a crumb there at
+		## boot — at 40 crumbs across 11k+ spots the seeded shuffle alone
+		## landed the nearest one ~295 m out (the round-1 review's rv1/rv2
+		## measurement).
+		var spawner := BreadSpawner.new()
+		spawner.city = world
+		add_child(spawner)
+		await _wait_frames(2)
 		var first_bread := INF
+		for crumb in spawner.living_crumbs():
+			var cl := world.to_local(crumb.global_position)
+			first_bread = minf(first_bread,
+					Vector2(cl.x - spawn_local.x, cl.z - spawn_local.z).length())
+		var spot_bread := INF
 		for i: int in world.bread_spots.size():
 			if world.bread_spot_kinds[i] != City.BreadKind.GROUND:
 				continue
 			var spot := world.bread_spots[i]
-			first_bread = minf(first_bread,
+			spot_bread = minf(spot_bread,
 					Vector2(spot.x - spawn_local.x, spot.z - spawn_local.z).length())
-		print("SIM DATA %s: spawn=%s first ground bread %.1f m (bar %.0f)" % [
-				S, spawn_local, first_bread, FIRST_BREAD_BAR])
+		var live_count := spawner.living_crumbs().size()
+		print("SIM DATA %s: spawn=%s first LIVE bread %.1f m (bar %.0f); nearest ground spot %.1f m; live crumbs %d (target %d)" % [
+				S, spawn_local, first_bread, FIRST_BREAD_BAR, spot_bread,
+				live_count, spawner.target_count])
 		if first_bread > FIRST_BREAD_BAR:
-			bad.append("first bread %.1f m > %.0f m" % [first_bread, FIRST_BREAD_BAR])
+			bad.append("first LIVE bread %.1f m > %.0f m (boot ring failed)" % [
+					first_bread, FIRST_BREAD_BAR])
+		if live_count > spawner.target_count:
+			bad.append("boot spread %d crumbs > target %d" % [
+					live_count, spawner.target_count])
+		spawner.free()
 		## ... and flyable: a drop over the spawn settles grounded, a flap
 		## returns it to flight (the corridor contract, re-pinned).
 		await _set_up(true, world.spawn_point + Vector3.UP * 3.0, Vector3.ZERO)
@@ -2226,6 +2257,93 @@ func _scenario_ames_bread_reach() -> void:
 	if world.cafe_spots.size() != served:
 		bad.append("world tables %d != served cafés %d" % [world.cafe_spots.size(), served])
 	_check(S, bad.is_empty(), "; ".join(bad))
+	world.queue_free()
+
+
+## (T-176 round 1) The Ames spawner under the SHIPPED knobs, held to its
+## bounds — no Gate 1b check ran the spawner against Ames before, and the
+## un-capped tree grew the live count forever there (measured red-before:
+## populate 40, then +30 per top-up — 70 → 100 → 130 → …, the 6 café TABLE
+## spots never covering the 36-table quota so the shortfall re-spilled into
+## GROUND every respawn_interval). BOOT — the real BreadSpawner seeds this
+## world at target 40: the spread lands at-or-under target with the boot ring
+## holding the nearest living crumb within 60 m of the spawn (AC 1's live
+## half; the table quota can only ever seat the 6 real tables). BOUND —
+## eight direct top-up cycles with nothing eaten change nothing, and a
+## real-timed window of ~10 respawn ticks at a compressed interval stays at
+## target. RECONVERGE — eating three crumbs through the same emit path a
+## grounded pigeon fires, then three more top-up cycles, refills to exactly
+## the target and never past it.
+func _scenario_ames_bread_spawner() -> void:
+	const S := "ames_bread_spawner"
+	const FIRST_BREAD_BAR := 60.0
+	const TOP_UPS := 8
+	const EAT_COUNT := 3
+	const TIMED_TICKS := 10
+	var bad: PackedStringArray = PackedStringArray()
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var spawner := BreadSpawner.new()
+	spawner.city = world
+	add_child(spawner)
+	await _wait_frames(2)
+	var target: int = spawner.target_count
+	var spawn_local := world.to_local(world.spawn_point)
+	## --- BOOT ------------------------------------------------------------------
+	var boot := spawner.living_crumbs().size()
+	if boot > target:
+		bad.append("boot spread %d > target %d" % [boot, target])
+	var first_bread := INF
+	for crumb in spawner.living_crumbs():
+		var cl := world.to_local(crumb.global_position)
+		first_bread = minf(first_bread,
+				Vector2(cl.x - spawn_local.x, cl.z - spawn_local.z).length())
+	if first_bread > FIRST_BREAD_BAR:
+		bad.append("boot nearest crumb %.1f m > %.0f m (boot ring failed)" % [
+				first_bread, FIRST_BREAD_BAR])
+	## --- BOUND across top-up cycles (nothing eaten) ---------------------------
+	for i in TOP_UPS:
+		spawner._top_up()
+		var n := spawner.living_crumbs().size()
+		if n > target:
+			bad.append("top-up %d: %d crumbs > target %d (growth bug)" % [
+					i + 1, n, target])
+			break
+	var bounded := spawner.living_crumbs().size()
+	spawner.respawn_interval = 0.2
+	for i in TIMED_TICKS * 12: ## 0.2 s interval over 2 s of fixed frames → ~10 ticks.
+		await get_tree().physics_frame
+		if i % 12 == 0:
+			var n := spawner.living_crumbs().size()
+			if n > target:
+				bad.append("timed tick %d: %d crumbs > target %d" % [i, n, target])
+				break
+	var timed := spawner.living_crumbs().size()
+	## --- RECONVERGE after eating ----------------------------------------------
+	var eaten_list: Array[BreadCrumb] = []
+	for crumb in spawner.living_crumbs():
+		eaten_list.append(crumb)
+		if eaten_list.size() >= EAT_COUNT:
+			break
+	var after_eat := -1
+	for crumb in eaten_list:
+		crumb.eaten.emit(crumb.restore) ## The same path a grounded pigeon triggers.
+		crumb.free()
+	after_eat = spawner.living_crumbs().size()
+	for i in 3:
+		spawner._top_up()
+	var refilled := spawner.living_crumbs().size()
+	print("SIM DATA %s: boot %d (target %d), nearest %.1f m; %d top-ups → %d; timed window → %d; ate %d → %d; 3 top-ups → %d (target %d)" % [
+			S, boot, target, first_bread, TOP_UPS, bounded, timed, eaten_list.size(),
+			after_eat, refilled, target])
+	if refilled != target:
+		bad.append("refill %d != target %d" % [refilled, target])
+	if after_eat != target - eaten_list.size():
+		bad.append("post-eat count %d != %d" % [after_eat, target - eaten_list.size()])
+	_check(S, bad.is_empty(), "; ".join(bad))
+	spawner.free()
 	world.queue_free()
 
 
