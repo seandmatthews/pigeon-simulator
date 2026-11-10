@@ -179,13 +179,9 @@ func node_stops(node: int) -> bool:
 	return _node_kind[node] == KIND_JUNCTION
 
 
-## True when the node allows a turn waypoint (a junction or a corner) — the
-## car path may swing through one. Pure splices never turn.
-func node_turns(node: int) -> bool:
-	return _node_kind[node] >= KIND_CORNER
-
-
-## The node's kind (KIND_SPLICE / KIND_CORNER / KIND_JUNCTION).
+## The node's kind (KIND_SPLICE / KIND_CORNER / KIND_JUNCTION) — the routes
+## scenario reads it; a turn waypoint can only ever sit at a ≥ KIND_CORNER
+## node (a splice's only non-reverse exit is its straight continuation).
 func node_kind(node: int) -> int:
 	return _node_kind[node]
 
@@ -577,13 +573,6 @@ func run_curb_spots(run_id: int) -> Array:
 	return run.curb_spots
 
 
-## A curb spot's directed run + side — which lane it parks beside (the
-## spawner reads the class/district off the same run). Spot dicts carry
-## "run"; this just re-derives the side's travel direction.
-static func curb_spot_yaw_along(spot: Dictionary) -> float:
-	return float(spot["yaw"])
-
-
 ## --- construction ----------------------------------------------------------
 
 
@@ -735,7 +724,8 @@ func _extract_runs(streets: Array[Dictionary]) -> void:
 					_add_run(run_pts, str(s.get("class", "residential")),
 							str(s.get("name", "")), float(s.get("width_m", 11.0)))
 				run_pts = PackedVector2Array([p])
-	## Directed edges: run r drives as r*2+0 (a→b) and r*2+1 (b→a).
+	## Directed edges: run r drives as r*2+0 (a→b) and r*2+1 (b→a); each is
+	## filed under the node it LEAVES (the dealer walks out-edges).
 	for r in _runs.size():
 		_runs[r].reverse_edge = r * 2 + 1
 		for dir in 2:
@@ -743,8 +733,9 @@ func _extract_runs(streets: Array[Dictionary]) -> void:
 			_edge_run.append(r)
 			_edge_fwd.append(1 if dir == 0 else 0)
 			var end_node := _runs[r].node_b if dir == 0 else _runs[r].node_a
+			var start_node := _runs[r].node_a if dir == 0 else _runs[r].node_b
 			_edge_to.append(end_node)
-			_out_edges[end_node].append(e)
+			_out_edges[start_node].append(e)
 
 
 func _add_run(pts: PackedVector2Array, cls: String, sname: String,
@@ -756,16 +747,19 @@ func _add_run(pts: PackedVector2Array, cls: String, sname: String,
 	run.points = pts
 	run.node_a = int(_weld_nodes[_weld_key(pts[0].x, pts[0].y)])
 	run.node_b = int(_weld_nodes[_weld_key(pts[pts.size() - 1].x, pts[pts.size() - 1].y)])
+	## The AABB seeds from the first point — Godot's default Rect2 sits at the
+	## origin, and a default-seeded expand would drag every midpoint toward
+	## (0, 0) (the wrong-district bug this fixed).
+	run.aabb = Rect2(pts[0], Vector2.ZERO)
 	for i in pts.size() - 1:
 		run.length += pts[i].distance_to(pts[i + 1])
-		run.aabb = run.aabb.expand(pts[i])
-	run.aabb = run.aabb.expand(pts[pts.size() - 1])
+		run.aabb = run.aabb.expand(pts[i + 1])
 	run.mid = run.aabb.get_center()
 	run.lane_off = clampf(width_m * 0.5 - 3.5, LANE_OFF_MIN, width_m * 0.5 - LANE_OFF_MIN)
 	run.cruise = float(CRUISE_BY_CLASS.get(cls, 4.5))
+	run.district = AmesBaker._district_of(run.mid.x, run.mid.y, _context)
 	run.weight = float(SPAWN_WEIGHT_BY_CLASS.get(cls, 0.7)) \
-			* float(SPAWN_WEIGHT_BY_DISTRICT.get(
-					AmesBaker._district_of(run.mid.x, run.mid.y, _context), 1.0))
+			* float(SPAWN_WEIGHT_BY_DISTRICT.get(run.district, 1.0))
 	run.lane_fwd = _offset_polyline(pts, run.lane_off)
 	var rev := pts.duplicate()
 	rev.reverse()
