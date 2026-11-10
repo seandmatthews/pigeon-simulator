@@ -17,6 +17,16 @@ extends Node3D
 ## run out spills its deficit to the next class down — overflow is a safety
 ## net, never a live path at the shipped values (the table supply is the
 ## awning count, ≥ 66 at every probed seed vs the 36-table quota).
+## (T-176 round 1) Ames broke that promise from below: its 6 café TABLE spots
+## can never cover the 36-table quota, and the un-capped spill re-added the
+## 30-crumb shortfall to GROUND on every top-up — +30 crumbs per
+## respawn_interval forever. The fill is now capped by the FLEET deficit
+## (`_fleet_deficit`), so the live total converges to the budget and can never
+## grow past it on either world (the cap is a no-op wherever the classes can
+## actually reach their quotas — the `ames_bread_spawner` Gate 1b row holds
+## the bound across top-up cycles). Since T-176 the spawner also seeds the
+## city's `boot_bread_spots` first (Ames: the ground spots nearest the spawn,
+## so real bread exists within reach at boot; Windrow: empty, byte-green).
 ## T-020's hand-placed elder loaves stay outside the class math: they occupy
 ## no spot, join `_crumbs` as today, and merely shrink the spawned budget they
 ## always shrank.
@@ -123,7 +133,10 @@ func nearest_crumb(pos: Vector3) -> BreadCrumb:
 ## seeded Fisher–Yates shuffle applied PER CLASS in the fixed TABLE, GROUND,
 ## ROOF order, each quota taken off its shuffled class list — a class whose
 ## free spots run out spills its deficit to the next class down, ROOF caps at
-## its quota.
+## its quota. The fills walk the class's FREE indices, so a spot seeded before
+## the class loop (the boot ring below) is never double-placed; on a city with
+## no boot ring the free list is the whole class list and the seeded shuffle
+## consumes the identical stream it always did (Windrow byte-green).
 ## (T-114) One carve-out: hand-placed crumbs carrying a favor delta (the
 ## visitor cars' tailgate crumbs) survive the wipe — they are owned by living
 ## parked cars, whose own populate re-anchored them earlier in the same
@@ -145,13 +158,22 @@ func _populate() -> void:
 	if city == null:
 		return
 	_rng.seed = city.seed_value
+	## The city's boot ring (T-176): guaranteed-at-boot crumbs near the spawn
+	## — `City.boot_bread_spots` names spot indices (Ames: the ground spots
+	## nearest the spawn; Windrow: empty, so nothing changes). Seeded first,
+	## in index order, as ordinary spot crumbs — the class fills below then
+	## split the REMAINING budget under the fleet-deficit cap.
+	for spot_index: int in city.boot_bread_spots:
+		if spot_index >= 0 and spot_index < city.bread_spots.size() \
+				and not _occupied.has(spot_index):
+			_spawn_at(spot_index)
 	var quotas := _quotas()
 	var spill := 0
 	for order_i in FILL_ORDER.size():
 		var class_i: int = FILL_ORDER[order_i]
-		var picks := _class_indices(class_i)
+		var picks := _free_class_indices(class_i)
 		_shuffle(picks)
-		spill = _fill_class(class_i, quotas[order_i], 0, spill, picks, false)
+		spill = _fill_class(class_i, quotas[order_i], spill, picks, false)
 
 
 ## Replaces eaten crumbs — every `respawn_interval`, back to the class quotas:
@@ -160,16 +182,51 @@ func _populate() -> void:
 ## free spots run out spills its deficit to the next class down; ROOF is
 ## terminal and caps at its quota — spill never raises roof-class live crumbs
 ## above it, and a deficit past ROOF is dropped.
+## (T-176 round 1) The fill is capped by the FLEET deficit (the budget's
+## unfilled total, recomputed per class as the pass proceeds), so a class
+## whose quota exceeds its own supply — on Ames: 6 café TABLE spots against
+## the 36-table quota — hands its shortfall DOWN ONCE and never re-derives it
+## every tick. The un-capped tree re-added the 30-crumb table shortfall to
+## GROUND on every top-up (measured live: 40 → 70 → 100 → … exactly
+## 40 + 30·n, the ground class filling toward all 8,682 spots in ~24 min),
+## a path this file's own header promises is "never a live path at the
+## shipped values" — on Windrow the awning supply (≥ 66 at every probed
+## seed) hides the path; the cap makes the promise structural. The live
+## total now converges to the budget (Ames steady state 6 tables + 34
+## ground at the shipped knobs) and `ames_bread_spawner` holds it there
+## across top-up cycles.
 func _top_up() -> void:
 	if city == null:
 		return
 	var quotas := _quotas()
-	var live := _live_per_class()
 	var spill := 0
 	for order_i in FILL_ORDER.size():
 		var class_i: int = FILL_ORDER[order_i]
 		var picks := _free_class_indices(class_i)
-		spill = _fill_class(class_i, quotas[order_i], live[class_i], spill, picks, true)
+		spill = _fill_class(class_i, quotas[order_i], spill, picks, true)
+
+
+## The spawned budget over the CURRENT crumbs: `target_count` minus the live
+## hand-placed crumbs (T-020 elder loaves stay outside the class math; T-114
+## tailgate crumbs join them). The per-class quotas (`_quotas`) and the fleet
+## deficit (`_fleet_deficit`) both derive from it. Crumbs already queued for
+## deletion (a car released its crumb this frame) are dead for accounting —
+## never counted.
+func _budget() -> int:
+	var hand_placed := 0
+	for crumb in _crumbs:
+		if is_instance_valid(crumb) and not crumb.is_queued_for_deletion() \
+				and crumb.spot_index < 0:
+			hand_placed += 1
+	return maxi(target_count - hand_placed, 0)
+
+
+## The whole fleet's unfilled total: budget minus live SPOT crumbs (hand-placed
+## crumbs belong to no class and no quota). The cap every class fill respects —
+## the invariant is the fleet total, never a single class's quota.
+func _fleet_deficit() -> int:
+	var live := _live_per_class()
+	return maxi(_budget() - (live[0] + live[1] + live[2]), 0)
 
 
 ## The per-class spawned quotas over the CURRENT budget: `target_count` minus
@@ -178,16 +235,9 @@ func _top_up() -> void:
 ## round to integers; the ground class takes the exact remainder, so the
 ## quotas always sum to the budget. At the shipped target 40 with no elders
 ## and no visitor cars: 36 tables / 3 ground / 1 roof; in the real main scene
-## the 6 tailgate crumbs hold the budget at 34 → 31 / 2 / 1. Crumbs already
-## queued for deletion (a car released its crumb this frame) are dead for
-## accounting — never counted.
+## the 6 tailgate crumbs hold the budget at 34 → 31 / 2 / 1.
 func _quotas() -> Array[int]:
-	var hand_placed := 0
-	for crumb in _crumbs:
-		if is_instance_valid(crumb) and not crumb.is_queued_for_deletion() \
-				and crumb.spot_index < 0:
-			hand_placed += 1
-	var budget := maxi(target_count - hand_placed, 0)
+	var budget := _budget()
 	var table := roundi(table_share * budget)
 	var roof := roundi(roof_share * budget)
 	return [table, budget - table - roof, roof] ## FILL_ORDER: TABLE, GROUND, ROOF.
@@ -199,11 +249,19 @@ func _quotas() -> Array[int]:
 ## (`_populate` — the shuffle already made the choice), true draws uniformly
 ## through `_rng` (`_top_up`). The terminal ROOF class absorbs no spill (its
 ## `want` is its own quota's deficit only), so anything past it is dropped.
-func _fill_class(class_i: int, quota: int, live: int, spill: int, picks: Array[int],
+## (T-176 round 1) `want` — the class's own quota deficit plus whatever spill
+## reached it — is capped by the FLEET deficit read at fill time, so a class
+## that cannot reach its quota spills its shortfall downward but no fill ever
+## pushes the fleet total past the budget. On Windrow the cap is a no-op at
+## every probed seed (the awning count covers the table quota, so class wants
+## never exceed the fleet deficit except in the fleet-already-short states the
+## old tree over-filled); the first populate's spread is byte-identical there
+## (same shuffled list contents, same RNG consumption).
+func _fill_class(class_i: int, quota: int, spill: int, picks: Array[int],
 		draw_random: bool) -> int:
-	var want := maxi(quota - live, 0)
-	if class_i != TERMINAL_CLASS:
-		want += maxi(spill, 0)
+	var live := _live_per_class()
+	var want := mini(maxi(quota - live[class_i], 0) + maxi(spill, 0),
+			_fleet_deficit())
 	while want > 0 and not picks.is_empty():
 		var pick := _rng.randi_range(0, picks.size() - 1) if draw_random else 0
 		_spawn_at(picks[pick])

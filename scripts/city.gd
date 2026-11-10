@@ -536,6 +536,17 @@ var bread_spots: Array[Vector3] = []
 enum BreadKind { GROUND, TABLE, ROOF }
 var bread_spot_kinds: Array[int] = []
 
+## (T-176) Indices into `bread_spots` the BreadSpawner seeds FIRST on every
+## populate — guaranteed-at-boot crumbs near the spawn, so "first bread
+## reachable" is a fact about the live spread, not just the spot supply
+## (AmesWorld files its spawn's nearest ground spots here; at 40 crumbs
+## across 11,000+ Ames spots the seeded shuffle alone would land the nearest
+## one hundreds of metres out). Empty on the Windrow generator — every
+## populate behaves byte-as-today there — and re-seeded by every populate,
+## so the guarantee renews across restarts; eaten boot crumbs respawn
+## wherever the class quotas put them, exactly like any other crumb.
+var boot_bread_spots: Array[int] = []
+
 ## Seated spots (city-local) for the park elders (T-020): one transform per
 ## plaza-ring bench — position on the seat line, yaw = the bench's own. Purely
 ## derived from the layout — no RNG of its own — so it is deterministic per
