@@ -72,6 +72,7 @@
 		"lawn_tris": 0,
 		"massing": 5,
 		"occluders": 5,
+		"placeholders": 0,
 		"ribbons": 24,
 		"shore_quads": 0,
 		"tie_quads": 0,
@@ -897,6 +898,7 @@
 	"lawn_tris": [],
 	"massing": [
 		{
+			"a": true,
 			"c": [
 				0.867,
 				0.847,
@@ -916,6 +918,7 @@
 			]
 		},
 		{
+			"a": true,
 			"c": [
 				0.769,
 				0.745,
@@ -935,6 +938,7 @@
 			]
 		},
 		{
+			"a": true,
 			"c": [
 				0.867,
 				0.847,
@@ -954,6 +958,7 @@
 			]
 		},
 		{
+			"a": true,
 			"c": [
 				0.769,
 				0.745,
@@ -973,6 +978,7 @@
 			]
 		},
 		{
+			"a": false,
 			"c": [
 				0.894,
 				0.863,
@@ -1044,6 +1050,7 @@
 			-421.38
 		]
 	],
+	"placeholders": [],
 	"ribbons": [
 		{
 			"q": [
@@ -1430,7 +1437,7 @@
 			]
 		}
 	],
-	"schema": "ames_chunks/v2",
+	"schema": "ames_chunks/v3",
 	"shore_quads": [],
 	"tie_quads": [],
 	"tile": {

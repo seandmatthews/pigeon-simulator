@@ -355,7 +355,7 @@ scan (T-170 was max; no workflows in flight).
 | T-172 | [Chunk baker](T-172-ames-chunk-baker.md) | R1 The Map | T-171 | done |
 | T-173 | [World renderer](T-173-ames-world-renderer.md) | R1 The Map | T-172 | done |
 | T-174 | [Skeleton visuals](T-174-ames-skeleton-visuals.md) | R1 The Map | T-173 | done |
-| T-175 | [Landmark placeholders](T-175-ames-landmark-placeholders.md) | R1 The Map | T-173 | proposed |
+| T-175 | [Landmark placeholders](T-175-ames-landmark-placeholders.md) | R1 The Map | T-173 | done |
 | T-176 | [Survival rebase](T-176-ames-survival-rebase.md) | R1 The Map | T-173, T-175 | proposed |
 | T-177 | [R1 cutover](T-177-ames-r1-cutover.md) | R1 The Map | T-174..T-176 | proposed |
 | T-178 | [Traffic graph](T-178-ames-traffic-graph.md) | R2 The Life | T-177 | proposed |

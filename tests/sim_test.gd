@@ -177,6 +177,8 @@ func _run_scenarios() -> void:
 	await _scenario_ames_world_render_budget() ## T-173 — the resident bake inside the draw/memory budget.
 	await _scenario_ames_world_api_seam() ## T-173 — the city API over chunk data; the corridor is flyable.
 	await _scenario_ames_skeleton_palette() ## T-174 — the baked dressing: pinned per-district ground colors, lane dashes, shore band, tie stripe.
+	await _scenario_ames_placeholder_dims() ## T-175 — the placeholders at their survey dims: authored slots, venue fixups, hero AABBs, the ranking's water/green/rail landmarks.
+	await _scenario_ames_placeholder_landable() ## T-175 — the campanile cap accepts the landing state; shaft/bowl colliders probe; the cap crumb rides ANCHOR_CRUMB_LIFT.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -1017,11 +1019,18 @@ func _scenario_ames_world_render_budget() -> void:
 	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
 	var totals: Dictionary = manifest.get("totals", {})
 	var chunk_count := (manifest.get("chunks", []) as Array).size()
-	var expected_instances := int(totals.get("massing", 0)) + int(totals.get("ribbons", 0)) \
+	## (T-175) the placeholders joined the resident count (the renderer draws
+	## every entry) while the heroes' superseded bbox boxes LEFT it — the
+	## manifest's `heroes` ids are skipped by the massing MultiMesh, so the
+	## honest expectation is massing − heroes + placeholders + the flats.
+	var hero_count := (manifest.get("heroes", []) as Array).size()
+	var expected_instances := int(totals.get("massing", 0)) - hero_count \
+			+ int(totals.get("ribbons", 0)) \
 			+ int(totals.get("lane_quads", 0)) + int(totals.get("shore_quads", 0)) \
 			+ int(totals.get("creek_quads", 0)) + int(totals.get("ballast_quads", 0)) \
 			+ int(totals.get("tie_quads", 0)) + int(totals.get("ground_quads", 0)) \
-			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0))
+			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
+			+ int(totals.get("placeholders", 0))
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
 	if int(m.instances) != expected_instances:
@@ -1187,9 +1196,19 @@ func _scenario_ames_world_api_seam() -> void:
 	## inside the NEIGHBOR tile.
 	var crossing: Dictionary = {} ## {box, overhang, probe} — the worst overhang.
 	var crossing_count := 0
+	## (T-175) the hero buildings' superseded bbox massing no longer answers
+	## the ground query (the silhouettes file their own true tops), so the
+	## crossing-box scan skips them and pins the worst crossing box of the
+	## massing that still serves the seam. The worst hero (the bowl's 77 m
+	## z-overhang) would otherwise shadow every real candidate.
+	var seam_hero_ids: Dictionary = {}
+	for hero_id: Variant in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("heroes", []):
+		seam_hero_ids[str(hero_id)] = true
 	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
 		var doc_c: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
 		for b: Dictionary in doc_c.get("massing", []):
+			if seam_hero_ids.has(str(b["id"])):
+				continue
 			var cx := float(b["p"][0])
 			var cz := float(b["p"][2])
 			var hw := float(b["s"][0]) * 0.5
@@ -1611,6 +1630,391 @@ func _point_in_ring(p: Vector2, ring: PackedVector2Array) -> bool:
 			if p.x < x_at:
 				inside = not inside
 	return inside
+
+
+## --- scenarios (T-175 Ames landmark placeholders) --------------------------
+
+
+## (T-175) The landmark placeholders are load-bearing at their SURVEY dims —
+## pure data over the committed chunks (beside `ames_bake_census`, no rig).
+## Four arms, every expected value recomputed INDEPENDENTLY here (the
+## no-self-test rule — survey literals, never baker consts):
+## 1. AUTHORED SLOTS: every one of the pack's 512 authored buildings rides a
+##    massing entry flagged `a` (the collision-bearing slot heroes replace in
+##    R3), and the flagged id SET equals the pack's authored id set exactly —
+##    ids stable across rebakes by identity with the pack, not by trust.
+## 2. VENUE FIXUPS: the placed venue POIs whose address anchor no authored
+##    bbox covers — IN-CORE venues only, and never a venue the pack marks
+##    a PROP (the `note` marker; the round-1 landing boxed the Superdog
+##    hot-dog CART into a storefront standing square in Welch Ave, 206 m²
+##    of road overlap, and the four out-of-core venues into lone colliders
+##    on empty plate that grew the world bounds) — each carries exactly one
+##    fixup box within 0.05 m of the POI position (12 at landing), the
+##    excluded five are pinned ABSENT, and no fixup box overlaps any
+##    street ribbon quad (strict SAT road-clearance arm).
+## 3. HERO DIMS within ±2 m of the survey's settled numbers
+##    (verification/VERIFICATION.md §5): campanile 33.5 m tall on the
+##    6.8 × 6.7 plinth (§1.1), Marston 51.2 m (§1.4), Jack Trice bowl ring
+##    183 × 208 m (V-09; the ring parts only — the north berms are the
+##    V-11 hillside, checked to reach past the north rim), Hilton drum
+##    138 × 105 (§1.3), MU 110 × 110 (census §3), Parks 95 × 123; the depot,
+##    bandshell, both municipal bulbs and the elevator cluster pinned
+##    PRESENT at their recorded positions (tanks/elevators: survey-anchored
+##    approximations, heights UNVERIFIED per V-30 — dims not asserted).
+## 4. THE RANKING'S NON-BOX LANDMARKS: Lake LaVerne's water flat at
+##    236 × 122 m (±2) with the MU block 13.7 m from the east shore (V-08
+##    adjacency, ≤ 20 m) and the campanile ~264 m off the lake center
+##    (survey §5, ±5), Central Campus lawn ≥ 7.6 ha within 300 m of its POI
+##    (V-25: 85,488 m² pack polygon), ballast under the UP-main-line POI,
+##    and the three out-of-core POIs (Reiman/Ada Hayden/airport) carrying
+##    in_core=false — fly-out targets per survey §1.9, no in-map duty.
+func _scenario_ames_placeholder_dims() -> void:
+	const S := "ames_placeholder_dims"
+	const DIM_TOL := 2.0
+	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	if manifest.is_empty():
+		_check(S, false, "no committed bake at %s" % AMES_CHUNKS_DIR)
+		return
+	var bad: PackedStringArray = PackedStringArray()
+	var hero_roles: Dictionary = {} ## hero id -> role -> [lo, hi] accumulator.
+	var fixups: Dictionary = {} ## venue id -> placeholder p Array.
+	var slot_ids: Dictionary = {}
+	var slot_count := 0
+	var water_los := Vector3(INF, INF, INF)
+	var water_his := Vector3(-INF, -INF, -INF)
+	var lawn_area := 0.0
+	var nearest_ballast := INF
+	for entry: Dictionary in manifest.get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for ph: Dictionary in doc.get("placeholders", []):
+			var p: Array = ph["p"]
+			var s: Array = ph["s"]
+			if str(ph.get("part", "")) == "fixup":
+				fixups[str(ph.get("id", ""))] = p
+				continue
+			var lo := Vector3(float(p[0]) - float(s[0]) * 0.5,
+					float(p[1]) - float(s[1]) * 0.5, float(p[2]) - float(s[2]) * 0.5)
+			var hi := Vector3(float(p[0]) + float(s[0]) * 0.5,
+					float(p[1]) + float(s[1]) * 0.5, float(p[2]) + float(s[2]) * 0.5)
+			var roles: Dictionary = hero_roles.get(str(ph.get("id", "")), {})
+			var acc: Array = roles.get(str(ph.get("part", "")),
+					[Vector3(INF, INF, INF), Vector3(-INF, -INF, -INF)])
+			acc[0] = (acc[0] as Vector3).min(lo)
+			acc[1] = (acc[1] as Vector3).max(hi)
+			roles[str(ph.get("part", ""))] = acc
+			hero_roles[str(ph.get("id", ""))] = roles
+		for m: Dictionary in doc.get("massing", []):
+			if m.get("a", false):
+				slot_ids[str(m.get("id", ""))] = true
+				slot_count += 1
+		for t: Dictionary in doc.get("water_tris", []):
+			var v: Array = t["v"]
+			for k: int in 3:
+				water_los = water_los.min(Vector3(float(v[k * 3]),
+						float(v[k * 3 + 1]), float(v[k * 3 + 2])))
+				water_his = water_his.max(Vector3(float(v[k * 3]),
+						float(v[k * 3 + 1]), float(v[k * 3 + 2])))
+		for lt: Dictionary in doc.get("lawn_tris", []):
+			var lv: Array = lt["v"]
+			var la := Vector2(float(lv[0]), float(lv[2]))
+			var lb := Vector2(float(lv[3]), float(lv[5]))
+			var lc := Vector2(float(lv[6]), float(lv[8]))
+			var centroid := (la + lb + lc) / 3.0
+			if centroid.distance_to(Vector2(327.45, -411.04)) > 300.0:
+				continue ## Central Campus POI's neighborhood only.
+			lawn_area += absf((lb.x - la.x) * (lc.y - la.y)
+					- (lc.x - la.x) * (lb.y - la.y)) * 0.5
+		for q: Dictionary in doc.get("ballast_quads", []):
+			var bq: Array = q["q"]
+			var bmid := Vector2((float(bq[0]) + float(bq[6])) * 0.5,
+					(float(bq[2]) + float(bq[8])) * 0.5)
+			nearest_ballast = minf(nearest_ballast,
+					bmid.distance_to(Vector2(3285.95, -214.37)))
+
+	# --- 1. authored slots: identity with the pack -------------------------
+	var want_slots: Dictionary = {}
+	for b: Dictionary in AmesDataPack.buildings():
+		if str(b.get("class", "")) == "authored":
+			want_slots[str(b.get("id", ""))] = true
+	if slot_count != want_slots.size():
+		bad.append("authored slots %d != pack authored %d" % [slot_count, want_slots.size()])
+	for sid: String in want_slots:
+		if not slot_ids.has(sid):
+			bad.append("authored slot missing: %s" % sid)
+
+	# --- 2. venue fixups: the uncovered-partition recompute ----------------
+	# (Round 1) the rule has the pack's OWN exclusions baked in: a fixup
+	# goes to placed IN-CORE venues only (the out-of-core four are boundary
+	# decisions — a box there is a lone collider on empty plate that grows
+	# the world bounds the ground plate and off-world guard derive from),
+	# and never to a venue the pack marks a PROP (`note` carries "prop" —
+	# the Superdog hot-dog CART stood as a 12×8 storefront square in Welch
+	# Ave, 206 m² of road overlap). The negative arms pin those exclusions
+	# and a road-clearance arm re-proves every baked fixup clear of every
+	# street ribbon quad (strict SAT, the reviewer's own defect class).
+	var want_fixups: Dictionary = {}
+	for poi: Dictionary in AmesDataPack.pois():
+		if str(poi.get("kind", "")) != "venue" or not poi.get("placed", false):
+			continue
+		if not poi.get("in_core", false) or str(poi.get("note", "")).contains("prop"):
+			continue
+		var pos: Array = poi["position"]
+		var covered := false
+		for b: Dictionary in AmesDataPack.buildings():
+			if str(b.get("class", "")) != "authored":
+				continue
+			var c: Array = b["centroid"]
+			var bb: Array = b["bbox_m"]
+			if absf(float(pos[0]) - float(c[0])) <= float(bb[0]) * 0.5 \
+					and absf(float(pos[1]) - float(c[1])) <= float(bb[1]) * 0.5:
+				covered = true
+				break
+		if not covered:
+			want_fixups[str(poi.get("id", ""))] = pos
+	if want_fixups.is_empty():
+		bad.append("venue fixup recompute found none (vacuous arm)")
+	if fixups.size() != want_fixups.size():
+		bad.append("fixups %d != uncovered in-core venues %d" % [fixups.size(), want_fixups.size()])
+	for vid: String in want_fixups:
+		if not fixups.has(vid):
+			bad.append("no fixup for venue %s" % vid)
+		else:
+			var fp: Array = fixups[vid]
+			var wp: Array = want_fixups[vid]
+			if Vector2(float(fp[0]), float(fp[2])).distance_to(
+					Vector2(float(wp[0]), float(wp[1]))) > 0.05:
+				bad.append("fixup %s off its POI position" % vid)
+	for vid: String in fixups:
+		if not want_fixups.has(vid):
+			bad.append("stray fixup %s (prop or out-of-core venue)" % vid)
+	# negative arms: the pack's own exclusions must hold in the bake.
+	for excluded: String in ["superdog", "the_cafe", "provisions_lot_f",
+			"szechuan_house", "hickory_park"]:
+		if fixups.has(excluded):
+			bad.append("excluded venue %s carries a fixup box" % excluded)
+	# road clearance: no fixup box (12 × 10 xz at its center) overlaps any
+	# street ribbon quad — strict SAT on the baked output, coded through the
+	# scenario's own `_flat_quads_overlap`.
+	var street_quads: Array = []
+	for entry: Dictionary in manifest.get("chunks", []):
+		var doc_r: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for q: Dictionary in doc_r.get("ribbons", []):
+			street_quads.append(q["q"])
+	for vid: String in fixups:
+		var fp: Array = fixups[vid]
+		var box := [
+			Vector3(float(fp[0]) - 6.0, 0.0, float(fp[2]) - 5.0),
+			Vector3(float(fp[0]) + 6.0, 0.0, float(fp[2]) - 5.0),
+			Vector3(float(fp[0]) + 6.0, 0.0, float(fp[2]) + 5.0),
+			Vector3(float(fp[0]) - 6.0, 0.0, float(fp[2]) + 5.0),
+		]
+		var box_flat: Array = []
+		for corner: Vector3 in box:
+			box_flat.append_array([corner.x, 0.0, corner.z])
+		for sq: Array in street_quads:
+			if _flat_quads_overlap(box_flat, sq):
+				bad.append("fixup %s overlaps a street ribbon (road clearance)" % vid)
+				break
+
+	# --- 3. hero dims vs the survey literals -------------------------------
+	var want_heroes := {
+		"way/183041212": {"xz": Vector2(6.8, 6.7), "h": 33.5},
+		"way/861201396": {"xz": Vector2(7.3, 7.3), "h": 51.2},
+		"way/613735866": {"xz": Vector2(183.0, 208.0), "roles": ["bowl"]},
+		"way/180651868": {"xz": Vector2(138.0, 105.0)},
+		"way/183224150": {"xz": Vector2(110.0, 110.0)},
+		"way/33725897": {"xz": Vector2(95.0, 123.0)},
+	}
+	for hid: String in want_heroes:
+		if not hero_roles.has(hid):
+			bad.append("hero %s has no baked parts" % hid)
+			continue
+		var roles: Dictionary = hero_roles[hid]
+		var which: Array = want_heroes[hid].get("roles", roles.keys())
+		var lo := Vector3(INF, INF, INF)
+		var hi := Vector3(-INF, -INF, -INF)
+		for role: String in which:
+			if not roles.has(role):
+				bad.append("hero %s missing role %s" % [hid, role])
+				continue
+			var acc: Array = roles[role]
+			lo = lo.min(acc[0])
+			hi = hi.max(acc[1])
+		var span := hi - lo
+		var want_xz: Vector2 = want_heroes[hid]["xz"]
+		if absf(span.x - want_xz.x) > DIM_TOL or absf(span.z - want_xz.y) > DIM_TOL:
+			bad.append("hero %s xz %.1fx%.1f != survey %.1fx%.1f (+-%.0f)" % [
+					hid, span.x, span.z, want_xz.x, want_xz.y, DIM_TOL])
+		if want_heroes[hid].has("h") and absf(hi.y - float(want_heroes[hid]["h"])) > DIM_TOL:
+			bad.append("hero %s top %.1f != survey %.1f (+-%.0f)" % [
+					hid, hi.y, float(want_heroes[hid]["h"]), DIM_TOL])
+	# the V-11 hillside: berms REACH PAST the bowl's north rim (z decreases
+	# northward — the berm union's north edge sits beyond the ring's north
+	# edge), inside the bowl's x span.
+	if hero_roles.has("way/613735866") and hero_roles["way/613735866"].has("bowl") \
+			and hero_roles["way/613735866"].has("berm"):
+		var bowl: Array = hero_roles["way/613735866"]["bowl"]
+		var berms: Array = hero_roles["way/613735866"]["berm"]
+		if (berms[0] as Vector3).z >= (bowl[0] as Vector3).z:
+			bad.append("stadium berms do not reach past the north rim (%.1f >= %.1f)" % [
+					(berms[0] as Vector3).z, (bowl[0] as Vector3).z])
+	else:
+		bad.append("stadium bowl/berm roles missing")
+	# presence pins for the non-building heroes (dims UNVERIFIED per V-30 —
+	# positions recorded as survey-anchored approximations, literals here):
+	for pin: Array in [["downtown_bandshell", Vector2(3353.52, -412.08)],
+			["city_water_tank_north", Vector2(2600.0, -1280.0)],
+			["city_water_tank_east", Vector2(3480.0, 620.0)],
+			["grain_elevators", Vector2(3420.0, -20.0)],
+			["way/260524827", Vector2(2652.99, -184.99)]]:
+		if not hero_roles.has(str(pin[0])):
+			bad.append("hero %s missing from the bake" % pin[0])
+			continue
+		var plo := Vector3(INF, INF, INF)
+		var phi := Vector3(-INF, -INF, -INF)
+		for role: Array in hero_roles[str(pin[0])].values():
+			plo = plo.min(role[0])
+			phi = phi.max(role[1])
+		var center := (plo + phi) * 0.5
+		if Vector2(center.x, center.z).distance_to(pin[1]) > 15.0:
+			bad.append("hero %s at (%.1f, %.1f) off its pinned position %s" % [
+					pin[0], center.x, center.z, pin[1]])
+
+	# --- 4. the ranking's non-box landmarks --------------------------------
+	var lake_span := water_his - water_los
+	if absf(lake_span.x - 236.0) > DIM_TOL or absf(lake_span.z - 122.0) > DIM_TOL:
+		bad.append("lake water %.1fx%.1f != survey 236x122 (+-%.0f)" % [
+				lake_span.x, lake_span.z, DIM_TOL])
+	if hero_roles.has("way/183224150") and hero_roles["way/183224150"].has("block"):
+		var mu_acc: Array = hero_roles["way/183224150"]["block"]
+		var gap := (mu_acc[0] as Vector3).x - water_his.x
+		if gap > 20.0 or gap < 0.0:
+			bad.append("MU west face %.1f m from the lake east shore (V-08 adjacency, <= 20)" % gap)
+	else:
+		bad.append("MU block role missing (lake adjacency arm vacuous)")
+	var lake_center := Vector2((water_los.x + water_his.x) * 0.5,
+			(water_los.z + water_his.z) * 0.5)
+	var cam_to_lake := lake_center.distance_to(Vector2(340.17, -294.43))
+	if absf(cam_to_lake - 264.0) > 5.0:
+		bad.append("campanile %.1f m from the lake center (survey ~264 ±5)" % cam_to_lake)
+	if lawn_area < 76000.0:
+		bad.append("Central Campus lawn %.0f m2 within 300 m of the POI (V-25: ~8.5 ha)" % lawn_area)
+	if nearest_ballast > 15.0:
+		bad.append("no ballast within %.1f m of the UP-main-line POI" % nearest_ballast)
+	for poi: Dictionary in AmesDataPack.pois():
+		var pid := str(poi.get("id", ""))
+		if pid in ["reiman_gardens", "ada_hayden", "ames_airport"] \
+				and poi.get("in_core", true):
+			bad.append("%s claims in_core — the fly-out contract moved" % pid)
+
+	_check(S, bad.is_empty(), "; ".join(bad))
+
+
+## (T-175) The landable campanile cap — the anchor scenario pattern
+## (`city_roof_landable` / the api_seam flyable leg), re-targeted: the real
+## rig pigeon drops onto the baked cap's top face, settles GROUNDED at the
+## 33.5 m pad, one flap returns it to flight; layer-1 placeholder colliders
+## provably stand in the campanile shaft and the stadium bowl rim (ray
+## probes through the real physics space, hits at the survey geometry); and
+## the cap keeps the crumb rule — one ROOF spot at the cap top +
+## `ANCHOR_CRUMB_LIFT` (the city.gd anchor-cap convention).
+func _scenario_ames_placeholder_landable() -> void:
+	const S := "ames_placeholder_landable"
+	var bad: PackedStringArray = PackedStringArray()
+	## The cap + shaft entries, read independently from the committed chunks.
+	var cap: Dictionary = {}
+	var cam_center := Vector2.ZERO
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for ph: Dictionary in doc.get("placeholders", []):
+			if str(ph.get("id", "")) != "way/183041212":
+				continue
+			if str(ph.get("part", "")) == "cap":
+				cap = ph
+			elif str(ph.get("part", "")) == "shaft":
+				cam_center = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+	if cap.is_empty() or cam_center == Vector2.ZERO:
+		_check(S, false, "campanile cap/shaft not found in the committed bake")
+		return
+	var cap_top := float(cap["p"][1]) + float(cap["s"][1]) * 0.5
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	## Collider probes through the REAL physics space: horizontal rays into
+	## the shaft's west face (mid-shaft, y 15) and the bowl's south rim
+	## (y 10, under the 14 m ring) must hit at the survey geometry.
+	var space := get_world_3d().direct_space_state
+	var shaft_from := world.to_global(Vector3(cam_center.x - 20.0, 15.0, cam_center.y))
+	var shaft_to := world.to_global(Vector3(cam_center.x, 15.0, cam_center.y))
+	var shaft_ray := PhysicsRayQueryParameters3D.create(shaft_from, shaft_to)
+	shaft_ray.collision_mask = 1
+	var shaft_hit := space.intersect_ray(shaft_ray)
+	if shaft_hit.is_empty():
+		bad.append("shaft ray missed — no collider in the campanile shaft")
+	else:
+		var shaft_face := cam_center.x - 2.45 ## The 4.9 m shaft's west face.
+		var hx: float = world.to_local(shaft_hit["position"]).x
+		if absf(hx - shaft_face) > 0.3:
+			bad.append("shaft ray hit x %.2f != face %.2f (+-0.3)" % [hx, shaft_face])
+	var bowl_c := Vector2(1192.29, 997.23) ## The stadium POI (survey literal).
+	## (z grows southward. The ray runs at x −60 off the bowl axis — clear of
+	## the Sukup Endzone slot (x 1158.6..1228) that honestly closes the south
+	## end — starting past the south rim, traveling north into the bowl. The
+	## survey ellipse 183 × 208 puts the outer ring at that offset
+	## 104·√(1−(60/91.5)²) ≈ 78.6 m off center plus the ring's outward half
+	## width → the hit lands ≈ 1088.8, band ±4.)
+	var rim_from := world.to_global(Vector3(bowl_c.x - 60.0, 10.0, bowl_c.y + 140.0))
+	var rim_to := world.to_global(Vector3(bowl_c.x - 60.0, 10.0, bowl_c.y))
+	var rim_ray := PhysicsRayQueryParameters3D.create(rim_from, rim_to)
+	rim_ray.collision_mask = 1
+	var rim_hit := space.intersect_ray(rim_ray)
+	if rim_hit.is_empty():
+		bad.append("bowl rim ray missed — no collider in the south rim")
+	else:
+		var rim_z: float = world.to_local(rim_hit["position"]).z
+		if rim_z < bowl_c.y + 87.55 or rim_z > bowl_c.y + 95.55:
+			bad.append("bowl rim ray hit z %.2f outside the south ring at x-60 (want %.1f ±4)" % [
+					rim_z, bowl_c.y + 91.55])
+	## The landing state: a drop from 3 m over the cap settles grounded on
+	## the pad (the pigeon stands at its own 0.3 half-height), then one
+	## grounded flap returns it to flight.
+	var cap_center := world.to_global(Vector3(float(cap["p"][0]), cap_top, float(cap["p"][2])))
+	await _set_up(true, cap_center + Vector3.UP * 3.0, Vector3.ZERO)
+	await _await_grounded(150)
+	var grounded_ok := _player.is_grounded \
+			and _player.position.y > cap_top + 0.15 \
+			and _player.position.y < cap_top + 0.45 \
+			and _player.velocity.is_finite()
+	if not grounded_ok:
+		bad.append("cap landing failed: grounded=%s y=%.2f (want %.2f +-0.15)" % [
+				_player.is_grounded, _player.position.y, cap_top + 0.3])
+	var peak_y := _player.position.y
+	await _tap("flap")
+	for _i in 60:
+		await get_tree().physics_frame
+		peak_y = maxf(peak_y, _player.position.y)
+		if not _player.is_grounded and peak_y > cap_top + 0.8:
+			break
+	var flyable_ok := not _player.is_grounded and peak_y > cap_top + 0.8 \
+			and _player.velocity.is_finite()
+	if not flyable_ok:
+		bad.append("cap takeoff failed: peak %.2f (want > %.2f)" % [peak_y, cap_top + 0.8])
+	## The crumb rule: one ROOF spot rides the cap at the anchor lift.
+	var want_crumb := Vector3(float(cap["p"][0]), cap_top + City.ANCHOR_CRUMB_LIFT,
+			float(cap["p"][2]))
+	var crumb_ok := false
+	for i: int in world.bread_spots.size():
+		if world.bread_spots[i].distance_to(want_crumb) < 0.005 \
+				and i < world.bread_spot_kinds.size() \
+				and world.bread_spot_kinds[i] == City.BreadKind.ROOF:
+			crumb_ok = true
+			break
+	if not crumb_ok:
+		bad.append("no cap crumb at %s (world.bread_spots %d)" % [want_crumb,
+				world.bread_spots.size()])
+	_check(S, bad.is_empty(), "; ".join(bad))
+	world.queue_free()
 
 
 ## --- scenarios (T-001 flight model) --------------------------------------
