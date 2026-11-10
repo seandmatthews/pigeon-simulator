@@ -131,3 +131,72 @@ its nearest street — it rides its flagged NODE fact while the other 8 ride
 run facts; and one Grand Avenue way doubles back 180° (a hairpin) — the
 mitered lane keeps the incoming side there, the asphalt check still guards
 it, and the right-hand law is asserted everywhere else.
+
+## Round 1 (review fixes — the fleet was staging at the wrong place and fusing)
+
+The reviewer's boot capture caught both defects; three root causes, all
+fixed in this change-set:
+
+1. **The fleet staged around the pack origin, not the pigeon.** Main's boot
+   populated the spawners BEFORE `_finish_boot` placed the pigeon (both the
+   stepped phases and the sync `_populate_staged_spawners`), so every band
+   spawner anchored on the scene-default transform: 26 cars 2–91 m from the
+   origin, 99–382 m (median ~305 m) from the pigeon the boot was about to
+   place — ~30 s of recycle scans to pull in. Fix: the corridor wiring left
+   `_finish_boot` as a new `_place_pigeon_on_corridor()` (respawn point,
+   home guard, `reset_flight`) that BOTH boot paths call ahead of the
+   spawner batches; `_finish_boot` re-runs it idempotently. The pinned
+   `boot_trace` phase list is untouched (the placement is not a phase).
+2. **The weighted band draw never engaged near the pigeon.** The shipped
+   [30, 70] m band was Windrow-grid tuning: the resident corridor has NO
+   street within 70 m (nearest run: Union Drive, 94.8 m — measured), so
+   every placement rode the nearest-runs fallback. Fix: the CarSpawner's
+   `_init` overrides (the T-054 `_init`-override precedent) set the Ames
+   band to **[60, 140] m** — 5 runs / 1.04 km in band at the corridor — and
+   raise the recycle radius to **160 m** so the band sits inside it. The
+   fleet now stages 122–159 m from the pigeon at boot (measured), inside
+   the recycle radius from frame one.
+3. **Deterministic fused-car piles (exact-coincident positions for
+   minutes).** Root cause chain: `_probe_clear` grouped by the deal's
+   FIRST-edge run midpoint while placements rebase onto later legs (cars on
+   the same lane through different first edges never saw each other); the
+   recycle-radius guard could COLLAPSE the candidate space to a single
+   point already occupied (the review's 5-car coincidence: five deals, one
+   surviving in-radius candidate each); and the final fallback staged at
+   `lane0[0]` unconditioned. Fixes: `_probe_clear` is FLEET-WIDE (a
+   follow-gap clearance is a lane fact, not a block one); the placement
+   walks TWO passes (radius-guarded, then ungated — beyond-band staging is
+   the honest overflow the 0.5 s recycle scan re-bands) with every fallback
+   rung requiring the follow-gap clearance (`spread_clear` → `clearest` →
+   the saturation rung taking the globally largest clearance — never an
+   exact coincidence). Measured after the fix: minimum pairwise car
+   distance 5.61 m at the worst anchor (was 0.00), 6.16 m at the spawn.
+4. **The gate was blind to fusions**: the drive arm sampled only cars at
+   hspeed ≥ 1 m/s. Now EVERY traffic car at EVERY sample (no speed filter)
+   must keep ≥ 1.5 m flat from every other (queues hold 5.6 m, passes
+   2.6 m; the review's coincidences sat at exactly 0.0) — pinned in
+   `ames_traffic_routes`.
+
+Density pins re-measured on the new band: primary 16 / 27 (cruise /
+low-hover), residential 7 / 4, arterial-per-seed min 12, downtown anchor
+9/4/11 of 14 strictly downtown (the band's periphery rides Main-adjacent
+fabric the strict 90 m district rule does not claim; the downtown tier
+itself is the value-locked 2.5× weight).
+
+4. **Cars were never solid to each other** — the deepest fused-pile layer,
+   found by a deterministic 120 s harness probe (`FUSE at frame 1282: two
+   cars mid-pass, A hspeed 3.5, B stalled at 0.0`): the car's
+   `collision_mask = 1` (world only) meant NOTHING physically prevented
+   overlap, and the T-166 pass's in-pass proximity brake deliberately
+   exempts the pass's own target (round-1 soak: including it pinned 13/14
+   cars) — so a pass whose arc crossed its blocker drove THROUGH it
+   (mask = no contact) and the pair settled at near-coincident rest.
+   Fix: `car.tscn` mask **1 → 9** (world + vehicle) — cars are solid to
+   each other, the four-way-stop protocol's own premise. The pass
+   machinery's wedges now slide along the blocker's flank and the stall
+   escape re-arms them; healthy queues (5.6 m) and healthy passes (2.3 m
+   lateral) never touch. Verified: the 120 s probe runs clean (was fused
+   at 21.4 s), and a live pilot session's 6,081 state samples over ~100 s
+   hold a worst pairwise car distance of **2.444 m** — zero frames below
+   the 1.5 m pin (the round-1 capture showed exact 0.000 piles persisting
+   minutes).

@@ -121,12 +121,23 @@ func _ready() -> void:
 
 func _init() -> void:
 	# Beyond this flat distance (m) a car recycles to the player's area. Must
-	# clear the WORST legitimate route leg distance — a car seeded at
-	# spawn_max_dist drives legs ~32 m toward or away — or traffic gets yanked
-	# mid-route and dropped on top of other cars. (A GDScript subclass cannot
-	# redeclare the inherited export, so the tourist-default 80.0 becomes an
-	# `_init` override — T-054.)
-	recycle_radius = 100.0
+	# clear the spawn band's own reach (a car staged at spawn_max_dist must not
+	# recycle on its first scan) and stay wide enough that a leg's drive-away
+	# doesn't yank mid-route constantly. (A GDScript subclass cannot redeclare
+	# the inherited export, so the tourist-default 80.0 becomes an `_init`
+	# override — T-054; T-178 round 1 raises it for the Ames street reality:
+	# the band below reaches 140 m, and the old 100 m radius would thrash it.)
+	recycle_radius = 160.0
+	# (T-178 round 1) The spawn band over REAL streets: the shipped [30, 70] m
+	# was tuned for the Windrow block grid (a block every 32 m) — the resident
+	# Ames corridor has NO street within 70 m of the spawn (nearest run:
+	# Union Drive at 94.8 m, the band-probe measurement), so the weighted band
+	# draw never engaged near the pigeon and every placement rode the
+	# nearest-runs fallback. [60, 140] catches the corridor's Union Drive /
+	# Morrill Road / Wallace Road fabric while staying inside the raised
+	# recycle radius; far-from-traffic anchors still fall back to nearest runs.
+	spawn_min_dist = 60.0
+	spawn_max_dist = 140.0
 
 
 ## Living cars — tests and the autoplay pilot read these.
@@ -776,15 +787,38 @@ func _band_blocks_light_first(blocks: Array[Vector3]) -> Array[Vector3]:
 ## True when `probe` sits at least `mover.follow_gap` away (flat, center to
 ## center) from every traffic car assigned to the `block_global` block — the
 ## car being placed excepted: its old body teleports away with the rejoin.
+## True when `probe` sits at least `mover.follow_gap` away (flat, center to
+## center) from every OTHER living traffic car — FLEET-WIDE since the T-178
+## round-1 review: the old block-key grouping (`car.block_center ==
+## block_global`) let two cars dealt onto the same lane through different
+## first edges never see each other, and they staged exactly coincident —
+## fused bodies that the follow-gap then pins forever (each is the other's
+## front-zone blocker). A follow-gap clearance is a LANE fact, not a block
+## one; with 26 cars the flat scan is trivial. The grid seam's callers still
+## pass their block (the parameter stays for signature stability; the check
+## is a strict superset of the old one).
 func _probe_clear(probe: Vector3, block_global: Vector3, mover: Car) -> bool:
 	for car in _cars:
 		if not is_instance_valid(car) or car == mover:
 			continue
-		if car.mode != Car.Mode.TRAFFIC or car.block_center != block_global:
+		if car.mode != Car.Mode.TRAFFIC:
 			continue
 		if _flat_dist_pos(probe, car.global_position) < mover.follow_gap:
 			return false
 	return true
+
+
+## The flat distance from `probe` to the NEAREST other living traffic car
+## (INF when alone) — the placement fallback's max-clearance read.
+func _min_car_dist(probe: Vector3, mover: Car) -> float:
+	var best := INF
+	for car in _cars:
+		if not is_instance_valid(car) or car == mover:
+			continue
+		if car.mode != Car.Mode.TRAFFIC:
+			continue
+		best = minf(best, _flat_dist_pos(probe, car.global_position))
+	return best
 
 
 ## True when a living parked car already sits within a car length of `pos` —
@@ -1074,33 +1108,66 @@ func _route_placement_graph(route: PackedInt32Array, block_global: Vector3,
 		mover: Car, gate: bool, spread: float) -> Dictionary:
 	var graph := city.traffic_graph
 	var anchor := _anchor_flat()
-	var best := {}
-	var best_d := INF
-	for k in route.size():
-		var lane := graph.edge_points(route[k])
-		for i in range(1, lane.size()):
-			for ci in 2: ## The midpoint before vertex i, then vertex i itself.
-				var t := 0.5 if ci == 0 else 1.0
-				var cand := lane[i - 1].lerp(lane[i], t)
-				var next_idx: int = i if ci == 0 else i + 1
-				var gp := city.to_global(Vector3(cand.x, 0.0, cand.y))
-				if player != null and _flat_dist(gp, anchor) > recycle_radius:
-					continue
-				if (not gate or _sightline_ok(gp)) \
-						and _probe_clear(gp, block_global, mover):
-					return {"pos": gp, "leg": k, "next": next_idx}
-				## The spread fallback's nearest-along-leg candidate: leg 1's
-				## candidates measured against the caller's spread fraction.
-				if k == 0:
-					var d := absf(float(i - 1) + t - spread * float(lane.size() - 1))
-					if d < best_d:
-						best_d = d
-						best = {"pos": gp, "leg": 0, "next": next_idx}
-	if best.is_empty():
-		var lane0 := graph.edge_points(route[0])
-		best = {"pos": city.to_global(Vector3(lane0[0].x, 0.0, lane0[0].y)),
-				"leg": 0, "next": 1}
-	return best
+	## (T-178 round 1) The placement ladder, built so NO rung can stage two
+	## cars on one point. Two passes: pass 1 keeps the recycle-radius guard
+	## (a car staged beyond it would be re-recycled on the first scan), pass
+	## 2 re-walks WITHOUT it — the guard can COLLAPSE the candidate space (a
+	## deal whose every in-radius candidate already holds a car used to fall
+	## through to a single-point fallback and stage EXACTLY coincident: the
+	## fused-pile review's 5-car pile), and staging beyond the band is the
+	## honest overflow the 0.5 s recycle scan re-bands. Every fallback rung
+	## requires the follow-gap clearance (`_probe_clear`) — a candidate a car
+	## already occupies can never win — except the last-resort saturation
+	## rung, which takes the globally largest clearance instead (only
+	## reachable when cars cover every candidate; never an exact coincidence
+	## in practice, and strictly better than the old unconditioned lane0[0]).
+	## Ties break earliest candidate; zero RNG of their own (the caller's
+	## spread draw keeps feeding the stream).
+	var sat_best := {}
+	var sat_best_d := -INF
+	for radius_guarded in [true, false]:
+		var spread_clear := {}
+		var spread_clear_d := INF
+		var clearest := {}
+		var clearest_d := -INF
+		for k in route.size():
+			var lane := graph.edge_points(route[k])
+			for i in range(1, lane.size()):
+				for ci in 2: ## The midpoint before vertex i, then vertex i itself.
+					var t := 0.5 if ci == 0 else 1.0
+					var cand := lane[i - 1].lerp(lane[i], t)
+					var next_idx: int = i if ci == 0 else i + 1
+					var gp := city.to_global(Vector3(cand.x, 0.0, cand.y))
+					if radius_guarded and player != null \
+							and _flat_dist(gp, anchor) > recycle_radius:
+						continue
+					var clear := _probe_clear(gp, block_global, mover)
+					var clearance := _min_car_dist(gp, mover)
+					if clearance > sat_best_d:
+						sat_best_d = clearance
+						sat_best = {"pos": gp, "leg": k, "next": next_idx}
+					if not clear:
+						continue
+					if (not gate or _sightline_ok(gp)):
+						return {"pos": gp, "leg": k, "next": next_idx}
+					if k == 0:
+						var d := absf(float(i - 1) + t
+								- spread * float(lane.size() - 1))
+						if d < spread_clear_d:
+							spread_clear_d = d
+							spread_clear = {"pos": gp, "leg": 0, "next": next_idx}
+					if clearance > clearest_d:
+						clearest_d = clearance
+						clearest = {"pos": gp, "leg": k, "next": next_idx}
+		if not spread_clear.is_empty():
+			return spread_clear
+		if not clearest.is_empty():
+			return clearest
+	if not sat_best.is_empty():
+		return sat_best
+	var lane0 := graph.edge_points(route[0])
+	return {"pos": city.to_global(Vector3(lane0[0].x, 0.0, lane0[0].y)),
+			"leg": 0, "next": 1}
 
 
 ## A fresh dealt route's rejoin for one traffic car over the graph: one
