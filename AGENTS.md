@@ -18,9 +18,11 @@ cutover; the pilot's `PIGEON_WORLD`/`AMES_AUTOPLAY` switches are accepted aliase
 The old procedural **Windrow city was retired at the cutover** (owner fork
 2026-11-09, master plan §11.2 — no debug toggle): `city.tscn`/`city.gd` survive only
 as the staged node `main.tscn` swaps away at `_ready` and as the base-class seam
-(`AmesWorld extends City`) the citizen systems read — those systems (tourists,
-traffic, elders) are INERT on Ames until the R2 re-base tickets fill real data, and
-the dev staging verbs (`spawn_car`, `car_blinker`) refuse cleanly until then.
+(`AmesWorld extends City`) the citizen systems read — since T-178 the TRAFFIC
+system drives the real street graph (`scripts/ames_traffic_graph.gd`: a live
+14-moving + 12-parked car fleet with right-hand lanes, speed classes and the
+rail-crossing facts), while the tourists and elders stay INERT until their R2
+re-base tickets fill real data.
 
 ## Stack & tooling
 
@@ -207,11 +209,13 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
   flow while the tree is PAUSED (the recorder is PROCESS_MODE_ALWAYS). This
   family is the discovery surface for further verbs — they extend
   `CaptureRecorder._execute_dev`, never bypass it.
-- **Dev verb pack — the starter staging verbs (T-168; T-177 world note: on the
-  resident Ames world the citizen fleet is EMPTY until the R2 re-base, so the
-  staging verbs refuse — `spawn_car` `no_spot`, `car_blinker` `no_car — while
-  `teleport` and `freeze_traffic` work world-independently; the staging flow
-  below returns with R2·calm-port).** `freeze_traffic`
+- **Dev verb pack — the starter staging verbs (T-168; T-178 world note: the
+  traffic graph stages a LIVE car fleet on the resident Ames world, so the
+  staging verbs work on it — `spawn_car` parks a car at the nearest free REAL
+  curb, `car_blinker` forces the nearest fleet car, `teleport` and
+  `freeze_traffic` work world-independently; the full hop-onto-the-spawn
+  staging flow below is usable again, with R2·calm-port re-deriving the
+  pass/corridor constants for the real lane widths).** `freeze_traffic`
   (`{"on":true|false}`) holds EVERY car: route progress, honk clocks and the
   blinker machine stop, transforms stay put for screenshots, and the
   spawner's spawn cadence is gated — `on:false` resumes exactly where
