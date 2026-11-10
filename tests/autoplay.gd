@@ -9,12 +9,14 @@ extends Node3D
 ## SCRIPT ERROR lines. Run windowed so it renders for real:
 ##   godot --path . res://tests/autoplay.tscn
 ##
-## World-scoped Ames run (T-176): boot with `AMES_AUTOPLAY=1` in the
-## environment (or `PIGEON_WORLD=ames`) and the SAME pilot plays the REAL
-## ames world through the T-173 world-flag swap — spawn over Central Campus,
+## World-scoped Ames run (T-176, the ONLY run since the T-177 cutover): the
+## SAME pilot plays the resident Ames world — spawn over Central Campus,
 ## the cruise band over the real massing, and a survival loop that FLIES to
 ## the nearest ground-class crumb, LANDS beside it, WADDLES in and EATS it
-## (the Gate 2 pattern, world-scoped). The run uses the SHIPPED BreadSpawner
+## (the Gate 2 pattern). `AMES_AUTOPLAY=1` in the environment (or
+## `PIGEON_WORLD=ames`) still works and is now redundant: `Game.world`
+## defaults "ames" and the Windrow generate path was retired at the cutover,
+## so every boot is the Ames boot. The run uses the SHIPPED BreadSpawner
 ## target (40) — the world's boot ring (`City.boot_bread_spots`, the ground
 ## spots nearest the spawn, seeded first on every populate) puts real bread
 ## ~20 m out at boot, so one loop fits the window with nothing staged; the
@@ -47,8 +49,9 @@ const CRUMB_SEEK_RADIUS: float = 22.0
 const POOP_START: float = 4.0
 const POOP_PERIOD: float = 2.0
 
-## --- T-176 world-scoped Ames run -------------------------------------------
-## The env switch that scopes the pilot to the resident Ames world.
+## --- T-176 world-scoped Ames run (T-177: the ONLY run) ----------------------
+## The env switch that used to scope the pilot to the resident Ames world —
+## accepted and redundant since the cutover (every run is the Ames run).
 const AMES_ENV := "AMES_AUTOPLAY"
 ## Ames cruise band (m): above the district massing (the bake's height cap is
 ## 40; the hero silhouettes top at Marston's 51 — the band stays under the
@@ -118,12 +121,13 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_shot_dir = ProjectSettings.globalize_path("res://.godot/autoplay")
 	DirAccess.make_dir_recursive_absolute(_shot_dir)
-	## (T-176) The world-scope switch, BEFORE Main instantiates — the same
-	## seam the T-173 boot flag drives: AMES_AUTOPLAY=1 (this pilot's own
-	## switch) or PIGEON_WORLD=ames (the shared boot flag) play the resident
-	## Ames world; anything else stays the Windrow run byte-as-today.
+	## (T-176, T-177) The world-scope switch, BEFORE Main instantiates — the
+	## same seam the T-173 boot flag drives. Since the cutover the default IS
+	## ames and "windrow" is no longer a legal world value, so every boot is
+	## the Ames boot; the env switches remain accepted aliases.
 	_ames = OS.get_environment(AMES_ENV) == "1" \
-			or OS.get_environment("PIGEON_WORLD") == "ames"
+			or OS.get_environment("PIGEON_WORLD") == "ames" \
+			or Game.world == "ames"
 	if _ames:
 		Game.world = "ames"
 	_game = MAIN_SCENE.instantiate()
@@ -138,7 +142,7 @@ func _ready() -> void:
 	if _ames:
 		## The Ames anchor: the survival spawn over Central Campus (the world
 		## swap already happened inside Main's _ready, so `city` IS the Ames
-		## world here). Windrow keeps the plaza-relative ZERO anchor untouched.
+		## world here — every boot since the T-177 cutover).
 		var spawn: Vector3 = _game.city.spawn_point
 		_home_flat = Vector2(spawn.x, spawn.z)
 	_player.pooped.connect(_on_pilot_pooped)

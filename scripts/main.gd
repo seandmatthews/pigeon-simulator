@@ -39,9 +39,10 @@ const FAVOR_LOSS_COLOR := Color(1.0, 0.32, 0.25)
 const SCORE_POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
 const HIT_MARKER_SCENE: PackedScene = preload("res://scenes/hit_marker.tscn")
 const MENU_SCENE_PATH := "res://scenes/menu.tscn"
-## (T-173) The resident Ames world root — swapped in for the scene's Windrow
-## City when the `world` setting says "ames" (`Game.world`, default "windrow";
-## the swap branch is inert on every existing gate until T-177 flips it).
+## (T-173, T-177) The resident Ames world root — swapped in for the scene's
+## staged Windrow City at `_ready` (`Game.world`, default "ames" since the R1
+## cutover). Every boot — game scene and instanced-Main rigs alike — plays
+## Ames now; the swap keeps main.tscn world-agnostic.
 const AMES_WORLD_SCENE: PackedScene = preload("res://scenes/ames_world.tscn")
 
 ## Hunger warning tiers (T-019): the bar is the fail state's messenger, so it
@@ -212,7 +213,7 @@ var _drew_bread_target: bool = false
 
 func _ready() -> void:
 	$Sun.rotation_degrees = Vector3(-50.0, -30.0, 0.0)
-	if Game.world == AmesWorld.WORLD_ID: ## (T-173) the world flag: one world root or the other.
+	if Game.world == AmesWorld.WORLD_ID: ## (T-173/T-177) the world flag: always true since the cutover — one world root.
 		_swap_to_ames_world()
 	_combo_strip_rest_color = combo_strip.get_theme_color("font_color") ## (T-151) The scene's own T-019 fill — the tint the strip restores to.
 	_combo_strip_tint_shown = _combo_strip_rest_color
@@ -256,14 +257,15 @@ func _boot_is_stepped() -> bool:
 	return stepped_boot and get_parent() == get_tree().root
 
 
-## (T-173) The world flag's swap: the scene's Windrow City node (which has NOT
-## generated — main.tscn stages it with hold_generate) gives its name, spot,
-## staged-boot flag and every spawner's `city` reference to a fresh AmesWorld
-## root, then frees. Runs at the top of _ready, BEFORE any boot phase: the
-## spawners bound `$City` in their own (earlier) _ready, so their references
-## are re-pointed here, still ahead of every populate. Rig-path Mains in the
-## sim harness keep windrow (Game.world defaults "windrow"); the ames boot
-## path is the game scene.
+## (T-173, T-177) The world flag's swap: the scene's staged Windrow City node
+## (which has NOT generated — main.tscn stages it with hold_generate) gives
+## its name, spot, staged-boot flag and every spawner's `city` reference to a
+## fresh AmesWorld root, then frees. Runs at the top of _ready, BEFORE any
+## boot phase: the spawners bound `$City` in their own (earlier) _ready, so
+## their references are re-pointed here, still ahead of every populate. Since
+## the T-177 cutover EVERY boot takes this branch (the default is ames; the
+## Windrow generate path is retired) — game scene and instanced-Main rigs
+## alike; the staged Windrow node exists only to be swapped away.
 func _swap_to_ames_world() -> void:
 	var windrow := city
 	windrow.name = "WindrowCity" ## Free the name before the replacement claims it.
@@ -908,9 +910,10 @@ func _on_favor_maxed() -> void:
 
 
 ## In-place fresh run (T-010): zeroes the autoload state, regenerates the SAME
-## M1 seed city (the `regenerated` signal re-seeds every spawner, so the layout
-## — and the score comparability — matches the old city street for street),
-## clears transient effects and drops the pigeon back on the spawn corridor.
+## world (on Ames the generate call takes the T-033 same-seed fast path — the
+## committed bake stands untouched, `regenerated` still re-seeds every spawner,
+## so the layout — and the score comparability — is the world it was), clears
+## transient effects and drops the pigeon back on the spawn corridor.
 ## Deliberately not a scene reload: this exact path is what the score screen's
 ## restart and the autoplay pilot drive, headless-safe.
 func restart_run() -> void:

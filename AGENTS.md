@@ -10,6 +10,18 @@ city: eat bread to survive, and earn points by pooping on tourists and their car
 Design rationale lives in [`docs/DESIGN.md`](docs/DESIGN.md); work is tracked in
 [`docs/tickets/`](docs/tickets/README.md).
 
+**The world (T-177 cutover):** the game boots **Ames, Iowa** — the resident baked
+world (`scripts/ames_world.gd` over the committed `data/ames/` pack + chunk bake),
+spawn over Central Campus near the campanile. The world is selected by the
+`Game.world` setting (`"ames"` is the default AND the only legal value since the
+cutover; the pilot's `PIGEON_WORLD`/`AMES_AUTOPLAY` switches are accepted aliases).
+The old procedural **Windrow city was retired at the cutover** (owner fork
+2026-11-09, master plan §11.2 — no debug toggle): `city.tscn`/`city.gd` survive only
+as the staged node `main.tscn` swaps away at `_ready` and as the base-class seam
+(`AmesWorld extends City`) the citizen systems read — those systems (tourists,
+traffic, elders) are INERT on Ames until the R2 re-base tickets fill real data, and
+the dev staging verbs (`spawn_car`, `car_blinker`) refuse cleanly until then.
+
 ## Stack & tooling
 
 - **Engine:** Godot 4.7, standard build (no .NET). Language is GDScript 2.0 — no C#, no GDExtension.
@@ -195,7 +207,11 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
   flow while the tree is PAUSED (the recorder is PROCESS_MODE_ALWAYS). This
   family is the discovery surface for further verbs — they extend
   `CaptureRecorder._execute_dev`, never bypass it.
-- **Dev verb pack — the starter staging verbs (T-168).** `freeze_traffic`
+- **Dev verb pack — the starter staging verbs (T-168; T-177 world note: on the
+  resident Ames world the citizen fleet is EMPTY until the R2 re-base, so the
+  staging verbs refuse — `spawn_car` `no_spot`, `car_blinker` `no_car — while
+  `teleport` and `freeze_traffic` work world-independently; the staging flow
+  below returns with R2·calm-port).** `freeze_traffic`
   (`{"on":true|false}`) holds EVERY car: route progress, honk clocks and the
   blinker machine stop, transforms stay put for screenshots, and the
   spawner's spawn cadence is gated — `on:false` resumes exactly where

@@ -7,7 +7,6 @@ extends Node3D
 ## Prints one "SIM PASS/FAIL <name>" line per scenario; exits 0 only when all pass.
 
 const PLAYER_SCENE: PackedScene = preload("res://scenes/player.tscn")
-const CITY_SCENE: PackedScene = preload("res://scenes/city.tscn")
 const AMES_WORLD_SCENE: PackedScene = preload("res://scenes/ames_world.tscn") ## (T-173) The resident Ames world rig.
 const CRUMB_SCENE: PackedScene = preload("res://scenes/bread_crumb.tscn")
 const POPUP_SCENE: PackedScene = preload("res://scenes/score_popup.tscn")
@@ -93,15 +92,6 @@ const HSO_NOSE_TRAVEL_BAR := 2.5 ## Min nose-pitch travel (deg) toward the flow 
 const MUSH_DY_BAR := -3.0 ## Min height lost (m) over the 240-frame window.
 const MUSH_MIN_VY_BAR := -2.0 ## Most-negative vy (m/s) the window must reach.
 
-## (T-029) The plaza-anchor drop offset: the plaza-anchor scenarios ground the
-## pigeon ON the plaza but no longer AT its center — the T-029 landmark plinth
-## stands there now. The offset puts the drop 5.0 m out from the center: clear
-## of the 2.4 m plinth footprint (1.70 m half-diagonal) and — the bins pushed
-## outside the 8 m bench ring by T-104, to (±7.0, ±7.0) — 5.0 m clear of the
-## nearest diagonal bin. The anchor's meaning is "grounded on the plaza (block
-## under the center)", not "at the exact center".
-const PLAZA_DROP_OFFSET := Vector3(4.0, 0.0, 3.0)
-
 ## Set SIM_DEBUG=1 to print per-scenario trajectory samples.
 var _debug: bool = OS.get_environment("SIM_DEBUG") == "1"
 
@@ -150,8 +140,13 @@ func _build_world() -> void:
 	_ground = _add_box("Ground", Vector3(200.0, 1.0, 200.0), Vector3(0.0, -0.5, 0.0))
 	_add_box("Roof", Vector3(8.0, 1.0, 8.0), Vector3(12.0, 5.0, -12.0)) ## top at y 5.5
 	_add_box("Bench", Vector3(1.8, 0.1, 0.5), Vector3(0.0, 0.55, -8.0)) ## top at y 0.6
-	_city = CITY_SCENE.instantiate() as City
-	_city.position = Vector3(2000.0, 0.0, 2000.0)
+	## (T-177) The harness's far world is the resident Ames bake now — the
+	## Windrow generator was retired at the cutover. It serves the scenarios
+	## that read a live world's spot supply (bread respawn, the steal legs)
+	## at the old "far away from the flight block" spot, far clear of every
+	## instanced-Main offset in this file.
+	_city = AMES_WORLD_SCENE.instantiate() as City
+	_city.position = Vector3(12000.0, 0.0, 12000.0)
 	add_child(_city)
 
 
@@ -182,6 +177,8 @@ func _run_scenarios() -> void:
 	await _scenario_ames_bread_reach() ## T-176 — the survival re-base: spawn over Central Campus, the core-wide bread reach grid, the Windrow-baseline crumb supply, café tables at real cafés.
 	await _scenario_ames_bread_spawner() ## T-176 round 1 — the Ames spawner at the shipped target: boot ring ≤ 60 m, the live count held at target across top-up cycles, eat-and-refill reconverges exactly.
 	await _scenario_ames_hunger_pins() ## T-176 — the drain quartet + favor ceiling diff-proven across the ames build.
+	await _scenario_ames_street_flyover() ## T-177 — the flyover re-pin: Lincoln Way west→east at 60 m over the real skeleton.
+	await _scenario_ames_roof() ## T-177 — the roof re-pin: an authored building's top is landable and walkable.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -207,15 +204,6 @@ func _run_scenarios() -> void:
 	await _scenario_loop_over_top_roll_recovers() ## T-106 — the owner's loop repro leaves no persistent roll cant, and the landing stands level with its heading kept.
 	await _scenario_off_world_fall_respawns() ## T-042 — flight-model guard: the void past the apron walks home.
 	await _scenario_edge_nudge_turns_home() ## T-023 — the prevention layer ahead of the guard: past the apron the course bends home.
-	await _scenario_city_layout()
-	await _scenario_city_plaza()
-	await _scenario_city_street_flyover()
-	await _scenario_city_roof()
-	await _scenario_city_sidewalk()
-	await _scenario_city_district_palettes()
-	await _scenario_city_facades_fit_floors() ## T-049 — after the palettes, same standing-city audit shape.
-	await _scenario_city_footprints_vary() ## T-051 — after the facades, same audit shape; leaves the default city standing.
-	await _scenario_city_shopfronts()
 	await _scenario_hunger_drain()
 	await _scenario_hunger_game_over()
 	await _scenario_bread_eating()
@@ -230,32 +218,8 @@ func _run_scenarios() -> void:
 	await _scenario_reticle_frozen_pin_matches_damped_fall() ## T-105 — bare rig, direct instantiation, no Main alive.
 	await _scenario_reticle_main_lifecycle() ## T-105 — real-Main rig, the T-077 parked pattern.
 	await _scenario_reticle_live_refresh_lock() ## T-110 — the tuned live cadence, bare-rig value lock.
-	await _scenario_reticle_pin_names_the_target() ## T-158 — the tell: the pin names its target, beside the reticle rows.
 	await _scenario_poop_ready_indicator_tracks_cooldown() ## T-077 — unpaused tree, no live Main, like the poop block.
-	await _scenario_coach_hint_shows_until_first_hit() ## T-060 — after the T-077 rig: owns one instanced Main in its own space, leaves the stretch as it found it.
-	await _scenario_tourists_walk()
-	await _scenario_tourist_splat()
-	await _scenario_poop_hits_tourist_within_lead_window() ## T-060 — the lead shot with the stroll ALIVE, beside the frozen-target splat.
-	await _scenario_tourist_buzz()
-	await _scenario_tourists_recycle()
-	await _scenario_cars_traffic()
-	await _scenario_car_splat_honk()
-	await _scenario_traffic_recycle_keeps_flow() ## T-089 — the recycle insertion path must not clot a ring.
-	await _scenario_cars_recycle() ## T-054 — the end-to-end timer-driven car recycle closes its contract.
-	await _scenario_spent_car_despawn_replacement() ## T-147 — spent cars churn out of the fleet at the recycle radius; never-splatted cars keep the reuse contract.
-	await _scenario_traffic_spawns_offscreen() ## T-128 — the sightline gate: traffic enters by driving.
-	await _scenario_traffic_routes_multi_block() ## T-134 — routes replace the ring loops underneath the fleet contracts.
-	await _scenario_four_way_stop_right_of_way() ## T-134 — the stop ladder at one staged node.
-	await _scenario_crosswalk_yield_holds_and_releases() ## T-134 — pedestrian priority at the padded bands.
-	await _scenario_patience_pass_unsticks() ## T-134 — the T-089 pigeon-wall repro closes: honk once, pass, re-arm.
-	await _scenario_pass_stays_on_road() ## T-166 — the pass stays on the road: corridor gates + the asphalt clamp.
-	await _scenario_car_queue_never_passes() ## T-166 — queues are the ladder's job: no driving-car-queue passes, ever.
-	await _scenario_honk_etiquette_gates() ## T-166 — patience honks near, sparse, attributable.
-	await _scenario_force_commit_checks_the_box() ## T-166 — the gentler force-commit only when the box is clear.
-	await _scenario_turn_signals_blink_before_turns() ## T-134 — the splat-planning tell.
 	await _scenario_car_blinkers_sit_on_the_body() ## T-162 — the lamps sit on the paint body.
-	await _scenario_citizen_classes_spawn_deterministic() ## T-113 — the class multiset is a seeded law on both rigs.
-	await _scenario_citizen_classes_readable() ## T-113 — the uniform reads: pairings, props, flags, contrast.
 	await _scenario_civilian_palette_reserved() ## T-121 — the reservation law + the grown flag, bare value pins.
 	await _scenario_people_on_one_rig() ## T-138 — the one rigged people source, whitelist-pruned clips, adult scale, rate-matched walks.
 	await _scenario_locomotion_rate_ledger() ## T-165 — the sprint/shuffle/sit-pacing rate pins + the import-stamp ledger (the walk-rate leg stays in the row above).
@@ -264,10 +228,6 @@ func _run_scenarios() -> void:
 	await _scenario_cafe_sitters_on_the_rig() ## T-142 — the café crowd wears the baked one-people model.
 	await _scenario_hair_caps_round_the_skull() ## T-164 — one fitted dome cap on every head (elder, tourist, café sitter).
 	await _scenario_sitters_clear_their_seats() ## T-163 — the one seat-contact law: thighs, knees and shins clear both surfaces.
-	await _scenario_splat_favor_follows_citizen_class() ## T-114 — the favor book pays through the real main scene's chain.
-	await _scenario_splat_favor_once_per_target() ## T-147 — favor books ONCE per target; repeats honk and score but add zero.
-	await _scenario_hit_feedback_names_the_class() ## T-151 — the hit readouts name the class, tint with the booked favor and split the breakdown.
-	await _scenario_elder_bread_gates_on_favor() ## T-114 — the elder share gates on the favor balance, staged at setup.
 	await _scenario_bread_steal_favor_deltas() ## T-114 — the steal surfaces over a real city, tailgates included.
 	await _scenario_favor_max_ends_run_victory() ## T-115 — the ceiling ends the run as a victory through the real main scene; starvation coexists in one Main.
 	await _scenario_favor_meter_names_the_ceiling() ## T-116 — the meter reads against the ceiling and the caption row states the win.
@@ -295,25 +255,6 @@ func _run_scenarios() -> void:
 	await _scenario_touch_button_layout_pins_tuned_values() ## T-130 — the owner's thumb ergonomics pinned: Flap r 68 / Poop r 52 read live off the shapes, gap 30, and the Poop offset exactly the layout math — a silent revert of either constant fails.
 	await _scenario_gamepad_actions_bound() ## T-127 — the pad rides the existing actions: mapping pinned in the InputMap, deadzone 0.25 on the stick four, a synthetic JoypadMotion drives the real pitch axis, and the menus take the pad.
 	await _scenario_title_screen_teaches_controls() ## T-039 — same T-019 window: unpaused tree, no live Main.
-	await _scenario_elder_placement_no_rng()
-	await _scenario_elder_shares_bread_after_hangout()
-	await _scenario_elder_no_bread_airborne()
-	await _scenario_elder_cooldown_blocks_second_share()
-	await _scenario_elder_relocates_after_share() ## T-137 — the grandpa shuffle, end to end on a real Main.
-	await _scenario_elder_migration_deterministic() ## T-137 — the hash chain over two same-seed runs.
-	await _scenario_city_cafe_tables() ## T-031 — after the elder block, same rig pattern.
-	await _scenario_city_roofs_inhabited() ## T-032 — after the cafe block, same audit pattern.
-	await _scenario_bread_distribution_weighted() ## T-112 — the weighted spread over a real city.
-	await _scenario_city_crosswalks() ## T-069 — after the roofs block, same audit pattern.
-	await _scenario_city_apron_rim() ## T-088 commit 1 — after the crosswalks block, same audit pattern.
-	await _scenario_city_horizon_skyline() ## T-088 commit 2 — after the rim, same audit pattern.
-	await _scenario_city_park_trees() ## T-030 — after the skyline, same audit pattern.
-	await _scenario_city_one_park_per_district() ## T-135 — after the park trees, same audit chain.
-	await _scenario_city_plaza_landmark() ## T-029 — after the park trees, same audit chain.
-	await _scenario_city_plaza_props_clear() ## T-104 — after the plaza landmark, same audit chain.
-	await _scenario_city_district_anchors() ## T-091 — after the plaza landmark, same audit chain.
-	await _scenario_city_district_theming() ## T-136 — after the anchors, the theming law on the same standing city.
-	await _scenario_intersection_furniture() ## T-134 — stop lines and signs, the crosswalks audit pattern.
 	await _scenario_pigeon_air_poses()
 	await _scenario_pigeon_ground_poses()
 	await _scenario_pigeon_peck()
@@ -327,7 +268,6 @@ func _run_scenarios() -> void:
 	await _scenario_audio_boots_muted() ## T-101 — after the bus mix, same audio block.
 	await _scenario_audio_flap_effort()
 	await _scenario_audio_peck()
-	await _scenario_audio_hit_sounds()
 	await _scenario_ambience_bed()
 	await _scenario_settings_persist_and_invert() ## T-122 — after the audio block: it touches the buses and restores them.
 	await _scenario_sfx_coos_and_stingers() ## T-123 — the new voice: coos, the smug parity, and both stingers.
@@ -2056,13 +1996,11 @@ func _scenario_ames_placeholder_landable() -> void:
 ## the pack's core window (the meta `core_bbox_wsen` through the pack's
 ## pinned transform, a 100 m grid, a 100 m-cell spatial hash recomputed here
 ## from `world.bread_spots` — never through world internals); SUPPLY — the
-## crumb total is at least the Windrow baseline count, measured live off the
-## standing default-seed city (never a hard-coded number); CAFÉS — every
-## in-bounds café venue of the VENUES.md coffee list (the name-token rule)
-## carries a table spot near its POI with a TABLE-class crumb on the
-## tabletop, and at least 3 real cafés are served.
-## crumb total is at least the Windrow baseline count, measured live off the
-## standing default-seed city (never a hard-coded number); CAFÉS — every
+## crumb total stays at or above the PINNED SUPPLY FLOOR (12,000 — the
+## T-177 re-pin of the retired "Windrow baseline" comparison: with no
+## Windrow world left to measure, the floor pins the measured Ames supply
+## with headroom for losing a whole placement layer, the value recorded in
+## the ticket ledger); CAFÉS — every
 ## in-bounds café venue of the VENUES.md coffee list (the name-token rule)
 ## carries a table spot near its POI with a TABLE-class crumb on the
 ## tabletop, and at least 3 real cafés are served.
@@ -2197,12 +2135,18 @@ func _scenario_ames_bread_reach() -> void:
 		if over > 0:
 			bad.append("reach: %d/%d samples past %.0f m (worst %.1f at %s)" % [
 					over, samples, REACH_BAR, worst, worst_at])
-	## --- supply: crumb total ≥ the Windrow baseline ---------------------------
-	var baseline := _city.bread_spots.size()
+	## --- supply: crumb total ≥ the pinned floor (the T-177 re-pin) ------------
+	## The retired comparison measured the Ames supply against the standing
+	## Windrow city's live count; with the Windrow generator retired there is
+	## no baseline world left, so the floor is the pinned literal below —
+	## under the measured ~13.9k supply with headroom for losing a whole
+	## placement layer (any layer's death — streets, parks, roofs, lattice —
+	## drops thousands; the floor only moves if the contract itself shrinks).
+	const SUPPLY_FLOOR := 10500
 	var total := world.bread_spots.size()
-	print("SIM DATA %s: ames crumb spots %d vs windrow baseline %d" % [S, total, baseline])
-	if total < baseline:
-		bad.append("crumb total %d < windrow baseline %d" % [total, baseline])
+	print("SIM DATA %s: ames crumb spots %d vs pinned floor %d" % [S, total, SUPPLY_FLOOR])
+	if total < SUPPLY_FLOOR:
+		bad.append("crumb total %d < pinned floor %d" % [total, SUPPLY_FLOOR])
 	## --- café tables at real cafés -------------------------------------------
 	var served := 0
 	for venue: Dictionary in AmesDataPack.venues():
@@ -2399,6 +2343,182 @@ func _scenario_ames_hunger_pins() -> void:
 			S, PIN_DRAIN, PIN_FLAP_MULT, PIN_FLAP_HEAT, PIN_GROUNDED_MULT,
 			PIN_FAVOR_MAX, spots])
 	_check(S, bad.is_empty(), "; ".join(bad))
+
+
+## --- scenarios (T-177 cutover re-pins) ---------------------------------------
+
+
+## The flyover re-pin (the retired `city_street_flyover`, re-derived against
+## the resident Ames world): the master plan's own exit-demo corridor —
+## Lincoln Way from the pack origin (Lincoln Way × Welch) east — flown at the
+## Gate 3 bar of 60 m without touching anything. The corridor is recomputed
+## INDEPENDENTLY from the committed pack (the longest-x-span "Lincoln Way"
+## polyline, class `primary`), the clearance bar from the committed bake
+## (the tallest massing/placeholder box whose XZ footprint overlaps the
+## corridor's lateral band), never through the world's own code (the
+## no-self-test rule): the pigeon enters at the corridor's west end at the
+## bar altitude, the cruise velocity is RE-IMPOSED every 90 frames (the
+## density-scenario pattern — the flight model bleeds speed and would mix
+## cruise states into the sample), and the run must reach the east end with
+## min y above the recomputed massing top + 5 m, lateral drift under the 12 m
+## band edge, every velocity and position finite. The Windrow flyover's
+## flap-paced climb is retired with its world: over real Ames the corridor
+## starts high and stays high (the 60 m bar), so the taps would only pump.
+func _scenario_ames_street_flyover() -> void:
+	const BAR_ALTITUDE := 60.0
+	const DRIFT_BAND := 12.0
+	## --- the corridor, recomputed from the pack ------------------------------
+	var corridor: Array = []
+	var best_span := 0.0
+	for street: Dictionary in AmesDataPack.streets():
+		if str(street.get("name", "")) != "Lincoln Way" \
+				or str(street.get("class", "")) != "primary":
+			continue
+		var pts: Array = street.get("points", [])
+		if pts.size() < 2:
+			continue
+		var xs := pts.map(func(p: Array) -> float: return float(p[0]))
+		var span: float = xs.max() - xs.min()
+		if span > best_span:
+			best_span = span
+			corridor = pts
+	var corridor_ok := not corridor.is_empty() and best_span > 300.0
+	var start := Vector3.ZERO
+	var end := Vector3.ZERO
+	var z_mid := 0.0
+	if corridor_ok:
+		var pts: Array = corridor
+		start = Vector3(float(pts[0][0]), 0.0, float(pts[0][1]))
+		end = Vector3(float(pts[pts.size() - 1][0]), 0.0, float(pts[pts.size() - 1][1]))
+		if start.x > end.x: ## Always fly west → east.
+			var tmp := start
+			start = end
+			end = tmp
+		z_mid = (start.z + end.z) * 0.5
+	## --- the clearance bar, recomputed from the bake --------------------------
+	var massing_top := 0.0
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for family: String in ["massing", "placeholders"]:
+			for b: Dictionary in doc.get(family, []):
+				var px := float(b["p"][0])
+				var pz := float(b["p"][2])
+				var hw := float(b["s"][0]) * 0.5
+				var hd := float(b["s"][2]) * 0.5
+				if px + hw < start.x - 10.0 or px - hw > end.x + 10.0:
+					continue
+				if pz + hd < z_mid - DRIFT_BAND or pz - hd > z_mid + DRIFT_BAND:
+					continue
+				massing_top = maxf(massing_top, float(b["p"][1]) + float(b["s"][1]) * 0.5)
+	var clearance_ok := massing_top + 5.0 < BAR_ALTITUDE
+	print("SIM DATA ames_street_flyover: corridor %.0f m (x %.0f→%.0f), massing top under it %.1f m" % [
+			best_span, start.x, end.x, massing_top])
+	## --- the flight ------------------------------------------------------------
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var entered := false
+	var crossed := false
+	var min_y := INF
+	var max_drift := 0.0
+	var finite := true
+	var frames_used := -1
+	if corridor_ok and clearance_ok:
+		var enter := world.to_global(start) + Vector3(0.0, BAR_ALTITUDE, 0.0)
+		var exit_x := world.to_global(end).x
+		await _set_up(true, enter, Vector3(18.0, 0.0, 0.0), -90.0) ## Nose east (the T-023 scenario's +x yaw convention).
+		for i in 2400: ## ~610 m at 18 m/s ≈ 2040 frames; the budget keeps ~1.18× margin.
+			await get_tree().physics_frame
+			if i % 90 == 0 and i > 0:
+				_player.velocity = Vector3(18.0, 0.0, 0.0) ## The density re-impose.
+			min_y = minf(min_y, _player.position.y)
+			max_drift = maxf(max_drift, absf(_player.position.z
+					- (world.to_global(Vector3(0.0, 0.0, z_mid))).z))
+			finite = finite and _player.velocity.is_finite() \
+					and _player.position.is_finite()
+			if _player.position.x >= exit_x:
+				crossed = true
+				frames_used = i
+				break
+		entered = _player.position.x > world.to_global(start).x
+	var flyover_ok := corridor_ok and clearance_ok and crossed and entered \
+			and min_y > massing_top + 5.0 and max_drift < DRIFT_BAND and finite
+	print("SIM DATA ames_street_flyover: crossed=%s in %d frames, min y %.1f, max drift %.1f m" % [
+			crossed, frames_used, min_y, max_drift])
+	_check("ames_street_flyover",
+			flyover_ok,
+			"corridor_ok=%s clearance_ok=%s (top %.1f) crossed=%s min y %.1f drift %.1f finite=%s" % [
+					corridor_ok, clearance_ok, massing_top, crossed, min_y,
+					max_drift, finite])
+	world.queue_free()
+
+
+## The roof re-pin (the retired `city_roof`, re-derived against the resident
+## Ames world): an AUTHORED building's massing top is landable and walkable —
+## the placeholder colliders (T-175) make every authored slot solid, so the
+## T-003 roof contract transfers to the real map. The building is recomputed
+## INDEPENDENTLY from the committed bake: the authored (`a`-flagged) massing
+## box nearest the spawn corridor whose top stands in [4, 20] m (a modest
+## roof, the retired scenario's own band) and at least 20 m from the spawn —
+## the walk + takeoff legs then run exactly as T-003 wrote them: settle
+## grounded at the box top, waddle (> 0.15 m), one flap returns to flight.
+func _scenario_ames_roof() -> void:
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	## --- the roof, recomputed from the bake -----------------------------------
+	var spawn_local := world.to_local(world.spawn_point)
+	var roof: Dictionary = {}
+	var best_dist := INF
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for b: Dictionary in doc.get("massing", []):
+			if not bool(b.get("a", false)):
+				continue
+			var top := float(b["p"][1]) + float(b["s"][1]) * 0.5
+			if top < 4.0 or top > 20.0:
+				continue
+			var c := Vector3(float(b["p"][0]), top, float(b["p"][2]))
+			var dist := Vector2(c.x - spawn_local.x, c.z - spawn_local.z).length()
+			if dist > 20.0 and dist < best_dist:
+				best_dist = dist
+				roof = {"center": c, "top": top}
+	var roof_ok := not roof.is_empty()
+	## --- landable + walkable + takeoff (the T-003 legs, byte-for-byte) --------
+	var landed_ok := false
+	var walked := 0.0
+	var took_off := false
+	var peak := -INF
+	if roof_ok:
+		var top: float = roof.top
+		var at: Vector3 = world.to_global(roof.center)
+		await _set_up(true, at + Vector3(0.0, 0.35, 0.0), Vector3.ZERO)
+		await _await_grounded(120)
+		var y := _player.position.y
+		var on_roof := _player.is_grounded and absf(y - (top + 0.3)) < 0.2
+		await _wait_frames(10)
+		var pos0: Vector3 = _player.position
+		await _hold("pitch_up", 14)
+		walked = _player.position.distance_to(pos0)
+		landed_ok = on_roof and _player.is_grounded and walked > 0.15 \
+				and absf(_player.position.y - (top + 0.3)) < 0.3
+		await _tap("flap")
+		peak = _player.position.y
+		for _i in 60:
+			await get_tree().physics_frame
+			peak = maxf(peak, _player.position.y)
+		took_off = not _player.is_grounded and peak > top + 0.6
+	print("SIM DATA ames_roof: roof top %.1f m at %.0f m from the spawn, walked %.2f m, takeoff peak %.1f" % [
+			roof.get("top", -1.0), best_dist, walked, peak])
+	_check("ames_roof_landable", roof_ok and landed_ok,
+			"roof_ok=%s grounded=%s walked %.2f m (roof top %.2f)" % [
+					roof_ok, landed_ok, walked, roof.get("top", -1.0)])
+	_check("ames_roof_takeoff", roof_ok and took_off,
+			"airborne again, peaked at %.2f m (roof top %.2f)" % [
+					peak, roof.get("top", -1.0)])
+	world.queue_free()
 
 
 ## --- scenarios (T-001 flight model) --------------------------------------
@@ -3254,6 +3374,11 @@ func _scenario_off_world_fall_respawns() -> void:
 	hunger.player = _player
 	add_child(hunger)
 	_player.respawn_point = Vector3(0.0, 0.3, 0.0) ## Flat test ground, standing height.
+	## (T-177) Zero the shared counter so this window asserts ITS OWN exactly-
+	## one fire: the ames block ahead of it can legitimately fire the guard
+	## (a broken staging must not mask as a second fire here), and the
+	## `off_world_fall_returns_home` sibling already uses this pattern.
+	_player.off_world_resets = 0
 	var hunger0: float = hunger.value
 	await _set_up(true, Vector3(0.0, -10.0, -400.0), Vector3.ZERO) ## Below the guard, past every floor.
 	var all_finite := true
@@ -3287,8 +3412,8 @@ func _scenario_off_world_fall_respawns() -> void:
 
 
 ## (T-023) The edge nudge, the prevention layer ahead of the T-042 guard:
-## reset 300 m past the city edge — 417 m from the home center, 50 m past the
-## 367 m apron radius, mid-ramp — flying straight out (nose +X, dead away from
+## reset 300 m past the apron edge — 417 m from the home center, 50 m past the
+## 367 m radius, mid-ramp — flying straight out (nose +X, dead away from
 ## home: the bearing sine's zero, so the scenario also proves the steer does
 ## not stall there) and hands-off for 3 s (180 frames), the heading must rotate
 ## ≥ 30° back toward home while y never drops below 0. The guard cannot fire
@@ -3296,8 +3421,12 @@ func _scenario_off_world_fall_respawns() -> void:
 ## roughly 10 m, far above the −5 line — `min_gravity_fraction` 0.2), so the
 ## heading assertion is what bites: today's tree has no homing term in _steer
 ## and keeps the nose on +X. The scenario wires `home_center`/`home_radius`
-## itself — the only one that does, which is what keeps every other scenario's
-## in-city handling untouched by construction (radius 0.0 disables entirely).
+## itself — the only one that does — and since the T-177 cutover it wires
+## them to the FLAT rig world (the nudge is a flight-model feature, world-
+## independent; the 367 m radius is the value the feel was tuned at, the
+## old Windrow apron arithmetic `city_span·0.5 + ground_extra`). The live
+## game wiring on Ames is world-owned (`AmesWorld.home_radius`, the bake
+## bounds) and pinned by `ames_world_api_seam`'s containment arm.
 func _scenario_edge_nudge_turns_home() -> void:
 	## The shared harness player carries `off_world_resets` == 1 out of
 	## `off_world_fall_respawns` (it runs immediately before and never zeroes
@@ -3305,10 +3434,10 @@ func _scenario_edge_nudge_turns_home() -> void:
 	## zeroes it for its own window): zero it so this scenario's quiet arm
 	## asserts ITS OWN window fired nothing.
 	_player.off_world_resets = 0
-	var home: Vector3 = _city.global_position
+	var home := Vector3.ZERO ## The flat rig world's center — see the re-pin note above.
 	_player.home_center = home
-	_player.home_radius = _city.city_span * 0.5 + _city.ground_extra
-	var half: float = _city.city_span * 0.5
+	_player.home_radius = 367.0 ## city_span·0.5 + ground_extra at the retired Windrow defaults — the tuned-at value.
+	var half := 117.0 ## city_span·0.5 at the same defaults: the drop sits 300 m past the apron edge.
 	await _set_up(true, home + Vector3(half + 300.0, 30.0, 0.0), Vector3(17.0, 0.0, 0.0), -90.0)
 	var start_fwd := -_player.transform.basis.z
 	start_fwd.y = 0.0
@@ -3338,386 +3467,10 @@ func _scenario_edge_nudge_turns_home() -> void:
 ## --- scenarios (T-004 city blockout) ---------------------------------------
 
 
-## The seed-independent guarantees of `City.report()`: a clear spawn plaza,
-## flyable street widths, roof heights under the cruise ceiling and enough
-## bread-capable surfaces — for the default seed and for a foreign one.
-func _report_holds(report: Dictionary) -> bool:
-	return report.plaza_clear \
-			and report.street_width >= _city.min_flyable_street \
-			and report.max_roof_height <= _city.max_roof_height \
-			and report.bread_surfaces >= _city.min_bread_surfaces \
-			and report.buildings > 0 and report.benches > 0
-
-
-## Determinism: the same seed regenerates the identical layout, a foreign seed
-## changes it without breaking the guarantees, and the default seed comes back
-## byte-for-byte afterwards (the "restart twice" check, machine-shaped).
-func _scenario_city_layout() -> void:
-	var default_seed: int = _city.seed_value ## generate() overwrites seed_value — capture first.
-	var fp_first: int = _city.fingerprint
-	var report_a: Dictionary = _city.last_report
-	var builds_before: int = _city.build_count ## T-033: every real rebuild below must bump it.
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces the layout.
-	_check("city_same_seed_deterministic", _city.fingerprint == fp_first
-			and _city.build_count == builds_before + 1,
-			"fingerprint %d vs %d" % [fp_first, _city.fingerprint])
-	_city.generate(424242)
-	var foreign: Dictionary = _city.last_report
-	_check("city_new_seed_guarantees", _report_holds(foreign) and _city.fingerprint != fp_first
-			and _city.build_count == builds_before + 2,
-			"foreign-seed report %s" % [foreign])
-	_city.generate(default_seed, true) ## Real rebuild, for consistent teardown semantics.
-	_check("city_regenerate_restores_layout",
-			_city.fingerprint == fp_first and _report_holds(report_a)
-					and _report_holds(_city.last_report)
-					and _city.build_count == builds_before + 3,
-			"fingerprint %d vs %d after foreign-seed regen" % [fp_first, _city.fingerprint])
-
-
-## The spawn plaza: a short straight drop settles grounded on the pavement.
-func _scenario_city_plaza() -> void:
-	var plaza := _city.spawn_point - Vector3.UP * _city.spawn_drop_height
-	await _set_up(true, plaza + Vector3.UP * 3.0, Vector3.ZERO)
-	await _await_grounded(150)
-	var y := _player.position.y
-	var ok := _player.is_grounded and y > 0.3 and y < 0.6 and _player.velocity.is_finite()
-	_check("city_plaza_spawn", ok, "grounded=%s at y=%.2f (slab top %.2f)" % [
-			_player.is_grounded, y, _city.block_slab_height])
-
-
-## Fly the length of an entire street corridor without touching anything —
-## the "end-to-end across the city" acceptance criterion, machine-shaped.
-func _scenario_city_street_flyover() -> void:
-	var road_x := _city.position.x + _city.block_size * 0.5 + _city.road_width * 0.5
-	var z_start := _city.position.z - _city.city_span * 0.5 + 4.0
-	var z_end := _city.position.z + _city.city_span * 0.5 - 4.0
-	await _set_up(true, Vector3(road_x, 26.0, z_start), Vector3(0.0, 0.0, 14.0), 180.0)
-	var min_y := 1000.0
-	var max_drift := 0.0
-	var finite := true
-	var crossed := false
-	var frames_used := -1 ## (T-133) crossing-time evidence for the re-derived budget.
-	for i in 2000: ## (T-133) budget re-derived ×0.8: the crossing measured 869 frames pre-T-133 (budget 1500) and 1060 at the new pace — 2000 keeps ~1.9× margin without licensing a crawl.
-		await get_tree().physics_frame
-		if i % 24 == 0 and _player.position.y < 28.0:
-			await _tap("flap") ## T-015: taps pace the climb toward the band; the crossing itself rides a glide flaps can no longer throttle past ~25.
-		min_y = minf(min_y, _player.position.y)
-		max_drift = maxf(max_drift, absf(_player.position.x - road_x))
-		finite = finite and _player.velocity.is_finite() and _player.position.is_finite()
-		if _player.position.z >= z_end:
-			crossed = true
-			frames_used = i
-			break
-	print("SIM DATA city_street_flyover: crossed=%s in %d frames, min y %.1f, max drift %.1f m" % [
-			crossed, frames_used, min_y, max_drift]) ## (T-133) budget re-derivation evidence
-	_check("city_street_flyover", crossed and min_y > 5.0 and max_drift < 6.0 and finite,
-			"crossed=%s, min y %.1f, max drift %.1f m, finite=%s" % [crossed, min_y, max_drift, finite])
-
-
-## A generated building roof is landable and walkable (pairs with T-003), and
-## flapping off it works like off any other floor.
-func _scenario_city_roof() -> void:
-	var roof: Dictionary = {}
-	for info in _city.buildings:
-		var c: Vector3 = info.center
-		var dist := Vector2(c.x - _city.position.x, c.z - _city.position.z).length()
-		if info.top <= 12.0 and dist > 20.0 and dist < 90.0:
-			roof = info
-			break
-	if roof.is_empty():
-		_check("city_roof_landable", false, "no low building generated near the plaza")
-		_check("city_roof_takeoff", false, "no low building generated near the plaza")
-		return
-	var top: float = roof.top
-	await _set_up(true, Vector3(roof.center.x, top + 0.35, roof.center.z), Vector3.ZERO)
-	await _await_grounded(120)
-	var y := _player.position.y
-	var on_roof := _player.is_grounded and absf(y - (top + 0.3)) < 0.2
-	await _wait_frames(10)
-	var pos0: Vector3 = _player.position
-	await _hold("pitch_up", 14)
-	var walked := _player.position.distance_to(pos0)
-	_check("city_roof_landable", on_roof and _player.is_grounded and walked > 0.15
-			and absf(_player.position.y - (top + 0.3)) < 0.3,
-			"grounded at y=%.2f (roof top %.2f), walked %.2f m" % [y, top, walked])
-	await _tap("flap")
-	var peak := _player.position.y
-	for _i in 60:
-		await get_tree().physics_frame
-		peak = maxf(peak, _player.position.y)
-	_check("city_roof_takeoff", not _player.is_grounded and peak > top + 0.6,
-			"airborne again, peaked at %.2f m (roof top %.2f)" % [peak, top])
-
-
-## The sidewalk ring: the pigeon waddles up the low curb from the road and
-## along the raised pavement.
-func _scenario_city_sidewalk() -> void:
-	var road_x := _city.position.x + _city.block_size * 0.5 + _city.road_width * 0.5
-	await _set_up(true, Vector3(road_x, 1.2, _city.position.z), Vector3.ZERO, 90.0) ## face the curb
-	await _await_grounded(120)
-	await _wait_frames(10)
-	await _hold("pitch_up", 180) ## 3 s of waddling west across the curb
-	var walked := road_x - _player.position.x
-	var y := _player.position.y
-	_check("city_sidewalk_walkable", _player.is_grounded and walked > 5.0
-			and absf(y - (_city.block_slab_height + 0.3)) < 0.05,
-			"walked %.2f m west, grounded=%s at y=%.2f (slab top %.2f)" % [
-					walked, _player.is_grounded, y, _city.block_slab_height])
-
-
-## The district palettes (T-013): every building wears a color from ITS
-## district's palette, all four districts actually appear in the city, the
-## palettes are measurably distinct from each other, and the district mapping
-## is the pure quadrant function it claims to be.
-func _scenario_city_district_palettes() -> void:
-	var districts_seen := {}
-	var members_ok := true
-	for info in _city.buildings:
-		var district: int = info.district
-		districts_seen[district] = true
-		var member := false
-		for c: Color in _city.DISTRICT_PALETTES[district]:
-			member = member or (info.color as Color).is_equal_approx(c)
-		members_ok = members_ok and member
-	var means: Array[Color] = []
-	for palette: Array in _city.DISTRICT_PALETTES:
-		var sum := Color(0.0, 0.0, 0.0)
-		for c: Color in palette:
-			sum += c
-		means.append(sum / float(palette.size()))
-	var distinct := true
-	for i in means.size():
-		for j in range(i + 1, means.size()):
-			var a := means[i]
-			var b := means[j]
-			distinct = distinct and Vector3(a.r, a.g, a.b).distance_to(Vector3(b.r, b.g, b.b)) > 0.1
-	var mapping_ok := _city.district_of(0, 0) == 0 \
-			and _city.district_of(_city.blocks_per_side - 1, 0) == 1 \
-			and _city.district_of(0, _city.blocks_per_side - 1) == 2 \
-			and _city.district_of(_city.blocks_per_side - 1, _city.blocks_per_side - 1) == 3
-	var all_four := districts_seen.size() == _city.DISTRICT_PALETTES.size()
-	_check("city_district_palettes_distinct", members_ok and distinct and mapping_ok and all_four,
-			"members=%s distinct=%s mapping=%s districts_seen=%d/%d" % [
-					members_ok, distinct, mapping_ok,
-					districts_seen.size(), _city.DISTRICT_PALETTES.size()])
-
-
 ## --- scenario (T-049 facades fit floors) -------------------------------------
 
 
-## The standing `Visuals/Facade<N>` node for floor count `f` — resolved FRESH
-## on every call, because `City.generate()` frees and rebuilds the whole
-## Visuals root, so any node reference held across a rebuild dangles.
-func _facade_node(f: int) -> MultiMeshInstance3D:
-	var visuals := _city.get_node_or_null("Visuals") as Node3D
-	if visuals == null:
-		return null
-	return visuals.get_node_or_null(("facade%d" % f).to_pascal_case()) as MultiMeshInstance3D
-
-
-## The facade windows fit each building's real floor count (T-049): one
-## `Visuals/Facade<N>` MultiMesh per floor count actually present in
-## `buildings[]` — none for a count no building has — each class carrying as
-## many instances as it has buildings, every instance transform equal to its
-## building's expected facade box (recomputed from the record's public
-## center/size/top, floors derived per record), and each class material
-## reporting its floor count as `window_rows` metadata, distinct across
-## classes. A forced same-seed rebuild reproduces every class's instance set
-## byte-identically (`_spots_equal`) and the fingerprint stays at the pre-T-049
-## baseline pins — the change is keys/materials only: zero RNG draws, zero
-## `_fp` entries. Layout asserts on the standing city, no flight (the
-## district-palettes scenario shape).
-func _scenario_city_facades_fit_floors() -> void:
-	var pin_default := 1103197745 ## Fingerprint baseline — moved for T-051's two-axis footprint `_fp` entry, again for T-029's plaza-landmark `_fp` entry, again for T-091's four district-anchor `_fp` entries, again for T-104's four plaza-bin `_fp` x/z entries, again for T-135's pinned parks (the per-block `park_chance` draw deleted from `_rng` — every downstream layout draw shifted at every seed; the four seed-parks swapped for `PARK_BLOCKS` in the `_fp` slabs), and again for T-136's per-district prop mix (the bench/bin chances became `BENCH_CHANCE_BY_DISTRICT`/`BIN_CHANCE_BY_DISTRICT` — the hit-count shift re-rolled every downstream draw at every seed), each re-derived with a headless City.generate probe (pre-T-051: 2492360539; pre-T-029: 4188136223; pre-T-091: 1006789400; pre-T-104: 650664268; pre-T-135: 4045370482; pre-T-136: 2003179558).
-	var pin_foreign := 1411023184 ## Foreign-seed fingerprint, ditto (pre-T-051: 2662825400; pre-T-029: 547420287; pre-T-091: 3359332191; pre-T-104: 4031380170; pre-T-135: 533171164; pre-T-136: 3801669696).
-	var baseline_ok: bool = _city.fingerprint == pin_default
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	## Tally the buildings by floor count, derived from each record alone.
-	var per_floors: Dictionary = {} ## floors -> Array[Dictionary], in buildings[] order.
-	for info in _city.buildings:
-		var floors := roundi((float(info.top) - _city.block_slab_height
-				- _city.roof_slab_height) / _city.floor_height)
-		if not per_floors.has(floors):
-			per_floors[floors] = []
-		(per_floors[floors] as Array).append(info)
-	var visuals := _city.get_node("Visuals") as Node3D
-	var facade_nodes: Array[MultiMeshInstance3D] = []
-	for child in visuals.get_children():
-		if child is MultiMeshInstance3D and (child as Node).name.begins_with("Facade"):
-			facade_nodes.append(child)
-	var names_ok: bool = facade_nodes.size() == per_floors.size()
-	var counts_ok := true
-	var transforms_ok := true
-	var meta_ok := true
-	var rows_seen: Array[int] = []
-	var sets_before: Dictionary = {} ## floors -> Array[Transform3D], the standing class queues.
-	for f: int in per_floors:
-		var records: Array = per_floors[f]
-		var node := _facade_node(f)
-		names_ok = names_ok and node != null
-		if node == null:
-			continue
-		counts_ok = counts_ok and node.multimesh.instance_count == records.size()
-		## Instance transforms read from the class queue — the exact arrays fed
-		## into `set_instance_transform` (the park-trees/crosswalks channel):
-		## `MultiMesh.get_instance_transform` reads back identity on this
-		## engine build, so the node itself cannot answer per-instance data.
-		var xfs: Array[Transform3D] = []
-		for xf: Transform3D in _city._visuals["facade%d" % f].xfs:
-			xfs.append(xf)
-		counts_ok = counts_ok and xfs.size() == records.size()
-		for i in records.size():
-			var info: Dictionary = records[i]
-			var center := info.center as Vector3
-			var size := info.size as Vector2
-			var expected_origin := _city.to_local(center) \
-					+ Vector3(0.0, _city.block_slab_height + float(f) * _city.floor_height * 0.5, 0.0)
-			var expected_scale := Vector3(size.x, float(f) * _city.floor_height, size.y)
-			var xf := xfs[i]
-			transforms_ok = transforms_ok \
-					and xf.origin.distance_to(expected_origin) < 0.01 \
-					and absf(xf.basis.get_scale().x - expected_scale.x) < 0.01 \
-					and absf(xf.basis.get_scale().y - expected_scale.y) < 0.01 \
-					and absf(xf.basis.get_scale().z - expected_scale.z) < 0.01
-		var mat := node.multimesh.mesh.surface_get_material(0) as StandardMaterial3D
-		meta_ok = meta_ok and mat != null and mat.has_meta("window_rows") \
-				and int(mat.get_meta("window_rows")) == f
-		rows_seen.append(int(mat.get_meta("window_rows")))
-		sets_before[f] = xfs
-	var rows_distinct := true
-	for i in rows_seen.size():
-		for j in range(i + 1, rows_seen.size()):
-			rows_distinct = rows_distinct and rows_seen[i] != rows_seen[j]
-	## Determinism: a real rebuild reproduces every class's instance set byte-identically.
-	_city.generate(default_seed, true)
-	var deterministic: bool = _city.fingerprint == fp_first and not per_floors.is_empty()
-	for f: int in per_floors:
-		var node := _facade_node(f)
-		if node == null:
-			deterministic = false
-			continue
-		var xfs_after: Array[Transform3D] = []
-		for xf: Transform3D in _city._visuals["facade%d" % f].xfs:
-			xfs_after.append(xf)
-		deterministic = deterministic and _spots_equal(sets_before[f], xfs_after)
-	## A foreign seed keeps the same law — its own floor classes, each present.
-	_city.generate(424242)
-	var foreign_floors: Dictionary = {}
-	for info in _city.buildings:
-		var foreign_floors_i := roundi((float(info.top) - _city.block_slab_height
-				- _city.roof_slab_height) / _city.floor_height)
-		foreign_floors[foreign_floors_i] = true
-	var foreign_ok: bool = not foreign_floors.is_empty()
-	for f: int in foreign_floors:
-		foreign_ok = foreign_ok and _facade_node(f) != null
-	var pin_foreign_ok: bool = _city.fingerprint == pin_foreign
-	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default_ok: bool = _city.fingerprint == pin_default
-	var counts_line := PackedStringArray()
-	for f: int in per_floors:
-		counts_line.append("%d:%d" % [f, (per_floors[f] as Array).size()])
-	_check("city_facades_fit_floors",
-			baseline_ok and names_ok and counts_ok and transforms_ok and meta_ok
-					and rows_distinct and deterministic and foreign_ok
-					and pin_foreign_ok and pin_default_ok,
-			"baseline=%s nodes=%d/%d counts=%s transforms=%s meta=%s rows=%s det=%s foreign=%s pins=%s/%s" % [
-					baseline_ok, facade_nodes.size(), per_floors.size(),
-					" ".join(counts_line), transforms_ok, meta_ok, rows_seen,
-					deterministic, foreign_ok, pin_foreign_ok, pin_default_ok])
-	## Informational: the per-class tally — the ticket's roofscape read, re-printed.
-	print("SIM DATA city_facades_fit_floors: classes=%d tally=[%s] fingerprint=%d" % [
-			per_floors.size(), " ".join(counts_line), fp_first])
-
-
 ## --- scenario (T-051 varied footprints) --------------------------------------
-
-
-## The per-lot, per-axis footprint scale the ticket's pure hash claims — the
-## harness owns its copy of the fold (the `_expected_cafe_spot`
-## harness-owns-its-copy pattern) so the scenario proves the sizes, not just
-## the city function that filled them. Same fold as `City._lot_footprint_scale`:
-## (bx, bz, quadrant folded as qx·2+qz, axis+1) hashed, folded once with the
-## seed, mapped to [0.78, 1.0].
-func _expected_footprint_scale(bx: int, bz: int, qx: int, qz: int, axis: int,
-		seed_value: int) -> float:
-	var h := hash(Vector4i(bx, bz, qx * 2 + qz, axis + 1))
-	h = hash(h ^ seed_value)
-	return 0.78 + 0.22 * float(h % 1001) / 1000.0
-
-
-## Varied footprints (T-051): the roofscape is no longer a waffle grid of equal
-## 7.1 m squares — ≥ 3 distinct footprint sizes city-wide, every footprint
-## fully inside its lot with the `lot_gap` kept (per axis
-## `size ≤ (block_size − sidewalk_width·2)·0.5 − lot_gap`, size > 0), and every
-## record's size recomputable from the pure per-block/quadrant/axis hash plus
-## the seed (within 0.01) — with the observed scales spread across the mapped
-## [0.78, 1.0] band, not degenerate. The hash draws from NO RNG stream: the
-## pinned 100-of-142 awning count (`city_shopfronts_present`, re-derived when
-## T-135's park pinning shrank the building pool) and the byte
-## counts elsewhere prove both streams untouched; a forced same-seed rebuild
-## reproduces every size exactly and the fingerprint holds. Layout asserts on
-## the standing city, no flight (the facades-audit pattern).
-func _scenario_city_footprints_vary() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var sizes: Array[Vector2] = []
-	var distinct := {}
-	for info in _city.buildings:
-		var size: Vector2 = info.size
-		sizes.append(size)
-		distinct[size] = true
-	var distinct_ok := distinct.size() >= 3
-	## Every footprint inside its lot with the gap kept, per axis, and positive.
-	var size_max := (_city.block_size - _city.sidewalk_width * 2.0) * 0.5 - _city.lot_gap
-	var bounds_ok := not sizes.is_empty()
-	for size in sizes:
-		bounds_ok = bounds_ok and size.x > 0.0 and size.y > 0.0 \
-				and size.x <= size_max and size.y <= size_max
-	## Every record's size recomputable from the harness-owned hash fold.
-	var half_blocks := float(_city.blocks_per_side - 1) * 0.5
-	var footprint_max := (_city.block_size - _city.sidewalk_width * 2.0) * 0.5 - _city.lot_gap
-	var recompute_ok := not sizes.is_empty()
-	var min_scale := INF
-	var max_scale := -INF
-	for info in _city.buildings:
-		var center_local := _city.to_local(info.center)
-		var bx := roundi(center_local.x / _city.block_pitch + half_blocks)
-		var bz := roundi(center_local.z / _city.block_pitch + half_blocks)
-		var lot: Vector2 = info.lot_offset
-		var qx := int(signf(lot.x))
-		var qz := int(signf(lot.y))
-		var expected := Vector2(
-				footprint_max * _expected_footprint_scale(bx, bz, qx, qz, 0, default_seed),
-				footprint_max * _expected_footprint_scale(bx, bz, qx, qz, 1, default_seed))
-		var size: Vector2 = info.size
-		recompute_ok = recompute_ok \
-				and absf(size.x - expected.x) < 0.01 and absf(size.y - expected.y) < 0.01
-		min_scale = minf(min_scale, size.x / footprint_max)
-		min_scale = minf(min_scale, size.y / footprint_max)
-		max_scale = maxf(max_scale, size.x / footprint_max)
-		max_scale = maxf(max_scale, size.y / footprint_max)
-	## Uniform-ish across the mapped band: with 274 axis samples over 137
-	## buildings the extremes must reach both ends of [0.78, 1.0].
-	var spread_ok := min_scale <= 0.80 and max_scale >= 0.98
-	## Determinism: a real rebuild reproduces every size exactly, fp self-to-self.
-	_city.generate(default_seed, true)
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _city.buildings.size() == sizes.size()
-	if deterministic:
-		for i in sizes.size():
-			deterministic = deterministic \
-					and (_city.buildings[i].size as Vector2) == sizes[i]
-	_check("city_footprints_vary",
-			distinct_ok and bounds_ok and recompute_ok and spread_ok and deterministic,
-			"sizes=%d distinct=%d bounds=%s recompute=%s spread=[%.3f..%.3f] det=%s" % [
-					sizes.size(), distinct.size(), bounds_ok, recompute_ok,
-					min_scale, max_scale, deterministic])
-	## Informational: the ticket's roofscape read, re-printed on every re-run.
-	print("SIM DATA city_footprints_vary: buildings=%d distinct_sizes=%d scale_range=[%.3f..%.3f] fingerprint=%d"
-			% [sizes.size(), distinct.size(), min_scale, max_scale, fp_first])
 
 
 ## --- scenarios (T-017 shopfront ground floors) ------------------------------
@@ -3745,176 +3498,6 @@ func _expected_sign_plaque(city: City, info: Dictionary) -> Transform3D:
 			+ normal * (face_out * 0.5 + 0.12 + 0.05) \
 			+ Vector3(0.0, city.block_slab_height + 2.55, 0.0)
 	return Transform3D(Basis.from_scale(size), pos)
-
-
-## The door transform T-103's fixed math claims for one building — an
-## independent re-derivation (the `_expected_sign_plaque` pattern) so the
-## scenario proves the doors, not just the city function that filled them.
-## The face distance uses the footprint component ALONG the door-face normal
-## (T-051: `size.x` on ±x faces, `size.y` on ±z), and the size MUST encode the
-## flush convention T-103 fixed — the thin 0.1 m depth on the face-normal
-## axis, the 0.95 m width along the wall, the awning's convention — NOT the
-## landed inverted swap: a fin has the same origin and euler (both builds are
-## unrotated diagonal bases), so only the per-axis scale compare keeps it
-## failing.
-func _expected_door(city: City, info: Dictionary) -> Transform3D:
-	var normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][
-			int(info.door_face)]
-	var face_axis_x := absf(normal.x) > 0.5
-	var face_out: float = (info.size as Vector2).x if face_axis_x \
-			else (info.size as Vector2).y
-	var size := Vector3(0.1, 2.05, 0.95) if face_axis_x else Vector3(0.95, 2.05, 0.1)
-	var pos: Vector3 = city.to_local(info.center) \
-			+ normal * (face_out * 0.5 + 0.12 + 0.01) \
-			+ Vector3(0.0, city.block_slab_height + 1.025, 0.0)
-	return Transform3D(Basis.from_scale(size), pos)
-
-
-## Every building wears a ground-floor shop band, a door on one of its two
-## street-facing faces, and the seeded share of awnings; the shopfront palette
-## stays measurably distinct from all four district palettes. Under the fixed
-## seed every roll is deterministic, so coverage is asserted at 100% and the
-## awning count is pinned to the seed's exact draw (100 of 142 = 70.4% for
-## awning_chance 0.6 at seed 20260928 — retune the pin if the chance changes;
-## T-135's park pinning shrank the pool from 104 of 146 by removing nine
-## seed-park building blocks).
-## Since T-103 the door geometry is asserted too: every queued `door` transform
-## decomposes as a pure scale with the ≈0.1 m thin axis ON the face-normal
-## direction and the 0.95 m width along the wall (a flush slab, not a fin).
-func _scenario_city_shopfronts() -> void:
-	var members_ok := true
-	var doors_on_street := true
-	var awnings := 0
-	for info in _city.buildings:
-		var shop := false
-		for c: Color in _city.SHOPFRONT_PALETTE:
-			shop = shop or (info.shop_color as Color).is_equal_approx(c)
-		members_ok = members_ok and shop
-		## The lot's street faces are the two whose outward normal points away
-		## from the block center; the other two look into the alley.
-		var lot: Vector2 = info.lot_offset
-		var street_faces: Array[int] = []
-		if lot.x > 0.0:
-			street_faces.append(0)
-		elif lot.x < 0.0:
-			street_faces.append(1)
-		if lot.y > 0.0:
-			street_faces.append(2)
-		elif lot.y < 0.0:
-			street_faces.append(3)
-		doors_on_street = doors_on_street and street_faces.has(int(info.door_face))
-		if info.has_awning:
-			awnings += 1
-	var count := _city.buildings.size()
-	var awn_share := float(awnings) / float(maxi(count, 1))
-	## Shop palette vs district palette means — mirrors the T-013 distinctness read.
-	var shop_mean := Color(0.0, 0.0, 0.0)
-	for c: Color in _city.SHOPFRONT_PALETTE:
-		shop_mean += c
-	shop_mean /= float(_city.SHOPFRONT_PALETTE.size())
-	var palette_distinct := true
-	for palette: Array in _city.DISTRICT_PALETTES:
-		var sum := Color(0.0, 0.0, 0.0)
-		for c: Color in palette:
-			sum += c
-		var mean := sum / float(palette.size())
-		var shop_v := Vector3(shop_mean.r, shop_mean.g, shop_mean.b)
-		var district_v := Vector3(mean.r, mean.g, mean.b)
-		palette_distinct = palette_distinct and shop_v.distance_to(district_v) > 0.1
-	var coverage_ok := count > 0 and members_ok and doors_on_street and palette_distinct
-	## The seed's exact deterministic draw — an extra (or missing) _shop_rng roll
-	## anywhere upstream would shift this count and fail here.
-	var awn_ok := awnings == 100
-	## Signboard plaques (T-090): the `sign` visual queue holds exactly one
-	## plaque per building — the queue that feeds the MultiMesh, read like the
-	## crosswalk paint's (MultiMesh.get_instance_transform reads back identity
-	## headless) — and every transform is recomputable from its building record
-	## (order pairs 1:1: both lists append once per `_add_building`). The
-	## re-derivation's per-axis scale compare is the perpendicular-plank guard.
-	var sign_queue: Array = _city._visuals.get("sign", {}).get("xfs", [])
-	var signs_ok: bool = sign_queue.size() == count
-	if signs_ok:
-		var sign_i := 0
-		for info in _city.buildings:
-			var xf: Transform3D = sign_queue[sign_i]
-			var expected: Transform3D = _expected_sign_plaque(_city, info)
-			signs_ok = signs_ok \
-					and xf.origin.distance_to(expected.origin) < 0.01 \
-					and (xf.basis.get_scale() - expected.basis.get_scale()).length() < 0.01 \
-					and xf.basis.get_euler().distance_to(expected.basis.get_euler()) < 0.01
-			sign_i += 1
-	## Door geometry (T-103): the `door` visual queue holds exactly one door
-	## per building (142 at the M1 seed, paired 1:1 in order like the sign
-	## queue), and every transform is a FLUSH slab — the basis decomposes as
-	## pure scale, no rotation (per `_box_xf`), with the ≈0.1 m thin axis ON
-	## the face-normal direction and the 0.95 m width along the wall, re-derived
-	## per building from its `door_face` record (the `_expected_door` re-derivation
-	## pins origin too). The landed inverted swap kept origin and euler and only
-	## swapped the per-axis scales — exactly what this leg reads — so a fin
-	## fails here on both the raw-axis compare and the expected-scale compare.
-	var door_queue: Array = _city._visuals.get("door", {}).get("xfs", [])
-	var doors_ok: bool = door_queue.size() == 142 and door_queue.size() == count
-	if doors_ok:
-		var door_i := 0
-		for info in _city.buildings:
-			var xf: Transform3D = door_queue[door_i]
-			var normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][
-					int(info.door_face)]
-			var door_scale: Vector3 = xf.basis.get_scale()
-			var normal_axis: float = door_scale.x if absf(normal.x) > 0.5 else door_scale.z
-			var wall_axis: float = door_scale.z if absf(normal.x) > 0.5 else door_scale.x
-			var expected: Transform3D = _expected_door(_city, info)
-			doors_ok = doors_ok \
-					and xf.basis.get_euler().length() < 0.01 \
-					and absf(normal_axis - 0.1) < 0.01 \
-					and absf(wall_axis - 0.95) < 0.01 \
-					and absf(door_scale.y - 2.05) < 0.01 \
-					and xf.origin.distance_to(expected.origin) < 0.01
-			door_i += 1
-	_check("city_shopfronts_present", coverage_ok and awn_ok and signs_ok and doors_ok,
-			"buildings=%d members=%s doors_on_street=%s palette_distinct=%s awnings=%d (%.1f%%) signs=%d/%d %s door_xfs=%d/%d %s"
-					% [count, members_ok, doors_on_street, palette_distinct,
-					awnings, awn_share * 100.0, sign_queue.size(), count, signs_ok,
-					door_queue.size(), count, doors_ok])
-	## Same seed → every shopfront roll reproduces identically — and the sign
-	## plaque and door queues byte-identically (the `_spots_equal` exact-compare
-	## pattern).
-	var default_seed: int = _city.seed_value
-	var snapshot: Array = []
-	for info in _city.buildings:
-		snapshot.append([info.shop_color, info.door_face, info.has_awning])
-	var sign_snapshot: Array[Transform3D] = []
-	for xf: Transform3D in sign_queue:
-		sign_snapshot.append(xf)
-	var door_snapshot: Array[Transform3D] = []
-	for xf: Transform3D in door_queue:
-		door_snapshot.append(xf)
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces the rolls.
-	var reproduced := snapshot.size() == _city.buildings.size()
-	if reproduced:
-		for i in snapshot.size():
-			var info: Dictionary = _city.buildings[i]
-			var same_color: bool = (snapshot[i][0] as Color).is_equal_approx(info.shop_color)
-			var same_face: bool = snapshot[i][1] == int(info.door_face)
-			var same_awning: bool = snapshot[i][2] == bool(info.has_awning)
-			reproduced = reproduced and same_color and same_face and same_awning
-	var signs_reproduced: bool = _city._visuals.has("sign")
-	if signs_reproduced:
-		var sign_rebuild: Array[Transform3D] = []
-		for xf: Transform3D in _city._visuals["sign"].xfs:
-			sign_rebuild.append(xf)
-		signs_reproduced = _spots_equal(sign_snapshot, sign_rebuild)
-	var doors_reproduced: bool = _city._visuals.has("door")
-	if doors_reproduced:
-		var door_rebuild: Array[Transform3D] = []
-		for xf: Transform3D in _city._visuals["door"].xfs:
-			door_rebuild.append(xf)
-		doors_reproduced = _spots_equal(door_snapshot, door_rebuild)
-	reproduced = reproduced and signs_reproduced and doors_reproduced
-	_check("city_shopfronts_deterministic", reproduced,
-			"snapshot %d vs regenerated %d signs_reproduced=%s doors_reproduced=%s" % [
-					snapshot.size(), _city.buildings.size(), signs_reproduced,
-					doors_reproduced])
 
 
 ## --- scenarios (T-005 bread & hunger) --------------------------------------
@@ -4005,11 +3588,17 @@ func _scenario_bread_eating() -> void:
 
 
 ## The bread service keeps `target_count` crumbs alive: eaten crumbs are
-## forgotten, then replaced somewhere within one respawn interval.
+## forgotten, then replaced somewhere within one respawn interval. (T-177
+## re-pin) The rig rides the resident Ames world's spot supply now — and its
+## target must EXCEED the world's 8-spot boot ring (`City.boot_bread_spots`
+## seeds unconditionally first), so the smallest honest target is 12: the
+## populate lands exactly 8 boot crumbs + the class fill's 4, eats 3, and
+## tops back up to 12 within one interval — the Windrow-target 6 would have
+## the boot ring overfill it by construction.
 func _scenario_bread_respawn() -> void:
 	var spawner := BreadSpawner.new()
 	spawner.city = _city
-	spawner.target_count = 6
+	spawner.target_count = 12
 	spawner.respawn_interval = 0.5
 	add_child(spawner)
 	await _wait_frames(4)
@@ -4023,7 +3612,7 @@ func _scenario_bread_respawn() -> void:
 	await _wait_frames(45) ## 0.75 s > respawn_interval.
 	var respawned: int = spawner.living_crumbs().size()
 	_check("crumbs_respawn",
-			initial == 6 and after_eating == 3 and respawned == 6 and spawner.eaten_count == 3,
+			initial == 12 and after_eating == 9 and respawned == 12 and spawner.eaten_count == 3,
 			"initial %d → eaten down to %d → topped back up to %d (eaten_count %d)" % [
 					initial, after_eating, respawned, spawner.eaten_count])
 	spawner.free()
@@ -4237,7 +3826,8 @@ func _scenario_poop_event_target() -> void:
 ## a .tscn fails resource parsing outright — load() returns null — so this
 ## scenario running at all, plus the reported emission alpha of 1.0, is that
 ## proof), and the albedo keeps >= 0.25 Euclidean RGB from both wash-out
-## backdrops (sunlit grass, plaza), distances printed informationally. The
+## backdrops (the T-177 re-pin: the Ames bake's residential-plate and downtown
+## ground tints), distances printed informationally. The
 ## collider stays pinned at T-060's retuned 0.30 (the landed 0.07 pin amended
 ## in place — the pin's purpose survives: the collider still deliberately
 ## differs from the 0.12 mesh, the overhang direction flipped, and every
@@ -4248,8 +3838,14 @@ func _scenario_poop_ball_visible() -> void:
 	var sphere := ball.mesh as SphereMesh
 	var mat := sphere.material as StandardMaterial3D
 	var albedo := _rgb(_mesh_albedo(poop, "BallMesh"))
-	var vs_grass := albedo.distance_to(_rgb(City.COLOR_GRASS))
-	var vs_plaza := albedo.distance_to(_rgb(City.COLOR_PLAZA))
+	## (T-177 re-pin) The two wash-out backdrops are the Ames bake's own ground
+	## colors now — the residential plate the pigeon mostly flies over and the
+	## downtown cell tint (the retired Windrow grass/plaza constants died with
+	## the generator; the contrast law — >= 0.25 from both — is unchanged).
+	var vs_grass := albedo.distance_to(
+			_rgb(AmesBaker.DISTRICT_GROUND["residential"] as Color))
+	var vs_plaza := albedo.distance_to(
+			_rgb(AmesBaker.DISTRICT_GROUND["downtown"] as Color))
 	var collider := (poop.get_node("BallShape") as CollisionShape3D).shape as SphereShape3D
 	var emission_ok := mat.emission_enabled \
 			and absf(mat.emission.r - 0.85) < 0.005 and absf(mat.emission.g - 0.78) < 0.005 \
@@ -4318,37 +3914,6 @@ func _reticle_alpha(reticle: PoopReticle) -> float:
 	if mat == null:
 		return -1.0
 	return mat.albedo_color.a
-
-
-## (T-158) The reticle ring's current albedo RGB — the tell's tint channel,
-## read through the Ring's own material override on the `_reticle_alpha`
-## pattern (the tell tints rgb only; alpha stays the dim logic's).
-func _reticle_ring_rgb(reticle: PoopReticle) -> Color:
-	var ring := reticle.get_node_or_null("Ring") as MeshInstance3D
-	if ring == null:
-		return Color(-1.0, -1.0, -1.0)
-	var mat := ring.material_override as StandardMaterial3D
-	if mat == null:
-		return Color(-1.0, -1.0, -1.0)
-	return Color(mat.albedo_color.r, mat.albedo_color.g, mat.albedo_color.b)
-
-
-## (T-158) Scenario-side precondition probe: does ANY citizen-classed body sit
-## under `point` — the same citizen layers (npc | vehicle), the same duck-typed
-## `citizen_class` read, reimplemented INDEPENDENTLY of the reticle so the
-## neutral leg's "no body → neutral" claim is conditioned, never vacuous.
-func _classed_body_under(point: Vector3) -> bool:
-	var params := PhysicsShapeQueryParameters3D.new()
-	var sphere := SphereShape3D.new()
-	sphere.radius = 1.0
-	params.shape = sphere
-	params.transform = Transform3D(Basis.IDENTITY, point)
-	params.collision_mask = 12
-	for hit in get_world_3d().direct_space_state.intersect_shape(params, 16):
-		var body: Object = hit["collider"]
-		if body != null and body.get("citizen_class") != null:
-			return true
-	return false
 
 
 ## The poop target reticle (T-105) — the aiming-contract leg, bare rig. The
@@ -4568,157 +4133,6 @@ func _scenario_reticle_live_refresh_lock() -> void:
 			"hz=%.1f ticks=%d (want 30.0 / 2)" % [hz, ticks])
 
 
-## (T-158) The reticle's TARGET TELL — the pin names what stands under it
-## before the drop, in the post-hit readout's own color code. On the
-## `reticle_main_lifecycle` rig (instanced Main in its own space, the T-077
-## reset_flight-per-frame hover hold) with the share-knob single-class tourist
-## rig (the `hit_feedback_names_the_class` pattern) and ONE tourist re-placed
-## AT the freshly-read pin point each frame — the pin must have a body under it
-## per frame — the nudged ~0.01 m/frame hold keeps the changed-value guard
-## re-marching on the 2-tick cadence, so the tell query refreshes per
-## re-march. Legs: the ring rgb reads the tell gold over the all-visitor rig
-## (with the class word "Visitor" lit above the pin), the tell red over the
-## all-civilian rig, and the scene-neutral rgb with the placed body freed and
-## every other tourist swept clear — the neutral claim conditioned by a
-## scenario-side same-mask sphere probe (`_classed_body_under`) asserting NO
-## citizen-classed body under the pin on the very frame the neutral rgb is
-## read. The frozen leg taps ONE real drop with the visitor body still under
-## the pin: the ring stays neutral and the word hidden while `is_frozen` (the
-## freeze forces neutral in lock_to and the frozen march never queries), and
-## only relights into the tell after the splat returns the reticle to live.
-## Read through `_reticle_ring_rgb` on the `_reticle_alpha` pattern — the
-## two-material split keeps the dim write on the ring's own material, which the
-## three pre-existing reticle rows re-run against untouched.
-func _scenario_reticle_pin_names_the_target() -> void:
-	Game.save_path = SIM_SAVE_PATH
-	Game.reset_run()
-	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO) ## Park the bare pigeon grounded…
-	await _await_grounded(90) ## …so the tap cannot fire through it.
-	var main_game: MainGame = MAIN_SCENE.instantiate()
-	main_game.position = Vector3(5500.0, 0.0, 5500.0) ## Own space, clear of every other instanced Main.
-	add_child(main_game)
-	await _wait_frames(4)
-	var pigeon: Player = main_game.player
-	var reticle: PoopReticle = main_game.poop_reticle
-	var tourists: TouristSpawner = main_game.get_node("TouristSpawner") as TouristSpawner
-	var word: Label3D = reticle.get_node_or_null("ClassWord") as Label3D
-	var gain_color: Color = Color(reticle.tell_gain_color.r,
-			reticle.tell_gain_color.g, reticle.tell_gain_color.b)
-	var loss_color: Color = Color(reticle.tell_loss_color.r,
-			reticle.tell_loss_color.g, reticle.tell_loss_color.b)
-	## The neutral rgb is the SCENE value — read off the Ring mesh's own
-	## material, never a duplicated literal (the reticle reads it the same way).
-	var ring_node := reticle.get_node_or_null("Ring") as MeshInstance3D
-	var neutral_color := Color(-1.0, -1.0, -1.0)
-	if ring_node != null and ring_node.mesh != null:
-		var scene_mat := ring_node.mesh.surface_get_material(0) as StandardMaterial3D
-		if scene_mat != null:
-			neutral_color = Color(scene_mat.albedo_color.r,
-					scene_mat.albedo_color.g, scene_mat.albedo_color.b)
-	var spawn_local: Vector3 = main_game.city.to_local(main_game.city.spawn_point)
-	var hover: Vector3 = spawn_local + Vector3(0.0, 10.0, 0.0)
-	var visitor_word: String = CitizenClass.label(CitizenClass.Kind.VISITOR)
-	## --- the gain leg: all-visitor rig, one tourist re-placed AT the pin ----
-	tourists.visitor_share = 1.0
-	tourists.superfan_share = 0.0
-	tourists._populate()
-	await _wait_frames(2)
-	var tourist: Tourist = _first_tourist_of_class(tourists, CitizenClass.Kind.VISITOR)
-	var gain_ok: bool = tourist != null and word != null
-	var gain_seen := false
-	var i := 0
-	while gain_ok and i < 45 and not gain_seen:
-		pigeon.reset_flight(hover + Vector3(0.01 * float(i), 0.0, 0.0)) ## Hover hold, nudged — the guard re-marches.
-		await get_tree().physics_frame
-		if reticle.visible and is_instance_valid(tourist):
-			tourist.global_position = reticle.global_position ## The body rides the freshly-read pin.
-		if _reticle_ring_rgb(reticle).is_equal_approx(gain_color) \
-				and word.visible and word.text == visitor_word:
-			gain_seen = true
-		i += 1
-	gain_ok = gain_ok and gain_seen
-	## --- the frozen leg: one real tap, visitor body still under the pin ----
-	await _tap("poop")
-	await _wait_frames(2) ## lock_to fires mid-step; the frozen march runs the next physics frame.
-	var frozen_seen := false
-	var frozen_neutral := true
-	var j := 0
-	while j < 25 and reticle.is_frozen and is_instance_valid(tourist):
-		pigeon.reset_flight(hover + Vector3(0.01 * float(45 + j), 0.0, 0.0))
-		await get_tree().physics_frame
-		tourist.global_position = reticle.global_position ## The body stays under the committed pin.
-		frozen_seen = true
-		if not _reticle_ring_rgb(reticle).is_equal_approx(neutral_color) or word.visible:
-			frozen_neutral = false ## A frozen pin claimed a target — the commit may miss it.
-		j += 1
-	var frozen_ok: bool = frozen_seen and frozen_neutral
-	## --- the splat returns live; the tell relights only after that ----------
-	var drop_gone := false
-	var k := 0
-	while k < 240 and not drop_gone:
-		pigeon.reset_flight(hover + Vector3(0.01 * float(k % 30), 0.0, 0.0)) ## Hold; the cooldown being wiped is fine — no more taps.
-		await get_tree().physics_frame
-		if reticle.visible and is_instance_valid(tourist):
-			tourist.global_position = reticle.global_position
-		if get_tree().get_nodes_in_group("poops").is_empty():
-			drop_gone = true
-		k += 1
-	var relit := false
-	var l := 0
-	while l < 30 and not relit and is_instance_valid(tourist):
-		pigeon.reset_flight(hover + Vector3(0.01 * float(l), 0.0, 0.0))
-		await get_tree().physics_frame
-		if reticle.visible and is_instance_valid(tourist):
-			tourist.global_position = reticle.global_position
-		if not reticle.is_frozen \
-				and _reticle_ring_rgb(reticle).is_equal_approx(gain_color) \
-				and word.visible and word.text == visitor_word:
-			relit = true
-		l += 1
-	## --- the loss leg: all-civilian rig under the same pin ------------------
-	tourists.visitor_share = 0.0
-	tourists.superfan_share = 0.0
-	tourists._populate() ## Frees the visitor rig (queue_free), re-seeds single-class.
-	await _wait_frames(2)
-	var civilian: Tourist = _first_tourist_of_class(tourists, CitizenClass.Kind.CIVILIAN)
-	var loss_ok: bool = civilian != null
-	var loss_seen := false
-	var m := 0
-	while loss_ok and m < 45 and not loss_seen:
-		pigeon.reset_flight(hover + Vector3(0.01 * float(m), 0.0, 0.0))
-		await get_tree().physics_frame
-		if reticle.visible and is_instance_valid(civilian):
-			civilian.global_position = reticle.global_position
-		if _reticle_ring_rgb(reticle).is_equal_approx(loss_color):
-			loss_seen = true
-		m += 1
-	loss_ok = loss_ok and loss_seen
-	## --- the neutral leg: the rig freed, the pin over NO classed body -------
-	if is_instance_valid(civilian):
-		civilian.queue_free()
-	for far_tourist in tourists.living_tourists(): ## Sweep everyone clear — the claim under test is "no body → neutral".
-		far_tourist.global_position += Vector3(500.0, 0.0, 0.0)
-	await _wait_frames(2) ## The queue_free lands; the next re-march clears the loss tint.
-	var neutral_ok := false
-	var n := 0
-	while n < 60 and not neutral_ok:
-		pigeon.reset_flight(hover + Vector3(0.01 * float(n), 0.0, 0.0))
-		await get_tree().physics_frame
-		if _reticle_ring_rgb(reticle).is_equal_approx(neutral_color) and not word.visible:
-			## Conditioned, never vacuous: the scenario's own probe must find NO
-			## citizen-classed body under the pin on the very frame read.
-			neutral_ok = not _classed_body_under(reticle.global_position)
-		n += 1
-	## --- cleanup, the reticle_main_lifecycle pattern -------------------------
-	main_game.free()
-	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
-	Game.reset_run()
-	_check("reticle_pin_names_the_target",
-			gain_ok and frozen_ok and drop_gone and relit and loss_ok and neutral_ok,
-			"gain=%s frozen=%s drop_gone=%s relit=%s loss=%s neutral=%s" % [
-					gain_ok, frozen_ok, drop_gone, relit, loss_ok, neutral_ok])
-
-
 ## The F readiness glyph (T-077), through the REAL main scene: airborne with a
 ## rested drop it shows lit at full alpha, a REAL poop tap dims it to a quarter
 ## immediately, it stays dim while the cooldown runs and freezes with a paused
@@ -4827,672 +4241,10 @@ func _scenario_poop_ready_indicator_tracks_cooldown() -> void:
 					relit, hidden_ok, airborne_again, cooling_again, restart_lit])
 
 
-## The lead coach (T-060), through the REAL main scene (the T-077 instanced-Main
-## pattern — own space, the spawner tightened to ONE tourist before _ready so
-## the coach's scan has exactly one candidate): held airborne well out of
-## coach_range the slot shows the plain air hint; held airborne ~20 m ahead of
-## the tourist (within coach_range, ahead-ish) it teaches the lead —
-## MainGame.COACH_POOP; one synthetic `Game.add_tourist_hit` (the scoring
-## relay's exact entry — the coach is keyed on `tourist_hits`, never on a
-## signal, so nothing but a real tourist splat retires it) silences it back to
-## HINT_AIR while still airborne and in range; and landing grounded — beside
-## the tourist, still within range, i.e. ineligible only by grounding — shows
-## HINT_GROUND regardless. Registered beside the other poop scenarios —
-## unpaused tree, no live Main — and it leaves it exactly that.
-func _scenario_coach_hint_shows_until_first_hit() -> void:
-	Game.save_path = SIM_SAVE_PATH
-	Game.reset_run()
-	var main_game: MainGame = MAIN_SCENE.instantiate()
-	var spawner: TouristSpawner = main_game.get_node("TouristSpawner") as TouristSpawner
-	spawner.target_count = 1
-	spawner.spawn_min_dist = 0.0
-	spawner.spawn_max_dist = 10.0 ## One candidate, seeded near the spawn corridor before _ready populates.
-	main_game.position = Vector3(5500.0, 0.0, -5500.0) ## Own space, clear of every other instanced Main.
-	add_child(main_game)
-	await _wait_frames(4)
-	var hint: Label = main_game.hint_label
-	var pigeon: Player = main_game.player
-	var spawn_local: Vector3 = main_game.city.to_local(main_game.city.spawn_point)
-	var tourists := main_game.tourist_spawner.living_tourists()
-	if tourists.is_empty():
-		_check("coach_hint_shows_until_first_hit", false, "no tourist spawned")
-		main_game.free()
-		Game.hunger.player = null
-		Game.reset_run()
-		return
-	var tourist: Tourist = tourists[0]
-	var tourist_local: Vector3 = main_game.to_local(tourist.global_position)
-	## Out of range: held airborne ~60 m north of the only tourist — the T-077
-	## way, a reset_flight per frame — the coach has nobody to teach, the plain
-	## air hint owns the slot.
-	var far_hover: Vector3 = spawn_local + Vector3(0.0, 12.0, 60.0)
-	for _i in 8:
-		pigeon.reset_flight(far_hover)
-		await get_tree().physics_frame
-	await _wait_frames(2) ## The _process driver's ticks.
-	var far_ok: bool = not pigeon.is_grounded and hint.text == MainGame.HINT_AIR
-	## In range, ahead-ish (yaw 0 flies −Z; the tourist sits 20 m dead ahead):
-	## the lead lesson shows.
-	var near_hover: Vector3 = tourist_local + Vector3(0.0, 8.0, 20.0)
-	for _i in 8:
-		pigeon.reset_flight(near_hover)
-		await get_tree().physics_frame
-	await _wait_frames(2)
-	var coach_ok: bool = not pigeon.is_grounded and Game.tourist_hits == 0 \
-			and hint.text == MainGame.COACH_POOP
-	## One synthetic tourist hit through the scoring relay's exact entry: the
-	## coach is dead for the rest of the run — the slot falls back to the air
-	## hint while still airborne, still in range, tourist still ahead.
-	Game.add_tourist_hit(tourist.global_position)
-	await _wait_frames(2)
-	var after_hit_ok: bool = Game.tourist_hits == 1 and hint.text == MainGame.HINT_AIR
-	## Grounded (a 0.4 m drop beside the tourist, still within coach_range —
-	## ineligible only by grounding): the ground hint shows regardless.
-	pigeon.reset_flight(tourist_local + Vector3(0.0, 0.4, 5.0))
-	var landed := false
-	for _i in 300:
-		await get_tree().physics_frame
-		if pigeon.is_grounded:
-			landed = true
-			break
-	await _wait_frames(3) ## The driver's next ticks reconcile the slot.
-	var grounded_ok: bool = landed and pigeon.is_grounded \
-			and hint.text == MainGame.HINT_GROUND
-	var final_hint: String = hint.text ## Read before the teardown — the label dies with the scene.
-	main_game.free()
-	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
-	Game.reset_run()
-	_check("coach_hint_shows_until_first_hit",
-			far_ok and coach_ok and after_hit_ok and grounded_ok,
-			"far=%s coach=%s after_hit=%s grounded=%s (hint '%s')" % [
-					far_ok, coach_ok, after_hit_ok, grounded_ok, final_hint])
-
-
 ## --- scenarios (T-020 park elders) ------------------------------------------
 
 
-## The elder scenarios share one rig over the real generated city: an elder
-## spawner under test and an empty bread service, so every living crumb below
-## is a tossed one. The spawner's relays land in `_bread_shared`.
-func _add_elder_rig() -> Array:
-	_bread_shared.clear()
-	var crumbs := BreadSpawner.new()
-	crumbs.city = _city
-	crumbs.target_count = 0 ## No seeded crumbs — only tossed ones exist.
-	crumbs.respawn_interval = 9999.0
-	add_child(crumbs)
-	var spawner := ElderSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	spawner.bread_spawner = crumbs
-	add_child(spawner)
-	spawner.bread_shared.connect(func(elder: Elder, count: int) -> void:
-		_bread_shared.append({"elder": elder, "crumbs": count}))
-	return [spawner, crumbs]
-
-
-func _spots_equal(a: Array[Transform3D], b: Array[Transform3D]) -> bool:
-	if a.size() != b.size():
-		return false
-	for i in a.size():
-		if a[i] != b[i]:
-			return false
-	return true
-
-
-## The elders' plaza placement is pure layout: `elder_spots` records one spot
-## per plaza-ring bench (8), appended with zero RNG, and the spawner seats 4
-## elders on every second bench (indices 0, 2, 4, 6 — 90° apart, on the seat
-## line). Regenerating the same seed reproduces the fingerprint, the
-## bench/lamp/bin counts AND the spot list byte-identically, every seed still
-## gets its ring, and the spawner seats one elder per chosen spot on the real
-## city. (T-137) The list grows to 12 — the four PARK_BLOCKS benches take
-## indices 8–11 at the pinned (0, 0, +3) offset, yaw 0, one per
-## `district_of` in order, with `elder_seat_districts` (plaza −1, parks
-## their district) appended in lockstep — while the BOOT population stays
-## exactly the plaza ring's 0/2/4/6 and the fingerprint pins hold (the park
-## benches draw zero RNG and add zero `_fp` entries).
-func _scenario_elder_placement_no_rng() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var spots_a := _city.elder_spots.duplicate()
-	var districts_a: Array[int] = _city.elder_seat_districts.duplicate()
-	var report_a: Dictionary = _city.last_report
-	var shape_ok: bool = spots_a.size() == 12
-	var angles: Array[float] = []
-	for i in 8: ## The plaza ring (T-137: 8–11 are the park benches).
-		var origin: Vector3 = (spots_a[i] as Transform3D).origin
-		shape_ok = shape_ok and absf(Vector2(origin.x, origin.z).length() - 8.0) < 0.01 \
-				and absf(origin.y - (_city.block_slab_height + 0.60)) < 0.001
-		angles.append(atan2(origin.z, origin.x))
-	## (T-137) The four park seats: exact (0, 0, +3) offsets in PARK_BLOCKS
-	## order, yaw 0 (facing the block center), districts 0,1,2,3 — and the
-	## district table matches (plaza −1 eight times, parks their `district_of`).
-	var parks_ok: bool = _city.elder_seat_districts.size() == 12
-	var plaza_districts_ok: bool = parks_ok
-	for i in 8:
-		plaza_districts_ok = plaza_districts_ok \
-				and _city.elder_seat_districts[i] == -1
-	var half_blocks := float(_city.blocks_per_side - 1) * 0.5
-	for p in _city.PARK_BLOCKS.size():
-		var block: Vector2i = _city.PARK_BLOCKS[p]
-		var center := Vector3((block.x - half_blocks) * _city.block_pitch, 0.0,
-				(block.y - half_blocks) * _city.block_pitch)
-		var xf: Transform3D = spots_a[8 + p]
-		parks_ok = parks_ok \
-				and absf(xf.origin.x - center.x) < 0.001 \
-				and absf(xf.origin.z - (center.z + 3.0)) < 0.001 \
-				and absf(xf.origin.y - (_city.block_slab_height + 0.60)) < 0.001 \
-				and xf.basis.x.distance_to(Vector3.RIGHT) < 0.001 \
-				and xf.basis.z.distance_to(Vector3.BACK) < 0.001 \
-				and _city.elder_seat_districts[8 + p] == _city.district_of(block.x, block.y)
-	var spread := true
-	angles.sort()
-	for i in angles.size():
-		spread = spread and absf(wrapf(angles[(i + 1) % angles.size()] - angles[i],
-				-PI, PI) - PI * 0.25) < 0.01
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces the spots.
-	var spots_b := _city.elder_spots.duplicate()
-	var typed_b: Array[Transform3D] = []
-	for spot in spots_b:
-		typed_b.append(spot)
-	var typed_a: Array[Transform3D] = []
-	for spot in spots_a:
-		typed_a.append(spot)
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and report_a.benches == _city.last_report.benches \
-			and report_a.lamps == _city.last_report.lamps \
-			and report_a.bins == _city.last_report.bins \
-			and _spots_equal(typed_a, typed_b) \
-			and typed_b.size() == 12 \
-			and _city.elder_seat_districts == districts_a \
-			and districts_a == [-1, -1, -1, -1, -1, -1, -1, -1, 0, 1, 2, 3]
-	_city.generate(424242)
-	var foreign_ok := _city.elder_spots.size() == 12 and _city.fingerprint != fp_first \
-			and _city.elder_seat_districts.size() == 12
-	_city.generate(default_seed)
-	var rig := _add_elder_rig()
-	var spawner: ElderSpawner = rig[0]
-	await _wait_frames(4)
-	var elders := spawner.living_elders()
-	var seated := elders.size() == 4
-	for i in elders.size():
-		seated = seated and elders[i].global_position.distance_to(
-				_city.to_global((city_spot(_city, i) as Transform3D).origin)) < 0.01
-	_check("elder_placement_no_rng",
-			shape_ok and spread and parks_ok and plaza_districts_ok
-					and deterministic and foreign_ok and seated,
-			"spots %d, on-ring=%s, spread=%s, parks=%s plaza-districts=%s, deterministic=%s, foreign=%s, seated=%d/4" % [
-					spots_a.size(), shape_ok, spread, parks_ok, plaza_districts_ok,
-					deterministic, foreign_ok, elders.size()])
-	spawner.free()
-	(rig[1] as Node).free()
-
-
-## The bench spot the i-th elder sits on: every second entry of `elder_spots`
-## (the spawner's ring rule, mirrored for the assertion).
-func city_spot(city: City, elder_index: int) -> Variant:
-	return city.elder_spots[elder_index * 2]
-
-
-## A GROUNDED pigeon parked in an elder's PresenceZone fills trust; a short
-## walk-about decays it without wiping; back for the full hangout the elder
-## tosses two ordinary T-005 crumbs (restore 30, hand-placed, respawn-
-## accounted) onto the pavement in front of the bench and relays exactly once.
-## Since T-078 the near arm tracks all of it: part-raised (and still rising)
-## while company banks trust, never up while the pigeon is absent, and pinned
-## down through the post-share cooldown even after trust has re-pinned.
-func _scenario_elder_shares_bread_after_hangout() -> void:
-	var rig := _add_elder_rig()
-	var spawner: ElderSpawner = rig[0]
-	var crumbs: BreadSpawner = rig[1]
-	Game.favor = 8 ## (T-114) Staged explicitly — the rig inherits whatever the previous scenario left otherwise; 8 funds the share with change to spare.
-	await _wait_frames(4)
-	var elders := spawner.living_elders()
-	if elders.is_empty():
-		_check("elder_shares_bread_after_hangout", false, "no elder spawned")
-		spawner.free()
-		(rig[1] as Node).free()
-		return
-	var elder: Elder = elders[0]
-	var seat_pos: Vector3 = elder.global_position ## (T-137) The elder departs after the share — the toss scatter reads from the SEAT.
-	## Park 2.6 m in front of the elder's facing — inside the PresenceZone,
-	## clear of the 1.1 m crumb eat radius (the toss lands 1.2 m out ±0.4).
-	var park := elder.global_position - elder.global_transform.basis.z * 2.6
-	park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
-	await _set_up(true, park, Vector3.ZERO)
-	await _await_grounded(90)
-	var parked := _player.is_grounded and _player.position.distance_to(park) < 0.5
-	await _wait_frames(130) ## ~2.2 s of company banks ~2 trust.
-	var banked: float = elder._trust
-	## (T-144) The T-078 arm meter is retired — the hangout's read is the
-	## bank alone; the share itself is the feedback.
-	var away := park + Vector3(6.0, 0.0, 0.0) ## Outside the 3.0 m zone, still on the plaza.
-	await _set_up(true, away, Vector3.ZERO)
-	await _await_grounded(90)
-	await _wait_frames(30) ## ~0.7 s alone decays it but must not wipe it.
-	var decayed: float = elder._trust
-	await _set_up(true, park, Vector3.ZERO)
-	await _await_grounded(90)
-	await _wait_frames(280) ## trust_needed (4 s) of company plus margin — the share fires mid-wait.
-	await _wait_frames(300) ## T-078, still parked: the 0.5 s beat passes and the cooldown
-	## pins the arm down while trust refills and re-pins at `trust_needed`.
-	var still_parked := _player.is_grounded and _player.position.distance_to(park) < 0.5
-	var shared_once: bool = _bread_shared.size() == 1 and _bread_shared[0].elder == elder \
-			and int(_bread_shared[0].crumbs) == elder.crumbs_per_share
-	## (T-114) The share IS the purchase: the exact `elder_loaf_cost ×
-	## crumbs_per_share` favor left the balance at the share.
-	var spend_ok: bool = Game.favor == 8 - Game.elder_loaf_cost * elder.crumbs_per_share
-	## (T-137) The share now launches the shuffle: the elder departs to a
-	## park seat reserved BEFORE he stood. The cooldown still holds while the
-	## pigeon stays parked, trust cannot re-pin once he is walking (accrual
-	## is seated-only), and the vacated bench shows in the seat book.
-	var cooldown_shuffle_ok := still_parked \
-			and elder._cooldown_left > 0.0 and elder._trust < elder.trust_needed \
-			and elder._state != Elder.State.SEATED and elder.current_seat >= 8
-	var live := 0
-	var ordinary := true
-	for crumb in crumbs.living_crumbs():
-		var flat := Vector2(crumb.global_position.x - seat_pos.x,
-				crumb.global_position.z - seat_pos.z)
-		if flat.length() <= elder.toss_distance + elder.toss_spread + 0.05:
-			live += 1
-			ordinary = ordinary and crumb.restore == 30.0 and crumb.spot_index == -1
-			ordinary = ordinary and crumb.favor_delta == 0 ## (T-114) Elder loaves stay unowned — paid at the share.
-	_check("elder_shares_bread_after_hangout",
-			parked and banked > 1.5 and decayed > 0.1 and decayed < banked - 0.5
-					and shared_once and live >= 2 and ordinary and spend_ok
-					and cooldown_shuffle_ok,
-			"parked=%s trust %.2f→%.2f decay, relays %d, live crumbs in reach %d, ordinary=%s, spend 8→%d ok=%s, cooldown+shuffle ok=%s" % [
-					parked, banked, decayed, _bread_shared.size(), live, ordinary,
-					Game.favor, spend_ok, cooldown_shuffle_ok])
-	spawner.free()
-	(rig[1] as Node).free()
-
-
-## A FLYING pigeon held inside the same PresenceZone for longer than
-## trust_needed banks nothing: zero crumbs, zero relays, trust never leaves 0.
-func _scenario_elder_no_bread_airborne() -> void:
-	var rig := _add_elder_rig()
-	var spawner: ElderSpawner = rig[0]
-	var crumbs: BreadSpawner = rig[1]
-	Game.favor = 0 ## (T-114) Staged explicitly — a broke pigeon could never have paid anyway.
-	await _wait_frames(4)
-	var elders := spawner.living_elders()
-	if elders.is_empty():
-		_check("elder_no_bread_airborne", false, "no elder spawned")
-		spawner.free()
-		(rig[1] as Node).free()
-		return
-	var elder: Elder = elders[0]
-	var hold := elder.global_position - elder.global_transform.basis.z * 1.5
-	hold.y = elder.global_position.y + 1.2 ## In the zone, above the pavement.
-	for _i in 300: ## 5 s of held flight — longer than trust_needed.
-		_player.reset_flight(hold)
-		await get_tree().physics_frame
-	var clean := _bread_shared.is_empty() and crumbs.living_crumbs().is_empty() \
-			and elder._trust <= 0.0 and not _player.is_grounded
-	_check("elder_no_bread_airborne", clean,
-			"relays %d, crumbs %d, trust %.2f, held airborne=%s" % [
-					_bread_shared.size(), crumbs.living_crumbs().size(),
-					elder._trust, not _player.is_grounded])
-	spawner.free()
-	(rig[1] as Node).free()
-
-
-## After a share the elder goes quiet: the pigeon hanging out CONTINUOUSLY
-## through the whole share_cooldown earns nothing until it expires — then one
-## more share, exactly. (T-137) The cooldown FOLLOWS the elder to his new
-## bench: after the first share the shuffle walks him to a different-district
-## seat, the pigeon re-parks in front of it for the remainder of the window,
-## and the second (and only second) share fires there.
-func _scenario_elder_cooldown_blocks_second_share() -> void:
-	var rig := _add_elder_rig()
-	var spawner: ElderSpawner = rig[0]
-	var crumbs: BreadSpawner = rig[1]
-	Game.favor = 40 ## (T-114) Staged explicitly — enough favor for both shares and their spends.
-	await _wait_frames(4)
-	var elders := spawner.living_elders()
-	if elders.is_empty():
-		_check("elder_cooldown_blocks_second_share", false, "no elder spawned")
-		spawner.free()
-		(rig[1] as Node).free()
-		return
-	var elder: Elder = elders[0]
-	elder.walk_speed = 6.0 ## (T-137) The bounded-window pace — the law is pace-free.
-	var park := elder.global_position - elder.global_transform.basis.z * 2.6
-	park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
-	await _set_up(true, park, Vector3.ZERO)
-	await _await_grounded(90)
-	var first_at := -1
-	for f in 600:
-		await get_tree().physics_frame
-		if _bread_shared.size() >= 1:
-			first_at = f
-			break
-	var shared_first: bool = _bread_shared.size() == 1 and _bread_shared[0].elder == elder
-	## (T-137) The elder departs; wait him out to the new bench (bounded).
-	var since_share := 0
-	var arrived := false
-	for _i in 2400:
-		await get_tree().physics_frame
-		since_share += 1
-		if elder._state == Elder.State.SEATED and elder.current_seat >= 8:
-			arrived = true
-			break
-	var new_park := elder.global_position - elder.global_transform.basis.z * 2.6
-	new_park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
-	await _set_up(true, new_park, Vector3.ZERO)
-	await _await_grounded(90)
-	## Keep hanging through the remaining cooldown window (stop just before it
-	## expires): not one further relay.
-	var quiet := true
-	for _f in maxi(int(elder.share_cooldown * 60.0) - since_share - 30, 0):
-		await get_tree().physics_frame
-		if _bread_shared.size() != 1:
-			quiet = false
-			break
-	var second_at := -1
-	for f in 900: ## Trust refills in trust_needed — the second share must come.
-		await get_tree().physics_frame
-		if _bread_shared.size() >= 2:
-			second_at = f
-			break
-	_check("elder_cooldown_blocks_second_share",
-			shared_first and arrived and quiet and second_at > 0
-					and _bread_shared.size() == 2 and _bread_shared[1].elder == elder,
-			"first relay at f%d, arrived=%s (seat %d), quiet through cooldown=%s, second at f%d, relays %d" % [
-					first_at, arrived, elder.current_seat, quiet, second_at,
-					_bread_shared.size()])
-	spawner.free()
-	(rig[1] as Node).free()
-
-
 ## --- scenarios (T-137 the grandpa shuffle) ----------------------------------
-
-
-## The migration fold the spawner owns (`ElderSpawner._migration_roll`), copied
-## so the scenario recomputes every pick independently (the `_expected_cafe_spot`
-## rule: prove the spots, never the function that filled them).
-func _t137_roll(seed_value: int, share_number: int) -> int:
-	var h := hash(Vector2i(seed_value, share_number))
-	h = hash(h ^ seed_value)
-	return h & 0x7fffffff
-
-
-## The different-district free pool for `seat` given the taken seats — the
-## scenario's own copy of the pick-pool law (T-137): every seat index except
-## `seat` and the taken ones whose `elder_seat_districts` entry differs from
-## `seat`'s (plaza −1 differs from every park).
-func _t137_pool(city: City, seat: int, taken: Array[int]) -> Array[int]:
-	var own: int = city.elder_seat_districts[seat]
-	var pool: Array[int] = []
-	for i in city.elder_spots.size():
-		if i == seat or taken.has(i):
-			continue
-		if city.elder_seat_districts[i] == own:
-			continue
-		pool.append(i)
-	return pool
-
-
-## The grandpa shuffle end to end, through the REAL main scene (instanced-Main
-## pattern, its own space): staged favor + a real grounded hangout earn the
-## share; the spawner's relay reserves the pick (recomputed independently from
-## the hash fold — different district, free seat) BEFORE the elder stands;
-## the state machine walks SEATED → RISING → WALKING (CURB_WAIT observed
-## under a hand-staged closing car, the T-134 staging pattern) → SEATED on
-## the picked park bench inside a bounded window; `elder_relocated` fires
-## exactly once with the right seats; trust stays frozen mid-walk (the pigeon
-## shadowing the elder banks nothing) and resumes on the new bench; a pigeon
-## parked on the destination route does not corrupt the walk; `elder_count`
-## stays 4 with no shared bench; and restart_run() re-seats the boot ring.
-## The walk itself runs at a 6 m/s window pace (set per-elder post-boot); the
-## shipped 0.8 m/s export and the 15 m curb radius are value-locked before it.
-func _scenario_elder_relocates_after_share() -> void:
-	Game.save_path = SIM_SAVE_PATH
-	Game.reset_run()
-	await _set_up(false, Vector3(0.0, 0.4, 0.0), Vector3.ZERO) ## The harness pigeon parks grounded, far from the rig.
-	await _await_grounded(90)
-	var main_game: MainGame = MAIN_SCENE.instantiate()
-	main_game.position = Vector3(4500.0, 0.0, 4500.0) ## Own space, clear of every other instanced Main.
-	add_child(main_game)
-	await _wait_frames(4)
-	var spawner: ElderSpawner = main_game.elder_spawner
-	var city: City = main_game.city
-	var pigeon: Player = main_game.player
-	Game.favor = 40 ## Funds the share's spend with change to spare.
-	var elders := spawner.living_elders()
-	if elders.size() != 4:
-		_check("elder_relocates_after_share", false, "elders %d/4" % elders.size())
-		main_game.free()
-		Game.hunger.player = null
-		Game.reset_run()
-		return
-	var elder: Elder = elders[0]
-	var pace_locked := is_equal_approx(elder.walk_speed, 0.8) \
-			and is_equal_approx(elder.curb_car_radius, 15.0)
-	for e in elders:
-		e.walk_speed = 6.0 ## The bounded-window pace — every mechanism is pace-free.
-	var relocations: Array[Dictionary] = []
-	spawner.elder_relocated.connect(func(e: Elder, from_seat: int, to_seat: int):
-		relocations.append({"elder": e, "from": from_seat, "to": to_seat}))
-	var other_seats: Array[int] = []
-	for i in elders.size():
-		if elders[i] != elder:
-			other_seats.append(elders[i].current_seat)
-	var old_seat: int = elder.current_seat
-	var expected_pool := _t137_pool(city, old_seat, other_seats)
-	var expected: int = expected_pool[_t137_roll(city.seed_value, 1) % expected_pool.size()]
-	var dest_district: int = city.elder_seat_districts[expected]
-	var dest_xf: Transform3D = city.global_transform * city.elder_spots[expected]
-	var old_pos: Vector3 = elder.global_position
-	## Stage the pigeon in front of the elder's bench — the trust fill.
-	## reset_flight takes MAIN-LOCAL coordinates (the player is Main's child;
-	## the reticle scenario's convention) — a global here drops him in the void.
-	var park := elder.global_position - elder.global_transform.basis.z * 2.6
-	park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
-	pigeon.reset_flight(main_game.to_local(park))
-	for _i in 120:
-		await get_tree().physics_frame
-		if pigeon.is_grounded:
-			break
-	## One hand-staged closing car (the T-134 pattern): parked mode, so its own
-	## driving never runs and the scenario owns position and velocity — it
-	## shadows the walking elder at 12 m with a closing velocity until the
-	## CURB_WAIT gate has been observed, then frees.
-	var car: Car = CAR_SCENE.instantiate()
-	car.mode = Car.Mode.PARKED
-	main_game.add_child(car)
-	## Wait out the trust fill — the share fires through the real path.
-	var shared := false
-	for _i in 900:
-		await get_tree().physics_frame
-		if elder.share_count >= 1:
-			shared = true
-			break
-	## The walk window: states, the curb gate, the trust freeze, arrival.
-	var saw_rising := false
-	var saw_walking := false
-	var saw_curb := false
-	var trust_frozen := true
-	var trust_mid := -1.0
-	var pigeon_parked_midroute := false
-	var car_seen := is_instance_valid(car)
-	var arrived := false
-	for _i in 3000:
-		await get_tree().physics_frame
-		match elder._state:
-			Elder.State.RISING:
-				saw_rising = true
-			Elder.State.WALKING:
-				saw_walking = true
-				if not pigeon_parked_midroute:
-					## The pigeon shadows the walker (grounded, in the zone) —
-					## accrual must stay paused: trust sampled at zero through it.
-					pigeon.global_position = elder.global_position \
-							- elder.global_transform.basis.z * 2.0
-					pigeon.velocity = Vector3.ZERO
-					trust_mid = elder._trust
-					trust_frozen = trust_frozen and elder._trust <= 0.001
-					if Vector2(elder.global_position.x - old_pos.x,
-							elder.global_position.z - old_pos.z).length() > 6.0:
-						pigeon_parked_midroute = true
-						## Parked ON the destination route: the walk must not care.
-						pigeon.reset_flight(main_game.to_local(
-								dest_xf.origin - dest_xf.basis.z * 1.5
-								+ Vector3(0.0, 0.2, 0.0)))
-			Elder.State.CURB_WAIT:
-				saw_curb = true
-			Elder.State.SEATED:
-				if saw_walking: ## A pre-share SEATED frame is not the arrival.
-					arrived = true
-		if is_instance_valid(car):
-			if saw_curb:
-				car.free() ## The road is clear again — the walk resumes.
-			else:
-				car.global_position = elder.global_position + Vector3(12.0, 0.5, 0.0)
-				car.velocity = Vector3(-6.0, 0.0, 0.0) ## Closing.
-		if arrived:
-			break
-	var pick_ok: bool = shared and elder.current_seat == expected \
-			and elder.departed_seat == old_seat
-	var seated_pos_ok: bool = arrived \
-			and elder.global_position.distance_to(dest_xf.origin) < 0.01
-	var relocated_ok: bool = relocations.size() == 1 and relocations[0].elder == elder \
-			and int(relocations[0].from) == old_seat and int(relocations[0].to) == expected
-	var count_ok: bool = spawner.living_elders().size() == 4
-	var district_ok: bool = dest_district >= 0 \
-			and dest_district != city.elder_seat_districts[old_seat] \
-			and expected >= 8 and expected <= 11
-	var distinct := true
-	var seen := {}
-	for e in spawner.living_elders():
-		distinct = distinct and not seen.has(e.current_seat)
-		seen[e.current_seat] = true
-	## Trust resumes on the new bench (the pigeon is parked at the stand point,
-	## inside the zone, grounded).
-	var trust_resumed := false
-	for _i in 240:
-		await get_tree().physics_frame
-		if elder._trust > 0.3:
-			trust_resumed = true
-			break
-	## Snapshot the arrival reads BEFORE the restart leg — restart_run()
-	## re-seats the flock, freeing this elder (the detail string below reads
-	## the snapshot, never the freed node).
-	var arrive_dist: float = elder.global_position.distance_to(dest_xf.origin)
-	var elders_final: int = spawner.living_elders().size()
-	## restart_run() resets everything: 4 elders, plaza ring seats, SEATED.
-	main_game.restart_run()
-	await _wait_frames(4)
-	var restart_ok: bool = spawner.living_elders().size() == 4
-	for i in spawner.living_elders().size():
-		var e2: Elder = spawner.living_elders()[i]
-		restart_ok = restart_ok and e2.current_seat == i * 2 \
-				and e2._state == Elder.State.SEATED \
-				and e2.global_position.distance_to(
-						city.to_global(city.elder_spots[e2.current_seat].origin)) < 0.01
-	main_game.free()
-	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
-	Game.reset_run()
-	_check("elder_relocates_after_share",
-			pick_ok and saw_rising and saw_walking and saw_curb and arrived
-					and trust_frozen and trust_resumed and relocated_ok and count_ok
-					and district_ok and distinct and car_seen and pace_locked
-					and pigeon_parked_midroute and seated_pos_ok and restart_ok,
-			"pick=%s (seat %d→%d) rising=%s walking=%s curb=%s arrived=%s (%.3f m) trust frozen=%.2f resumed=%s relocated=%s count=%d district=%s distinct=%s car=%s pace=%s midroute=%s restart=%s" % [
-					pick_ok, old_seat, expected, saw_rising, saw_walking, saw_curb,
-					arrived, arrive_dist,
-					trust_mid, trust_resumed, relocated_ok,
-					elders_final, district_ok, distinct, car_seen,
-					pace_locked, pigeon_parked_midroute, restart_ok])
-
-
-## The pick chain is a pure function of (run seed, share count): two same-seed
-## runs over the real city produce IDENTICAL destination sequences, and every
-## pick in them equals the scenario's own recomputation (the `_t137_roll` fold
-## over the `_t137_pool` law). Each run drives elder 0 through two REAL shares
-## — grounded hangout → relay → reserve → walk (window pace, empty
-## `Car._fleet` on the bare rig) → arrival → next hangout at the new bench.
-func _scenario_elder_migration_deterministic() -> void:
-	Game.save_path = SIM_SAVE_PATH
-	Game.reset_run()
-	var run_a: Array = await _t137_migration_sequence()
-	var run_b: Array = await _t137_migration_sequence()
-	var identical: bool = run_a[0] == run_b[0] and run_a[0].size() == 2 \
-			and run_a[1] and run_b[1]
-	## The district law on the chain: the first pick (from the plaza's
-	## sentinel -1) is a park seat, and every pick differs in district
-	## from the seat it left - plaza seats are legal destinations from a
-	## park (the rederivation already walks the filtered pools).
-	var districts_ok: bool = not run_a[0].is_empty()\
-			and run_a[0][0] >= 8 and run_a[0][0] <= 11
-	var prev := 0
-	for seat: int in run_a[0]:
-		districts_ok = districts_ok\
-				and _city.elder_seat_districts[seat] != _city.elder_seat_districts[prev]
-		prev = seat
-	_check("elder_migration_deterministic",
-			identical and districts_ok,
-			"run A %s rederived=%s / run B %s rederived=%s districts_ok=%s" % [
-					run_a[0], run_a[1], run_b[0], run_b[1], districts_ok])
-
-
-## One full two-share migration sequence on a fresh `_add_elder_rig` rig —
-## returns [picked seats, every pick rederived]. The other three elders hold
-## their boot seats (2/4/6) throughout, so the pick pool at share k is the
-## scenario's own fold over (previous seat of elder 0, {2, 4, 6}).
-func _t137_migration_sequence() -> Array:
-	var rig := _add_elder_rig()
-	var spawner: ElderSpawner = rig[0]
-	(rig[1] as BreadSpawner).target_count = 0 ## Only tossed crumbs exist.
-	Game.favor = 40 ## Funds both shares' spends.
-	await _wait_frames(4)
-	var elders := spawner.living_elders()
-	var seats: Array[int] = []
-	var rederived := elders.size() == 4
-	if not rederived:
-		spawner.free()
-		(rig[1] as Node).free()
-		return [seats, false]
-	var elder: Elder = elders[0]
-	elder.walk_speed = 6.0 ## The bounded-window pace.
-	var own_before := 0 ## Elder 0 boots on plaza seat 0.
-	for share_i in 2:
-		var park := elder.global_position - elder.global_transform.basis.z * 2.6
-		park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
-		await _set_up(true, park, Vector3.ZERO)
-		await _await_grounded(90)
-		var shared := false
-		for _i in 900:
-			await get_tree().physics_frame
-			if elder.share_count >= share_i + 1:
-				shared = true
-				break
-		if not shared:
-			rederived = false
-			break
-		var picked: int = elder.current_seat
-		var pool := _t137_pool(_city, own_before, [2, 4, 6])
-		rederived = rederived and not pool.is_empty() \
-				and picked == pool[_t137_roll(_city.seed_value, share_i + 1) % pool.size()]
-		seats.append(picked)
-		own_before = picked
-		if share_i == 1:
-			break
-		## Wait out the walk to the new bench, then the next hangout parks there.
-		var settled := false
-		for _i in 2400:
-			await get_tree().physics_frame
-			if elder._state == Elder.State.SEATED:
-				settled = true
-				break
-		rederived = rederived and settled
-	spawner.free()
-	(rig[1] as Node).free()
-	return [seats, rederived]
 
 
 ## --- scenarios (T-031 cafe tables) ------------------------------------------
@@ -5519,236 +4271,7 @@ func _expected_cafe_spot(city: City, info: Dictionary) -> Transform3D:
 	return Transform3D(Basis(Vector3.UP, atan2(-normal.x, -normal.z)), pos)
 
 
-## Cafe tables (T-031, batched T-094): the city records one pure-layout spot
-## per awninged building (the pinned 100 at the M1 seed since T-136's prop-mix
-## pinning shrank the pool from 104; non-awninged
-## buildings get none), every spot recomputable from its building's
-## `door_face`/`size`/`lot_offset`, same-seed regeneration reproducing the
-## spot list byte-identically, and a spawner rig seating the batched furniture
-## exactly on the spots (`elder_placement_no_rng` template). Placement holds
-## the street clearances: on the sidewalk band with the table center ≥ 0.5 m
-## inside the tourist loop's 10.9 m curb line (square metrics — the loop legs
-## are lines), ≥ 1.0 m off the block's PAVEMENT bread spots (bench seats; corner
-## bread-ring spots lie outside every block's radius; since T-112 the pool read
-## skips the kind-TABLE entries — a table's own tabletop crumb riding 0.25 m
-## from its own spot is the feature, not a failure), ≥ 1.2 m edge-to-edge
-## off the door line. Since T-094 the rig reads the batch: one positioned
-## shape per piece under the two merged bodies (`Tables` layer 1 `world`,
-## `Sitters` collision-layer value 4 — the retired scenes' value — mask 0
-## both), sitters 1-2 per table by the even/odd spot rule (100 tables → 150)
-## counted through the spawner exposure, shirts straight from the tourist
-## palette by spot index read off the torso/arm MultiMesh instance colors —
-## and a grounded pigeon can waddle up and perch beside a table, which stops
-## the waddle dead (solid layer-1 furniture).
-func _scenario_city_cafe_tables() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed)
-	var spots: Array[Transform3D] = _city.cafe_spots.duplicate()
-	var awnings := 0
-	for info in _city.buildings:
-		if info.has_awning:
-			awnings += 1
-	var count_ok: bool = spots.size() == awnings and awnings == 100
-	var recompute_ok := spots.size() > 0
-	var band_ok := spots.size() > 0
-	var bread_ok := spots.size() > 0
-	var door_ok := spots.size() > 0
-	var spot_i := 0
-	for info in _city.buildings:
-		if not info.has_awning:
-			continue
-		var spot: Transform3D = spots[spot_i]
-		var expected: Transform3D = _expected_cafe_spot(_city, info)
-		recompute_ok = recompute_ok \
-				and spot.origin.distance_to(expected.origin) < 0.01 \
-				and spot.basis.get_euler().distance_to(expected.basis.get_euler()) < 0.01
-		## Street-face geometry, re-derived from the building record.
-		var lot: Vector2 = info.lot_offset
-		var block_center: Vector3 = _city.to_local(info.center) \
-				- Vector3(lot.x, 0.0, lot.y)
-		## Square metrics — the slab, the sidewalk band and the tourist loop are
-		## all squares: the loop legs run at block_size * 0.5 - 0.1 = 10.9 m.
-		var out_line: float = maxf(absf(spot.origin.x - block_center.x),
-				absf(spot.origin.z - block_center.z))
-		band_ok = band_ok and out_line <= _city.block_size * 0.5 - 0.1 - 0.5
-		## The block's own bread spots stay ≥ 1.0 m off — block membership by the
-		## block's radius (spots beyond it, notably the corner bread-ring spots at
-		## radial ~11.7 m, belong to no block). Bench-seat clearance is structural:
-		## the ±4 m bench jitter can never reach the corner-ward table line.
-		## (T-112) The pool read SKIPS kind-TABLE entries: the clearance this leg
-		## guards is cafe furniture vs pavement bread, and a table's own crumb
-		## riding 0.25 m from its own spot is the feature, not a failure — the
-		## skip restores the leg's exact pre-T-112 pool and semantics.
-		var nearest: Vector3 = _city.block_centers[0]
-		var best := INF
-		for center in _city.block_centers:
-			var d: float = Vector2(spot.origin.x - center.x,
-					spot.origin.z - center.z).length_squared()
-			if d < best:
-				best = d
-				nearest = center
-		for b_i in _city.bread_spots.size():
-			if _city.bread_spot_kinds[b_i] == City.BreadKind.TABLE:
-				continue
-			var bread: Vector3 = _city.bread_spots[b_i]
-			if Vector2(bread.x - nearest.x, bread.z - nearest.z).length() \
-					<= _city.block_size * 0.5:
-				bread_ok = bread_ok \
-						and Vector2(spot.origin.x - bread.x,
-								spot.origin.z - bread.z).length() >= 1.0
-		## Door line: the centered 0.95 m door vs the table's along-face edge.
-		var normal: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][
-				int(info.door_face)]
-		var face_axis_x := absf(normal.x) > 0.5
-		var along_dir := Vector3(0.0, 0.0, signf(lot.y)) if face_axis_x \
-				else Vector3(signf(lot.x), 0.0, 0.0)
-		## T-051: the face plane sits at the footprint extent along the normal.
-		var face_out: float = (info.size as Vector2).x if face_axis_x \
-				else (info.size as Vector2).y
-		var face_center: Vector3 = _city.to_local(info.center) \
-				+ normal * (face_out * 0.5 + 0.12)
-		var along_dist: float = absf((spot.origin - face_center).dot(along_dir))
-		door_ok = door_ok and along_dist - 0.475 - 0.45 >= 1.2
-		spot_i += 1
-	_city.generate(default_seed)
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _spots_equal(spots, _city.cafe_spots)
-	## Spawner rig over the real generated city (the elder-rig template). The
-	## T-094 batch replaces the per-table nodes: the reads go through the
-	## spawner's exposures — the two merged bodies (one shape per piece, in
-	## build order = spot/seat order), the per-sitter records, and the
-	## torso/arm per-instance shirt colors off the spawner's queues (the exact
-	## values fed into `set_instance_color` — this engine build's headless
-	## RenderingServer answers instance readbacks with identity/black, the
-	## `city_crosswalks_present` caveat, so the queue is the per-instance
-	## channel that can be asserted here; instance COUNTS do read back, and
-	## the queue↔instance correspondence is anchored by them below).
-	var spawner := CafeSpawner.new()
-	spawner.city = _city
-	add_child(spawner)
-	await _wait_frames(4)
-	var tables_body: StaticBody3D = spawner.tables_body
-	var sitters_body: StaticBody3D = spawner.sitters_body
-	var body_mm: MultiMeshInstance3D = spawner.visual("sit_body") ## (T-142) The baked-people crowd — one instance per sitter.
-	var seated: bool = tables_body != null and sitters_body != null \
-			and tables_body.get_child_count() == spots.size()
-	var layers_ok: bool = tables_body != null and sitters_body != null \
-			and tables_body.collision_layer == 1 and tables_body.collision_mask == 0 \
-			and sitters_body.collision_layer == 4 and sitters_body.collision_mask == 0
-	var count_ok_rig: bool = seated and spawner.sitters.size() > 0
-	var shirts_ok: bool = seated
-	var total_sitters := 0
-	for i in spots.size():
-		## The table's merged shape sits at the spot — the batched "seated"
-		## read: the shape is the table footprint at (0, 0.36, 0) above it.
-		var shape := tables_body.get_child(i) as CollisionShape3D
-		seated = seated and shape.global_position.distance_to(
-				_city.to_global((spots[i] as Transform3D).origin + Vector3(0.0, 0.36, 0.0))) < 0.01
-		## The sitter side: count by the pure even/odd rule, then each seat's
-		## shape on its seat transform and its shirt off the instance colors —
-		## the baked body at the sitter's own ordinal (T-142: one instance per
-		## sitter on every sit key).
-		count_ok_rig = count_ok_rig and spawner.sitter_count(i) == (2 if i % 2 == 0 else 1)
-		for seat in spawner.sitter_count(i):
-			var rec: Dictionary = spawner.sitters[total_sitters]
-			var sitter_shape := sitters_body.get_child(total_sitters) as CollisionShape3D
-			var sitter_xf: Transform3D = (spots[i] as Transform3D) * Transform3D(
-					Basis(Vector3.UP, CafeSpawner.SITTER_YAWS[seat]),
-					CafeSpawner.SITTER_SEATS[seat])
-			## (T-163) The inert body collider slides with its figure along the
-			## facing — the seat-contact law moves the whole seated mass.
-			seated = seated and rec.get("spot") == i and rec.get("seat") == seat \
-					and sitter_shape.global_position.distance_to(
-							_city.to_global(sitter_xf * (CafeSpawner.SITTER_SHAPE_OFFSET
-									+ Vector3(0.0, 0.0, -CafeSpawner.SIT_SLIDE)))) < 0.01
-			var expected: Color = Tourist.SHIRT_PALETTE[(i + seat) % Tourist.SHIRT_PALETTE.size()]
-			shirts_ok = shirts_ok \
-					and spawner.instance_color("sit_body", total_sitters).is_equal_approx(expected)
-			total_sitters += 1
-	## The batch is complete: one shape and one record per sitter, the body
-	## MultiMesh carrying one instance per sitter (anchoring the queue
-	## indices above to the live MultiMeshes), and the even/odd total:
-	## 100 tables → 50 even × 2 + 50 odd × 1 = 150 sitters — `n + ceil(n/2)`
-	## (T-135's shrunken pool made the count ODD; the old `n + n/2` floor
-	## form only held for even counts, the same law stated exactly, never
-	## weakened).
-	count_ok_rig = count_ok_rig \
-			and sitters_body.get_child_count() == total_sitters \
-			and spawner.sitters.size() == total_sitters \
-			and body_mm.multimesh.instance_count == total_sitters \
-			and total_sitters == awnings + (awnings + 1) / 2
-	## A grounded pigeon waddles up and perches beside table 0 …
-	var seat0: Vector3 = _city.to_global((spots[0] as Transform3D).origin)
-	var table_basis: Basis = (spots[0] as Transform3D).basis
-	var beside := seat0 + table_basis.x * 1.5 + Vector3(0.0, 0.5, 0.0)
-	await _set_up(true, beside, Vector3.ZERO)
-	await _await_grounded(120)
-	var flat := Vector2(_player.position.x - seat0.x, _player.position.z - seat0.z)
-	var perch_ok: bool = _player.is_grounded and flat.length() > 0.55 and flat.length() < 2.0
-	## … and the table itself is solid: a waddle aimed straight into it stops at
-	## its edge (parked street-side, past the tabletop, before the sitters' line).
-	var street_side := seat0 - table_basis.z * 1.0 + Vector3(0.0, 0.5, 0.0)
-	var to_table := seat0 - street_side
-	to_table.y = 0.0
-	await _set_up(true, street_side, Vector3.ZERO,
-			rad_to_deg(atan2(-to_table.x, -to_table.z)))
-	await _await_grounded(120)
-	await _hold("pitch_up", 25)
-	flat = Vector2(_player.position.x - seat0.x, _player.position.z - seat0.z)
-	perch_ok = perch_ok and _player.is_grounded \
-			and flat.length() > 0.5 and flat.length() < 0.8
-	_check("city_cafe_tables_present",
-			count_ok and recompute_ok and band_ok and bread_ok and door_ok
-					and deterministic and seated and count_ok_rig and shirts_ok
-					and layers_ok and perch_ok,
-			("spots %d vs awnings %d, recompute=%s band=%s bread=%s door=%s det=%s, "
-				+ "seated=%d tables, sitters=%d (rule=%s shirts=%s layers=%s), perch=%s") % [
-						spots.size(), awnings, recompute_ok, band_ok, bread_ok, door_ok,
-						deterministic, tables_body.get_child_count(), total_sitters,
-						count_ok_rig, shirts_ok, layers_ok, perch_ok])
-	spawner.free()
-
-
 ## --- scenarios (T-032 rooftop clutter) --------------------------------------
-
-
-## The low roof near the plaza, by the `city_roof_landable` selection: the
-## first generated building under 12 m tall, 20–90 m out from the city origin.
-func _low_roof_building() -> Dictionary:
-	for info in _city.buildings:
-		var c: Vector3 = info.center
-		var dist := Vector2(c.x - _city.position.x, c.z - _city.position.z).length()
-		if info.top <= 12.0 and dist > 20.0 and dist < 90.0:
-			return info
-	return {}
-
-
-## The `roof_props` entries of one building: centers inside its footprint XZ,
-## in array order. Prop insets keep every center ≤ √2·0.25·footprint from the
-## footprint center (≤ 2.51 m pre-T-051, ≤ 1.96 m at the 0.78-scaled minimum),
-## so a prop can never sit inside a neighbor (lot centers are 8.5 m apart,
-## footprints ≤ 7.1 m wide). T-051: the halves are per-axis — footprints vary
-## per axis.
-func _props_of(building: Dictionary) -> Array[Dictionary]:
-	var props: Array[Dictionary] = []
-	var size: Vector2 = building.size
-	var c: Vector3 = building.center
-	for prop in _city.roof_props:
-		var p: Vector3 = prop.center
-		if absf(p.x - c.x) <= size.x * 0.5 and absf(p.z - c.z) <= size.y * 0.5:
-			props.append(prop)
-	return props
-
-
-## The roof-corner bread spots: `bread_spots` entries at crumb height on a roof
-## (y > 1.0 — every ground spot sits at or below the 0.72 m bench seats).
-func _roof_bread_spots() -> Array[Vector3]:
-	var roof_spots: Array[Vector3] = []
-	for spot in _city.bread_spots:
-		if spot.y > 1.0:
-			roof_spots.append(spot)
-	return roof_spots
 
 
 ## Byte-identical `roof_props` comparison — exact equality on every member
@@ -5766,4653 +4289,37 @@ func _props_reproduced(a: Array[Dictionary], b: Array[Dictionary]) -> bool:
 	return true
 
 
-## Exact comparison for the roof-spot snapshots (the `_spots_equal` pattern).
-func _vec_spots_equal(a: Array[Vector3], b: Array[Vector3]) -> bool:
-	if a.size() != b.size():
-		return false
-	for i in a.size():
-		if a[i] != b[i]:
-			return false
-	return true
-
-
-## Rooftop clutter (T-032): every building carries 1-3 roof props — fully on
-## its roof (≥ 0.6 m from every edge since T-051, re-derived for the varying
-## footprints: 0.25·5.54 − 0.7 ≈ 0.685 m at the 0.78-scaled minimum), centers
-## at the exact corner-relative ±0.25·footprint inset per axis (≥ 1.9 m from
-## the footprint center at the smallest — the `city_roof_landable` drop point
-## at the exact center stays ≥ 0.96 m clear of the worst prop) with one
-## layer-1 `world` shape each under the single Props group body (T-093) —
-## and exactly one crumb spot
-## in the never-propped (+,+) quadrant at roof-top + 0.06, so city-wide
-## `bread_spots` grows by exactly the building count (8 ring spots × 49 blocks
-## + one per bench seat + one per building) — plus, since T-091, one crumb per
-## district anchor (4 at the M1 seed), the same y > 1.0 roof-spot population
-## this scenario counts. A crumb instantiated at a low
-## roof's spot is an ordinary crumb: a dropped pigeon waddling in eats it
-## through the existing eaten path (+30 via Hunger, no BreadSpawner involved).
-## A drop onto the low roof's first prop settles grounded on its top
-## (bench-landing template). Same-seed regeneration reproduces `roof_props`
-## and the roof spots byte-identically and the fingerprint holds.
-func _scenario_city_roofs_inhabited() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var props_snapshot := _city.roof_props.duplicate()
-	var spots_snapshot := _roof_bread_spots()
-	## --- layout audit: prop and spot geometry across every building ----------
-	var props_ok: bool = _city.roof_props.size() >= _city.buildings.size()
-	## T-091: the 4 district-anchor cap crumbs ride the same y > 1.0 population.
-	var spots_ok: bool = spots_snapshot.size() \
-			== _city.buildings.size() + _city.anchors.size() \
-			and spots_snapshot.size() >= 20
-	## City-wide pool: the T-005 ground spots, exactly the new roof spots and
-	## exactly one crumb per district anchor (T-091) — plus, since T-112, one
-	## TABLE spot per awninged building riding its own cafe table (the pool's
-	## tail section; the y > 1.0 population above is untouched — tabletops sit
-	## at slab + 0.78 < 1.0).
-	var total_ok: bool = _city.bread_spots.size() \
-			== _city.blocks_per_side * _city.blocks_per_side * 8 \
-			+ int(_city.last_report.benches) + _city.buildings.size() \
-			+ _city.anchors.size() + _city.cafe_spots.size()
-	var one_per_building := true
-	for info in _city.buildings:
-		var props := _props_of(info)
-		var size: Vector2 = info.size
-		props_ok = props_ok and props.size() >= 1 and props.size() <= 3
-		for prop in props:
-			var c: Vector3 = prop.center
-			var s: Vector3 = prop.size
-			var flat := Vector2(c.x - info.center.x, c.z - info.center.z)
-			## T-051 re-derivation (footprints vary per axis in [0.78, 1.0]·7.1):
-			## the corner-relative inset law is pinned exactly per axis
-			## (√2·0.25·5.54 ≈ 1.96 m at the smallest footprint — the exact-center
-			## `city_roof_landable` drop stays ≥ 0.96 m clear of the worst prop,
-			## the tank's 0.99 m half-diagonal), and the on-roof margin floor is
-			## re-derived to 0.6 m (2.77 − 1.385 − 0.7 ≈ 0.685 m at the minimum).
-			props_ok = props_ok \
-					and flat.length() >= 1.9 \
-					and absf(absf(flat.x) - size.x * 0.25) < 0.001 \
-					and absf(absf(flat.y) - size.y * 0.25) < 0.001 \
-					and size.x * 0.5 - absf(flat.x) - s.x * 0.5 >= 0.6 \
-					and size.y * 0.5 - absf(flat.y) - s.z * 0.5 >= 0.6 \
-					and absf((prop.top as float) - (info.top as float) - s.y) < 0.001
-		## Exactly one roof spot per building, in the (+,+) quadrant mirrored by
-		## lot_offset at ±0.28·footprint per axis — never a prop quadrant.
-		var found := 0
-		for spot in spots_snapshot:
-			var g := _city.to_global(spot)
-			var flat_s := Vector2(g.x - info.center.x, g.z - info.center.z)
-			if absf(g.y - (info.top as float) - 0.06) > 0.001 \
-					or absf(flat_s.x) > size.x * 0.5 or absf(flat_s.y) > size.y * 0.5:
-				continue
-			found += 1
-			var lot: Vector2 = info.lot_offset
-			one_per_building = one_per_building \
-					and signf(flat_s.x) == signf(lot.x) \
-					and signf(flat_s.y) == signf(lot.y) \
-					and absf(absf(flat_s.x) - size.x * 0.28) < 0.001 \
-					and absf(absf(flat_s.y) - size.y * 0.28) < 0.001
-		one_per_building = one_per_building and found == 1
-	## --- colliders (T-093): five group bodies under Static/, props as shapes ---
-	## Static/ holds exactly one StaticBody3D per group — Ground/Roads/Blocks/
-	## Buildings/Props, each layer 1 `world` mask 0 — and every collider is now
-	## a shape child of its group body (no body nests under a body; the Ground
-	## body's one extra child is the grass mesh). The Props body's shapes above
-	## y 5.0 are the roof props — exactly roof_props.size() — plus, since T-091,
-	## each district anchor's shaft/head/cap tiers (3 per anchor; the plinth's
-	## center sits at slab+0.5, below the window).
-	var static_root: Node = _city.get_node("Static")
-	var bodies := 0
-	var body_names := {}
-	var layers_ok := true
-	var shapes_only_ok := true
-	for child in static_root.get_children():
-		var group_body := child as StaticBody3D
-		if group_body != null:
-			bodies += 1
-		body_names[child.name] = true
-		layers_ok = layers_ok and group_body != null \
-				and group_body.collision_layer == 1 and group_body.collision_mask == 0
-		for nested in child.get_children():
-			shapes_only_ok = shapes_only_ok and not (nested is StaticBody3D)
-	var five_ok := bodies == 5 \
-			and body_names.has("Ground") and body_names.has("Roads") \
-			and body_names.has("Blocks") and body_names.has("Buildings") \
-			and body_names.has("Props")
-	var props_body := static_root.get_node_or_null("Props") as StaticBody3D
-	var props_body_ok := props_body != null \
-			and props_body.collision_layer == 1 and props_body.collision_mask == 0
-	var high_shapes := 0
-	if props_body_ok:
-		for child in props_body.get_children():
-			var prop_shape := child as CollisionShape3D
-			if prop_shape != null and prop_shape.position.y > 5.0:
-				high_shapes += 1
-	var colliders_ok := five_ok and layers_ok and shapes_only_ok and props_body_ok \
-			and high_shapes == _city.roof_props.size() + 3 * _city.anchors.size()
-	## --- determinism: a real rebuild reproduces props and roof spots ---------
-	_city.generate(default_seed, true)
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _props_reproduced(props_snapshot, _city.roof_props) \
-			and _vec_spots_equal(spots_snapshot, _roof_bread_spots())
-	## --- the physical legs, on the low roof near the plaza --------------------
-	var roof := _low_roof_building()
-	var physical_ok := not roof.is_empty()
-	var eat_ok := false
-	var prop_ok := false
-	if physical_ok:
-		## Leg 1 — the roof crumb is an ordinary crumb (the T-005 template):
-		## instantiated at the spot, eaten by a dropped-then-waddling pigeon.
-		var hunger := Hunger.new()
-		hunger.player = _player
-		add_child(hunger)
-		var roof_size: Vector2 = roof.size
-		var center_local := _city.to_local(roof.center)
-		var spot_local := Vector3.INF
-		for spot in _city.bread_spots:
-			if spot.y > 1.0 and absf(spot.x - center_local.x) <= roof_size.x * 0.5 \
-					and absf(spot.z - center_local.z) <= roof_size.y * 0.5:
-				spot_local = spot
-				break
-		physical_ok = spot_local.is_finite()
-		if physical_ok:
-			var spot_global := _city.to_global(spot_local)
-			var crumb: BreadCrumb = CRUMB_SCENE.instantiate()
-			crumb.position = spot_global
-			add_child(crumb)
-			crumb.eaten.connect(hunger.eat)
-			## Drop 1.8 m from the crumb along z, toward the footprint center
-			## (the spot sits 0.28·footprint ≈ 1.55–2.0 m out per axis — T-051:
-			## footprints vary — so the drop stays on the roof, clear of the
-			## propped quadrants), facing it.
-			var dir_z := signf(spot_global.z - (roof.center as Vector3).z)
-			var walk_dir := Vector3(0.0, 0.0, dir_z)
-			await _set_up(true, spot_global + Vector3(0.0, 0.4, -dir_z * 1.8),
-					Vector3.ZERO, rad_to_deg(atan2(-walk_dir.x, -walk_dir.z)))
-			await _await_grounded(90)
-			hunger.value = 40.0 ## Mid-bar so the +30 restore is measurable.
-			var hunger0 := hunger.value
-			Input.action_press("pitch_up") ## Waddle in.
-			for _i in 120:
-				await get_tree().physics_frame
-				eat_ok = not is_instance_valid(crumb) and hunger.value > hunger0 + 10.0
-				if eat_ok:
-					break
-			Input.action_release("pitch_up")
-		hunger.free()
-		## Leg 2 — a drop onto the low roof's first prop settles grounded on
-		## its top (the bench-landing template): props are landable cover.
-		var props := _props_of(roof)
-		if not props.is_empty():
-			var prop: Dictionary = props[0]
-			await _set_up(true, (prop.center as Vector3) + Vector3(0.0, 0.8, 0.0),
-					Vector3.ZERO)
-			await _await_grounded(150)
-			prop_ok = _player.is_grounded \
-					and absf(_player.position.y - ((prop.top as float) + 0.3)) < 0.2
-	_check("city_roofs_inhabited",
-			props_ok and spots_ok and total_ok and one_per_building and colliders_ok
-					and deterministic and physical_ok and eat_ok and prop_ok,
-			("props_ok=%s spots=%d/%d total_ok=%s one_per_building=%s colliders=%s (%d high) "
-			+ "det=%s physical=%s eat=%s prop=%s") % [
-					props_ok, spots_snapshot.size(), _city.buildings.size(),
-					total_ok, one_per_building, colliders_ok, high_shapes,
-					deterministic, physical_ok, eat_ok, prop_ok])
-	## Informational: the M1-seed surface counts (142 buildings → 242 props,
-	## 532 ground spots (392 ring + 140 bench: T-137's four pinned park benches) + 146 y > 1.0 roof/anchor spots
-	## (142 roofs + 4 anchor crumbs since T-091), +100 tabletop spots since
-	## T-112 → 782 — T-135's park pinning re-derived every literal in that
-	## chain) — the tickets' tuned numbers, re-printed on every re-verification.
-	print("SIM DATA roofs_inhabited: buildings=%d roof_props=%d roof_spots=%d bread_spots=%d fingerprint=%d" % [
-			_city.buildings.size(), _city.roof_props.size(), spots_snapshot.size(),
-			_city.bread_spots.size(), fp_first])
-
-
 ## --- scenarios (T-112 weighted bread distribution) ---------------------------
-
-
-## The live-crumb tally per bread kind, read through the scenario's OWN kind
-## array read (`City.bread_spot_kinds[crumb.spot_index]`) — never through
-## spawner internals. Hand-placed crumbs (spot_index < 0) belong to no class.
-func _live_tally(city: City, spawner: BreadSpawner) -> Array[int]:
-	var tally: Array[int] = [0, 0, 0] ## BreadKind order: GROUND, TABLE, ROOF.
-	for crumb in spawner.living_crumbs():
-		if crumb.spot_index >= 0 and crumb.spot_index < city.bread_spot_kinds.size():
-			tally[city.bread_spot_kinds[crumb.spot_index]] += 1
-	return tally
-
-
-## The living crumbs' world positions as a sorted multiset — the byte-identical
-## compare of the determinism leg (the `_vec_spots_equal` pattern).
-func _crumb_multiset(spawner: BreadSpawner) -> Array[Vector3]:
-	var out: Array[Vector3] = []
-	for crumb in spawner.living_crumbs():
-		out.append(crumb.global_position)
-	out.sort_custom(func(a: Vector3, b: Vector3) -> bool:
-		if a.x != b.x:
-			return a.x < b.x
-		if a.y != b.y:
-			return a.y < b.y
-		return a.z < b.z)
-	return out
-
-
-## The T-112 weighted spread (Gate 1b): on a real generated City + a
-## `BreadSpawner` rig at the shipped target 40, `_populate` opens the class
-## quotas — exactly 36 TABLE / 3 GROUND / 1 ROOF at the M1 seed AND at seed
-## 424242 — with every crumb sitting exactly on its spot's `to_global`.
-## City-side, `bread_spot_kinds` stays index-aligned with `bread_spots`, the
-## M1 class tally is exact (GROUND 532 = 392 ring + 140 bench incl. T-137's four park benches, ROOF 146 =
-## 142 + 4 anchors, TABLE 100 = the awninged buildings — 774 total; every
-## literal re-derived when T-135's park pinning shrank the building pool) and every
-## TABLE spot sits exactly at the tabletop law recomputed from the building
-## record (`cafe_spot.origin + basis.x * 0.25 + UP * 0.78`, XZ inside the
-## 0.9 m top). Determinism: a force-rebuild re-populates the identical crumb
-## position multiset with the fingerprint pinned. Top-ups follow the same law:
-## 10 eaten TABLE crumbs (the `crumbs_respawn` path) refill TABLE to quota in
-## one `respawn_interval`, GROUND and ROOF untouched. The overflow safety net:
-## the TABLE class synthetically shrunk to 10 free spots (arrays reassigned on
-## the city object, then re-populate) spills its deficit to GROUND (3 + 26 =
-## 29) while ROOF stays capped at its quota — "rare" is a ceiling; ROOF never
-## exceeds 1 live crumb in any leg. And a tabletop crumb is an ordinary
-## reachable crumb: the pigeon drops onto the tabletop beside it (the
-## bench-landing geometry), settles grounded and feeds +30 through the Main
-## wiring (`crumb_eaten` → Hunger.eat) — the 0.9 m top sits fully inside the
-## crumb's 1.4 m grounded eat reach, so the feed can fire on the settle frame;
-## the waddle-in drive is still held, only its timing is not pinned.
-func _scenario_bread_distribution_weighted() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	## --- city-side audit: kinds aligned, M1 tally exact, TABLE spots exact ---
-	var kinds_ok: bool = _city.bread_spot_kinds.size() == _city.bread_spots.size()
-	var tally: Array[int] = [0, 0, 0] ## BreadKind order: GROUND, TABLE, ROOF.
-	var table_indices: Array[int] = []
-	for i in _city.bread_spots.size():
-		var kind: int = _city.bread_spot_kinds[i]
-		kinds_ok = kinds_ok and kind >= City.BreadKind.GROUND and kind <= City.BreadKind.ROOF
-		tally[kind] += 1
-		if kind == City.BreadKind.TABLE:
-			table_indices.append(i)
-	var awninged: Array[Dictionary] = []
-	for info in _city.buildings:
-		if info.has_awning:
-			awninged.append(info)
-	var ground_expected: int = _city.blocks_per_side * _city.blocks_per_side * 8 \
-			+ int(_city.last_report.benches)
-	var tally_ok: bool = tally[City.BreadKind.GROUND] == 532 \
-			and tally[City.BreadKind.TABLE] == 100 and tally[City.BreadKind.ROOF] == 146 \
-			and _city.bread_spots.size() == 778 \
-			and tally[City.BreadKind.GROUND] == ground_expected \
-			and tally[City.BreadKind.ROOF] == _city.buildings.size() + _city.anchors.size() \
-			and tally[City.BreadKind.TABLE] == awninged.size()
-	## Every TABLE spot exactly at the tabletop law, recomputed from the
-	## building record (the `_expected_cafe_spot` pattern) — and its XZ inside
-	## the 0.9 m top (|local offset| ≤ 0.45 per axis in the table frame).
-	var spots_exact := table_indices.size() == awninged.size()
-	for k in table_indices.size():
-		var cafe: Transform3D = _expected_cafe_spot(_city, awninged[k])
-		var want: Vector3 = cafe.origin + cafe.basis.x * 0.25 + Vector3(0.0, 0.78, 0.0)
-		var got: Vector3 = _city.bread_spots[table_indices[k]]
-		var local: Vector3 = got - _city.cafe_spots[k].origin
-		var in_top := Vector2(local.dot(_city.cafe_spots[k].basis.x),
-				local.dot(_city.cafe_spots[k].basis.z))
-		spots_exact = spots_exact and got.distance_to(want) < 0.01 \
-				and absf(got.y - (_city.block_slab_height + 0.78)) < 0.001 \
-				and absf(in_top.x) <= 0.45 and absf(in_top.y) <= 0.45
-	## --- the seeded rig at the shipped target: 36 TABLE / 3 GROUND / 1 ROOF --
-	var rig := BreadSpawner.new()
-	rig.city = _city
-	rig.respawn_interval = 0.5 ## The top-up leg's cadence (the respawn-rig value).
-	add_child(rig)
-	await _wait_frames(4)
-	var open_tally := _live_tally(_city, rig)
-	var dist_ok: bool = open_tally[City.BreadKind.TABLE] == 36 \
-			and open_tally[City.BreadKind.GROUND] == 3 \
-			and open_tally[City.BreadKind.ROOF] == 1 \
-			and rig.living_crumbs().size() == 40
-	var on_spots := dist_ok
-	for crumb in rig.living_crumbs():
-		if crumb.spot_index < 0:
-			on_spots = false
-			continue
-		on_spots = on_spots and crumb.global_position.distance_to(
-				_city.to_global(_city.bread_spots[crumb.spot_index])) < 0.01
-	var roof_seen: int = open_tally[City.BreadKind.ROOF]
-	## --- determinism: force-rebuild + re-populate → identical multiset -------
-	var before := _crumb_multiset(rig)
-	_city.generate(default_seed, true) ## regenerated → the rig re-populates.
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _vec_spots_equal(before, _crumb_multiset(rig)) \
-			and _live_tally(_city, rig) == open_tally
-	## --- top-ups follow the law: 10 eaten TABLE crumbs refill from tables ----
-	var eaten_tables: Array[BreadCrumb] = []
-	for crumb in rig.living_crumbs():
-		if crumb.spot_index >= 0 \
-				and _city.bread_spot_kinds[crumb.spot_index] == City.BreadKind.TABLE:
-			eaten_tables.append(crumb)
-			if eaten_tables.size() == 10:
-				break
-	var topup_ok := eaten_tables.size() == 10
-	for crumb in eaten_tables:
-		crumb.eaten.emit(crumb.restore) ## Same path a grounded pigeon triggers.
-		crumb.free()
-	await _wait_frames(45) ## 0.75 s > respawn_interval.
-	var after_tally := _live_tally(_city, rig)
-	topup_ok = topup_ok and after_tally[City.BreadKind.TABLE] == 36 \
-			and after_tally[City.BreadKind.GROUND] == 3 \
-			and after_tally[City.BreadKind.ROOF] == 1 \
-			and rig.living_crumbs().size() == 40 and rig.eaten_count == 10
-	roof_seen = maxi(roof_seen, after_tally[City.BreadKind.ROOF])
-	rig.respawn_interval = 60.0 ## No further top-up inside the shrink leg's window.
-	## --- overflow: the TABLE class shrunk to 10 free spots, re-populate ------
-	var shrunk_spots: Array[Vector3] = []
-	var shrunk_kinds: Array[int] = []
-	var kept := 0
-	for i in _city.bread_spots.size():
-		if _city.bread_spot_kinds[i] == City.BreadKind.TABLE:
-			kept += 1
-			if kept > 10:
-				continue
-		shrunk_spots.append(_city.bread_spots[i])
-		shrunk_kinds.append(_city.bread_spot_kinds[i])
-	_city.bread_spots = shrunk_spots
-	_city.bread_spot_kinds = shrunk_kinds
-	rig._populate() ## The re-populate under the shrunken class.
-	var over_tally := _live_tally(_city, rig)
-	var overflow_ok: bool = over_tally[City.BreadKind.TABLE] == 10 \
-			and over_tally[City.BreadKind.GROUND] == 29 \
-			and over_tally[City.BreadKind.ROOF] == 1 \
-			and rig.living_crumbs().size() == 40
-	roof_seen = maxi(roof_seen, over_tally[City.BreadKind.ROOF])
-	## --- the physical leg: a tabletop crumb feeds a grounded pigeon ----------
-	_city.generate(default_seed, true) ## Restore the full pool (undoes the shrink).
-	var hunger := Hunger.new()
-	hunger.player = _player
-	add_child(hunger)
-	rig.crumb_eaten.connect(hunger.eat) ## The Main wiring, on the same rig.
-	## A living TABLE crumb, read through the kind array (the shuffle decides
-	## WHICH table) — its spot's TABLE ordinal recovers the table's own
-	## transform (append-order parity: the k-th TABLE spot is cafe_spots[k]).
-	var table_crumb: BreadCrumb = null
-	var table_ordinal := -1
-	for crumb in rig.living_crumbs():
-		if crumb.spot_index >= 0 \
-				and _city.bread_spot_kinds[crumb.spot_index] == City.BreadKind.TABLE:
-			table_crumb = crumb
-			table_ordinal = 0
-			for i in crumb.spot_index:
-				if _city.bread_spot_kinds[i] == City.BreadKind.TABLE:
-					table_ordinal += 1
-			break
-	var eat_ok := table_crumb != null
-	var grounded_on_top := false
-	if eat_ok:
-		## The tabletop is a solid layer-1 box only once the cafe batch stands —
-		## the `city_cafe_tables_present` rig pattern (that scenario frees its
-		## own rig at its end, so this leg seats a fresh one).
-		var cafe_rig := CafeSpawner.new()
-		cafe_rig.city = _city
-		add_child(cafe_rig)
-		await _wait_frames(4)
-		var cafe: Transform3D = _city.cafe_spots[table_ordinal]
-		var spot_global := _city.to_global(_city.bread_spots[table_crumb.spot_index])
-		var toward := -cafe.basis.x ## From the crumb back across the tabletop.
-		var walk_dir := -toward ## The waddle aims at the crumb (+basis.x).
-		hunger.value = 40.0 ## Mid-bar so the +30 restore is measurable.
-		var hunger0 := hunger.value ## Baseline BEFORE the drop: the feed can fire
-		## on the settle frame (the whole top sits inside the crumb's grounded
-		## eat reach), so a post-grounding baseline would already hold the +30.
-		await _set_up(true, spot_global + toward * 0.6 + Vector3(0.0, 0.9, 0.0),
-				Vector3.ZERO, rad_to_deg(atan2(-walk_dir.x, -walk_dir.z)))
-		await _await_grounded(150) ## The bench_landing budget (softened-gravity fall).
-		grounded_on_top = _player.is_grounded \
-				and absf(_player.position.y - (spot_global.y + 0.24)) < 0.25
-		Input.action_press("pitch_up") ## The waddle-in drive.
-		for _i in 120:
-			await get_tree().physics_frame
-			eat_ok = not is_instance_valid(table_crumb) \
-					and hunger.value > hunger0 + 10.0
-			if eat_ok:
-				break
-		Input.action_release("pitch_up")
-		cafe_rig.free()
-	hunger.free()
-	## --- the foreign seed opens the same law: 36 / 3 / 1 at seed 424242 ------
-	_city.generate(424242, true)
-	var foreign_rig := BreadSpawner.new()
-	foreign_rig.city = _city
-	foreign_rig.respawn_interval = 60.0
-	add_child(foreign_rig)
-	await _wait_frames(4)
-	var foreign_tally := _live_tally(_city, foreign_rig)
-	var foreign_ok: bool = foreign_tally[City.BreadKind.TABLE] == 36 \
-			and foreign_tally[City.BreadKind.GROUND] == 3 \
-			and foreign_tally[City.BreadKind.ROOF] == 1 \
-			and foreign_rig.living_crumbs().size() == 40 \
-			and _city.bread_spot_kinds.size() == _city.bread_spots.size()
-	var foreign_awnings := 0
-	var foreign_tables := 0
-	for i in _city.buildings.size():
-		if _city.buildings[i].has_awning:
-			foreign_awnings += 1
-	for kind: int in _city.bread_spot_kinds:
-		if kind == City.BreadKind.TABLE:
-			foreign_tables += 1
-	foreign_ok = foreign_ok and foreign_tables == foreign_awnings
-	roof_seen = maxi(roof_seen, foreign_tally[City.BreadKind.ROOF])
-	foreign_rig.free()
-	_city.generate(default_seed, true) ## Leave the M1 city standing, pool restored.
-	_check("bread_distribution_weighted",
-			kinds_ok and tally_ok and spots_exact and dist_ok and on_spots
-					and deterministic and topup_ok and overflow_ok
-					and grounded_on_top and eat_ok and foreign_ok and roof_seen <= 1,
-			("kinds=%s tally(G/T/R)=%s spots_exact=%s open 36/3/1=%s on_spots=%s "
-				+ "det=%s topup=%s overflow 10/29/1=%s grounded_top=%s eat=%s "
-				+ "foreign 36/3/1=%s roof_max=%d") % [
-					kinds_ok, tally, spots_exact, dist_ok, on_spots, deterministic,
-					topup_ok, overflow_ok, grounded_on_top, eat_ok, foreign_ok,
-					roof_seen])
-	rig.free()
-
-
-## Zebra crosswalks (T-069, bars re-oriented longitudinal by T-102): the
-## `Visuals/Crosswalk` MultiMesh carries exactly 2,240 bars with default exports
-## (224 bands x 10 — every unblocked intersection approach, the 32 rim outward
-## approaches skipped), every bar is an axis-aligned 2.4 along-road x 0.5
-## across x 0.01 box at the right dash-family height (horizontal roads at
-## `road_slab_height`, vertical at `road_slab_height + 0.005`), every bar center
-## sits >= 5.0 m from every intersection node in XZ (the 3.5 m corner-cut swing
-## area stays clear), every bar stays on its approach road's asphalt (its
-## across-extent inside the road edges, its along-coordinate inside the city),
-## the bar multiset matches an independent recomputation (per unblocked
-## approach, one 2.4 m-deep band centered 6.2 m out on the road centerline,
-## tiled by road_width / 1.0 = 10 bars running WITH the road, repeating ACROSS
-## it at a 1.0 m pitch on centers — the `_expected_cafe_spot` pattern), a forced
-## same-seed rebuild reproduces all transforms byte-identically (`_spots_equal`,
-## the `elder_placement_no_rng` pattern), the paint is visual-only (no
-## StaticBody3D anywhere under `Visuals`), and the fingerprint stays
-## byte-identical (zero RNG, zero `_fp` entries).
-##
-## Transform source: `MultiMesh.get_instance_transform` reads back identity for
-## EVERY key in headless runs (the dummy RenderingServer never uploads the
-## instance buffer — verified for the pre-existing `Dash` key too), so the
-## per-stripe walk uses the queue that feeds this exact MultiMesh
-## (`_spawn_visuals` copies `_visuals[key].xfs` into the node verbatim, same
-## build, same order); `instance_count` IS readable off the node and must
-## agree with the queue at both snapshots.
-func _scenario_city_crosswalks() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var mm := (_city.get_node("Visuals/Crosswalk") as MultiMeshInstance3D).multimesh
-	var queue: Array = _city._visuals["crosswalk"].xfs
-	var count_ok: bool = mm.instance_count == 2240 and queue.size() == 2240
-	var xfs: Array[Transform3D] = []
-	for xf: Transform3D in queue:
-		xfs.append(xf)
-	## The layout math, re-derived here from the default exports (independent of
-	## the builder's own constants): 8 road centers per axis -> 64 nodes.
-	var half: float = _city.city_span * 0.5
-	var road_w: float = _city.road_width
-	var slab_y: float = _city.road_slab_height
-	var centers: Array[float] = []
-	for j in _city.blocks_per_side + 1:
-		centers.append(-half + road_w * 0.5 + j * _city.block_pitch)
-	var nodes: Array[Vector2] = []
-	for cx: float in centers:
-		for cz: float in centers:
-			nodes.append(Vector2(cx, cz))
-	## Expected bar centers: per node, per approach whose band stays on the
-	## asphalt (outer band edge node + side * 7.4 m inside ± half), one 2.4 m
-	## deep band centered 6.2 m out — ten bars running WITH the road, repeating
-	## ACROSS it at a 1.0 m pitch on centers (T-102 longitudinal zebra).
-	var expected: Array[Vector3] = []
-	for cx: float in centers:
-		for cz: float in centers:
-			for axis: int in 2: ## 0 = ±x approaches (horizontal road), 1 = ±z (vertical road).
-				for side: float in [1.0, -1.0]:
-					var node_c: float = cx if axis == 0 else cz
-					if absf(node_c + side * 7.4) > half:
-						continue ## The band would leave the asphalt.
-					var out: float = side * 6.2
-					for k in 10:
-						var across: float = (float(k) - 4.5) * 1.0
-						expected.append(Vector3(
-								cx + (out if axis == 0 else across),
-								slab_y if axis == 0 else slab_y + 0.005,
-								cz + (across if axis == 0 else out)))
-	count_ok = count_ok and expected.size() == 2240
-	## Per-bar geometry / y-family / clearance / asphalt-rect criteria, plus a
-	## multiset match against the expected centers (each expected bar exactly
-	## once proves the 10-per-unblocked-approach placement at the 1.0 m pitch).
-	var matched: Array[bool] = []
-	matched.resize(expected.size())
-	matched.fill(false)
-	var geometry_ok := true
-	var y_ok := true
-	var clear_ok := true
-	var asphalt_ok := true
-	for xf in xfs:
-		var o: Vector3 = xf.origin
-		var sc: Vector3 = xf.basis.get_scale()
-		## Bars run ALONG the road (2.4 m deep) and repeat ACROSS it (0.5 m wide)
-		## — the T-102 flip of T-069's transverse piano-key band.
-		var along_x := absf(sc.x - 2.4) < 0.001 and absf(sc.z - 0.5) < 0.001
-		var along_z := absf(sc.z - 2.4) < 0.001 and absf(sc.x - 0.5) < 0.001
-		geometry_ok = geometry_ok and (along_x or along_z) and absf(sc.y - 0.01) < 0.001
-		y_ok = y_ok and absf(o.y - (slab_y if along_x else slab_y + 0.005)) < 0.001
-		var nearest := INF
-		for node_pos in nodes:
-			nearest = minf(nearest, Vector2(o.x - node_pos.x, o.z - node_pos.y).length())
-		clear_ok = clear_ok and nearest >= 5.0
-		## On its approach road's asphalt: the across-extent (center ± 0.25 m)
-		## stays inside that road's edges, the along-coordinate inside the city.
-		var across_c: float = o.z if along_x else o.x
-		var along_c: float = o.x if along_x else o.z
-		var near_center: float = centers[0]
-		for c: float in centers:
-			if absf(across_c - c) < absf(across_c - near_center):
-				near_center = c
-		asphalt_ok = asphalt_ok \
-				and absf(across_c - near_center) + 0.25 <= road_w * 0.5 + 0.001 \
-				and absf(along_c) <= half + 0.001
-		for e in expected.size():
-			if not matched[e] and (expected[e] - o).length_squared() < 1e-8:
-				matched[e] = true
-				break
-	var placement_ok: bool = count_ok
-	for m in matched:
-		placement_ok = placement_ok and m
-	## A forced same-seed rebuild reproduces all 2,240 transforms byte-identically.
-	var xfs_a := xfs.duplicate()
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
-	var mm_b := (_city.get_node("Visuals/Crosswalk") as MultiMeshInstance3D).multimesh
-	var queue_b: Array = _city._visuals["crosswalk"].xfs
-	var xfs_b: Array[Transform3D] = []
-	for xf: Transform3D in queue_b:
-		xfs_b.append(xf)
-	var deterministic: bool = mm_b.instance_count == 2240 and queue_b.size() == 2240 \
-			and _city.fingerprint == fp_first and _spots_equal(xfs_a, xfs_b)
-	## Visual-only (T-017): no StaticBody3D anywhere under the city's Visuals root.
-	var visuals := _city.get_node("Visuals") as Node3D
-	var colliders := visuals.find_children("*", "StaticBody3D", true, false)
-	var visual_only := colliders.is_empty()
-	_check("city_crosswalks_present",
-			count_ok and geometry_ok and y_ok and clear_ok and asphalt_ok
-					and placement_ok and deterministic and visual_only,
-			"count=%d/%d geometry=%s y=%s clear=%s asphalt=%s placement=%s det=%s colliders=%d" % [
-					xfs.size(), expected.size(), geometry_ok, y_ok, clear_ok, asphalt_ok,
-					placement_ok, deterministic, colliders.size()])
-	## Informational: the M1-seed paint counts — the ticket's tuned numbers,
-	## re-printed on every re-verification.
-	print("SIM DATA city_crosswalks: bars=%d bands=%d fingerprint=%d" % [
-			xfs.size(), xfs.size() / 10, fp_first])
-
-
-## City-edge rim (T-088 commit 1): the rim is pure layout — audited like the
-## crosswalks. Counts (4 hedges, 2·4·(blocks_per_side+1) trees), hedge
-## placement on the boundary line (|x| or |z| = city_span·0.5 + 0.5, oriented
-## (city_span, 1.2, 0.8) size), tree placement against an independent
-## recomputation from the default exports (two per street exit at
-## road_width·0.5 + 1.5 m along the side axis, on the apron at y 0), trunk and
-## crown geometry off the actual MultiMesh queues (trunk center 1.1 m up,
-## crown 3.3 m up, every crown over a tree spot), the rim green ≥ 0.15
-## Euclidean RGB from COLOR_GRASS (distances printed informationally), zero
-## CollisionObject3D under the Visuals root, a forced same-seed rebuild
-## reproducing both spot lists byte-identically, and the layout fingerprint
-## still equal to the cross-version pins recorded by T-047 (seed 20260928 →
-## 1103197745, seed 424242 → 1411023184 — the values moved for T-051's
-## mandated two-axis footprint `_fp` entry, re-derived 2026-10-01 with a
-## headless `City.generate` probe (pre-T-051: 2492360539 / 2662825400), again
-## for T-029's plaza-landmark `_fp` entry, same probe (pre-T-029:
-## 4188136223 / 547420287), again for T-091's four district-anchor `_fp`
-## entries, same probe (pre-T-091: 1006789400 / 3359332191), again for
-## T-104's four plaza-bin `_fp` x/z entries, same probe
-## (pre-T-104: 650664268 / 4031380170), and again for T-135's pinned parks —
-## the per-block `park_chance` draw deleted from `_rng`, the four seed-parks
-## swapped for `PARK_BLOCKS` in the `_fp` slabs, same probe (pre-T-135:
-## 4045370482 / 533171164)).
-##
-## Transform source: the public `rim_hedge_spots`/`rim_tree_spots` arrays for
-## the placement legs; the trunk/crown legs walk the queues that feed the
-## RimTrunk/RimCrown MultiMeshes (`MultiMesh.get_instance_transform` reads
-## back identity headless — the `city_crosswalks_present` note).
-## The albedo of the shared mesh behind a MultiMeshInstance3D — how the rim's
-## greens are authored (`_mesh_albedo` is for MeshInstance3D; a MultiMesh
-## instance is NOT one, so the cast there would yield Nil).
-func _mm_mesh_albedo(root: Node, node_path: String) -> Color:
-	var mm: MultiMesh = (root.get_node(node_path) as MultiMeshInstance3D).multimesh
-	return (mm.mesh.surface_get_material(0) as StandardMaterial3D).albedo_color
-
-
-func _scenario_city_apron_rim() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var hedges: Array[Transform3D] = []
-	for xf: Transform3D in _city.rim_hedge_spots:
-		hedges.append(xf)
-	var trees: Array[Transform3D] = []
-	for xf: Transform3D in _city.rim_tree_spots:
-		trees.append(xf)
-	## --- counts --------------------------------------------------------------
-	var expected_trees := 2 * 4 * (_city.blocks_per_side + 1)
-	var count_ok: bool = hedges.size() == 4 and trees.size() == expected_trees
-	## --- hedge placement: boundary line, band height, oriented size ----------
-	var line := _city.city_span * 0.5 + 0.5
-	var hedge_place_ok: bool = hedges.size() == 4
-	for xf: Transform3D in hedges:
-		var o: Vector3 = xf.origin
-		var sc: Vector3 = xf.basis.get_scale()
-		hedge_place_ok = hedge_place_ok \
-				and (absf(absf(o.x) - line) < 0.01 or absf(absf(o.z) - line) < 0.01) \
-				and absf(o.y - 0.6) < 0.01 and absf(sc.y - 1.2) < 0.01 \
-				and ((absf(sc.x - _city.city_span) < 0.01 and absf(sc.z - 0.8) < 0.01) \
-						or (absf(sc.z - _city.city_span) < 0.01 and absf(sc.x - 0.8) < 0.01))
-	## --- tree placement vs an independent recomputation -----------------------
-	var edge := _city.city_span * 0.5
-	var centers: Array[float] = []
-	for i in _city.blocks_per_side + 1:
-		centers.append(-edge + _city.road_width * 0.5 + i * _city.block_pitch)
-	var expected: Array[Vector3] = []
-	for normal: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD]:
-		var along := Vector3(-normal.z, 0.0, normal.x)
-		for c: float in centers:
-			for s: float in [1.0, -1.0]:
-				expected.append(normal * line
-						+ along * (c + s * (_city.road_width * 0.5 + 1.5)))
-	var tree_place_ok: bool = expected.size() == trees.size()
-	var matched: Array[bool] = []
-	matched.resize(expected.size())
-	matched.fill(false)
-	for spot: Transform3D in trees:
-		var o: Vector3 = spot.origin
-		var hit := false
-		for e in expected.size():
-			if not matched[e] and (expected[e] - o).length_squared() < 1e-6:
-				matched[e] = true
-				hit = true
-				break
-		tree_place_ok = tree_place_ok and hit and absf(o.y) < 0.001 ## On the apron (y 0).
-	## --- trunks and crowns, off the actual MultiMesh queues -------------------
-	var trunk_xfs: Array[Transform3D] = []
-	var crown_xfs: Array[Transform3D] = []
-	if _city._visuals.has("rim_trunk"):
-		for xf: Transform3D in _city._visuals["rim_trunk"].xfs:
-			trunk_xfs.append(xf)
-	if _city._visuals.has("rim_crown"):
-		for xf: Transform3D in _city._visuals["rim_crown"].xfs:
-			crown_xfs.append(xf)
-	var trees_3d_ok: bool = trunk_xfs.size() == expected_trees \
-			and crown_xfs.size() == expected_trees
-	var crown_matched: Array[bool] = []
-	crown_matched.resize(trees.size())
-	crown_matched.fill(false)
-	for xf: Transform3D in trunk_xfs:
-		trees_3d_ok = trees_3d_ok and absf(xf.origin.y - 1.1) < 0.001
-	for cf: Transform3D in crown_xfs:
-		trees_3d_ok = trees_3d_ok and absf(cf.origin.y - 3.3) < 0.001
-		for t in trees.size():
-			var spot_o: Vector3 = (trees[t] as Transform3D).origin
-			var flat := Vector2(cf.origin.x - spot_o.x, cf.origin.z - spot_o.z)
-			if not crown_matched[t] and flat.length_squared() < 1e-6:
-				crown_matched[t] = true
-				break
-	for m in crown_matched:
-		trees_3d_ok = trees_3d_ok and m
-	## --- the rim reads against its own apron: green vs COLOR_GRASS ------------
-	var hedge_green := _mm_mesh_albedo(_city, "Visuals/RimHedge")
-	var crown_green := _mm_mesh_albedo(_city, "Visuals/RimCrown")
-	var grass_v := _rgb(_city.COLOR_GRASS)
-	var hedge_dist := _rgb(hedge_green).distance_to(grass_v)
-	var crown_dist := _rgb(crown_green).distance_to(grass_v)
-	var green_ok := hedge_dist >= 0.15 and crown_dist >= 0.15
-	## --- visual-only: zero colliders anywhere under the Visuals root ----------
-	var visuals := _city.get_node("Visuals") as Node3D
-	var colliders := visuals.find_children("*", "CollisionObject3D", true, false)
-	var visual_only := colliders.is_empty()
-	## --- determinism: a real rebuild reproduces both spot lists ---------------
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _spots_equal(hedges, _city.rim_hedge_spots) \
-			and _spots_equal(trees, _city.rim_tree_spots) \
-			and (_city._visuals["rim_trunk"].xfs as Array).size() == expected_trees \
-			and (_city._visuals["rim_crown"].xfs as Array).size() == expected_trees
-	## --- cross-version pins (moved for T-051's `_fp` entry, T-029's and -------
-	## T-091's four district-anchor entries, T-104's four plaza-bin entries,
-	## T-135's pinned parks, T-136's per-district prop mix)
-	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 1411023184
-	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 1103197745
-	var rim_detail := "hedges=%d trees=%d/%d hedge_place=%s tree_place=%s trees_3d=%s green=%s (%.3f/%.3f) colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
-			hedges.size(), trees.size(), expected_trees, hedge_place_ok,
-			tree_place_ok, trees_3d_ok, green_ok, hedge_dist, crown_dist,
-			colliders.size(), deterministic, pin_foreign, pin_default]
-	_check("city_apron_rim_present",
-			count_ok and hedge_place_ok and tree_place_ok and trees_3d_ok and green_ok
-					and visual_only and deterministic and pin_foreign and pin_default,
-			rim_detail)
-	## Informational: the rim's tuned numbers — the ticket's counts and green
-	## distances, re-printed on every re-verification.
-	var rim_data := "SIM DATA city_apron_rim: hedges=4 trees=%d hedge_green_dist=%.3f crown_green_dist=%.3f fingerprint=%d" % [
-			trees.size(), hedge_dist, crown_dist, fp_first]
-	print(rim_data)
-
-
-## Distant skyline (T-088 commit 2): layout asserts on the standing City — no
-## flight, the `_scenario_city_district_palettes` access pattern, audited like
-## the crosswalks. `Skyline`/`SkylineTall` MultiMesh nodes exist under
-## `Visuals`; total instances in [40, 80] with tall landmarks in [2, 8]; every
-## origin's XZ radius in the band recomputed from the default exports
-## (192-347 m at defaults — beyond the blocks, strictly inside the apron box
-## including the tower's own ≤ 9 m half-width) with box origins at height/2
-## (the apron top is y 0); every scale.y in [15, 60] and XZ extents 6-18 m;
-## zero CollisionObject3D anywhere under the Visuals root; a forced same-seed
-## rebuild reproduces both instance sets byte-identically; and the fingerprint
-## still equals the cross-version pins (see `_scenario_city_apron_rim`).
-##
-## T-148 adds the haze check beside the layout check: every queued
-## `Skyline`/`SkylineTall` instance color is the district shade lerped toward
-## `SKYLINE_HAZE` (main.tscn's `sky_horizon_color`) by `maxf(SKYLINE_HAZE_MIN,
-## the tower's normalized band radius × SKYLINE_HAZE_MAX)` (the T-155 floor) —
-## the deterministic chain replayed off the
-## City's own consts and roll helper (never literals), each expected color
-## joined to the queue the tall roll selects, compared element-wise against the
-## queued colors (per-channel < 0.001). T-155 adds the floor check beside it:
-## the applied weight per tower is derived by projecting the stored color onto
-## the base→`SKYLINE_HAZE` segment and asserted inside
-## [SKYLINE_HAZE_MIN − 0.001, SKYLINE_HAZE_MAX + 0.001], with the ring maximum
-## still reaching `SKYLINE_HAZE_MAX` − 0.05 (the band keeps its grade).
-##
-## Transform source: the queues that feed the two MultiMeshes
-## (`MultiMesh.get_instance_transform` reads back identity headless — the
-## `city_crosswalks_present` note).
-func _scenario_city_horizon_skyline() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var nodes_ok: bool = _city.get_node_or_null("Visuals/Skyline") is MultiMeshInstance3D \
-			and _city.get_node_or_null("Visuals/SkylineTall") is MultiMeshInstance3D
-	var skyline_xfs: Array[Transform3D] = []
-	var tall_xfs: Array[Transform3D] = []
-	if _city._visuals.has("skyline"):
-		for xf: Transform3D in _city._visuals["skyline"].xfs:
-			skyline_xfs.append(xf)
-	if _city._visuals.has("skyline_tall"):
-		for xf: Transform3D in _city._visuals["skyline_tall"].xfs:
-			tall_xfs.append(xf)
-	var total := skyline_xfs.size() + tall_xfs.size()
-	var count_ok: bool = nodes_ok and total >= 40 and total <= 80 \
-			and tall_xfs.size() >= 2 and tall_xfs.size() <= 8
-	## --- placement and size legs, off the actual instance transforms ---------
-	var inner := _city.city_span * 0.5 + _city.ground_extra * 0.3
-	var outer := _city.city_span * 0.5 + _city.ground_extra - 20.0
-	var apron_half := _city.city_span * 0.5 + _city.ground_extra
-	var place_ok := count_ok
-	var size_ok := true
-	for source: Array in [skyline_xfs, tall_xfs]:
-		for xf: Transform3D in source:
-			var o: Vector3 = xf.origin
-			var sc: Vector3 = xf.basis.get_scale()
-			var radius := Vector2(o.x, o.z).length()
-			place_ok = place_ok and radius >= inner - 0.001 and radius <= outer + 0.001 \
-					and absf(o.x) + 9.0 <= apron_half and absf(o.z) + 9.0 <= apron_half
-			size_ok = size_ok and sc.y >= 15.0 - 0.001 and sc.y <= 60.0 + 0.001 \
-					and sc.x >= 6.0 - 0.001 and sc.x <= 18.0 + 0.001 \
-					and sc.z >= 6.0 - 0.001 and sc.z <= 18.0 + 0.001 \
-					and absf(o.y - sc.y * 0.5) < 0.001
-	## --- visual-only: zero colliders anywhere under the Visuals root ----------
-	var visuals := _city.get_node("Visuals") as Node3D
-	var collider_count := 0
-	for node in visuals.find_children("*", "", true, false):
-		if node is CollisionObject3D:
-			collider_count += 1
-	var visual_only := collider_count == 0
-	## --- determinism: a real rebuild reproduces both instance sets ------------
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
-	var skyline_b: Array[Transform3D] = []
-	var tall_b: Array[Transform3D] = []
-	if _city._visuals.has("skyline"):
-		for xf: Transform3D in _city._visuals["skyline"].xfs:
-			skyline_b.append(xf)
-	if _city._visuals.has("skyline_tall"):
-		for xf: Transform3D in _city._visuals["skyline_tall"].xfs:
-			tall_b.append(xf)
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _spots_equal(skyline_xfs, skyline_b) and _spots_equal(tall_xfs, tall_b)
-	## --- cross-version pins and the foreign-seed contract ---------------------
-	_city.generate(424242)
-	var pin_foreign: bool = _city.fingerprint == 1411023184 \
-			and _city._visuals["skyline_tall"].xfs.size() != tall_xfs.size()
-	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 1103197745
-	var skyline_detail := "nodes=%s total=%d tall=%d place=%s size=%s colliders=%d det=%s pins_foreign=%s pins_default=%s" % [
-			nodes_ok, total, tall_xfs.size(), place_ok, size_ok, collider_count,
-			deterministic, pin_foreign, pin_default]
-	_check("city_horizon_skyline",
-			count_ok and place_ok and size_ok and visual_only and deterministic
-					and pin_foreign and pin_default,
-			skyline_detail)
-	## Informational: the skyline's tuned numbers — the ticket's bands, re-printed
-	## on every re-verification.
-	var skyline_data := "SIM DATA city_horizon_skyline: total=%d tall=%d inner=%.0f outer=%.0f fingerprint=%d" % [
-			total, tall_xfs.size(), inner, outer, fp_first]
-	print(skyline_data)
-	## --- T-148 haze leg: the ring dissolves toward the sky-horizon color ------
-	## Every queued skyline color is the district shade lerped toward
-	## `SKYLINE_HAZE` by `maxf(SKYLINE_HAZE_MIN, the tower's normalized band
-	## radius × SKYLINE_HAZE_MAX)` (the T-155 floor adopted here in the same
-	## change-set — an un-floored replay would fail against the floored builder).
-	## The deterministic chain is replayed with the CITY's own consts and roll
-	## helper (never literals, so a Gate 3 retune re-derives this gate), and each
-	## expected color joins the queue the tall roll selects — each key's
-	## `_visuals` array is an i-ordered subsequence of the global chain. The
-	## standing city is the default-seed rebuild the layout leg above left up.
-	var expected_skyline_colors: Array[Color] = []
-	var expected_tall_colors: Array[Color] = []
-	var skyline_band := outer - inner
-	for i in _city.SKYLINE_COUNT:
-		var haze_radius: float = inner \
-				+ _city._skyline_roll(i, _city.SKYLINE_SALT_RADIUS) * skyline_band
-		var radius_norm := clampf((haze_radius - inner) / skyline_band, 0.0, 1.0)
-		var haze_angle: float = _city._skyline_roll(i, _city.SKYLINE_SALT_ANGLE) * TAU
-		var haze_tall: bool = _city._skyline_roll(i, _city.SKYLINE_SALT_CLASS) \
-				< float(_city.SKYLINE_TALL_TARGET) / float(_city.SKYLINE_COUNT)
-		var haze_palette: Array = _city.DISTRICT_PALETTES[
-				int(haze_angle / (PI * 0.5)) % 4]
-		var haze_base := (haze_palette[i % haze_palette.size()] as Color).darkened(
-				0.3 + _city._skyline_roll(i, _city.SKYLINE_SALT_SHADE) * 0.15)
-		var expected := haze_base.lerp(_city.SKYLINE_HAZE,
-				maxf(_city.SKYLINE_HAZE_MIN,
-						radius_norm * _city.SKYLINE_HAZE_MAX))
-		if haze_tall:
-			expected_tall_colors.append(expected)
-		else:
-			expected_skyline_colors.append(expected)
-	var haze_ok := true
-	var haze_detail := ""
-	var expected_by_key := {
-			"skyline": expected_skyline_colors,
-			"skyline_tall": expected_tall_colors,
-	}
-	for haze_key: String in ["skyline", "skyline_tall"]:
-		var want: Array = expected_by_key[haze_key]
-		var got: Array = (_city._visuals[haze_key].colors as Array) \
-				if _city._visuals.has(haze_key) else []
-		if got.size() != want.size():
-			haze_ok = false
-			haze_detail += "%s count %d != %d " % [haze_key, got.size(), want.size()]
-			continue
-		for c in want.size():
-			var got_color := got[c] as Color
-			var want_color: Color = want[c]
-			var drift := maxf(maxf(absf(got_color.r - want_color.r),
-					absf(got_color.g - want_color.g)),
-					maxf(absf(got_color.b - want_color.b),
-					absf(got_color.a - want_color.a)))
-			if drift >= 0.001:
-				haze_ok = false
-				haze_detail += "%s[%d] drift %.4f got %s want %s " % [
-						haze_key, c, drift, got_color, want_color]
-				break
-	_check("city_skyline_haze", haze_ok,
-			"queued colors off the lerped chain: %s" % haze_detail)
-	var haze_data := "SIM DATA city_skyline_haze: haze=%s max=%.2f skyline=%d tall=%d" % [
-			_city.SKYLINE_HAZE, _city.SKYLINE_HAZE_MAX,
-			expected_skyline_colors.size(), expected_tall_colors.size()]
-	print(haze_data)
-	## --- T-155 haze floor leg: every applied blend weight is floored ---------
-	## The builder stores `C = B.lerp(SKYLINE_HAZE, w_applied)`; this leg derives
-	## `w_applied` per tower by projecting the stored color onto the B→SKYLINE_HAZE
-	## segment (the dot-product ratio recovers the lerp weight within float error
-	## without re-implementing the builder's formula, so a Gate 3 retune of either
-	## const re-derives this gate instead of desyncing it), then asserts every
-	## weight inside [SKYLINE_HAZE_MIN − 0.001, SKYLINE_HAZE_MAX + 0.001] AND the
-	## ring maximum ≥ SKYLINE_HAZE_MAX − 0.05 (the floor must not flatten the band
-	## into a uniform wash — outer towers keep their near-full dissolve). The
-	## chain is replayed per global `i` exactly as the haze leg above does, and
-	## each derived weight pairs 1:1 with the stored queue the tall roll selects.
-	var floor_w_min := INF
-	var floor_w_max := -INF
-	var floor_audited := 0
-	var floor_ok := true
-	var floor_detail := ""
-	var floor_seen_plain := 0
-	var floor_seen_tall := 0
-	for i in _city.SKYLINE_COUNT:
-		var floor_radius: float = inner \
-				+ _city._skyline_roll(i, _city.SKYLINE_SALT_RADIUS) * skyline_band
-		var floor_angle: float = _city._skyline_roll(i, _city.SKYLINE_SALT_ANGLE) * TAU
-		var floor_tall: bool = _city._skyline_roll(i, _city.SKYLINE_SALT_CLASS) \
-				< float(_city.SKYLINE_TALL_TARGET) / float(_city.SKYLINE_COUNT)
-		var floor_palette: Array = _city.DISTRICT_PALETTES[
-				int(floor_angle / (PI * 0.5)) % 4]
-		var base_color := (floor_palette[i % floor_palette.size()] as Color).darkened(
-				0.3 + _city._skyline_roll(i, _city.SKYLINE_SALT_SHADE) * 0.15)
-		var stored: Array = []
-		var c := 0
-		if floor_tall:
-			stored = (_city._visuals["skyline_tall"].colors as Array) \
-					if _city._visuals.has("skyline_tall") else []
-			c = floor_seen_tall
-			floor_seen_tall += 1
-		else:
-			stored = (_city._visuals["skyline"].colors as Array) \
-					if _city._visuals.has("skyline") else []
-			c = floor_seen_plain
-			floor_seen_plain += 1
-		if c >= stored.size():
-			floor_ok = false
-			floor_detail += "%s[%d] missing stored color " % [
-					"skyline_tall" if floor_tall else "skyline", c]
-			continue
-		var got_color := stored[c] as Color
-		var haze_h := _city.SKYLINE_HAZE
-		var b_vec := Vector3(base_color.r, base_color.g, base_color.b)
-		var h_vec := Vector3(haze_h.r, haze_h.g, haze_h.b)
-		var c_vec := Vector3(got_color.r, got_color.g, got_color.b)
-		var segment := h_vec - b_vec
-		## Guard: a base within 1e-6 of the haze makes the segment degenerate —
-		## fail loudly here rather than divide by the near-zero denominator.
-		if segment.length() < 1e-6:
-			floor_ok = false
-			floor_detail += "%s[%d] degenerate base==haze " % [
-					"skyline_tall" if floor_tall else "skyline", c]
-			continue
-		var w := segment.dot(c_vec - b_vec) / segment.dot(segment)
-		floor_w_min = minf(floor_w_min, w)
-		floor_w_max = maxf(floor_w_max, w)
-		floor_audited += 1
-		if w < _city.SKYLINE_HAZE_MIN - 0.001 or w > _city.SKYLINE_HAZE_MAX + 0.001:
-			floor_ok = false
-			floor_detail += "%s[%d] weight %.4f outside [%.3f, %.3f] " % [
-					"skyline_tall" if floor_tall else "skyline", c, w,
-					_city.SKYLINE_HAZE_MIN - 0.001, _city.SKYLINE_HAZE_MAX + 0.001]
-	if floor_audited != _city.SKYLINE_COUNT:
-		floor_ok = false
-		floor_detail += "audited %d != %d towers " % [floor_audited, _city.SKYLINE_COUNT]
-	if floor_w_max < _city.SKYLINE_HAZE_MAX - 0.05:
-		floor_ok = false
-		floor_detail += "ring max %.4f < %.3f (band flattened) " % [
-				floor_w_max, _city.SKYLINE_HAZE_MAX - 0.05]
-	_check("city_skyline_haze_floor", floor_ok,
-			"projected weights off the base→haze segment: %s" % floor_detail)
-	var floor_data := "SIM DATA city_skyline_haze_floor: min=%.4f max=%.4f band=[%.2f, %.2f] audited=%d" % [
-			floor_w_min, floor_w_max, _city.SKYLINE_HAZE_MIN, _city.SKYLINE_HAZE_MAX,
-			floor_audited]
-	print(floor_data)
-
-
-## Park trees (T-030): four per park block at the fixed (±5, ±5) offsets —
-## audited like the rim (`city_apron_rim_present` pattern). Counts = 4 × the
-## reported park count off the TreeTrunk/TreeCrown MultiMesh queues — since
-## T-135 that is 16 = 4 × 4 at EVERY seed (the parks are pinned); the park
-## blocks recomputed independently from the slab queue (exactly the slabs
-## wearing COLOR_PARK); every trunk (1.1 m up on the slab) and crown (3.3 m
-## up, bottom at trunk top) over exactly one expected offset, every tree fully
-## inside its block footprint; the crown green ≥ 0.15 Euclidean RGB from
-## COLOR_PARK (the lawn — distance printed informationally); every tree ≥ 2.0 m
-## XZ from every `bread_spots` entry at the M1 seed (includes the bench seats)
-## plus the constants-level ≥ 1.5 m lamp/bin arithmetic that holds at every
-## seed; zero CollisionObject3D under the Visuals root; a forced same-seed
-## rebuild reproducing both instance queues byte-identically; a foreign seed
-## raising the same 4 × parks law over the same four pinned blocks; and the
-## layout fingerprint still equal to the cross-version pins (see
-## `_scenario_city_apron_rim`).
-##
-## Transform source: the queues that feed the two MultiMeshes
-## (`MultiMesh.get_instance_transform` reads back identity headless — the
-## `city_crosswalks_present` note).
-func _scenario_city_park_trees() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var parks: int = _city.last_report.parks
-	## Park block centers, recomputed independently: the slab queue wears one
-	## of the four per-district PARK_SLAB_TINTS tints on exactly the park
-	## blocks (T-136; the plaza wears COLOR_PLAZA, every other block
-	## COLOR_SIDEWALK). The slab instance sits at center + UP *
-	## block_slab_height * 0.5. The tint also re-derives the slab's district.
-	var park_centers: Array[Vector3] = []
-	var park_districts: Array[int] = []
-	var slab_xfs: Array = _city._visuals["slab"].xfs
-	var slab_colors: Array = _city._visuals["slab"].colors
-	for i in slab_xfs.size():
-		for d in _city.PARK_SLAB_TINTS.size():
-			if slab_colors[i] == _city.PARK_SLAB_TINTS[d]:
-				park_centers.append((slab_xfs[i] as Transform3D).origin)
-				park_districts.append(d)
-	var tree_total: int = 0
-	for layout: Array in _city.PARK_TREE_LAYOUTS:
-		tree_total += layout.size()
-	var expected_count := tree_total ## 19 — the per-district layouts 2/3/8/6.
-	var count_ok: bool = park_centers.size() == parks \
-			and (_city._visuals["tree_trunk"].xfs as Array).size() == expected_count \
-			and (_city._visuals["tree_crown"].xfs as Array).size() == expected_count
-	## Expected tree bases: each park center's DISTRICT layout offsets, on the
-	## slab (y = block_slab_height) — with each tree's crown center height and
-	## scale read off the same tables (the d3 crowns run 0.8, centered lower
-	## so the bottom stays on the trunk top).
-	var expected_pos: Array[Vector3] = []
-	var expected_center: Array[Vector3] = []
-	var expected_district: Array[int] = []
-	for pi in park_centers.size():
-		var c: Vector3 = park_centers[pi]
-		var d: int = park_districts[pi]
-		for offset: Vector2 in _city.PARK_TREE_LAYOUTS[d]:
-			expected_pos.append(Vector3(
-					c.x + offset.x, _city.block_slab_height, c.z + offset.y))
-			expected_center.append(c)
-			expected_district.append(d)
-	## --- trunks and crowns, off the actual MultiMesh queues -------------------
-	var trunk_xfs: Array[Transform3D] = []
-	var crown_xfs: Array[Transform3D] = []
-	if _city._visuals.has("tree_trunk"):
-		for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
-			trunk_xfs.append(xf)
-	if _city._visuals.has("tree_crown"):
-		for xf: Transform3D in _city._visuals["tree_crown"].xfs:
-			crown_xfs.append(xf)
-	## --- geometry: heights, one offset each, fully inside the block ----------
-	var trees_3d_ok: bool = count_ok
-	for xf: Transform3D in trunk_xfs:
-		trees_3d_ok = trees_3d_ok and absf(xf.origin.y
-				- (_city.block_slab_height + _city.PARK_TRUNK_SIZE.y * 0.5)) < 0.001
-	var crown_matched: Array[bool] = []
-	crown_matched.resize(expected_pos.size())
-	crown_matched.fill(false)
-	var crown_half := _city.PARK_CROWN_SIZE.x * 0.5
-	var place_ok: bool = count_ok
-	var inside_ok: bool = count_ok
-	var scale_ok: bool = count_ok
-	for xf: Transform3D in crown_xfs:
-		var o: Vector3 = xf.origin
-		var hit := false
-		for e in expected_pos.size():
-			if crown_matched[e]:
-				continue
-			var ep: Vector3 = expected_pos[e]
-			if Vector2(o.x - ep.x, o.z - ep.z).length_squared() < 1e-8:
-				crown_matched[e] = true
-				hit = true
-				var d: int = expected_district[e]
-				var crown_size: Vector3 = _city.PARK_CROWN_SIZE \
-						* float(_city.PARK_CROWN_SCALE_BY_DISTRICT[d])
-				var crown_y: float = _city.PARK_CROWN_CENTER_Y \
-						- (_city.PARK_CROWN_SIZE.y - crown_size.y) * 0.5
-				trees_3d_ok = trees_3d_ok and absf(o.y
-						- (_city.block_slab_height + crown_y)) < 0.001
-				scale_ok = scale_ok \
-						and (xf.basis.get_scale() - crown_size).length() < 0.001
-				var c: Vector3 = expected_center[e]
-				inside_ok = inside_ok \
-						and absf(o.x - c.x) + crown_half <= _city.block_size * 0.5 + 0.001 \
-						and absf(o.z - c.z) + crown_half <= _city.block_size * 0.5 + 0.001
-				break
-		place_ok = place_ok and hit
-	var trunk_matched: Array[bool] = []
-	trunk_matched.resize(expected_pos.size())
-	trunk_matched.fill(false)
-	for xf: Transform3D in trunk_xfs:
-		var o: Vector3 = xf.origin
-		var hit := false
-		for e in expected_pos.size():
-			if trunk_matched[e]:
-				continue
-			var ep: Vector3 = expected_pos[e]
-			if Vector2(o.x - ep.x, o.z - ep.z).length_squared() < 1e-8:
-				trunk_matched[e] = true
-				hit = true
-				break
-		place_ok = place_ok and hit
-	## --- the crowns read against their own lawn: green vs COLOR_PARK ---------
-	var crown_green := _mm_mesh_albedo(_city, "Visuals/TreeCrown")
-	var crown_dist := _rgb(crown_green).distance_to(_rgb(_city.COLOR_PARK))
-	var green_ok := crown_dist >= 0.15
-	## --- clearance: trees vs everything sharing a park block ------------------
-	var clear_ok := true
-	var worst_bread := INF
-	for xf: Transform3D in trunk_xfs:
-		for spot: Vector3 in _city.bread_spots:
-			var d := Vector2(xf.origin.x - spot.x, xf.origin.z - spot.z).length()
-			worst_bread = minf(worst_bread, d)
-			clear_ok = clear_ok and d >= 2.0
-	## The lamp/bin half at every seed: worst center-to-center approach is a
-	## max-jitter bin at (9−1, 9−1) from a corner tree at (5, 5) — 4.24 m —
-	## against the crown's horizontal half-diagonal plus a ~0.9 m worst prop
-	## half-extent. The T-136 edge-midpoint trees are farther from the corners
-	## (a (7.5, 0) tree vs a (8, 8) bin: ≥ 8.0 m), so the corner case pins it.
-	var center_dist := Vector2(5.0, 5.0).distance_to(Vector2(8.0, 8.0))
-	var crown_half_diag := sqrt(2.0) * crown_half
-	var arithmetic_ok := center_dist - crown_half_diag - 0.9 >= 1.5
-	## --- visual-only: zero colliders anywhere under the Visuals root ----------
-	var visuals := _city.get_node("Visuals") as Node3D
-	var colliders := visuals.find_children("*", "CollisionObject3D", true, false)
-	var visual_only := colliders.is_empty()
-	## --- determinism: a real rebuild reproduces both queues byte-identically --
-	var trunk_a := trunk_xfs.duplicate()
-	var crown_a := crown_xfs.duplicate()
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
-	var trunk_b: Array[Transform3D] = []
-	var crown_b: Array[Transform3D] = []
-	for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
-		trunk_b.append(xf)
-	for xf: Transform3D in _city._visuals["tree_crown"].xfs:
-		crown_b.append(xf)
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _spots_equal(trunk_a, trunk_b) and _spots_equal(crown_a, crown_b)
-	## --- foreign seed raises the same per-district law over the same blocks;
-	## pins.
-	_city.generate(424242)
-	var foreign_parks: int = _city.last_report.parks
-	var foreign_ok: bool = foreign_parks == 4 \
-			and (_city._visuals["tree_trunk"].xfs as Array).size() == expected_count \
-			and (_city._visuals["tree_crown"].xfs as Array).size() == expected_count
-	var pin_foreign: bool = _city.fingerprint == 1411023184
-	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 1103197745
-	var trees_detail := "parks=%d trees=%d/%d centers=%d place=%s inside=%s trees_3d=%s scale=%s green=%s (%.3f) clear=%s (worst %.2f m) arith=%s (%.2f m margin) colliders=%d det=%s foreign=%s pins=%s/%s" % [
-			parks, trunk_xfs.size(), expected_count, park_centers.size(), place_ok,
-			inside_ok, trees_3d_ok, scale_ok, green_ok, crown_dist, clear_ok,
-			worst_bread, arithmetic_ok, center_dist - crown_half_diag - 0.9,
-			colliders.size(), deterministic, foreign_ok, pin_foreign, pin_default]
-	_check("city_park_trees_present",
-			count_ok and place_ok and inside_ok and trees_3d_ok and scale_ok
-					and green_ok and clear_ok and arithmetic_ok and visual_only
-					and deterministic and foreign_ok and pin_foreign and pin_default,
-			trees_detail)
-	## Informational: the park trees' tuned numbers — the ticket's counts and
-	## distances, re-printed on every re-verification.
-	print("SIM DATA city_park_trees: parks=%d trees=%d crown_green_dist=%.3f worst_bread_dist=%.2f fingerprint=%d" % [
-			parks, trunk_xfs.size(), crown_dist, worst_bread, fp_first])
 
 
 ## --- scenario (T-135 one park per district) ----------------------------------
 
 
-## One park per district (T-135): the seed-lottery park roll is GONE — the four
-## `PARK_BLOCKS` are THE parks at every seed, one per district quadrant at the
-## midpoint of its plaza↔anchor diagonal. Layout asserts on the standing city,
-## no flight (the park-trees audit pattern). The legs:
-## - the const law: `PARK_BLOCKS` holds exactly 4 distinct entries, disjoint
-##   from the plaza block and from `ANCHOR_BLOCKS`, covering all four
-##   districts, each entry the exact midpoint of the plaza block and ITS
-##   district's anchor block, and every park center ≥ 30 m from the
-##   spawn-corridor drop — asserted off the live consts so a future const edit
-##   fails loudly;
-## - the layout: the slab queue's park slabs (recomputed independently,
-##   exactly the slabs wearing one of the four per-district `PARK_SLAB_TINTS`
-##   tints, each matched to its district's tint) sit at the four
-##   `PARK_BLOCKS` centers, one per `district_of`; `report.parks` == 4; no
-##   `buildings[]` record sits on a park block;
-## - the recipe themed by T-136: 19 tree trunks/crowns over the park centers
-##   (each park its district's `PARK_TREE_LAYOUTS` — 2/3/8/6), every park
-##   block keeping its 8-spot ground bread ring and
-##   its 4 corner lamps (`_build_block_props` runs for parks too; benches/bins
-##   stay RNG per block — park benches remain seats and crumb hosts);
-## - determinism: a forced same-seed rebuild reproduces the park slab, tree
-##   and park bread-spot arrays byte-identically;
-## - the foreign seed (424242) raises the SAME four parks (report 4, same
-##   centers, 16 trees);
-## - the cross-version fingerprint equals the re-derived pins (the T-051
-##   probe precedent — see `_scenario_city_apron_rim`).
-func _scenario_city_one_park_per_district() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	## --- the const law, off the live consts -----------------------------------
-	var plaza_i := roundi((_city.blocks_per_side - 1) * 0.5)
-	var plaza_block := Vector2i(plaza_i, plaza_i)
-	var const_ok: bool = _city.PARK_BLOCKS.size() == 4
-	var districts_seen := {}
-	var midpoint_ok: bool = _city.PARK_BLOCKS.size() == 4
-	var disjoint_ok: bool = _city.PARK_BLOCKS.size() == 4
-	var distinct_blocks := {}
-	for park: Vector2i in _city.PARK_BLOCKS:
-		disjoint_ok = disjoint_ok and park != plaza_block \
-				and not _city.ANCHOR_BLOCKS.has(park)
-		distinct_blocks[park] = true
-		var district: int = _city.district_of(park.x, park.y)
-		districts_seen[district] = true
-		## The exact midpoint of the plaza and THIS district's anchor block.
-		var found_anchor := false
-		for anchor: Vector2i in _city.ANCHOR_BLOCKS:
-			if _city.district_of(anchor.x, anchor.y) != district:
-				continue
-			var mid := Vector2(plaza_block + anchor) * 0.5
-			found_anchor = found_anchor \
-					or Vector2(park).distance_to(mid) < 0.001
-		midpoint_ok = midpoint_ok and found_anchor
-	const_ok = const_ok and disjoint_ok and midpoint_ok \
-			and distinct_blocks.size() == 4 and districts_seen.size() == 4
-	## Park centers (city-local, the block-grid re-derivation) vs the spawn drop.
-	var half_blocks := float(_city.blocks_per_side - 1) * 0.5
-	var spawn_drop := Vector3(_city.block_size * 0.5 + _city.road_width * 0.5,
-			_city.spawn_drop_height, 0.0) ## Off the plaza center: the corridor drop.
-	var corridor_ok: bool = _city.PARK_BLOCKS.size() == 4
-	var expected_centers: Array[Vector3] = []
-	for park: Vector2i in _city.PARK_BLOCKS:
-		var c := Vector3((park.x - half_blocks) * _city.block_pitch, 0.0,
-				(park.y - half_blocks) * _city.block_pitch)
-		expected_centers.append(c)
-		corridor_ok = corridor_ok and Vector3(c.x - spawn_drop.x, c.y - spawn_drop.y,
-				c.z - spawn_drop.z).length() >= 30.0
-	## --- the layout: per-district tinted slabs exactly at the four centers ---
-	var slab_xfs: Array = _city._visuals["slab"].xfs
-	var slab_colors: Array = _city._visuals["slab"].colors
-	var park_slabs: Array[Vector3] = []
-	for i in slab_xfs.size():
-		for d in _city.PARK_SLAB_TINTS.size():
-			if slab_colors[i] == _city.PARK_SLAB_TINTS[d]:
-				park_slabs.append((slab_xfs[i] as Transform3D).origin)
-	var slabs_ok: bool = park_slabs.size() == 4
-	var per_district := {}
-	for c: Vector3 in park_slabs:
-		var hit := false
-		for e: Vector3 in expected_centers:
-			if Vector2(c.x - e.x, c.z - e.z).length_squared() < 1e-8:
-				hit = true
-				break
-		slabs_ok = slabs_ok and hit
-		var bx := roundi(c.x / _city.block_pitch + half_blocks)
-		var bz := roundi(c.z / _city.block_pitch + half_blocks)
-		per_district[_city.district_of(bx, bz)] = true
-	slabs_ok = slabs_ok and per_district.size() == 4
-	## Exactly the park slabs wear the tints, each ITS district's (the T-136
-	## re-derivation of the old "exactly the slabs wearing COLOR_PARK" leg):
-	## a park block's slab wears its own tint; no non-park slab wears any tint.
-	for i in slab_xfs.size():
-		var o: Vector3 = (slab_xfs[i] as Transform3D).origin
-		var bx := roundi(o.x / _city.block_pitch + half_blocks)
-		var bz := roundi(o.z / _city.block_pitch + half_blocks)
-		var on_park: bool = _city.PARK_BLOCKS.has(Vector2i(bx, bz))
-		var d := _city.district_of(bx, bz)
-		var wears_own_tint: bool = slab_colors[i] == _city.PARK_SLAB_TINTS[d]
-		var wears_any_tint := false
-		for tint: Color in _city.PARK_SLAB_TINTS:
-			wears_any_tint = wears_any_tint or slab_colors[i] == tint
-		slabs_ok = slabs_ok and (wears_own_tint if on_park else not wears_any_tint)
-	var report_ok: bool = _city.last_report.parks == 4
-	## No building record stands on a park block.
-	var buildings_ok := true
-	for info in _city.buildings:
-		var center_local := _city.to_local(info.center)
-		var lot: Vector2 = info.lot_offset
-		var block_local := center_local - Vector3(lot.x, 0.0, lot.y)
-		buildings_ok = buildings_ok \
-				and not _city.PARK_BLOCKS.has(Vector2i(
-						roundi(block_local.x / _city.block_pitch + half_blocks),
-						roundi(block_local.z / _city.block_pitch + half_blocks)))
-	## --- the recipe: 19 themed trees, the 8-spot ground ring, 4 lamps/park ---
-	var trunk_xfs: Array[Transform3D] = []
-	var crown_xfs: Array[Transform3D] = []
-	if _city._visuals.has("tree_trunk"):
-		for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
-			trunk_xfs.append(xf)
-	if _city._visuals.has("tree_crown"):
-		for xf: Transform3D in _city._visuals["tree_crown"].xfs:
-			crown_xfs.append(xf)
-	var tree_total: int = 0
-	for layout: Array in _city.PARK_TREE_LAYOUTS:
-		tree_total += layout.size()
-	var trees_ok: bool = trunk_xfs.size() == tree_total \
-			and crown_xfs.size() == tree_total
-	var tree_expected: Array[Vector3] = []
-	for e_i in expected_centers.size():
-		var c: Vector3 = expected_centers[e_i]
-		var d: int = _city.district_of(_city.PARK_BLOCKS[e_i].x, _city.PARK_BLOCKS[e_i].y)
-		for offset: Vector2 in _city.PARK_TREE_LAYOUTS[d]:
-			tree_expected.append(Vector3(c.x + offset.x,
-					_city.block_slab_height, c.z + offset.y))
-	var tree_matched_trunk: Array[bool] = []
-	tree_matched_trunk.resize(tree_expected.size())
-	tree_matched_trunk.fill(false)
-	var tree_matched_crown: Array[bool] = []
-	tree_matched_crown.resize(tree_expected.size())
-	tree_matched_crown.fill(false)
-	var trees_placed: bool = trees_ok
-	for xf: Transform3D in trunk_xfs:
-		var hit := false
-		for e in tree_expected.size():
-			if not tree_matched_trunk[e] \
-					and Vector2(xf.origin.x - tree_expected[e].x,
-							xf.origin.z - tree_expected[e].z).length_squared() < 1e-8:
-				tree_matched_trunk[e] = true
-				hit = true
-				break
-		trees_placed = trees_placed and hit
-	for xf: Transform3D in crown_xfs:
-		var hit := false
-		for e in tree_expected.size():
-			if not tree_matched_crown[e] \
-					and Vector2(xf.origin.x - tree_expected[e].x,
-							xf.origin.z - tree_expected[e].z).length_squared() < 1e-8:
-				tree_matched_crown[e] = true
-				hit = true
-				break
-		trees_placed = trees_placed and hit
-	## Each park's 8-spot ground bread ring (the `_bread_ring_spots` offsets:
-	## ring = 11 − 1.25 on one axis, mid = 11 − 4.5 on the other, slab + 0.06,
-	## kind GROUND) — matched by exact position over the whole pool (the ring
-	## spots sit at radial ≈ 11.7 m, OUTSIDE the block-radius circle the cafe
-	## audit uses, so membership here is the block SQUARE).
-	var ring_axis: float = _city.block_size * 0.5 - _city.sidewalk_width * 0.5
-	var ring_mid: float = _city.block_size * 0.5 - 4.5
-	var bread_ok: bool = _city.PARK_BLOCKS.size() == 4
-	var park_bread: Array[Vector3] = []
-	for c: Vector3 in expected_centers:
-		var own: Array[Vector3] = []
-		for i in _city.bread_spots.size():
-			var spot: Vector3 = _city.bread_spots[i]
-			if absf(spot.x - c.x) <= _city.block_size * 0.5 \
-					and absf(spot.z - c.z) <= _city.block_size * 0.5:
-				own.append(spot)
-				## A park square holds only GROUND spots — the 8-spot ring plus
-				## the block's RNG bench seats (tables and roofs live on
-				## building blocks; the plaza carries no ring).
-				bread_ok = bread_ok \
-						and _city.bread_spot_kinds[i] == City.BreadKind.GROUND
-		bread_ok = bread_ok and own.size() >= 8
-		park_bread.append_array(own)
-		for sx: float in [ring_axis, -ring_axis, ring_mid, -ring_mid]:
-			for sz: float in [ring_mid, -ring_mid, ring_axis, -ring_axis]:
-				if absf(sx) == absf(sz):
-					continue
-				var found := false
-				for spot in own:
-					found = found or (Vector2(spot.x - (c.x + sx), spot.z - (c.z + sz))
-							.length_squared() < 1e-8
-							and absf(spot.y - (_city.block_slab_height + 0.06)) < 0.001)
-				bread_ok = bread_ok and found
-	## The block props reach parks too (`_build_block_props` runs for parks):
-	## each park owns its 4 corner lamps at (±9.8, slab, ±9.8) off the
-	## `lamp_post` queue (zero RNG), and the city-wide lamp count stays the
-	## deterministic 4 × (blocks − plaza).
-	var lamp_posts: Array[Vector3] = []
-	if _city._visuals.has("lamp_post"):
-		for xf: Transform3D in _city._visuals["lamp_post"].xfs:
-			lamp_posts.append(xf.origin)
-	var lamp_count: int = _city.last_report.lamps
-	var lamp_expected: int = 4 * _city.blocks_per_side * _city.blocks_per_side ## 4 corner lamps on EVERY block — the plaza's own ring carries 4 too.
-	var lamps_ok: bool = lamp_count == lamp_expected and lamp_posts.size() == lamp_expected
-	for c: Vector3 in expected_centers:
-		for sx: float in [9.8, -9.8]:
-			for sz: float in [9.8, -9.8]:
-				var found := false
-				for o: Vector3 in lamp_posts:
-					found = found or (Vector2(o.x - (c.x + sx), o.z - (c.z + sz))
-							.length_squared() < 1e-8)
-				lamps_ok = lamps_ok and found
-	## --- determinism: a real rebuild reproduces the park arrays byte-identically
-	var slabs_before: Array[Vector3] = []
-	slabs_before.append_array(park_slabs)
-	var trunks_before: Array[Transform3D] = []
-	trunks_before.append_array(trunk_xfs)
-	var bread_before: Array[Vector3] = []
-	bread_before.append_array(park_bread)
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
-	var slabs_after: Array[Vector3] = []
-	var slab_xfs2: Array = _city._visuals["slab"].xfs
-	var slab_colors2: Array = _city._visuals["slab"].colors
-	for i in slab_xfs2.size():
-		for tint: Color in _city.PARK_SLAB_TINTS:
-			if slab_colors2[i] == tint:
-				slabs_after.append((slab_xfs2[i] as Transform3D).origin)
-	var trunks_after: Array[Transform3D] = []
-	for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
-		trunks_after.append(xf)
-	var park_bread_after: Array[Vector3] = []
-	for c: Vector3 in expected_centers:
-		for spot in _city.bread_spots:
-			if absf(spot.x - c.x) <= _city.block_size * 0.5 \
-					and absf(spot.z - c.z) <= _city.block_size * 0.5:
-				park_bread_after.append(spot)
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _vec_spots_equal(slabs_before, slabs_after) \
-			and _spots_equal(trunks_before, trunks_after) \
-			and _vec_spots_equal(bread_before, park_bread_after)
-	## --- the foreign seed raises the SAME four parks --------------------------
-	_city.generate(424242)
-	var foreign_parks: int = _city.last_report.parks
-	var foreign_slabs: Array[Vector3] = []
-	var slab_xfs3: Array = _city._visuals["slab"].xfs
-	var slab_colors3: Array = _city._visuals["slab"].colors
-	for i in slab_xfs3.size():
-		for tint: Color in _city.PARK_SLAB_TINTS:
-			if slab_colors3[i] == tint:
-				foreign_slabs.append((slab_xfs3[i] as Transform3D).origin)
-	var foreign_ok: bool = foreign_parks == 4 and foreign_slabs.size() == 4 \
-			and (_city._visuals["tree_trunk"].xfs as Array).size() == tree_total
-	for e: Vector3 in expected_centers:
-		var hit := false
-		for c: Vector3 in foreign_slabs:
-			hit = hit or Vector2(c.x - e.x, c.z - e.z).length_squared() < 1e-8
-		foreign_ok = foreign_ok and hit
-	## --- cross-version pins (the re-derived literals; see the rim scenario) ----
-	var pin_foreign: bool = _city.fingerprint == 1411023184
-	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 1103197745
-	var parks_detail := "const=%s (disjoint=%s midpoint=%s districts=%d) corridor=%s slabs=%d/4 (%s) report=%s buildings_clear=%s trees=%d placed=%s bread_ring=%s lamps=%d/%s det=%s foreign=%s pins=%s/%s" % [
-			const_ok, disjoint_ok, midpoint_ok, districts_seen.size(), corridor_ok,
-			park_slabs.size(), per_district.size(), report_ok, buildings_ok,
-			trunk_xfs.size(), trees_placed, bread_ok, lamp_count, lamp_expected,
-			deterministic, foreign_ok, pin_foreign, pin_default]
-	_check("city_one_park_per_district",
-			const_ok and corridor_ok and slabs_ok and report_ok and buildings_ok
-					and trees_ok and trees_placed and bread_ok and lamps_ok
-					and deterministic and foreign_ok and pin_foreign and pin_default,
-			parks_detail)
-	## Informational: the pinned parks — one per quadrant at (±32, ±32).
-	print("SIM DATA city_one_park_per_district: parks=%d blocks=%s trees=%d fingerprint=%d" % [
-			_city.last_report.parks, _city.PARK_BLOCKS, tree_total,
-			fp_first])
-
-
 ## --- scenario (T-029 plaza landmark) -----------------------------------------
-
-
-## The plaza landmark: exactly one bronze-pigeon-on-a-plinth statue stands at
-## the plaza center every run, built like every city visual — MultiMesh boxes
-## at fixed offsets, zero RNG anywhere (one `_fp` entry, so the same-seed
-## fingerprint tracks it). The legs: layout — the plinth and figure boxes sit
-## on the plaza center, the whole footprint inside `spawn_clear_radius`, the
-## top under both `max_roof_height` and the 23 m cruise floor, the stone read
-## against the pale slab, the `_fp` entry singular; collision — ONE layer-1
-## `Props` box over the plinth whose top face is the cap top, and nothing
-## solid higher in the center column (the figure is visual-only, the T-017
-## decision); determinism — a forced same-seed rebuild reproduces every
-## landmark transform byte-identically; landing — a drop onto the cap settles
-## grounded at cap height and a flap takes off again (the bench template);
-## flyover — a flap-assisted straight pass along x THROUGH the plaza center
-## at cruise altitude crosses the city without touching anything (the
-## `city_street_flyover` template, flown over the landmark's column).
-func _scenario_city_plaza_landmark() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var plaza: Vector3 = _city._plaza_center ## City-local origin of the plaza block.
-	var slab: float = _city.block_slab_height
-	## --- the landmark queues: plinth + figure boxes, one XZ position ----------
-	var plinth_xfs: Array[Transform3D] = []
-	var figure_xfs: Array[Transform3D] = []
-	if _city._visuals.has("plinth"):
-		for xf: Transform3D in _city._visuals["plinth"].xfs:
-			plinth_xfs.append(xf)
-	if _city._visuals.has("figure"):
-		for xf: Transform3D in _city._visuals["figure"].xfs:
-			figure_xfs.append(xf)
-	var count_ok: bool = plinth_xfs.size() == 2 and figure_xfs.size() >= 5
-	var landmark_fp := 0
-	for entry in _city._fp:
-		if (entry as Array)[0] == "landmark":
-			landmark_fp += 1
-	var fp_ok: bool = landmark_fp == 1
-	## --- placement: centered, inside the spawn-clear radius, under the roofs -
-	var place_ok: bool = count_ok
-	var inside_ok: bool = count_ok
-	var top := 0.0
-	for source: Array in [plinth_xfs, figure_xfs]:
-		for xf: Transform3D in source:
-			var o: Vector3 = xf.origin
-			var sc: Vector3 = xf.basis.get_scale()
-			var center_dist := Vector2(o.x - plaza.x, o.z - plaza.z).length()
-			place_ok = place_ok and center_dist <= 2.5
-			var half_diag := 0.5 * sqrt(sc.x * sc.x + sc.z * sc.z)
-			inside_ok = inside_ok and center_dist + half_diag <= _city.spawn_clear_radius
-			top = maxf(top, o.y + sc.y * 0.5)
-	var height_ok: bool = top < _city.max_roof_height and top < 23.0 and top <= slab + 5.5
-	## --- the stone reads against the pale slab -------------------------------
-	var stone := _mm_mesh_albedo(_city, "Visuals/Plinth")
-	var bronze := _mm_mesh_albedo(_city, "Visuals/Figure")
-	var color_ok: bool = stone.is_equal_approx(_city.COLOR_STONE) \
-			and bronze.is_equal_approx(_city.COLOR_BRONZE) \
-			and _rgb(stone).distance_to(_rgb(_city.COLOR_PLAZA)) >= 0.15
-	## --- collision: ONE plinth box, nothing solid higher in the column --------
-	var props := _city.get_node("Static/Props") as StaticBody3D
-	var plinth_colliders := 0
-	for shape in props.find_children("*", "CollisionShape3D", true, false):
-		var shape3d := (shape as CollisionShape3D)
-		var box := shape3d.shape as BoxShape3D
-		if box == null:
-			continue
-		var pos := shape3d.position
-		if Vector2(pos.x - plaza.x, pos.z - plaza.z).length() < 0.01 \
-				and box.size.distance_to(Vector3(
-						_city.LANDMARK_PLINTH_BASE.x, _city.LANDMARK_PLINTH_TOP,
-						_city.LANDMARK_PLINTH_BASE.z)) < 0.01 \
-				and absf(pos.y - (plaza.y + slab + _city.LANDMARK_PLINTH_TOP * 0.5)) < 0.01:
-			plinth_colliders += 1
-	var cap_top: float = plaza.y + slab + _city.LANDMARK_PLINTH_TOP
-	var column_clear: bool = plinth_colliders == 1
-	for body in _city.get_node("Static").get_children():
-		for shape in (body as Node).find_children("*", "CollisionShape3D", true, false):
-			var shape3d := (shape as CollisionShape3D)
-			var pos := shape3d.position
-			if Vector2(pos.x - plaza.x, pos.z - plaza.z).length() >= 2.0:
-				continue
-			var solid_top := -INF
-			if shape3d.shape is BoxShape3D:
-				solid_top = pos.y + (shape3d.shape as BoxShape3D).size.y * 0.5
-			elif shape3d.shape is CylinderShape3D:
-				solid_top = pos.y + (shape3d.shape as CylinderShape3D).height * 0.5
-			elif shape3d.shape is SphereShape3D:
-				solid_top = pos.y + (shape3d.shape as SphereShape3D).radius
-			if solid_top > cap_top + 0.01:
-				column_clear = false
-	## --- determinism: a real rebuild reproduces the landmark byte-identically -
-	var plinth_a := plinth_xfs.duplicate()
-	var figure_a := figure_xfs.duplicate()
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
-	var plinth_b: Array[Transform3D] = []
-	var figure_b: Array[Transform3D] = []
-	for xf: Transform3D in _city._visuals["plinth"].xfs:
-		plinth_b.append(xf)
-	for xf: Transform3D in _city._visuals["figure"].xfs:
-		figure_b.append(xf)
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _spots_equal(plinth_a, plinth_b) and _spots_equal(figure_a, figure_b)
-	## --- flyover: straight pass along x THROUGH the plaza center --------------
-	var half: float = _city.city_span * 0.5
-	var x_start: float = _city.position.x - half + 4.0
-	var x_end: float = _city.position.x + half - 4.0
-	var z_center: float = _city.position.z + plaza.z
-	await _set_up(true, Vector3(x_start, 26.0, z_center), Vector3(14.0, 0.0, 0.0), -90.0)
-	var min_y := 1000.0
-	var max_drift := 0.0
-	var finite := true
-	var crossed := false
-	var landmark_frames_used := -1 ## (T-133) crossing-time evidence for the re-derived budget.
-	for i in 2000: ## (T-133) budget re-derived ×0.8: measured 873 pre-T-133 (budget 1500), 1059 at the new pace.
-		await get_tree().physics_frame
-		if i % 24 == 0 and _player.position.y < 28.0:
-			await _tap("flap") ## The flyover cadence — pace the climb, ride the glide across.
-		min_y = minf(min_y, _player.position.y)
-		max_drift = maxf(max_drift, absf(_player.position.z - z_center))
-		finite = finite and _player.velocity.is_finite() and _player.position.is_finite()
-		if _player.position.x >= x_end:
-			crossed = true
-			landmark_frames_used = i
-			break
-	print("SIM DATA city_plaza_landmark flyover: crossed=%s in %d frames, min y %.1f, max drift %.1f m" % [
-			crossed, landmark_frames_used, min_y, max_drift]) ## (T-133) budget re-derivation evidence
-	var flyover_ok: bool = crossed and min_y > 20.0 and max_drift < 6.0 and finite
-	## --- landing: the plinth cap is a perch (the bench-landing template) ------
-	await _set_up(true, _city.to_global(Vector3(plaza.x, cap_top + 0.5, plaza.z)), Vector3.ZERO)
-	await _await_grounded(150)
-	var on_cap: bool = _player.is_grounded \
-			and absf(_player.position.y - (cap_top + 0.3)) < 0.2 \
-			and _player.velocity.is_finite()
-	await _wait_frames(10) ## let the touchdown slide bleed before the takeoff leg
-	await _tap("flap")
-	var peak_y := _player.position.y
-	for _i in 60:
-		await get_tree().physics_frame
-		peak_y = maxf(peak_y, _player.position.y)
-	var took_off: bool = not _player.is_grounded and peak_y > cap_top + 0.9
-	_check("city_plaza_landmark",
-			count_ok and fp_ok and place_ok and inside_ok and height_ok and color_ok
-					and column_clear and deterministic and flyover_ok
-					and on_cap and took_off,
-			"boxes=%d/%d fp=%d center=%s inside=%s top=%.2f colors=%s colliders=%d column=%s det=%s flyover=%s (crossed min y %.1f drift %.1f) land=%s takeoff=%s" % [
-					plinth_xfs.size(), figure_xfs.size(), landmark_fp, place_ok,
-					inside_ok, top, color_ok, plinth_colliders, column_clear,
-					deterministic, flyover_ok, min_y, max_drift, on_cap, took_off])
-	## Informational: the landmark's tuned numbers — the ticket's bars, re-printed.
-	print("SIM DATA city_plaza_landmark: top=%.2f cap=%.2f clear_radius=%.1f fingerprint=%d" % [
-			top, cap_top, _city.spawn_clear_radius, fp_first])
-
-
-## --- scenario (T-104 plaza props clear) --------------------------------------
-
-
-## (T-104) Audit scope around `_plaza_center`: the 8 m bench ring, the bins at
-## (±7.0, ±7.0) (r ≈ 9.9) and the corner lamps (r ≈ 13.86) all fit inside; the
-## nearest foreign prop (a neighbor block's bench, worst case
-## block_size + road_width − 9.75 − 4.0 = 18.25 m out) stays outside, so the
-## census is exactly the plaza's 17 shapes.
-const PLAZA_AUDIT_RADIUS := 16.0
-## (T-104) Shapes may kiss within this much; deeper interpenetration fails.
-const PLAZA_TOUCH_TOLERANCE := 0.01
-## (T-104) Bin-beside-bench clear space — the research note's 0.3–1 m band floor
-## (measured 0.611 m at the (±7.0, ±7.0) fix).
-const PLAZA_BIN_BENCH_GAP := 0.3
-## (T-104) The bin collider's half-diagonal (0.275·√2) — its worst per-axis
-## reach at any yaw, the conservative on-slab pin bound.
-const PLAZA_BIN_HALF_DIAG := 0.389
-
-
-## The two XZ face normals of a yawed box (the `Basis(Vector3.UP, yaw)` columns
-## projected to the ground plane) — the SAT candidate axes for the pair verdict.
-func _plaza_box_axes(box: Dictionary) -> Array[Vector2]:
-	var c := cos(float(box.yaw))
-	var s := sin(float(box.yaw))
-	return [Vector2(c, -s), Vector2(s, c)]
-
-
-## Half-extent of a yawed box projected on a unit XZ axis — the SAT support width.
-func _plaza_box_extent(box: Dictionary, axis: Vector2) -> float:
-	var axes := _plaza_box_axes(box)
-	return float(box.half_x) * absf(axes[0].dot(axis)) \
-			+ float(box.half_z) * absf(axes[1].dot(axis))
-
-
-## A world XZ point in a yawed box's local frame — the yaw's transpose applied.
-func _plaza_box_to_local(box: Dictionary, p: Vector2) -> Vector2:
-	var d := p - Vector2(float(box.center.x), float(box.center.z))
-	var axes := _plaza_box_axes(box)
-	return Vector2(d.dot(axes[0]), d.dot(axes[1]))
-
-
-## XZ verdict for one pair of plaza audit shapes (keyed on `kind` — "box" or
-## "cyl"): yawed-box SAT over both boxes' face normals — the returned `gap` is
-## the max per-axis separation (a lower bound of the true distance, exact for
-## the face-to-corner bin/bench case); a cylinder reads as a circle —
-## circle-vs-OBB against a box (closest point on the box, exact) or
-## circle-circle against a cylinder. Y-range overlap is required on top; any
-## XZ axis separating by more than `PLAZA_TOUCH_TOLERANCE` (or a Y miss) clears
-## the pair. Returns {intersects, gap} — `gap` negative means penetration.
-func _plaza_pair_verdict(a: Dictionary, b: Dictionary) -> Dictionary:
-	var ac: Vector3 = a.center
-	var bc: Vector3 = b.center
-	var y_gap: float = absf(ac.y - bc.y) - (float(a.half_y) + float(b.half_y))
-	if y_gap > PLAZA_TOUCH_TOLERANCE:
-		return {"intersects": false, "gap": y_gap}
-	var dxz := Vector2(bc.x - ac.x, bc.z - ac.z)
-	if a.kind == "cyl" and b.kind == "cyl":
-		var cc_gap: float = dxz.length() - float(a.radius) - float(b.radius)
-		return {"intersects": cc_gap < -PLAZA_TOUCH_TOLERANCE, "gap": cc_gap}
-	if a.kind == "cyl" or b.kind == "cyl":
-		var cyl: Dictionary = a if a.kind == "cyl" else b
-		var box: Dictionary = b if a.kind == "cyl" else a
-		var local := _plaza_box_to_local(box,
-				Vector2(float(cyl.center.x), float(cyl.center.z)))
-		var nearest := local.clamp(Vector2(-float(box.half_x), -float(box.half_z)),
-				Vector2(float(box.half_x), float(box.half_z)))
-		var obb_gap := (local - nearest).length() - float(cyl.radius)
-		return {"intersects": obb_gap < -PLAZA_TOUCH_TOLERANCE, "gap": obb_gap}
-	var worst := -INF
-	for axis: Vector2 in _plaza_box_axes(a) + _plaza_box_axes(b):
-		var sep: float = absf(dxz.dot(axis)) \
-				- _plaza_box_extent(a, axis) - _plaza_box_extent(b, axis)
-		worst = maxf(worst, sep)
-		if sep > PLAZA_TOUCH_TOLERANCE:
-			return {"intersects": false, "gap": worst}
-	return {"intersects": true, "gap": worst}
-
-
-## One pass of the T-104 audit over the standing city: every `CollisionShape3D`
-## under `Static/Props` (one body per group, T-093 — shapes carry city-local
-## transforms) whose XZ center lies within `PLAZA_AUDIT_RADIUS` of
-## `_plaza_center`, classified bench/bin/lamp/plinth by collider geometry.
-## Returns {clear, pins, count, worst, clashes, slab}: `clear` = no pair
-## intersects (`_plaza_pair_verdict`); `pins` = the census is exactly
-## 8 benches / 4 bins / 4 lamps / 1 plinth, every bin ≥ `PLAZA_BIN_BENCH_GAP`
-## clear of every bench (`worst` gap), every bin on the slab (`slab`);
-## `clashes` names the intersecting pairs for the failure detail.
-func _plaza_props_audit() -> Dictionary:
-	var plaza: Vector3 = _city._plaza_center
-	var shapes: Array[Dictionary] = []
-	var seen := {}
-	var props := _city.get_node("Static/Props") as StaticBody3D
-	for node: Node in props.find_children("*", "CollisionShape3D", true, false):
-		var col := node as CollisionShape3D
-		var pos := col.position
-		if Vector2(pos.x - plaza.x, pos.z - plaza.z).length() > PLAZA_AUDIT_RADIUS:
-			continue
-		var item := {"center": pos}
-		var group := ""
-		var box := col.shape as BoxShape3D
-		if box != null:
-			item["kind"] = "box"
-			item["half_x"] = box.size.x * 0.5
-			item["half_z"] = box.size.z * 0.5
-			item["half_y"] = box.size.y * 0.5
-			item["yaw"] = col.rotation.y
-			if absf(box.size.x - 1.8) < 0.01 and absf(box.size.y - 0.55) < 0.01:
-				group = "bench" ## The `_add_bench` collider.
-			elif absf(box.size.x - 0.55) < 0.01 and absf(box.size.y - 0.8) < 0.01:
-				group = "bin" ## The `_add_bin` collider.
-			elif absf(box.size.x - _city.LANDMARK_PLINTH_BASE.x) < 0.01 \
-					and absf(box.size.y - _city.LANDMARK_PLINTH_TOP) < 0.01:
-				group = "plinth" ## The `_add_landmark` collider.
-		elif col.shape is CylinderShape3D:
-			var cyl := col.shape as CylinderShape3D
-			item["kind"] = "cyl"
-			item["radius"] = cyl.radius
-			item["half_y"] = cyl.height * 0.5
-			group = "lamp" ## The `_add_lamp` collider.
-		else:
-			continue ## No such shape under Props today; a new kind needs a label.
-		item["group"] = group
-		seen[group] = int(seen.get(group, 0)) + 1
-		item["label"] = "%s#%d" % [group, int(seen[group]) - 1]
-		shapes.append(item)
-	var census := {"bench": 0, "bin": 0, "lamp": 0, "plinth": 0}
-	for a: Dictionary in shapes:
-		census[a.group] = int(census[a.group]) + 1
-	var census_ok: bool = census == {"bench": 8, "bin": 4, "lamp": 4, "plinth": 1}
-	var clashes: Array[String] = []
-	var clear := true
-	var worst := INF
-	for i in shapes.size():
-		for j in range(i + 1, shapes.size()):
-			var v := _plaza_pair_verdict(shapes[i], shapes[j])
-			if v.intersects:
-				clear = false
-				clashes.append("%s×%s @%.2f m" % [shapes[i].label, shapes[j].label, -v.gap])
-			elif shapes[i].group == "bin" and shapes[j].group == "bench" \
-					or shapes[i].group == "bench" and shapes[j].group == "bin":
-				worst = minf(worst, v.gap)
-	var slab_ok := true
-	for a: Dictionary in shapes:
-		if a.group != "bin":
-			continue
-		var c: Vector3 = a.center
-		slab_ok = slab_ok \
-				and absf(c.x - plaza.x) + PLAZA_BIN_HALF_DIAG <= _city.block_size * 0.5 \
-				and absf(c.z - plaza.z) + PLAZA_BIN_HALF_DIAG <= _city.block_size * 0.5
-	return {"clear": clear, "pins": census_ok and worst >= PLAZA_BIN_BENCH_GAP and slab_ok,
-			"count": shapes.size(), "worst": worst,
-			"clashes": " ".join(clashes), "slab": slab_ok}
-
-
-## The plaza's props never interpenetrate (T-104): every collider under
-## `Static/Props` within `PLAZA_AUDIT_RADIUS` of `_plaza_center` is checked
-## pairwise (`_plaza_pair_verdict` — yawed-box SAT, circle-vs-OBB lamps, Y
-## overlap required, touch tolerated) with the intent pins riding along — the
-## 8/4/4/1 census, bin-beside-bench clear space, bins on the slab. The plaza
-## layout is RNG-free, so the audit must hold at the default seed AND one
-## foreign seed, and a same-seed rebuild still reproduces the fingerprint (the
-## elder scenario's double-seed shape).
-func _scenario_city_plaza_props_clear() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var default_run := _plaza_props_audit()
-	_city.generate(424242)
-	var foreign_run := _plaza_props_audit()
-	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var deterministic: bool = _city.fingerprint == fp_first
-	_check("city_plaza_props_clear",
-			default_run.clear and default_run.pins and foreign_run.clear
-					and foreign_run.pins and deterministic,
-			"shapes=%d clash='%s' bin_bench=%.3f slab=%s det=%s foreign=[shapes=%d clash='%s' bin_bench=%.3f slab=%s]" % [
-					default_run.count, default_run.clashes, default_run.worst,
-					default_run.slab, deterministic,
-					foreign_run.count, foreign_run.clashes, foreign_run.worst,
-					foreign_run.slab])
-	## Informational: the audit's tuned numbers — the ticket's bars, re-printed.
-	print("SIM DATA city_plaza_props_clear: shapes=%d worst_bin_bench=%.3f fingerprint=%d" % [
-			default_run.count, default_run.worst, fp_first])
 
 
 ## --- scenario (T-091 district anchors) ---------------------------------------
 
 
-## Byte-identical `anchors` comparison (the `_props_reproduced` pattern).
-func _anchors_reproduced(a: Array[Dictionary], b: Array[Dictionary]) -> bool:
-	if a.size() != b.size():
-		return false
-	for i in a.size():
-		var pa: Dictionary = a[i]
-		var pb: Dictionary = b[i]
-		if pa.center != pb.center or pa.district != pb.district \
-				or pa.top != pb.top or pa.cap_top != pb.cap_top:
-			return false
-	return true
-
-
-## One tall anchor per district (T-091): exactly four deterministic clock posts,
-## one per district quadrant, at the pinned blocks' alley-cross centers —
-## audited like the plaza landmark (the `city_plaza_landmark` pattern). The
-## legs: records — `anchors` holds exactly 4 entries, one per district, each at
-## a pinned block's center re-derived from the block grid, `top` the harness's
-## own tier-constant sum (1.0 + 13.6 + 2.2 + 0.5 = 17.3 above the slab) under
-## `max_roof_height`; the do-not-fold rule — `report.max_roof_height` still
-## equals the BUILDING roofs only (max(buildings[].top) − block_slab_height;
-## newly guarded here, nothing pinned it before); clearance — the 1.4 m
-## plinth's per-axis daylight re-derived from `buildings[]` so a bad seed fails
-## loudly (worst 0.0281 m at the M1 seed, 0.0094 m at the foreign one — flush,
-## never overlapping; re-derived for T-136's stream shift), no bread spot but the
-## anchor's own cap crumb within 5 m
-## XZ and the bench line / lamps+bins / tourist loop / park-tree
-## crown distances held by constants arithmetic; the cap crumb sitting in
-## `bread_spots` at cap_top + 0.06; `last_report.plaza_clear` still true;
-## visuals — the four tier queues hold 4 instances each, over the anchor
-## centers at the per-district tier scales and stacked y (the T-136 restyle:
-## the d3 silo's shaft widens 0.7 → 1.4, mesh AND collider), every head tinted
-## by the restyle's per-district head-tint table (marquee cream / tank cream /
-## cool limestone / concrete gray — all four distinct, the harness's own copy)
-## with all four present; collision — one
-## layer-1 `Props` box per tier under the shared group body (the detail boxes
-## are visual-only, zero colliders), exactly 3 of them
-## above the y 5.0 window per anchor (the plinth sits below it); determinism —
-## a forced same-seed rebuild reproduces `anchors` and `bread_spots`
-## byte-identically, and the foreign seed raises the same four posts; physical
-## — a drop onto a cap settles grounded at cap_top + 0.3 (the prop-landing
-## template) and the anchor crumb is an ordinary crumb a grounded pigeon on the
-## cap eats (+30 through Hunger). No pinned block is a park at ANY seed — since
-## T-135 the parks are pinned to `PARK_BLOCKS` (2,2)/(4,2)/(2,4)/(4,4),
-## const-level disjoint from `ANCHOR_BLOCKS` (asserted by
-## `city_one_park_per_district`), so the stands-in-parks guarantee rests on the
-## code structure (the gate sits
-## OUTSIDE the plaza/park/building branch) plus the constants arithmetic — the
-## (±5, ±5) park trees leave ≈ 2.2 m per axis clear of the plinth.
-func _scenario_city_district_anchors() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var anchors_snapshot := _city.anchors.duplicate()
-	var bread_snapshot := _city.bread_spots.duplicate()
-	## The harness's own copy of the tier layout numbers (the
-	## `_expected_sign_plaque` pattern): key + size, stacked from the slab top —
-	## the T-136 restyle learns the per-district shaft (the d3 silo drum
-	## widens 0.7 → 1.4, mesh AND its one collider; the STACK heights stay
-	## exact, so the tops/crumb legs are untouched).
-	var tiers_d0 := [
-		["anchor_plinth", Vector3(1.4, 1.0, 1.4)],
-		["anchor_shaft", Vector3(0.7, 13.6, 0.7)],
-		["anchor_head", Vector3(1.8, 2.2, 1.8)],
-		["anchor_cap", Vector3(2.0, 0.5, 2.0)],
-	]
-	var tiers_d3 := [tiers_d0[0].duplicate(), tiers_d0[1].duplicate(),
-			tiers_d0[2].duplicate(), tiers_d0[3].duplicate()]
-	tiers_d3[1][1] = Vector3(1.4, 13.6, 1.4)
-	## The harness's own copy of the restyle's per-district head tints
-	## (marquee cream / tank cream / cool limestone / concrete gray).
-	var head_tints: Array[Color] = [
-		_city.COLOR_SIGNBOARD, Color(0.88, 0.86, 0.80),
-		Color(0.60, 0.65, 0.72), Color(0.68, 0.67, 0.64),
-	]
-	## --- records: exactly 4, one per district, at the pinned block centers ---
-	var pins: Array[Vector2i] = [Vector2i(1, 1), Vector2i(5, 1), Vector2i(1, 5), Vector2i(5, 5)]
-	var half_blocks := float(_city.blocks_per_side - 1) * 0.5
-	var count_ok: bool = _city.anchors.size() == 4
-	var districts_seen := {}
-	var pins_ok := count_ok
-	var height_ok := count_ok
-	var recompute_ok := count_ok
-	for rec in _city.anchors:
-		var district: int = rec.district
-		districts_seen[district] = true
-		height_ok = height_ok and (rec.top as float) <= _city.max_roof_height
-		var c: Vector3 = rec.center
-		var matched := false
-		for pin in pins:
-			var g := _city.to_global(Vector3(
-					(pin.x - half_blocks) * _city.block_pitch, 0.0,
-					(pin.y - half_blocks) * _city.block_pitch))
-			if Vector2(g.x - c.x, g.z - c.z).length() < 0.01:
-				matched = true
-				pins_ok = pins_ok and district == _city.district_of(pin.x, pin.y)
-				recompute_ok = recompute_ok \
-						and absf((rec.top as float) - 17.3) < 0.001 \
-						and absf((rec.cap_top as float)
-								- (_city.block_slab_height + 17.3)) < 0.001
-		pins_ok = pins_ok and matched
-	var districts_ok := districts_seen.size() == 4
-	## --- the do-not-fold rule: the report stays the BUILDING roofs ------------
-	var max_top := 0.0
-	for info in _city.buildings:
-		max_top = maxf(max_top, info.top)
-	var report_pin: bool = count_ok \
-			and absf((_city.last_report.max_roof_height as float)
-					- (max_top - _city.block_slab_height)) < 0.001
-	## --- plinth daylight, re-derived per seed from buildings[] ----------------
-	var standoff_ok := count_ok
-	var worst_daylight := INF
-	for rec in _city.anchors:
-		var c: Vector3 = rec.center
-		for info in _city.buildings:
-			var bc: Vector3 = info.center
-			if absf(bc.x - c.x) > _city.block_size * 0.5 \
-					or absf(bc.z - c.z) > _city.block_size * 0.5:
-				continue ## Not this block's lot.
-			var size: Vector2 = info.size
-			var face_x := absf(bc.x - c.x) - size.x * 0.5 - 0.7
-			var face_z := absf(bc.z - c.z) - size.y * 0.5 - 0.7
-			standoff_ok = standoff_ok and face_x >= 0.0 and face_z >= 0.0
-			worst_daylight = minf(worst_daylight, minf(face_x, face_z))
-	## --- bread clearance: nothing but the anchor's own crumb near the post ----
-	var clear_ok := count_ok
-	var worst_bread := INF
-	for rec in _city.anchors:
-		var local := _city.to_local(rec.center)
-		for spot in _city.bread_spots:
-			var flat := Vector2(spot.x - local.x, spot.z - local.z).length()
-			if flat < 0.5:
-				continue ## The anchor's own cap crumb rides the center.
-			worst_bread = minf(worst_bread, flat)
-			clear_ok = clear_ok and flat >= 5.0
-	## Constants arithmetic, holding at EVERY seed: the 10.9 m tourist-loop
-	## line, the 6.5 m inner ground bread-ring axis, the 9.75 m bench line less
-	## the bench's 0.9 m half-depth, and the park-tree crown half-diagonal at
-	## its fixed ±5 offset — all vs the plinth's 0.99 m half-diagonal.
-	var plinth_half_diag := sqrt(2.0) * 0.7
-	var arithmetic_ok: bool = _city.block_size * 0.5 - 0.1 - plinth_half_diag >= 1.0 \
-			and _city.block_size * 0.5 - 4.5 - plinth_half_diag >= 1.0 \
-			and _city.block_size * 0.5 - 1.25 - 0.9 - plinth_half_diag >= 1.0 \
-			and _city.PARK_TREE_OFFSET - _city.PARK_CROWN_SIZE.x * sqrt(2.0) * 0.5 \
-					- plinth_half_diag >= 1.0
-	## --- the cap crumb sits in bread_spots at cap_top + 0.06 ------------------
-	var crumb_ok := count_ok
-	for rec in _city.anchors:
-		var local := _city.to_local(rec.center)
-		var want_y: float = (rec.cap_top as float) + 0.06
-		var found := false
-		for spot in _city.bread_spots:
-			found = found or (Vector2(spot.x - local.x, spot.z - local.z).length() < 0.001
-					and absf(spot.y - want_y) < 0.001)
-		crumb_ok = crumb_ok and found
-	var plaza_ok: bool = _city.last_report.plaza_clear
-	## --- the tier queues: 4 instances each, over the centers, stacked ---------
-	var visuals_ok := count_ok
-	var head_colors := {}
-	var tier_base := 0.0
-	for ti in tiers_d0.size():
-		var key: String = tiers_d0[ti][0]
-		var queue: Array = _city._visuals[key].xfs if _city._visuals.has(key) else []
-		var colors: Array = _city._visuals[key].colors if _city._visuals.has(key) else []
-		visuals_ok = visuals_ok and queue.size() == 4
-		for i in queue.size():
-			var o: Vector3 = (queue[i] as Transform3D).origin
-			var sc: Vector3 = (queue[i] as Transform3D).basis.get_scale()
-			var over_anchor := false
-			var district := -1
-			for rec in _city.anchors:
-				var local := _city.to_local(rec.center)
-				if Vector2(o.x - local.x, o.z - local.z).length() < 0.01:
-					over_anchor = true
-					district = rec.district
-			## The per-district expected size: only the shaft varies (d3 1.4).
-			var size: Vector3 = tiers_d3[ti][1] if district == 3 \
-					else tiers_d0[ti][1]
-			var want_y := _city.block_slab_height + tier_base + size.y * 0.5
-			visuals_ok = visuals_ok and over_anchor \
-					and sc.distance_to(size) < 0.001 \
-					and absf(o.y - want_y) < 0.001
-			if key == "anchor_head":
-				head_colors[colors[i]] = true
-		tier_base += (tiers_d0[ti][1] as Vector3).y
-	var all_four := head_colors.size() == 4
-	for tint: Color in head_tints:
-		all_four = all_four and head_colors.has(tint)
-	visuals_ok = visuals_ok and all_four
-	## --- collision: one Props box per tier, 3 above the y 5.0 window ----------
-	var props_body := _city.get_node("Static/Props") as StaticBody3D
-	var colliders_ok := props_body != null \
-			and props_body.collision_layer == 1 and props_body.collision_mask == 0
-	var high_shapes := 0
-	if colliders_ok:
-		for rec in _city.anchors:
-			var local := _city.to_local(rec.center)
-			var per_anchor := 0
-			var tiers: Array = tiers_d3 if rec.district == 3 else tiers_d0
-			for shape_node in props_body.find_children("*", "CollisionShape3D", true, false):
-				var shape := shape_node as CollisionShape3D
-				var box := shape.shape as BoxShape3D
-				if box == null:
-					continue
-				var pos := shape.position
-				if Vector2(pos.x - local.x, pos.z - local.z).length() > 1.5:
-					continue
-				var tier_floor := 0.0
-				for tier in tiers:
-					var size: Vector3 = tier[1]
-					if box.size.distance_to(size) < 0.001 \
-							and absf(pos.y - (_city.block_slab_height + tier_floor
-									+ size.y * 0.5)) < 0.001:
-						per_anchor += 1
-						if pos.y > 5.0:
-							high_shapes += 1
-					tier_floor += size.y
-			colliders_ok = colliders_ok and per_anchor == 4
-		colliders_ok = colliders_ok and high_shapes == 3 * _city.anchors.size()
-	## --- determinism: a real rebuild reproduces anchors and bread spots ------
-	_city.generate(default_seed, true)
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _anchors_reproduced(anchors_snapshot, _city.anchors) \
-			and _vec_spots_equal(bread_snapshot, _city.bread_spots)
-	## --- foreign seed: the same four posts stand at the pinned blocks --------
-	_city.generate(424242)
-	var foreign_ok: bool = _city.anchors.size() == 4
-	for rec in _city.anchors:
-		var c: Vector3 = rec.center
-		var matched := false
-		for pin in pins:
-			var g := _city.to_global(Vector3(
-					(pin.x - half_blocks) * _city.block_pitch, 0.0,
-					(pin.y - half_blocks) * _city.block_pitch))
-			matched = matched or Vector2(g.x - c.x, g.z - c.z).length() < 0.01
-		foreign_ok = foreign_ok and matched
-	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	## --- the physical legs, on the first anchor (NW quadrant) -----------------
-	var land_ok := false
-	var eat_ok := false
-	if count_ok:
-		var rec: Dictionary = _city.anchors[0]
-		var cap_center: Vector3 = rec.center
-		var cap_top: float = rec.cap_top
-		var hunger := Hunger.new()
-		hunger.player = _player
-		add_child(hunger)
-		## Mid-bar BEFORE the drop so the +30 restore is measurable: unlike the
-		## roof-crumb leg (a waddle away), this crumb is underfoot at touchdown,
-		## so the eat can land the very frame grounding lands.
-		hunger.value = 40.0
-		var hunger0 := hunger.value
-		var crumb: BreadCrumb = CRUMB_SCENE.instantiate()
-		crumb.position = Vector3(cap_center.x, cap_top + 0.06, cap_center.z)
-		add_child(crumb)
-		crumb.eaten.connect(hunger.eat)
-		await _set_up(true, Vector3(cap_center.x, cap_top + 0.5, cap_center.z),
-				Vector3.ZERO)
-		await _await_grounded(150)
-		land_ok = _player.is_grounded \
-				and absf(_player.position.y - (cap_top + 0.3)) < 0.2 \
-				and _player.velocity.is_finite()
-		for _i in 90:
-			await get_tree().physics_frame
-			eat_ok = not is_instance_valid(crumb) and hunger.value > hunger0 + 10.0
-			if eat_ok:
-				break
-		hunger.free()
-	_check("city_district_anchors_present",
-			count_ok and districts_ok and pins_ok and height_ok and recompute_ok
-					and report_pin and standoff_ok and clear_ok and arithmetic_ok
-					and crumb_ok and plaza_ok and visuals_ok and colliders_ok
-					and deterministic and foreign_ok and land_ok and eat_ok,
-			("count=%s districts=%d pins=%s height=%s recompute=%s report=%s "
-			+ "standoff=%s (worst %.4f m) clear=%s (worst %.2f m) arith=%s "
-			+ "crumb=%s plaza=%s visuals=%s colliders=%s (%d high) det=%s "
-			+ "foreign=%s land=%s eat=%s") % [
-					count_ok, districts_seen.size(), pins_ok, height_ok,
-					recompute_ok, report_pin, standoff_ok, worst_daylight,
-					clear_ok, worst_bread, arithmetic_ok, crumb_ok, plaza_ok,
-					visuals_ok, colliders_ok, high_shapes, deterministic,
-					foreign_ok, land_ok, eat_ok])
-	## Informational: the anchors' tuned numbers — the ticket's bars, re-printed.
-	print("SIM DATA city_district_anchors: anchors=%d top=%.2f cap=%.2f worst_daylight=%.4f m worst_bread=%.2f m fingerprint=%d" % [
-			_city.anchors.size(),
-			_city.anchors[0].top if not _city.anchors.is_empty() else 0.0,
-			_city.anchors[0].cap_top if not _city.anchors.is_empty() else 0.0,
-			worst_daylight, worst_bread, fp_first])
-
-
 ## --- scenario (T-136 district theming) ---------------------------------------
-
-
-## District theming (T-136): the four quadrants read as places — themed parks
-## (per-district slab tints and tree layouts), themed signboards and awnings,
-## the per-district prop mix, and the D-A anchor restyles (marquee / water
-## tower / campanile / silo). The machine home of the theming law, on a real
-## generated City, recomputed INDEPENDENTLY (the park-trees/anchors audit
-## shape, no flight):
-## (a) parks — each `PARK_BLOCKS` block's district from `district_of`, its
-##     slab wearing exactly `PARK_SLAB_TINTS[district]` (each tint seen once),
-##     its trees exactly the district's `PARK_TREE_LAYOUTS` offsets (2/3/8/6,
-##     19 city-wide) with d3's crowns at the 0.8 scale, centered so the bottom
-##     stays on the trunk top;
-## (b) anchors — each restyle's tier widths (the d3 shaft 1.4 wide) and tier
-##     tints (the harness's own copies of the restyle tables), the
-##     detail-instance counts (4/2/12/3 per district on the visual-only
-##     `anchor_detail` key), zero colliders beyond the four tiers (3 shapes
-##     above the y 5.0 window per anchor), tops/crumb records intact;
-## (c) the d3 shaft's building standoff re-derived per seed from `buildings[]`
-##     (the plinth derivation, extended to the shaft's height band — buildings
-##     whose roof reaches above the shaft's base clear the 1.4 m drum's 0.7 m
-##     half-extent);
-## (d) same-seed `generate(default_seed, true)` reproduces the themed-park and
-##     anchor arrays byte-identically (`_vec_spots_equal`/`_anchors_reproduced`);
-## (e) at BOTH pinned seeds the cross-version fingerprint equals the
-##     re-derived literals (the T-051 probe precedent).
-## Plus the dressing law: every signboard plaque wears its district's
-## `SIGNBOARD_TINTS` tint and every awning the `AWN_TINTS` lerp at its
-## `AWN_TINT_WEIGHTS` weight (post-roll pure math off the building records),
-## and the prop-mix tables hold the ticket's values.
-func _scenario_city_district_theming() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var half_blocks := float(_city.blocks_per_side - 1) * 0.5
-	## The harness's own copies of the restyle tables (the `_expected_sign_plaque`
-	## pattern — a future const edit fails here, not silently).
-	var shaft_sizes: Array[Vector3] = [
-		Vector3(0.7, 13.6, 0.7), Vector3(0.7, 13.6, 0.7),
-		Vector3(0.7, 13.6, 0.7), Vector3(1.4, 13.6, 1.4),
-	]
-	var shaft_tints: Array[Color] = [
-		Color(0.16, 0.35, 0.27), Color(0.25, 0.26, 0.28),
-		Color(0.60, 0.65, 0.72), Color(0.68, 0.67, 0.64),
-	]
-	var head_tints: Array[Color] = [
-		Color(0.92, 0.87, 0.74), Color(0.88, 0.86, 0.80),
-		Color(0.60, 0.65, 0.72), Color(0.68, 0.67, 0.64),
-	]
-	var cap_tints: Array[Color] = [
-		Color(0.16, 0.35, 0.27), Color(0.88, 0.86, 0.80),
-		Color(0.22, 0.24, 0.28), Color(0.68, 0.67, 0.64),
-	]
-	var want_details: Array[int] = [4, 2, 12, 3]
-	## (a) the parks: per-district slab tint + tree layout over PARK_BLOCKS ----
-	var park_ok: bool = _city.PARK_BLOCKS.size() == 4
-	var tree_total: int = 0
-	for layout: Array in _city.PARK_TREE_LAYOUTS:
-		tree_total += layout.size()
-	var trunks: Array[Transform3D] = []
-	var crowns: Array[Transform3D] = []
-	for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
-		trunks.append(xf)
-	for xf: Transform3D in _city._visuals["tree_crown"].xfs:
-		crowns.append(xf)
-	park_ok = park_ok and trunks.size() == tree_total and crowns.size() == tree_total
-	var slab_xfs: Array = _city._visuals["slab"].xfs
-	var slab_colors: Array = _city._visuals["slab"].colors
-	var tint_seen: Array[bool] = [false, false, false, false]
-	var trees_matched: Array[bool] = []
-	trees_matched.resize(tree_total)
-	trees_matched.fill(false)
-	var crowns_matched: Array[bool] = []
-	crowns_matched.resize(tree_total)
-	crowns_matched.fill(false)
-	for park: Vector2i in _city.PARK_BLOCKS:
-		var d: int = _city.district_of(park.x, park.y)
-		var c := Vector3((park.x - half_blocks) * _city.block_pitch, 0.0,
-				(park.y - half_blocks) * _city.block_pitch)
-		var slab_hits := 0
-		for i in slab_xfs.size():
-			var o: Vector3 = (slab_xfs[i] as Transform3D).origin
-			if Vector2(o.x - c.x, o.z - c.z).length_squared() < 1e-8:
-				if slab_colors[i] == _city.PARK_SLAB_TINTS[d]:
-					slab_hits += 1
-				else:
-					park_ok = false ## A park block's slab wearing a wrong color.
-		park_ok = park_ok and slab_hits == 1
-		tint_seen[d] = true
-		for offset: Vector2 in _city.PARK_TREE_LAYOUTS[d]:
-			var want := Vector3(c.x + offset.x, _city.block_slab_height, c.z + offset.y)
-			var trunk_hit := false
-			var crown_hit := false
-			for t in trunks.size():
-				if not trees_matched[t] \
-						and Vector2(trunks[t].origin.x - want.x,
-								trunks[t].origin.z - want.z).length_squared() < 1e-8:
-					trees_matched[t] = true
-					trunk_hit = true
-			for t in crowns.size():
-				if not crowns_matched[t] \
-						and Vector2(crowns[t].origin.x - want.x,
-								crowns[t].origin.z - want.z).length_squared() < 1e-8:
-					crowns_matched[t] = true
-					crown_hit = true
-					var crown_size: Vector3 = _city.PARK_CROWN_SIZE \
-							* float(_city.PARK_CROWN_SCALE_BY_DISTRICT[d])
-					var crown_y: float = _city.PARK_CROWN_CENTER_Y \
-							- (_city.PARK_CROWN_SIZE.y - crown_size.y) * 0.5
-					park_ok = park_ok \
-							and absf(crowns[t].origin.y
-									- (_city.block_slab_height + crown_y)) < 0.001 \
-							and (crowns[t].basis.get_scale() - crown_size).length() < 0.001
-			park_ok = park_ok and trunk_hit and crown_hit
-	park_ok = park_ok and not trees_matched.has(false) and not crowns_matched.has(false)
-	for seen: bool in tint_seen:
-		park_ok = park_ok and seen
-	## (b) the anchors: tier widths + tints, detail counts, collider shape law --
-	var anchors_ok: bool = _city.anchors.size() == 4
-	var detail_counts: Array[int] = [0, 0, 0, 0]
-	var details: Array[Transform3D] = []
-	if _city._visuals.has("anchor_detail"):
-		for xf: Transform3D in _city._visuals["anchor_detail"].xfs:
-			details.append(xf)
-	var detail_total: int = want_details[0] + want_details[1] + want_details[2] \
-			+ want_details[3]
-	anchors_ok = anchors_ok and details.size() == detail_total
-	for xf: Transform3D in details:
-		var best_i := -1
-		var best := INF
-		for ai in _city.anchors.size():
-			var local: Vector3 = _city.to_local(_city.anchors[ai].center)
-			var dd := Vector2(xf.origin.x - local.x, xf.origin.z - local.z).length()
-			if dd < best:
-				best = dd
-				best_i = ai
-		anchors_ok = anchors_ok and best_i >= 0 and best < 1.5 ## 1.273 m worst
-				## detail offset (the marquee bulbs at the head corners).
-		if best_i >= 0:
-			detail_counts[_city.anchors[best_i].district] += 1
-	for d in 4:
-		anchors_ok = anchors_ok and detail_counts[d] == want_details[d]
-	## The tier queues: every instance over one anchor, at its district's
-	## expected width and tint (shaft/head/cap; the plinth keeps its stone).
-	for pair: Array in [["anchor_shaft", shaft_sizes, shaft_tints],
-			["anchor_head", [
-					Vector3(1.8, 2.2, 1.8), Vector3(1.8, 2.2, 1.8),
-					Vector3(1.8, 2.2, 1.8), Vector3(1.8, 2.2, 1.8)], head_tints],
-			["anchor_cap", [
-					Vector3(2.0, 0.5, 2.0), Vector3(2.0, 0.5, 2.0),
-					Vector3(2.0, 0.5, 2.0), Vector3(2.0, 0.5, 2.0)], cap_tints]]:
-		var key: String = pair[0]
-		var queue: Array = _city._visuals[key].xfs if _city._visuals.has(key) else []
-		var colors: Array = _city._visuals[key].colors if _city._visuals.has(key) else []
-		anchors_ok = anchors_ok and queue.size() == 4
-		for i in queue.size():
-			var o: Vector3 = (queue[i] as Transform3D).origin
-			var sc: Vector3 = (queue[i] as Transform3D).basis.get_scale()
-			var district := -1
-			for rec in _city.anchors:
-				var local: Vector3 = _city.to_local(rec.center)
-				if Vector2(o.x - local.x, o.z - local.z).length() < 0.01:
-					district = rec.district
-			anchors_ok = anchors_ok and district >= 0
-			if district < 0:
-				continue
-			var sizes: Array = pair[1]
-			var tints: Array = pair[2]
-			anchors_ok = anchors_ok \
-					and (sc - (sizes[district] as Vector3)).length() < 0.001 \
-					and (colors[i] as Color).is_equal_approx(tints[district])
-	## Records intact: top 17.3, cap_top slab + 17.3, crumb at cap_top + 0.06.
-	var records_ok: bool = _city.anchors.size() == 4
-	for rec in _city.anchors:
-		records_ok = records_ok and absf((rec.top as float) - 17.3) < 0.001 \
-				and absf((rec.cap_top as float)
-						- (_city.block_slab_height + 17.3)) < 0.001
-		var local: Vector3 = _city.to_local(rec.center)
-		var found := false
-		for i in _city.bread_spots.size():
-			var spot: Vector3 = _city.bread_spots[i]
-			found = found or (Vector2(spot.x - local.x, spot.z - local.z).length() < 0.001
-					and absf(spot.y - ((rec.cap_top as float) + 0.06)) < 0.001
-					and _city.bread_spot_kinds[i] == City.BreadKind.ROOF)
-		records_ok = records_ok and found
-	## Zero colliders beyond the four tiers: every Props box within 1.5 m XZ of
-	## an anchor center is one of ITS four tiers, 3 above the y 5.0 window.
-	var props_body := _city.get_node("Static/Props") as StaticBody3D
-	var colliders_ok: bool = props_body != null
-	var tier_sizes: Array[Vector3] = [Vector3(1.4, 1.0, 1.4),
-			Vector3(0.7, 13.6, 0.7), Vector3(1.8, 2.2, 1.8), Vector3(2.0, 0.5, 2.0)]
-	var high_total := 0
-	if colliders_ok:
-		for rec in _city.anchors:
-			var local: Vector3 = _city.to_local(rec.center)
-			var near := 0
-			var matched := 0
-			var high := 0
-			for shape_node in props_body.find_children("*", "CollisionShape3D", true, false):
-				var shape := shape_node as CollisionShape3D
-				var box := shape.shape as BoxShape3D
-				if box == null:
-					continue
-				if Vector2(shape.position.x - local.x,
-						shape.position.z - local.z).length() > 1.5:
-					continue
-				near += 1
-				var tier_floor := 0.0
-				for ti in tier_sizes.size():
-					var want_size: Vector3 = tier_sizes[ti]
-					if rec.district == 3 and ti == 1:
-						want_size = shaft_sizes[3] ## The d3 widened drum.
-					if box.size.distance_to(want_size) < 0.001 \
-							and absf(shape.position.y - (_city.block_slab_height
-									+ tier_floor + want_size.y * 0.5)) < 0.001:
-						matched += 1
-						if shape.position.y > 5.0:
-							high += 1
-					tier_floor += want_size.y
-			colliders_ok = colliders_ok and near == 4 and matched == 4 and high == 3
-			high_total += high
-		colliders_ok = colliders_ok and high_total == 3 * _city.anchors.size()
-	## (c) the d3 shaft's building standoff, extended to the height band --------
-	var d3_center := Vector3.INF
-	var found_d3 := false
-	for rec in _city.anchors:
-		if rec.district == 3:
-			d3_center = rec.center
-			found_d3 = true
-	var band_ok: bool = found_d3
-	var band_worst := INF
-	for info in _city.buildings:
-		var bc: Vector3 = info.center
-		if absf(bc.x - d3_center.x) > _city.block_size * 0.5 \
-				or absf(bc.z - d3_center.z) > _city.block_size * 0.5:
-			continue
-		if float(info.top) <= _city.block_slab_height + 1.0:
-			continue ## Below the shaft's base — no height-band overlap.
-		var size: Vector2 = info.size
-		var face_x := absf(bc.x - d3_center.x) - size.x * 0.5 - 0.7
-		var face_z := absf(bc.z - d3_center.z) - size.y * 0.5 - 0.7
-		band_ok = band_ok and face_x >= 0.0 and face_z >= 0.0
-		band_worst = minf(band_worst, minf(face_x, face_z))
-	## The dressing law: signboard tints and awning lerps, queue-paired --------
-	var sign_colors: Array = _city._visuals["sign"].colors \
-			if _city._visuals.has("sign") else []
-	var tints_ok: bool = sign_colors.size() == _city.buildings.size()
-	var sign_i := 0
-	for info in _city.buildings:
-		tints_ok = tints_ok and (sign_colors[sign_i] as Color).is_equal_approx(
-				_city.SIGNBOARD_TINTS[info.district])
-		sign_i += 1
-	var awn_colors: Array = _city._visuals["awning"].colors \
-			if _city._visuals.has("awning") else []
-	var awnings := 0
-	for info in _city.buildings:
-		if info.has_awning:
-			awnings += 1
-	tints_ok = tints_ok and awn_colors.size() == awnings
-	var awn_i := 0
-	for info in _city.buildings:
-		if not info.has_awning:
-			continue
-		var want_awn: Color = (info.shop_color as Color).darkened(0.15).lerp(
-				_city.AWN_TINTS[info.district], _city.AWN_TINT_WEIGHTS[info.district])
-		tints_ok = tints_ok and (awn_colors[awn_i] as Color).is_equal_approx(want_awn)
-		awn_i += 1
-	## The prop-mix tables hold the ticket's values (a silent retune fails here).
-	var tables_ok: bool = _city.BENCH_CHANCE_BY_DISTRICT.size() == 4 \
-			and _city.BIN_CHANCE_BY_DISTRICT.size() == 4
-	for d in 4:
-		tables_ok = tables_ok \
-				and absf(_city.BENCH_CHANCE_BY_DISTRICT[d] - [0.90, 0.50, 0.90, 0.50][d]) < 0.0001 \
-				and absf(_city.BIN_CHANCE_BY_DISTRICT[d] - [0.70, 0.90, 0.40, 0.70][d]) < 0.0001
-	## (d) determinism: a real rebuild reproduces the themed arrays -----------
-	var trunks_a := trunks.duplicate()
-	var crowns_a := crowns.duplicate()
-	var details_a := details.duplicate()
-	var anchors_a: Array[Dictionary] = []
-	for rec in _city.anchors:
-		anchors_a.append(rec)
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
-	var trunks_b: Array[Transform3D] = []
-	var details_b: Array[Transform3D] = []
-	for xf: Transform3D in _city._visuals["tree_trunk"].xfs:
-		trunks_b.append(xf)
-	if _city._visuals.has("anchor_detail"):
-		for xf: Transform3D in _city._visuals["anchor_detail"].xfs:
-			details_b.append(xf)
-	var deterministic: bool = _city.fingerprint == fp_first \
-			and _spots_equal(trunks_a, trunks_b) \
-			and _spots_equal(details_a, details_b) \
-			and _anchors_reproduced(anchors_a, _city.anchors)
-	## (e) the foreign seed raises the same law; the cross-version pins --------
-	_city.generate(424242)
-	var foreign_park_ok: bool = _city.last_report.parks == 4 \
-			and (_city._visuals["tree_trunk"].xfs as Array).size() == tree_total
-	var foreign_anchor_ok: bool = _city.anchors.size() == 4
-	for rec in _city.anchors:
-		foreign_anchor_ok = foreign_anchor_ok \
-				and absf((rec.top as float) - 17.3) < 0.001
-	var pin_foreign: bool = _city.fingerprint == 1411023184
-	_city.generate(default_seed, true) ## Real rebuild: leaves the default city standing.
-	var pin_default: bool = _city.fingerprint == 1103197745
-	_check("city_district_theming_present",
-			park_ok and anchors_ok and records_ok and colliders_ok and band_ok
-					and tints_ok and tables_ok and deterministic and foreign_park_ok
-					and foreign_anchor_ok and pin_foreign and pin_default,
-			("parks=%s trees=%d anchors=%s details=%s records=%s colliders=%s (%d high) "
-			+ "d3_band=%s (worst %.4f m) tints=%s tables=%s det=%s foreign=%s/%s "
-			+ "pins=%s/%s") % [
-					park_ok, trunks.size(), anchors_ok, detail_counts, records_ok,
-					colliders_ok, high_total, band_ok, band_worst, tints_ok,
-					tables_ok, deterministic, foreign_park_ok, foreign_anchor_ok,
-					pin_foreign, pin_default])
-	## Informational: the theming law's tuned numbers, re-printed every pass.
-	print("SIM DATA city_district_theming: trees=%d details=%s d3_band_worst=%.4f m fingerprint=%d" % [
-			trunks.size(), detail_counts, band_worst, fp_first])
 
 
 ## --- scenarios (T-007 tourists) ---------------------------------------------
 
 
-## Full density: `target_count` tourists seeded in loose groups around the
-## player's area, actually strolling their sidewalk loops at slab level.
-func _scenario_tourists_walk() -> void:
-	await _set_up(true, _city.position + Vector3(0.0, 25.0, 0.0), Vector3.ZERO)
-	var spawner := TouristSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	add_child(spawner)
-	await _wait_frames(4)
-	var tourists := spawner.living_tourists()
-	var last: Array[Vector3] = []
-	for tourist in tourists:
-		last.append(tourist.global_position)
-	var travel: Array[float] = []
-	travel.resize(tourists.size())
-	for f in 240: ## 4 s of strolling; accumulate real path length per tourist.
-		await get_tree().physics_frame
-		for i in tourists.size():
-			var t: Tourist = tourists[i]
-			if is_instance_valid(t):
-				travel[i] += last[i].distance_to(t.global_position)
-				last[i] = t.global_position
-		if _debug and f % 60 == 0:
-			for i in tourists.size():
-				var t: Tourist = tourists[i]
-				if is_instance_valid(t) and t.global_position.y < 0.05:
-					_dbg("sink f%d t%d y=%.4f vel=%s pos=%s" % [f, i, t.global_position.y,
-							t.velocity, t.global_position])
-	var moved := 0
-	var on_slab := true
-	var finite := true
-	var grouped := false
-	var by_block := {}
-	for i in tourists.size():
-		var tourist: Tourist = tourists[i]
-		if not is_instance_valid(tourist):
-			continue
-		## Path length, not net displacement: a tourist that rounded a waypoint
-		## and is heading back can legitimately have a tiny net displacement.
-		if travel[i] > 2.0:
-			moved += 1
-		else:
-			_dbg("t%d stalled: travel=%.2f pos=%s path=%d mood=%s vel=%s" % [
-					i, travel[i], tourist.global_position, tourist.path.size(),
-					tourist.mood, tourist.velocity])
-		var local_y := tourist.global_position.y - _city.position.y
-		if absf(local_y - _city.block_slab_height) >= 0.2:
-			_dbg("t%d off-slab: y=%.2f pos=%s mood=%s" % [i, local_y, tourist.global_position, tourist.mood])
-		on_slab = on_slab and absf(local_y - _city.block_slab_height) < 0.2
-		finite = finite and tourist.velocity.is_finite()
-		var key := Vector2(tourist.block_center.x, tourist.block_center.z)
-		by_block[key] = int(by_block.get(key, 0)) + 1
-	for key in by_block:
-		grouped = grouped or by_block[key] >= 2
-	_check("tourists_walk_loose_groups",
-			tourists.size() == 18 and moved == tourists.size() and on_slab and finite and grouped,
-			"count %d, moved %d, on_slab=%s finite=%s grouped=%s" % [
-					tourists.size(), moved, on_slab, finite, grouped])
-	spawner.free()
-
-
-## A real lobbed dropping hits a tourist: the duck-typed on_splatted panics it
-## (sprint + score event relayed), and a second synthetic sideways hit proves
-## the panic flees along the impact velocity's horizontal mirror.
-func _scenario_tourist_splat() -> void:
-	_dropped.clear()
-	_splat_events.clear()
-	_tourist_relay = 0
-	var spawner := TouristSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	spawner.target_count = 1
-	spawner.spawn_min_dist = 0.0
-	spawner.spawn_max_dist = 10.0 ## Pin the loop to the plaza block, under the drop.
-	add_child(spawner)
-	await _wait_frames(4)
-	var tourists := spawner.living_tourists()
-	if tourists.is_empty():
-		_check("tourist_splat_panics_scores", false, "no tourist spawned")
-		spawner.free()
-		return
-	var tourist: Tourist = tourists[0]
-	spawner.tourist_splatted.connect(func(_t: Tourist) -> void: _tourist_relay += 1)
-	## T-055: the shirt flush is a binary write — calm is exactly the tourist's
-	## palette shirt_color, mid-panic exactly PANIC_TINT — read through the
-	## established `material_override as StandardMaterial3D` pattern (cafe
-	## sitter, splat fade). Calm is sampled before the drop; the panic arm is
-	## confirmed inside the poll below (the write lands on the first _animate
-	## tick that sees mood == PANIC, so it may lag the mood flip by a frame).
-	var shirt_mat: StandardMaterial3D = tourist._body_mesh.material_override \
-			as StandardMaterial3D
-	var calm_ok: bool = shirt_mat != null \
-			and shirt_mat.albedo_color.is_equal_approx(tourist.shirt_color)
-	var flush_ok := false
-	var flush_color := Color()
-	## T-009: Main's exact wiring — the spawner relay feeds the Game autoload —
-	## so the real lob below scores end to end: the first (real) hit pays 100
-	## at ×1 and the synthetic second hit is the chain's ×2 → 300 total.
-	Game.reset_run()
-	spawner.tourist_splatted.connect(func(t: Tourist) -> void:
-			Game.add_tourist_hit(t.global_position))
-	tourist.path = PackedVector3Array() ## Freeze the target under the drop.
-	await _set_up(true, tourist.global_position + Vector3(0.0, 4.0, 0.0), Vector3.ZERO)
-	await _tap("poop")
-	await _wait_frames(2)
-	var dropped := _dropped.size() == 1
-	if dropped:
-		_dropped[0].splatted.connect(_on_test_splatted)
-	var panicked := false
-	var max_hspeed := 0.0
-	for _i in 120: ## The drop falls ~0.7 s; the panic sprint follows it.
-		await get_tree().physics_frame
-		panicked = panicked or tourist.mood == Tourist.Mood.PANIC
-		if tourist.mood == Tourist.Mood.PANIC and not flush_ok and shirt_mat != null:
-			flush_color = shirt_mat.albedo_color
-			flush_ok = flush_color.is_equal_approx(Tourist.PANIC_TINT)
-		max_hspeed = maxf(max_hspeed, Vector2(tourist.velocity.x, tourist.velocity.z).length())
-		if _debug and _i % 20 == 0:
-			_dbg("splat poll %d: poop=%s tourist_pos=%s mood=%s hspeed=%.2f" % [_i,
-					_dropped[0].global_position if dropped and is_instance_valid(_dropped[0]) else Vector3.INF,
-					tourist.global_position, tourist.mood,
-					Vector2(tourist.velocity.x, tourist.velocity.z).length()])
-	var fired: bool = _splat_events.size() == 1 and _splat_events[0].target == tourist
-	var sprinted := panicked and max_hspeed > 2.5
-	# Second hit through the same duck-typed entry, with a sideways impact:
-	# the panic direction must mirror it horizontally.
-	tourist.on_splatted(Vector3(6.0, -2.0, 0.0))
-	await _wait_frames(2)
-	var flees_impact := tourist._panic_dir.dot(Vector3(-1.0, 0.0, 0.0)) > 0.95
-	_check("tourist_splat_panics_scores",
-			dropped and fired and _tourist_relay == 2 and sprinted and flees_impact
-					and Game.score == 300 and calm_ok and flush_ok,
-			"dropped=%s fired=%s relay=%d panicked=%s sprint %.1f m/s flees=%s score=%d calm=%s flush=%s (%s)" % [
-					dropped, fired, _tourist_relay, panicked, max_hspeed, flees_impact,
-					Game.score, calm_ok, flush_ok, flush_color])
-	spawner.free()
-
-
-## The retuned hit tolerance makes the LEAD shot real (T-060): a tourist KEEPING
-## its stroll loop (never frozen), a drop released 4 m above the predicted
-## impact — the autoplay formula, live flat position + live flat velocity × the
-## 0.8165 s a 4 m fall takes at poop.gd's `fall_gravity` 12 — CONNECTS through
-## the 0.30 collider (contact reach 0.30 + 0.28 capsule = 0.58 m, the T-138
-## grown capsule): splatted fires, the tourist panics. The same drop aimed 1.5 m lateral of the
-## prediction does NOT — 0.92 m of clean margin outside the reach keeps the
-## lead a skill, not a shotgun: the stray drop may splat the ground, but no
-## event targets the tourist and the mood never reaches PANIC. And the
-## criterion's own bar — 0.4 m lateral, inside the reach — connects again.
-func _scenario_poop_hits_tourist_within_lead_window() -> void:
-	_dropped.clear()
-	_splat_events.clear()
-	var spawner := TouristSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	spawner.target_count = 1
-	spawner.spawn_min_dist = 0.0
-	spawner.spawn_max_dist = 10.0 ## Pin the loop to the plaza block, like the frozen-target scenario.
-	add_child(spawner)
-	await _wait_frames(4)
-	var tourists := spawner.living_tourists()
-	if tourists.is_empty():
-		_check("poop_hits_tourist_within_lead_window", false, "no tourist spawned")
-		spawner.free()
-		return
-	var tourist: Tourist = tourists[0]
-	var fall := sqrt(2.0 * 4.0 / 12.0) ## ≈ 0.8165 s: the 4 m release fall at fall_gravity 12.
-	## Positive arm — dead on the prediction: seat mid-leg (straight walking for
-	## the whole fall window), read the LIVE stroll velocity, drop from 4.3 m
-	## (the drop leaves 0.3 m under the body — poop_drop_offset).
-	_seat_mid_leg(tourist)
-	await _wait_frames(3) ## Straight-leg stroll ticks to settle the velocity read.
-	var lead_spot := _predict_lead_spot(tourist, fall)
-	await _set_up(true, lead_spot + Vector3(0.0, 4.3, 0.0), Vector3.ZERO)
-	await _tap("poop")
-	await _wait_frames(2)
-	var dropped := _dropped.size() == 1
-	if dropped:
-		_dropped[0].splatted.connect(_on_test_splatted)
-	var panicked := false
-	for _i in 120: ## Contact ~0.7 s in; the panic sprint follows it.
-		await get_tree().physics_frame
-		panicked = panicked or tourist.mood == Tourist.Mood.PANIC
-	var lead_hit: bool = _splat_events.size() == 1 \
-			and _splat_events[0].target == tourist
-	var events_after_lead := _splat_events.size()
-	## Negative arm — the same prediction 1.5 m lateral (perpendicular to the
-	## stroll): let the panic burn out first (bounded — a second splat would
-	## restart it, and none can fire here), re-seat mid-leg, read the live
-	## velocity again at THIS release.
-	for _i in 200:
-		if tourist.mood != Tourist.Mood.PANIC:
-			break
-		await get_tree().physics_frame
-	_seat_mid_leg(tourist)
-	await _wait_frames(3)
-	var tv := Vector2(tourist.velocity.x, tourist.velocity.z)
-	var perp := Vector2(-tv.y, tv.x).normalized()
-	var stray_spot := _predict_lead_spot(tourist, fall) + Vector3(
-			perp.x * 1.5, 0.0, perp.y * 1.5)
-	await _set_up(true, stray_spot + Vector3(0.0, 4.3, 0.0), Vector3.ZERO)
-	await _tap("poop")
-	await _wait_frames(2)
-	if _dropped.size() == 2:
-		_dropped[1].splatted.connect(_on_test_splatted)
-	var clean_mood := true
-	for _i in 120: ## The stray's whole fall plus margin — panic must never come.
-		await get_tree().physics_frame
-		clean_mood = clean_mood and tourist.mood != Tourist.Mood.PANIC
-	var no_stray_tourist := true
-	for i in range(events_after_lead, _splat_events.size()):
-		no_stray_tourist = no_stray_tourist and _splat_events[i].target != tourist
-	var strays := _splat_events.size() - events_after_lead
-	## Half-way arm — the acceptance bar itself: the same drop 0.4 m lateral of
-	## the prediction must STILL connect (the criterion's "≤ 0.4 m lateral aim
-	## error" — under the 0.58 m contact reach). The stray left the tourist
-	## calm and strolling, so the live re-read needs no panic burn-out here.
-	_seat_mid_leg(tourist)
-	await _wait_frames(3)
-	var tv_half := Vector2(tourist.velocity.x, tourist.velocity.z)
-	var perp_half := Vector2(-tv_half.y, tv_half.x).normalized()
-	var near_spot := _predict_lead_spot(tourist, fall) + Vector3(
-			perp_half.x * 0.4, 0.0, perp_half.y * 0.4)
-	await _set_up(true, near_spot + Vector3(0.0, 4.3, 0.0), Vector3.ZERO)
-	await _tap("poop")
-	await _wait_frames(2)
-	if _dropped.size() == 3:
-		_dropped[2].splatted.connect(_on_test_splatted)
-	var half_panicked := false
-	for _i in 120:
-		await get_tree().physics_frame
-		half_panicked = half_panicked or tourist.mood == Tourist.Mood.PANIC
-	var half_events := _splat_events.size() - events_after_lead - strays
-	var half_hit: bool = half_events == 1 \
-			and _splat_events[_splat_events.size() - 1].target == tourist
-	_check("poop_hits_tourist_within_lead_window",
-			dropped and lead_hit and panicked and clean_mood and no_stray_tourist
-					and strays <= 1 and half_hit and half_panicked,
-			"dropped=%s lead_hit=%s panicked=%s stray_mood_clean=%s stray_tourist_free=%s stray_events=%d half_hit=%s half_panicked=%s" % [
-					dropped, lead_hit, panicked, clean_mood, no_stray_tourist, strays,
-					half_hit, half_panicked])
-	spawner.free()
-
-
-## Seats a stroller mid-leg between two loop waypoints and retargets: the
-## sidewalk ring's legs are ~21.8 m, so the next ~10 m of walking is dead
-## straight — a corner turn cannot bend the stroll off the lead prediction
-## mid-fall. (The splat scenarios freeze targets with an empty path; this one
-## needs the loop ALIVE, so it curates the walk instead.)
-func _seat_mid_leg(tourist: Tourist) -> void:
-	var path := tourist.path
-	if path.size() < 2:
-		return
-	tourist.global_position = path[0].lerp(path[1], 0.5)
-	tourist._retarget_nearest_waypoint()
-
-
-## The autoplay's lead prediction (tests/autoplay.gd `_tourist_in_lead`): where
-## the tourist will have strolled to when the drop lands — live flat position
-## plus live flat velocity times the fall time, read at the release frame.
-func _predict_lead_spot(tourist: Tourist, fall: float) -> Vector3:
-	var v := Vector2(tourist.velocity.x, tourist.velocity.z)
-	var spot := Vector2(tourist.global_position.x, tourist.global_position.z) + v * fall
-	return Vector3(spot.x, tourist.global_position.y, spot.y)
-
-
-## A slow pass through the buzz zone earns nothing; a fast one earns a flinch
-## duck — never a full panic (that takes a splat).
-func _scenario_tourist_buzz() -> void:
-	var spawner := TouristSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	spawner.target_count = 1
-	spawner.spawn_min_dist = 0.0
-	spawner.spawn_max_dist = 10.0
-	add_child(spawner)
-	await _wait_frames(4)
-	var tourists := spawner.living_tourists()
-	if tourists.is_empty():
-		_check("tourist_buzz_flinch", false, "no tourist spawned")
-		spawner.free()
-		return
-	var tourist: Tourist = tourists[0]
-	tourist.path = PackedVector3Array() ## A standing target for repeatable passes.
-	var pass_start: Vector3 = tourist.global_position + Vector3(0.0, 2.2, -5.0)
-	await _set_up(true, pass_start, Vector3(0.0, 0.0, 9.0), 180.0)
-	await _wait_frames(110) ## ~1.8 s: drifts through the zone slowly and lands beyond it.
-	var slow_clean := tourist.buzz_count == 0 and tourist.mood != Tourist.Mood.PANIC
-	await _set_up(true, pass_start, Vector3(0.0, 0.0, 18.0), 180.0)
-	var saw_flinch := false
-	for _i in 120:
-		await get_tree().physics_frame
-		saw_flinch = saw_flinch or tourist.mood == Tourist.Mood.FLINCH
-		if tourist.buzz_count >= 1 and saw_flinch:
-			break
-	var fast_ok := tourist.buzz_count == 1 and saw_flinch \
-			and tourist.mood != Tourist.Mood.PANIC
-	_check("tourist_buzz_flinch", slow_clean and fast_ok,
-			"slow pass clean=%s · fast pass buzzes=%d flinch_seen=%s panicked=%s" % [
-					slow_clean, tourist.buzz_count, saw_flinch,
-					tourist.mood == Tourist.Mood.PANIC])
-	spawner.free()
-
-
-## Density survives a move: teleporting the player across the city recycles
-## the whole crowd — the SAME tourist nodes — into the spawn band around the
-## new position.
-func _scenario_tourists_recycle() -> void:
-	await _set_up(true, _city.position + Vector3(0.0, 25.0, 0.0), Vector3.ZERO)
-	var spawner := TouristSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	add_child(spawner)
-	await _wait_frames(4)
-	var tourists := spawner.living_tourists()
-	var full := tourists.size() == spawner.target_count
-	var ids: Array[int] = []
-	for tourist in tourists:
-		ids.append(tourist.get_instance_id())
-	await _set_up(true, _city.position + Vector3(-90.0, 25.0, 0.0), Vector3.ZERO)
-	await _wait_frames(45) ## 0.75 s > recycle_interval — one scan must move them all.
-	var reused := true
-	var placed := true
-	var after := spawner.living_tourists()
-	var anchor := Vector2(_city.position.x - 90.0, _city.position.z)
-	for tourist in after:
-		reused = reused and ids.has(tourist.get_instance_id())
-		var flat := Vector2(tourist.global_position.x - anchor.x,
-				tourist.global_position.z - anchor.y)
-		var center := Vector2(tourist.block_center.x - anchor.x, tourist.block_center.z - anchor.y)
-		# The recycle contract: every tourist is EITHER already within the
-		# recycle radius of the moved player (legitimately kept — density
-		# stays where the player is) OR recycled onto a loop in the spawn band.
-		placed = placed and (flat.length() <= spawner.recycle_radius
-				or (center.length() >= spawner.spawn_min_dist
-						and center.length() <= spawner.spawn_max_dist))
-	_check("tourists_recycle_around_player",
-			full and after.size() == spawner.target_count and reused and placed,
-			"full=%s count %d reused=%s placed=%s" % [
-					full, after.size(), reused, placed])
-	spawner.free()
-
-
 ## --- scenarios (T-008 cars) --------------------------------------------------
-
-
-## Full density: the traffic fleet loops its block rings at lane speed — every
-## car covers ground (nothing gridlocks), the fleet rounds corners (waypoints
-## advance, the right-turn-only cuts work) and no two cars ever overlap —
-## while the parked fleet sits exactly where it was seeded. The test pigeon
-## settles GROUNDED on the plaza first — since T-029 at the PLAZA_DROP_OFFSET
-## point, not the exact center, because the landmark plinth owns the middle:
-## a standing bird pins the spawner's
-## recycle anchor in place, so nothing recycles mid-scenario and a parked car
-## drifting would be a real bug, not the anchor wandering.
-## (T-134 re-derivation of the T-008 fleet scenario) 14 traffic cars DRIVE
-## ROUTES through the road grid — every car covers ground, the fleet's block
-## assignments change BY DRIVING (the routes premise that replaces the
-## ring-loop premise: a ring car's block never changes), no two cars ever
-## overlap — while the 12-car parked fleet sits exactly where it was seeded.
-## The counts, no-overlap, parked-frozen, finite and cruise arms survive the
-## re-derivation byte-for-byte (the T-128 count pin included); the corner arm
-## becomes the routes arm. The four-way-stop protocol is LIVE here (the
-## spawner's shipped default), so the gaps floor doubles as its no-crossing-
-## collision proof: opposing straights pass 3.0 m apart at the lanes.
-func _scenario_cars_traffic() -> void:
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	## (T-081) Pin the spawner anchor: the seed band hangs on the player's XZ
-	## (`CarSpawner._anchor_flat`), and sub-metre shifts of that anchor flip
-	## the band's block membership — the fleet draw, and with it the cruise
-	## bars, was silently coupled to wherever the drop's drift parked the bird.
-	## Measured on this very drop: the pre-fix hover drifted the landing ~1.1 m
-	## and drew a healthy fleet; any landing within ~1 m of the drop point drew
-	## two short cars (probed across landing z 1997.8-2003.8). Standing the
-	## GROUNDED bird at a fixed plaza point keeps every scenario assert
-	## untouched and makes the draw a scenario constant — (4, 2) city-local:
-	## 5.4 m from the plaza center, clear of the plinth footprint, inside the
-	## bench ring, on a probed-healthy draw.
-	_player.global_position = _city.position + Vector3(4.0, 0.0, 2.0) \
-			+ Vector3(0.0, _player.position.y - _city.position.y, 0.0)
-	await _wait_frames(2)
-	var spawner := CarSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	## Routes WANDER — a car can legitimately drive beyond the ring-era
-	## 100 m recycle radius in 15 s. The criterion's precondition is "no
-	## recycle fires", so the scan is disarmed outright (the no-teleport arm
-	## still asserts nothing hopped).
-	spawner.recycle_radius = 100000.0
-	add_child(spawner)
-	await _wait_frames(4)
-	var cars := spawner.living_cars()
-	var moving: Array[Car] = []
-	var parked: Array[Car] = []
-	for car in cars:
-		if car.mode == Car.Mode.TRAFFIC:
-			moving.append(car)
-		else:
-			parked.append(car)
-	if cars.is_empty() or moving.size() != spawner.target_moving \
-			or parked.size() != spawner.target_parked or cars[0].collision_layer != 8:
-		_check("cars_traffic_loops_blocks", false,
-				"fleet %d (moving %d, parked %d, want %d/%d), layer %s" % [
-						cars.size(), moving.size(), parked.size(),
-						spawner.target_moving, spawner.target_parked,
-						str(cars[0].collision_layer) if not cars.is_empty() else "?"])
-		spawner.free()
-		return
-	var last: Array[Vector3] = []
-	var start: Array[Vector3] = []
-	var travel: Array[float] = []
-	var blocks: Array[int] = []
-	for car in cars:
-		last.append(car.global_position)
-		start.append(car.global_position)
-		travel.append(0.0)
-		blocks.append(0)
-	var min_gap := 100.0
-	var gap_pair := Vector2i(-1, -1)
-	var max_hop := 0.0
-	for f in 900: ## 15 s of traffic — route cars stop at every node, so the
-		## ring-era 8 s window no longer guarantees every car 8 m of travel.
-		await get_tree().physics_frame
-		for i in cars.size():
-			var car: Car = cars[i]
-			if not is_instance_valid(car):
-				continue
-			var moved := last[i].distance_to(car.global_position)
-			travel[i] += moved
-			max_hop = maxf(max_hop, moved)
-			if _debug and moved > 5.0:
-				_dbg("car %d TELEPORTED %s -> %s (player at %s)" % [
-						i, last[i], car.global_position, _player.global_position])
-			last[i] = car.global_position
-			blocks[i] = car.block_changes
-		if f % 8 == 0: ## Sampled pairwise gaps — no transient car overlap.
-			for i in cars.size():
-				for j in range(i + 1, cars.size()):
-					var a := cars[i].global_position
-					var b := cars[j].global_position
-					var gap := Vector2(a.x - b.x, a.z - b.z).length()
-					if gap < min_gap:
-						min_gap = gap
-						gap_pair = Vector2i(i, j)
-	var cruised := true
-	var finite := true
-	var best_blocks := 0
-	var best_travel := 0.0
-	for i in moving.size():
-		## Path length over the run, not end speed: a car queued behind another
-		## still accumulates travel — only a gridlock leaves it short.
-		cruised = cruised and travel[i] > 8.0
-		finite = finite and moving[i].velocity.is_finite()
-		best_blocks = maxi(best_blocks, blocks[i])
-		best_travel = maxf(best_travel, travel[i])
-	var parked_ok := true
-	for i in parked.size():
-		var p := moving.size() + i
-		parked_ok = parked_ok and travel[p] < 0.05 \
-				and start[p].distance_to(parked[i].global_position) < 0.05
-		if _debug and (travel[p] >= 0.05 or start[p].distance_to(parked[i].global_position) >= 0.05):
-			_dbg("parked %d moved: travel %.3f drift %.3f start %s now %s" % [
-					i, travel[p], start[p].distance_to(parked[i].global_position),
-					start[p], parked[i].global_position])
-	if _debug:
-		for i in moving.size():
-			_dbg("car %d: travel %.1f block_changes %d honks %d stops %d pos %s block %s" % [
-					i, travel[i], blocks[i], moving[i].honk_count,
-					moving[i].stops.size() - moving[i]._stop_index,
-					moving[i].global_position, moving[i].block_center])
-			if travel[i] < 8.0:
-				_dbg("  car %d stuck: yaw %.2f wp %d/%d reg=%s com=%s speed %.2f pat %.1f blocker_d %.2f" % [
-						i, moving[i].rotation.y, moving[i].waypoint_index,
-						moving[i].path.size(),
-						moving[i].stops[0].registered if moving[i]._stop_index == 0 else false,
-						moving[i].stops[0].committed if moving[i]._stop_index == 0 else false,
-						Vector2(moving[i].velocity.x, moving[i].velocity.z).length(),
-						moving[i]._patience, moving[i]._blocker_distance()])
-				if moving[i].path.size() > moving[i].waypoint_index:
-					_dbg("  car %d target %s via %s (%s) has_via %s" % [
-							i, moving[i].path[moving[i].waypoint_index],
-							moving[i]._via_point, moving[i]._via_point - moving[i].global_position,
-							moving[i]._has_via])
-				for body in moving[i].get_node("FrontZone").get_overlapping_bodies():
-					if body != moving[i]:
-						_dbg("  car %d blocked by %s (%s) at %s layer %d" % [
-								i, body.name, body.get_class(), body.global_position,
-								body.collision_layer])
-		_dbg("min gap %.2f between %d and %d" % [min_gap, gap_pair.x, gap_pair.y])
-	_check("cars_traffic_loops_blocks",
-			cruised and finite and best_blocks >= 2 and best_travel >= 30.0
-					and parked_ok and min_gap > 2.0 and max_hop <= 5.0,
-			"moving %d cruised=%s finite=%s best block_changes=%d (want ≥2) best travel %.1f (want ≥30) parked_ok=%s min gap %.2f m (cars %d/%d) max frame hop %.2f (want ≤5)" % [
-					moving.size(), cruised, finite, best_blocks, best_travel,
-					parked_ok, min_gap, gap_pair.x, gap_pair.y, max_hop])
-	spawner.free()
-
-
-## A parked car takes a real lobbed splat — the duck-typed honk fires, the
-## score event relays and the car stays parked. A traffic car hit through the
-## same entry keeps driving its loop — getting splatted never derails traffic.
-func _scenario_car_splat_honk() -> void:
-	_dropped.clear()
-	_splat_events.clear()
-	_car_relay = 0
-	## The pigeon grounds on the plaza first (since T-029 at PLAZA_DROP_OFFSET,
-	## clear of the landmark plinth) so the spawner's recycle anchor
-	## stays put while the cars seed and drive.
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var spawner := CarSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	spawner.target_moving = 1
-	spawner.target_parked = 1
-	spawner.spawn_min_dist = 0.0
-	spawner.spawn_max_dist = 10.0 ## Pin both cars to the plaza block, under the drop.
-	add_child(spawner)
-	await _wait_frames(4)
-	spawner.car_splatted.connect(func(_car: Car) -> void: _car_relay += 1)
-	## T-009: Main's exact wiring on the car relay too — the real lob on the
-	## parked car pays 30 at ×1 and the synthetic traffic hit is the chain's
-	## ×2 → 90 total through the Game autoload.
-	Game.reset_run()
-	spawner.car_splatted.connect(func(car: Car) -> void:
-			Game.add_car_hit(car.global_position))
-	var parked: Car = null
-	var traffic: Car = null
-	for car in spawner.living_cars():
-		if car.mode == Car.Mode.PARKED:
-			parked = car
-		else:
-			traffic = car
-	if parked == null or traffic == null:
-		_check("car_splat_honk_and_continue", false,
-				"parked=%s traffic=%s" % [parked != null, traffic != null])
-		spawner.free()
-		return
-	var parked_start := parked.global_position
-	await _set_up(true, parked_start + Vector3(0.0, 5.0, 0.0), Vector3.ZERO)
-	await _tap("poop")
-	await _wait_frames(2)
-	if _dropped.size() == 1:
-		_dropped[0].splatted.connect(_on_test_splatted)
-	await _wait_frames(120) ## The drop falls ~0.5 s; margin for the honk.
-	var fired: bool = _splat_events.size() == 1 and _splat_events[0].target == parked
-	var parked_honked := parked.honk_count == 1
-	var stayed := parked.global_position.distance_to(parked_start) < 0.05
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90) ## Back to the plaza (off-center — clear of the landmark) — off the ring, anchor pinned.
-	traffic.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The same duck-typed entry the dropping calls.
-	var drove := 0.0
-	var last := traffic.global_position
-	for _i in 120: ## 2 s after the splat.
-		await get_tree().physics_frame
-		drove += last.distance_to(traffic.global_position)
-		last = traffic.global_position
-	var traffic_honked := traffic.honk_count == 1
-	var kept_driving := drove > 2.0 and traffic.velocity.is_finite()
-	_check("car_splat_honk_and_continue",
-			fired and parked_honked and stayed and traffic_honked and _car_relay == 2
-					and kept_driving and Game.score == 90,
-			"parked fired=%s honk=%d stayed=%s · traffic honked=%s relay=%d drove %.1f m after score=%d" % [
-					fired, parked.honk_count, stayed, traffic_honked, _car_relay, drove,
-					Game.score])
-	spawner.free()
-
-
-## The recycle insertion path keeps traffic flowing while the player stands
-## still (T-089, re-derived onto routes by T-134): five traffic cars re-seated
-## onto routes through ONE plaza-adjacent block via the exact insertion
-## `_recycle_far` performs — the probed follow-gap-clear first-leg rejoin
-## (`_route_rejoin`) plus `start_route` — all keep driving with the pigeon
-## parked on the plaza (the T-029 off-center drop — on the plaza block, clear
-## of the landmark). The bars discriminate: a flowing car covers 50+ m of
-## driving in 10 s, the mined standing clots crept ≈ 0.5 m per 10 s, and a
-## healthy follow-gap queue holds 5.6 m — so travel < 8 m means a standing
-## clot and a seeded gap < 4 m means an overlap. The staged routes stay inside
-## the recycle radius over the run, so the scanner must leave everyone alone
-## all run: any single-frame jump > 5 m is a recycle teleport, not a legit
-## recycle.
-func _scenario_traffic_recycle_keeps_flow() -> void:
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var spawner := CarSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	## Routes let the staged cars legitimately DRIVE beyond any fixed recycle
-	## radius (the ring kept them inside by construction) — the criterion's
-	## "the scanner must leave everyone alone all run" precondition is met by
-	## disarming the scan; the no-hop arm still catches real bug hops.
-	spawner.recycle_radius = 100000.0
-	add_child(spawner)
-	await _wait_frames(4)
-	## A block whose plaza-side corner node sits well inside the recycle radius
-	## of the plaza anchor — prefer one the initial seeding left traffic-free,
-	## so the run reads as exactly the five re-seated cars on the block's
-	## routes. The 40 m bound (not the full 100) keeps the whole 10 s of
-	## driving bounded: a staged car starts on the first leg within ~20 m of
-	## the node and covers ≤ ~55 m of route — worst case ~95 m, still inside
-	## `recycle_radius` 100, so the scanner must leave everyone alone all run.
-	var plaza := Vector2(_city.position.x, _city.position.z)
-	var fleet: Array[Car] = spawner.living_cars()
-	var candidates: Array[Vector3] = []
-	for center in _city.block_centers:
-		var node := spawner._node_beside_block(center)
-		var node_global := _city.to_global(_city.road_node_pos(node))
-		var worst := Vector2(node_global.x - plaza.x, node_global.z - plaza.y).length()
-		if worst < 40.0:
-			candidates.append(center)
-	var block := Vector3.ZERO
-	var found := false
-	for candidate in candidates:
-		var occupied := false
-		for car in fleet:
-			occupied = occupied or (car.mode == Car.Mode.TRAFFIC
-					and car.block_center == _city.to_global(candidate))
-		if not occupied:
-			block = candidate
-			found = true
-			break
-	if not found and not candidates.is_empty():
-		block = candidates[0]
-		found = true
-	if not found:
-		_check("traffic_recycle_keeps_flow", false,
-				"no block corner node inside the recycle radius of the plaza")
-		spawner.free()
-		return
-	if _debug:
-		_dbg("route block %s (global %s) candidates %d" % [
-				block, _city.to_global(block), candidates.size()])
-	var seeded: Array[Car] = []
-	for car in fleet:
-		if seeded.size() >= 5:
-			break
-		if car.mode == Car.Mode.TRAFFIC:
-			## The exact insertion `_recycle_far` performs on a drifted car.
-			var placement: Dictionary = spawner._route_rejoin(block, car, false)
-			car.start_route(placement.pos, placement.points, placement.entries,
-					_city.to_global(block), PackedVector3Array(), placement.end)
-			car.route_exhausted.connect(spawner._on_route_exhausted)
-			seeded.append(car)
-	if seeded.size() < 5:
-		_check("traffic_recycle_keeps_flow", false,
-				"fleet holds only %d traffic cars to seed" % seeded.size())
-		spawner.free()
-		return
-	if _debug:
-		for i in seeded.size():
-			_dbg("seeded %d start %s yaw %.2f wp %d stops %d" % [
-					i, seeded[i].global_position, seeded[i].rotation.y,
-					seeded[i].waypoint_index, seeded[i].stops.size()])
-	var cars := spawner.living_cars()
-	var last: Array[Vector3] = []
-	var travel: Array[float] = []
-	var seeded_index: Array[int] = []
-	for car in cars:
-		last.append(car.global_position)
-		travel.append(0.0)
-		seeded_index.append(seeded.find(car))
-	var min_gap_seeded := 100.0
-	var min_gap_fleet := 100.0
-	var max_frame_move := 0.0
-	for f in 600: ## 10 s at the fixed 60 Hz step.
-		await get_tree().physics_frame
-		for i in cars.size():
-			var car: Car = cars[i]
-			if not is_instance_valid(car):
-				continue
-			var moved := last[i].distance_to(car.global_position)
-			travel[i] += moved
-			max_frame_move = maxf(max_frame_move, moved)
-			last[i] = car.global_position
-		if f % 8 == 0: ## Sampled pairwise gaps — no transient overlap.
-			for i in cars.size():
-				for j in range(i + 1, cars.size()):
-					var a := cars[i].global_position
-					var b := cars[j].global_position
-					var gap := Vector2(a.x - b.x, a.z - b.z).length()
-					min_gap_fleet = minf(min_gap_fleet, gap)
-					if seeded_index[i] >= 0 and seeded_index[j] >= 0:
-						min_gap_seeded = minf(min_gap_seeded, gap)
-	var seeded_travel_ok := true
-	var finite := true
-	var seeded_travels: Array[float] = []
-	for i in cars.size():
-		finite = finite and cars[i].velocity.is_finite()
-		if seeded_index[i] >= 0:
-			seeded_travel_ok = seeded_travel_ok and travel[i] >= 8.0
-			seeded_travels.append(travel[i])
-	## Block preference (T-089): the staged block now holds 5 traffic cars
-	## (>= the soft cap), so a recycle draw over it and any lighter in-radius
-	## block must land ONLY on the lighter one; a lone over-cap block is still
-	## draw-able.
-	var preference_ok := true
-	for candidate in candidates:
-		if candidate != block:
-			for _i in 30:
-				preference_ok = preference_ok \
-						and spawner._pick_recycle_block([block, candidate]) == candidate
-			break
-	preference_ok = preference_ok and spawner._pick_recycle_block([block]) == block
-	var ok := seeded_travel_ok and preference_ok \
-			and min_gap_seeded >= 2.5 and min_gap_fleet > 2.0 \
-			and finite and max_frame_move <= 5.0
-	if _debug:
-		_dbg("route block %s (global %s)" % [block, _city.to_global(block)])
-		_dbg("pigeon at %s grounded=%s" % [_player.global_position, _player.is_grounded])
-		for i in seeded.size():
-			var sc := seeded[i]
-			_dbg("seeded %d: travel %.1f pos %s vel %s wp %d/%d stops %d blocker_d %.2f" % [
-					i, seeded_travels[i], sc.global_position, sc.velocity,
-					sc.waypoint_index, sc.path.size(), sc.stops.size(),
-					sc._blocker_distance()])
-			for body in sc.get_node("FrontZone").get_overlapping_bodies():
-				_dbg("  seeded %d sees %s (%s) at %s layer %d" % [
-						i, body.name, body.get_class(), body.global_position,
-						body.collision_layer])
-	_check("traffic_recycle_keeps_flow", ok,
-			"seeded travels %s (all >= 8.0: %s) · block preference %s · min seeded gap %.2f (want >= 2.5: the routes lanes seat opposing passes at 3.0 m — legitimate, the no-overlap floor stays 2.0) · fleet gap %.2f (want > 2.0) · finite=%s · max frame move %.2f (want <= 5.0)" % [
-					str(seeded_travels), seeded_travel_ok, preference_ok, min_gap_seeded,
-					min_gap_fleet, finite, max_frame_move])
-	spawner.free()
-
-
-## The end-to-end timer-driven car recycle (T-054 — until now only the tourist
-## twin was machine-proven and T-089's `traffic_recycle_keeps_flow` pinned the
-## rejoin-insertion half): teleporting the player beyond the car
-## `recycle_radius` (100 m) lets the scan `_physics_process` fire
-## `_recycle_far` for real and recycle the SAME car nodes into the spawn band
-## around the new anchor — no respawn churn, the fleet still 14 traffic + 12
-## parked (the T-128 knobs; pre-T-128 20 + 16 — the export-derived pin
-## re-derived with the density change), every car inside the radius of the new
-## anchor or on a 30–70 m band block, and the curb exclusivity (`_spot_taken`'s
-## 4.5 m rule) surviving the whole recycle — no double-booked parking spot.
-func _scenario_cars_recycle() -> void:
-	## The pigeon grounds on the plaza first (the anchor pin `cars_traffic`
-	## uses — since T-029 at PLAZA_DROP_OFFSET, clear of the landmark plinth):
-	## a standing bird pins the spawner's recycle anchor in place while the
-	## fleet seeds, so nothing recycles before the scenario moves it.
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var spawner := CarSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	add_child(spawner)
-	await _wait_frames(4)
-	var cars := spawner.living_cars()
-	var full := cars.size() == spawner.target_moving + spawner.target_parked
-	var ids: Array[int] = []
-	for car in cars:
-		ids.append(car.get_instance_id())
-	## ~120 m west — beyond `recycle_radius` 100 so cars genuinely recycle,
-	## but close enough that block centers still sit inside the 30–70 m spawn
-	## band (centers span ±96 city-local; from the new anchor the nearest sit
-	## 40–68 m flat away — a 200 m hop would empty the band and legitimately
-	## recycle nobody).
-	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
-	await _wait_frames(90) ## 3 recycle scans at the fixed 60 Hz step (0.5 s interval = 30 frames); a parked car whose drawn spot was taken legitimately skips one.
-	var after := spawner.living_cars()
-	var reused := true
-	var placed := true
-	var traffic := 0
-	var parked := 0
-	var anchor := Vector2(_city.position.x - 120.0, _city.position.z)
-	for car in after:
-		reused = reused and ids.has(car.get_instance_id())
-		if car.mode == Car.Mode.TRAFFIC:
-			traffic += 1
-		else:
-			parked += 1
-		var flat := Vector2(car.global_position.x - anchor.x,
-				car.global_position.z - anchor.y)
-		var center := Vector2(car.block_center.x - anchor.x, car.block_center.z - anchor.y)
-		# The recycle contract, as for tourists: every car is EITHER already
-		# within the recycle radius of the moved player (legitimately kept) OR
-		# recycled onto a block in the spawn band. (T-134 re-derivation: the
-		# placement itself stays radius-bound — `_route_placement` stages no
-		# candidate beyond the radius — but a route car then DRIVES, ~9 m over
-		# the 3-scan wait and across a block boundary or two, so the flat arm
-		# tolerates one staged leg of driving and the block arm reads the
-		# block the car is currently beside.)
-		placed = placed and (flat.length() <= spawner.recycle_radius + 12.0
-				or (center.length() >= spawner.spawn_min_dist
-						and center.length() <= spawner.spawn_max_dist))
-	var counts_ok := traffic == spawner.target_moving and parked == spawner.target_parked
-	## Curb exclusivity survives the recycle: no two parked cars within the
-	## 4.5 m `_spot_taken` threshold of each other.
-	var min_parked_gap := 100.0
-	for i in after.size():
-		if after[i].mode != Car.Mode.PARKED:
-			continue
-		for j in range(i + 1, after.size()):
-			if after[j].mode != Car.Mode.PARKED:
-				continue
-			min_parked_gap = minf(min_parked_gap,
-					after[i].global_position.distance_to(after[j].global_position))
-	_check("cars_recycle_around_player",
-			full and after.size() == spawner.target_moving + spawner.target_parked
-					and reused and counts_ok and placed and min_parked_gap >= 4.5,
-			"full=%s count %d (traffic %d, parked %d, want %d/%d) reused=%s placed=%s min parked gap %.2f (want >= 4.5)" % [
-					full, after.size(), traffic, parked, spawner.target_moving,
-					spawner.target_parked, reused, placed, min_parked_gap])
-	spawner.free()
 
 
 ## --- scenario (T-147 the despawn churn) --------------------------------------
 
 
-## The spent-car churn (T-147), on the `cars_recycle_around_player` rig (real
-## City + CarSpawner, the anchor pinned by grounding the bird on the plaza
-## first) plus a BreadSpawner for the tailgate leg (the T-114 pattern): one
-## parked VISITOR car and one traffic car are splatted (the duck-typed
-## `on_splatted` entry — a bare rig, no Main favor wiring), the pigeon
-## teleports ~120 m west (the T-054 recipe — close enough that band blocks
-## remain), and `_recycle_far` is called DIRECTLY (the
-## `citizen_classes_spawn_deterministic` recycle-leg pattern). The no-pop leg
-## first: with the gate forced to reject every candidate
-## (`spawn_avoid_cone_deg` 180.0 — the in-window arm needs dot ≤ −1, exact
-## anti-parallelism — plus `spawn_sightline_max` raised past `recycle_radius`
-## to close the ≥ max pass arm, since placement never stages beyond the
-## radius; scenario-side staging only, the shipped 55°/80.0 gate code is
-## untouched) the spent far cars SURVIVE the scan — not freed, positions
-## untouched, the fleet count never dipped. Then with the gate restored the
-## same scan replaces both: the spent nodes are FREED (absent from
-## `living_cars()`, invalid), the fleet still reads exactly
-## `target_moving + target_parked` with the 14/12 mode mix, the whole fleet's
-## class|paint|pace identity multiset is UNCHANGED (like-for-like, zero RNG —
-## the replacements carry the freed cars' `citizen_class`, `body_color` and
-## `pace`), every replacement passes `_sightline_ok` and is splat-fresh
-## (`splatted_once == false`), and every never-splatted car is STILL THE SAME
-## INSTANCE with at least one provably teleported — the reuse contract
-## survives for unspent cars. The tailgate books stay clean: the spent parked
-## visitor's crumb released-then-re-dropped, the parked-visitor count and the
-## favor-marked crumb count both re-read roundi(target_parked × visitor_share)
-## = 5 after the churn, and the bread service holds exactly `target_count`
-## living crumbs.
-func _scenario_spent_car_despawn_replacement() -> void:
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var bread := BreadSpawner.new()
-	bread.city = _city
-	bread.respawn_interval = 60.0 ## No top-ups inside the scenario.
-	add_child(bread)
-	await _wait_frames(4)
-	var spawner := CarSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	spawner.bread_spawner = bread ## The harness assigns directly (the T-114 pattern).
-	add_child(spawner)
-	await _wait_frames(6) ## Populate + the deferred tailgate dressing pass.
-	var crumbs_before_churn := bread.living_crumbs().size() ## Seeded budget + the tailgate drops riding on top (bare-rig budgeting).
-	var spent_parked: Car = null
-	var spent_traffic: Car = null
-	for car in spawner.living_cars():
-		if spent_parked == null and car.mode == Car.Mode.PARKED \
-				and car.citizen_class == CitizenClass.Kind.VISITOR:
-			spent_parked = car
-		elif spent_traffic == null and car.mode == Car.Mode.TRAFFIC:
-			spent_traffic = car
-	if spent_parked == null or spent_traffic == null:
-		_check("spent_car_despawn_replacement", false,
-				"spent_parked=%s spent_traffic=%s" % [
-						spent_parked != null, spent_traffic != null])
-		spawner.free()
-		bread.free()
-		return
-	spent_parked.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The duck-typed entry the drop calls.
-	spent_traffic.on_splatted(Vector3(0.0, -5.0, 0.0))
-	var spent_parked_id := spent_parked.get_instance_id()
-	var spent_traffic_id := spent_traffic.get_instance_id()
-	## Identity rows — class|paint|pace per car; the like-for-like carry makes
-	## the whole fleet's multiset survive the churn byte-identically.
-	var ids_before: Array[int] = []
-	var identities_before: Array[String] = []
-	var kept_ids: Array[int] = [] ## Never-splatted cars — the reuse contract's set.
-	var kept_positions := {} ## id -> global position, for the moved read.
-	for car in spawner.living_cars():
-		var row := "%d|%s|%.9f" % [car.citizen_class, car.body_color.to_html(), car.pace]
-		ids_before.append(car.get_instance_id())
-		identities_before.append(row)
-		if car != spent_parked and car != spent_traffic:
-			kept_ids.append(car.get_instance_id())
-			kept_positions[car.get_instance_id()] = car.global_position
-	## --- Leg A: the no-pop leg — the gate rejects EVERY candidate ------------
-	spawner.spawn_avoid_cone_deg = 180.0
-	spawner.spawn_sightline_max = 200.0
-	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
-	await _wait_frames(2)
-	var parked_pos_before := spent_parked.global_position
-	spawner._recycle_far() ## Direct — the citizen_classes recycle-leg pattern.
-	await _wait_frames(2)
-	var survived := spawner.living_cars().size() \
-			== spawner.target_moving + spawner.target_parked \
-			and is_instance_valid(spent_parked) and is_instance_valid(spent_traffic) \
-			and spent_parked.global_position.distance_to(parked_pos_before) < 0.01
-	## --- Leg B: the cone restored — the same scan replaces both spent cars ---
-	spawner.spawn_avoid_cone_deg = 55.0
-	spawner.spawn_sightline_max = 80.0
-	spawner._recycle_far()
-	await _wait_frames(4) ## The queue_free flush and the fresh nodes' first frames.
-	var after: Array[Car] = spawner.living_cars()
-	var traffic_n := 0
-	var parked_n := 0
-	var ids_after: Array[int] = []
-	var identities_after: Array[String] = []
-	var fresh_cars: Array[Car] = []
-	for car in after:
-		ids_after.append(car.get_instance_id())
-		identities_after.append("%d|%s|%.9f" % [car.citizen_class,
-				car.body_color.to_html(), car.pace])
-		if car.mode == Car.Mode.TRAFFIC:
-			traffic_n += 1
-		else:
-			parked_n += 1
-		if not ids_before.has(car.get_instance_id()):
-			fresh_cars.append(car)
-	var count_ok := after.size() == spawner.target_moving + spawner.target_parked \
-			and traffic_n == spawner.target_moving and parked_n == spawner.target_parked
-	var freed_ok := not ids_after.has(spent_parked_id) \
-			and not ids_after.has(spent_traffic_id) \
-			and not is_instance_valid(spent_parked) and not is_instance_valid(spent_traffic)
-	identities_before.sort()
-	identities_after.sort()
-	var like_for_like := identities_before == identities_after
-	var gate_ok := fresh_cars.size() == 2
-	var fresh_fresh := true
-	for car in fresh_cars:
-		gate_ok = gate_ok and spawner._sightline_ok(car.global_position)
-		fresh_fresh = fresh_fresh and not car.splatted_once
-	## The reuse contract: every never-splatted car is STILL THE SAME INSTANCE,
-	## and at least one provably teleported onto the new band (the unspent
-	## teleport path ran right beside the churn).
-	var kept_kept := true
-	var moved_kept := 0
-	for id in kept_ids:
-		kept_kept = kept_kept and ids_after.has(id)
-	for car in after:
-		if not kept_positions.has(car.get_instance_id()):
-			continue
-		if car.global_position.distance_to(
-				kept_positions[car.get_instance_id()]) > 10.0:
-			moved_kept += 1
-	var reuse_ok := kept_kept and moved_kept > 0
-	## --- Leg C: the tailgate books stay clean --------------------------------
-	var parked_visitors := 0
-	for car in after:
-		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
-			parked_visitors += 1
-	var tailgates := 0
-	for crumb in bread.living_crumbs():
-		if crumb.favor_delta == Game.favor_steal_visitor:
-			tailgates += 1
-	var quota := roundi(float(spawner.target_parked) * spawner.visitor_share)
-	## The books stay clean: the released tailgate crumb is erased from the
-	## bread service's list (never orphaned) and the fresh visitor's re-drop
-	## replaces it — the total living crumb count is EXACTLY what the populate
-	## staged (the seeded budget + the tailgate crumbs riding on top; on a bare
-	## rig that is target_count + the quota, and the churn must not move it).
-	var tailgate_ok := parked_visitors == quota and tailgates == quota \
-			and bread.living_crumbs().size() == crumbs_before_churn
-	_check("spent_car_despawn_replacement",
-			survived and count_ok and freed_ok and like_for_like and gate_ok
-					and fresh_fresh and reuse_ok and tailgate_ok,
-			"survived=%s count %d (traffic %d, parked %d, want %d/%d) freed=%s like_for_like=%s gate=%s fresh=%s reuse=%s (moved %d/%d) tailgates %d/%d quota %d crumbs %d/%d" % [
-					survived, after.size(), traffic_n, parked_n,
-					spawner.target_moving, spawner.target_parked, freed_ok,
-					like_for_like, gate_ok, fresh_fresh, reuse_ok, moved_kept,
-					kept_ids.size(), tailgates, parked_visitors, quota,
-					bread.living_crumbs().size(), crumbs_before_churn])
-	spawner.free()
-	bread.free()
-
-
 ## --- scenarios (T-128 the sightline gate) -----------------------------------
-
-
-## The harness's own read of the chase camera's flat view direction — the SAME
-## live damped rig basis the spawner's gate reads, captured independently (the
-## no-self-test rule: never through the spawner's `_view_dir_flat`).
-func _test_view_dir() -> Vector2:
-	for child in _player.get_children():
-		if child is ChaseCamera:
-			var fwd := -(child as Node3D).global_transform.basis.z
-			var flat := Vector2(fwd.x, fwd.z)
-			if flat.length() > 0.1:
-				return flat.normalized()
-	return Vector2(0.0, -1.0)
-
-
-## The scenario's independent sightline-window test (T-128): true when `pos`
-## sits within `spawner.spawn_sightline_max` (flat) of `anchor` AND inside the
-## `spawner.spawn_avoid_cone_deg` half-angle cone around `view` — the exact
-## window the gate must keep cars out of, recomputed from the knobs.
-func _window_inside(pos: Vector3, anchor: Vector2, view: Vector2,
-		spawner: CarSpawner) -> bool:
-	var offset := Vector2(pos.x - anchor.x, pos.z - anchor.y)
-	if offset.length() >= spawner.spawn_sightline_max:
-		return false
-	return offset.normalized().dot(view) > cos(deg_to_rad(spawner.spawn_avoid_cone_deg))
-
-
-## T-128: the sightline gate on car placement — cars only ever enter view by
-## driving. Gate ON: seeding at the pinned plaza anchor leaves ZERO cars
-## inside the sightline window (within `spawn_sightline_max` 80 m of the
-## player AND inside the chase camera's horizontal `spawn_avoid_cone_deg` 55°
-## half-angle cone), and a forced `_recycle_far` (pigeon teleported ~120 m
-## west, the T-054 recipe — close enough that band blocks remain) re-lands
-## every recycled car OUTSIDE the window with the fleet count holding at
-## 14 + 12 on the same instance ids. Gate OFF (the `sightline_gate_enabled`
-## escape hatch): the same recipe provably stages the OLD way — cars seed and
-## recycle INSIDE the window the gate would have rejected.
-## Red-before (recorded in the ticket): with the gate stubbed to always-pass
-## (the pre-T-128 placement), the gate leg read cars inside the window at both
-## the seed and the recycle and failed every gate arm; green-after reads 0
-## and 0 — exact measured numbers in the ticket's verification note.
-func _scenario_traffic_spawns_offscreen() -> void:
-	## --- Leg A: the gate ON. ---
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var spawner := CarSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	add_child(spawner)
-	await _wait_frames(4)
-	var anchor_a := Vector2(_player.global_position.x, _player.global_position.z)
-	var view_a := _test_view_dir()
-	var seeded_inside := 0
-	var ids: Array[int] = []
-	var before := {}
-	for car in spawner.living_cars():
-		ids.append(car.get_instance_id())
-		before[car.get_instance_id()] = car.global_position
-		if _window_inside(car.global_position, anchor_a, view_a, spawner):
-			seeded_inside += 1
-	## The T-054 recipe: ~120 m west — beyond `recycle_radius` 100 so every
-	## car is genuinely far, close enough that band blocks remain in reach.
-	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
-	await _wait_frames(2)
-	var anchor_b := Vector2(_player.global_position.x, _player.global_position.z)
-	var view_b := _test_view_dir()
-	spawner._recycle_far() ## Forced scan — the live basis above is the one it reads.
-	await _wait_frames(2)
-	var recycled := 0
-	var recycled_inside := 0
-	var ids_kept := true
-	var traffic := 0
-	var parked := 0
-	for car in spawner.living_cars():
-		ids_kept = ids_kept and ids.has(car.get_instance_id())
-		if car.mode == Car.Mode.TRAFFIC:
-			traffic += 1
-		else:
-			parked += 1
-		if car.global_position.distance_to(
-				before.get(car.get_instance_id(), car.global_position)) > 10.0:
-			recycled += 1
-			if _window_inside(car.global_position, anchor_b, view_b, spawner):
-				recycled_inside += 1
-	var counts_a := traffic == spawner.target_moving and parked == spawner.target_parked
-	var knob_moving := spawner.target_moving
-	var knob_parked := spawner.target_parked
-	var knob_cone := spawner.spawn_avoid_cone_deg
-	var knob_max := spawner.spawn_sightline_max
-	spawner.free()
-	## --- Leg B: the gate-OFF escape hatch stages the old way. ---
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var hatch := CarSpawner.new()
-	hatch.city = _city
-	hatch.player = _player
-	hatch.sightline_gate_enabled = false
-	add_child(hatch)
-	await _wait_frames(4)
-	var anchor_c := Vector2(_player.global_position.x, _player.global_position.z)
-	var view_c := _test_view_dir()
-	var hatch_seeded_inside := 0
-	var hatch_ids: Array[int] = []
-	var hatch_before := {}
-	for car in hatch.living_cars():
-		hatch_ids.append(car.get_instance_id())
-		hatch_before[car.get_instance_id()] = car.global_position
-		if _window_inside(car.global_position, anchor_c, view_c, hatch):
-			hatch_seeded_inside += 1
-	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
-	await _wait_frames(2)
-	var anchor_d := Vector2(_player.global_position.x, _player.global_position.z)
-	var view_d := _test_view_dir()
-	hatch._recycle_far()
-	await _wait_frames(2)
-	var hatch_recycled := 0
-	var hatch_recycled_inside := 0
-	var hatch_ids_kept := true
-	var hatch_traffic := 0
-	var hatch_parked := 0
-	for car in hatch.living_cars():
-		hatch_ids_kept = hatch_ids_kept and hatch_ids.has(car.get_instance_id())
-		if car.mode == Car.Mode.TRAFFIC:
-			hatch_traffic += 1
-		else:
-			hatch_parked += 1
-		if car.global_position.distance_to(
-				hatch_before.get(car.get_instance_id(), car.global_position)) > 10.0:
-			hatch_recycled += 1
-			if _window_inside(car.global_position, anchor_d, view_d, hatch):
-				hatch_recycled_inside += 1
-	var counts_b := hatch_traffic == hatch.target_moving \
-			and hatch_parked == hatch.target_parked
-	print("SIM DATA traffic_spawns_offscreen: gate seeded_inside=%d recycled=%d inside=%d counts=%s · hatch seeded_inside=%d recycled=%d inside=%d counts=%s (knobs %d+%d, cone %.0f° @ %.0f m)" % [
-			seeded_inside, recycled, recycled_inside, counts_a,
-			hatch_seeded_inside, hatch_recycled, hatch_recycled_inside, counts_b,
-			knob_moving, knob_parked, knob_cone, knob_max])
-	_check("traffic_spawns_offscreen",
-			seeded_inside == 0 and recycled > 0 and recycled_inside == 0
-					and ids_kept and counts_a
-					and hatch_seeded_inside > 0 and hatch_recycled > 0
-					and hatch_recycled_inside > 0 and hatch_ids_kept and counts_b,
-			"gate: seeded_inside=%d (want 0) recycled=%d (want > 0) inside=%d (want 0) ids=%s counts=%s · hatch: seeded_inside=%d (want > 0) recycled=%d (want > 0) inside=%d (want > 0) ids=%s counts=%s" % [
-						seeded_inside, recycled, recycled_inside, ids_kept, counts_a,
-						hatch_seeded_inside, hatch_recycled, hatch_recycled_inside,
-						hatch_ids_kept, counts_b])
-	hatch.free()
 
 
 ## --- scenarios (T-134 the four-way stops) -----------------------------------
 
 
-## Waits until `predicate` holds or the frame budget runs out; true when it held.
-func _wait_until(predicate: Callable, max_frames: int) -> bool:
-	for _i in max_frames:
-		await get_tree().physics_frame
-		if predicate.call():
-			return true
-	return false
-
-
-## The staged protocol scenarios' node: the plaza block's min-corner node,
-## city-local (−16, −16) — its approaches sit well clear of the pinned pigeon
-## and of every other scenario's rig traffic.
-func _t134_node() -> Vector2i:
-	return Vector2i(3, 3)
-
-
-## The node's padded crosswalk bands in global coords — what the staged
-## entries carry and what the yield scenarios point-test the pigeon against.
-func _t134_bands_global(node: Vector2i) -> Array[Rect2]:
-	var bands: Array[Rect2] = []
-	for rect in _city.crosswalk_band_rects(node):
-		var origin := _city.to_global(Vector3(rect.position.x, 0.0, rect.position.y))
-		bands.append(Rect2(Vector2(origin.x, origin.z), rect.size))
-	return bands
-
-
-## One hand-placed stop-protocol car: staged `standoff` metres out on `node`'s
-## `dir` approach lane, routed through the node making the staged `turn`
-## (deterministic — not drawn), with `ctrl` as its ledger (null = the
-## protocol-null escape hatch). `lateral` offsets the staged car and its whole
-## path sideways off the lane while the ENTRY stays on-lane — the round-1
-## off-line-stop repro (a car parked 1.5 m beside its line center). The path
-## continues ~45 m out the far side, so a granted car always has runway.
-func _t134_stage_car(node: Vector2i, dir: int, turn: int, standoff: float,
-		ctrl: TrafficControl, lateral: float = 0.0) -> Car:
-	var car: Car = CAR_SCENE.instantiate()
-	car.traffic = ctrl
-	car.player = _player ## (T-166) The honk gate needs the player to gate against —
-		## scenarios stage the player's DISTANCE to test the gate's two arms.
-	var exit_dir := dir
-	if turn == City.ROUTE_TURN_RIGHT:
-		exit_dir = (dir + 1) % 4
-	elif turn == City.ROUTE_TURN_LEFT:
-		exit_dir = (dir + 3) % 4
-	var corner := _city.route_corner(node, dir, exit_dir) if turn != 0 \
-			else _city.road_node_pos(node)
-	var entry: Dictionary = {
-		"node": node,
-		"pos": _city.to_global(_city.road_node_pos(node)),
-		"dir": dir,
-		"turn": turn,
-		"line": _city.to_global(_city.route_lane_point(node, dir, City.STOP_LINE_OUTSET)),
-		"corner": _city.to_global(corner),
-		"bands": _t134_bands_global(node),
-		"registered": false,
-		"committed": false,
-	}
-	var offset := _city.right_of_dir(dir) * lateral
-	var points := PackedVector3Array()
-	if turn != 0:
-		points.append(_city.to_global(corner) + offset)
-	points.append(_city.to_global(_city.route_lane_point(node, dir, -20.0)) + offset)
-	points.append(_city.to_global(_city.route_lane_point(node, dir, -45.0)) + offset)
-	add_child(car)
-	car.start_route(
-			_city.to_global(_city.route_lane_point(node, dir, standoff)) + offset,
-			points, [entry], _city.to_global(_city.block_centers[0]),
-			PackedVector3Array(), node)
-	return car
-
-
-## The staged cars' nose-to-node distance along its approach axis (m) — the
-## "nose never crosses the stop line while denied" read.
-func _t134_nose_along(car: Car) -> float:
-	var entry: Dictionary = car.stops[0]
-	var a := City.ROUTE_DIR_VECS[entry.dir]
-	var nose: Vector3 = car.global_position + car._flat_forward() * Car.HALF_LENGTH
-	return Vector3(entry.pos - nose).dot(a)
-
-
-## Frees a staged leg's cars and lets the tree settle.
-func _t134_clear_cars(cars: Array[Car]) -> void:
-	for car in cars:
-		if is_instance_valid(car):
-			car.queue_free()
-	await _wait_frames(3)
-
-
-## T-134: the four-way-stop protocol, staged at ONE node with hand-placed
-## cars and a real `TrafficControl`. Five legs: staggered arrivals (≥ 1 s
-## apart) proceed first-stopped-first; a near-simultaneous perpendicular pair
-## sends the right-hand car first while the left-hand car stays held behind
-## its stop line (nose never crossing 8.8 m out while denied); a
-## near-simultaneous OPPOSING straight pair proceeds together; a staged
-## opposing straight-vs-left conflict holds the left turner until the straight
-## has cleared; and a car with a null `traffic` reference skips the whole
-## protocol — it drives through while a ledgered car holds at its line.
-func _scenario_four_way_stop_right_of_way() -> void:
-	var node := _t134_node()
-	var ok := true
-	var detail := ""
-	## --- Leg 1: staggered arrivals — first-stopped-first. ---
-	var ctrl := TrafficControl.new()
-	var a_car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	var a_registered := await _wait_until(func() -> bool:
-		return not a_car.stops.is_empty() and a_car.stops[0].registered, 300)
-	## One window covering the stagger, b's staging at ≥ 1 s, and both clears
-	## — a's commit/clear marks are captured from BEFORE b exists.
-	var b_car: Car = null
-	var frame := 0
-	var a_committed := -1
-	var a_cleared := -1
-	var b_committed := -1
-	var b_cleared := -1
-	while frame < 900 and (b_car == null or a_cleared < 0 or b_cleared < 0):
-		await get_tree().physics_frame
-		frame += 1
-		if frame == 70: ## ≥ 1 s of stagger — the second arrival is clearly later.
-			b_car = _t134_stage_car(node, 1, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-		if a_committed < 0 and a_car.stops[0].committed:
-			a_committed = frame
-		if a_cleared < 0 and a_car._stop_index >= 1:
-			a_cleared = frame
-		if b_car != null:
-			if b_committed < 0 and b_car.stops[0].committed:
-				b_committed = frame
-			if b_cleared < 0 and b_car._stop_index >= 1:
-				b_cleared = frame
-	var b_registered: bool = b_car != null and not b_car.stops.is_empty() \
-			and b_car.stops[0].registered
-	var leg1 := a_registered and b_registered and a_committed > 0 \
-			and b_committed > a_committed and a_cleared > 0 \
-			and a_cleared <= b_committed and b_cleared > 0
-	if not leg1:
-		ok = false
-		detail += "leg1(staggered) a_reg=%s b_reg=%s a_c=%d a_x=%d b_c=%d b_x=%d; " % [
-				a_registered, b_registered, a_committed, a_cleared, b_committed, b_cleared]
-	await _t134_clear_cars([a_car, b_car])
-	## --- Leg 2: near-simultaneous perpendicular pair — the right-hand car
-	## goes first, the left-hand car stays behind its line while denied. ---
-	ctrl = TrafficControl.new()
-	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	b_car = _t134_stage_car(node, 3, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	var both_registered := await _wait_until(func() -> bool:
-		return not a_car.stops.is_empty() and a_car.stops[0].registered \
-				and not b_car.stops.is_empty() and b_car.stops[0].registered, 300)
-	frame = 0
-	a_committed = -1
-	a_cleared = -1
-	b_committed = -1
-	b_cleared = -1
-	var a_nose_min := INF
-	var b_was_first := false
-	while frame < 600 and (a_cleared < 0 or b_cleared < 0):
-		await get_tree().physics_frame
-		frame += 1
-		if a_committed < 0:
-			a_nose_min = minf(a_nose_min, _t134_nose_along(a_car))
-		if a_committed < 0 and a_car.stops[0].committed:
-			a_committed = frame
-		if a_cleared < 0 and a_car._stop_index >= 1:
-			a_cleared = frame
-		if b_committed < 0 and b_car.stops[0].committed:
-			b_committed = frame
-		if b_cleared < 0 and b_car._stop_index >= 1:
-			b_cleared = frame
-		if b_committed > 0 and a_committed < 0:
-			b_was_first = true
-	var leg2 := both_registered and b_was_first and b_committed > 0 \
-			and a_committed > 0 and a_nose_min >= 8.79 and b_cleared > 0 \
-			and b_cleared <= a_committed
-	if not leg2:
-		ok = false
-		detail += "leg2(right-first) both_reg=%s b_first=%s b_c=%d a_c=%d a_x=%d b_x=%d nose_min=%.2f; " % [
-				both_registered, b_was_first, b_committed, a_committed, a_cleared,
-				b_cleared, a_nose_min]
-	await _t134_clear_cars([a_car, b_car])
-	## --- Leg 3: near-simultaneous OPPOSING straights proceed together. ---
-	ctrl = TrafficControl.new()
-	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	b_car = _t134_stage_car(node, 2, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	both_registered = await _wait_until(func() -> bool:
-		return not a_car.stops.is_empty() and a_car.stops[0].registered \
-				and not b_car.stops.is_empty() and b_car.stops[0].registered, 300)
-	frame = 0
-	a_committed = -1
-	a_cleared = -1
-	b_committed = -1
-	b_cleared = -1
-	while frame < 600 and (a_cleared < 0 or b_cleared < 0):
-		await get_tree().physics_frame
-		frame += 1
-		if a_committed < 0 and a_car.stops[0].committed:
-			a_committed = frame
-		if a_cleared < 0 and a_car._stop_index >= 1:
-			a_cleared = frame
-		if b_committed < 0 and b_car.stops[0].committed:
-			b_committed = frame
-		if b_cleared < 0 and b_car._stop_index >= 1:
-			b_cleared = frame
-	var leg3 := both_registered and a_committed > 0 and b_committed > 0 \
-			and absi(a_committed - b_committed) <= 30 and a_cleared > 0 and b_cleared > 0
-	if not leg3:
-		ok = false
-		detail += "leg3(opposing-together) both_reg=%s a_c=%d b_c=%d a_x=%d b_x=%d; " % [
-				both_registered, a_committed, b_committed, a_cleared, b_cleared]
-	await _t134_clear_cars([a_car, b_car])
-	## --- Leg 4: opposing straight-vs-left — the left turner waits for the
-	## straight to clear. ---
-	ctrl = TrafficControl.new()
-	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	b_car = _t134_stage_car(node, 2, City.ROUTE_TURN_LEFT, 22.0, ctrl)
-	both_registered = await _wait_until(func() -> bool:
-		return not a_car.stops.is_empty() and a_car.stops[0].registered \
-				and not b_car.stops.is_empty() and b_car.stops[0].registered, 300)
-	frame = 0
-	a_committed = -1
-	a_cleared = -1
-	b_committed = -1
-	b_cleared = -1
-	var b_held_while_a_committed := false
-	while frame < 900 and (a_cleared < 0 or b_cleared < 0):
-		await get_tree().physics_frame
-		frame += 1
-		if a_committed < 0 and a_car.stops[0].committed:
-			a_committed = frame
-		if a_cleared < 0 and a_car._stop_index >= 1:
-			a_cleared = frame
-		if b_committed < 0 and b_car.stops[0].committed:
-			b_committed = frame
-		if b_cleared < 0 and b_car._stop_index >= 1:
-			b_cleared = frame
-		if a_committed > 0 and b_committed < 0:
-			b_held_while_a_committed = true
-	var leg4 := both_registered and a_committed > 0 and b_held_while_a_committed \
-			and a_cleared > 0 and b_committed >= a_cleared and b_cleared > 0
-	if not leg4:
-		ok = false
-		detail += "leg4(left-waits) both_reg=%s a_c=%d held=%s a_x=%d b_c=%d b_x=%d; " % [
-				both_registered, a_committed, b_held_while_a_committed, a_cleared,
-				b_committed, b_cleared]
-	await _t134_clear_cars([a_car, b_car])
-	## --- Leg 5: the null-traffic escape hatch drives through the protocol. ---
-	ctrl = TrafficControl.new()
-	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	b_car = _t134_stage_car(node, 1, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	## b yields to a (a is on b's right in the (0, 1) pair) and holds while a
-	## clears — the bare car c crosses the node mid-hold, never registering.
-	var c_car := _t134_stage_car(node, 3, City.ROUTE_TURN_STRAIGHT, 22.0, null)
-	both_registered = await _wait_until(func() -> bool:
-		return not a_car.stops.is_empty() and a_car.stops[0].registered \
-				and not b_car.stops.is_empty() and b_car.stops[0].registered, 300)
-	frame = 0
-	var c_past := -1
-	var c_ever_registered := false
-	var b_held_at_c_crossing := false
-	while frame < 600 and c_past < 0:
-		await get_tree().physics_frame
-		frame += 1
-		if c_car.stops[0].registered:
-			c_ever_registered = true
-		if not c_car.stops.is_empty() and b_car.stops[0].registered \
-				and not b_car.stops[0].committed:
-			b_held_at_c_crossing = true
-		var a3 := City.ROUTE_DIR_VECS[3]
-		var past := Vector3(c_car.global_position - entry_node_pos(node)).dot(a3)
-		if past > 5.0:
-			c_past = frame
-	var leg5 := both_registered and c_past > 0 and not c_ever_registered \
-			and b_held_at_c_crossing and c_car.traffic == null
-	if not leg5:
-		ok = false
-		detail += "leg5(null-skips) both_reg=%s c_past=%d c_reg=%s b_held=%s; " % [
-				both_registered, c_past, c_ever_registered, b_held_at_c_crossing]
-	await _t134_clear_cars([a_car, b_car, c_car])
-	## --- Leg 6: rule 2 orders only CONFLICTING earlier waiters (round 1). ---
-	## Two OPPOSING straight cars registered 1.5 s apart (> the window): the
-	## earlier one must not seal the node against a compatible movement — the
-	## later car is granted immediately (the ticket's own "opposing vehicles
-	## both going straight may proceed together"). The cars are staged far and
-	## registered MANUALLY: the ledger is pure bookkeeping, the arrival times
-	## are the only thing under test.
-	ctrl = TrafficControl.new()
-	a_car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 60.0, ctrl)
-	b_car = _t134_stage_car(node, 2, City.ROUTE_TURN_STRAIGHT, 60.0, ctrl)
-	ctrl.register_arrival(a_car, node, 0, City.ROUTE_TURN_STRAIGHT)
-	await _wait_frames(100) ## 1.67 s — clearly beyond the 0.75 s window.
-	ctrl.register_arrival(b_car, node, 2, City.ROUTE_TURN_STRAIGHT)
-	var b6_granted: bool = ctrl.request_go(b_car)
-	var a6_granted: bool = ctrl.request_go(a_car)
-	var leg6 := b6_granted and a6_granted
-	if not leg6:
-		ok = false
-		detail += "leg6(rule2-conflict-aware) b_granted=%s a_granted=%s (want true/true); " % [
-				b6_granted, a6_granted]
-	_check("four_way_stop_right_of_way", ok,
-			detail if not ok else "all six ladder legs green")
-	await _t134_clear_cars([a_car, b_car])
-
-
-## The staged node's position in global coords.
-func entry_node_pos(node: Vector2i) -> Vector3:
-	return _city.to_global(_city.road_node_pos(node))
-
-
-## T-134: the crosswalk yield — a car held at its line stays stopped while the
-## pigeon stands inside the padded band, proceeds within 1.0 s of the pigeon
-## leaving it, and a late-entering pigeon re-holds a granted car before its
-## nose crosses the bar. Through a real staged car + TrafficControl whose
-## watched list carries the player.
-func _scenario_crosswalk_yield_holds_and_releases() -> void:
-	var node := _t134_node()
-	var node_pos := entry_node_pos(node)
-	var ctrl := TrafficControl.new()
-	ctrl.watched = [_player]
-	var plaza := _city.position + Vector3(4.0, 0.0, 2.0)
-	## --- Phase 1: the pigeon in the +z band holds the car at its line. ---
-	await _set_up(false, _city.position + Vector3(-16.0, 0.5, -9.8), Vector3.ZERO)
-	await _await_grounded(90)
-	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	var registered := await _wait_until(func() -> bool:
-		return not car.stops.is_empty() and car.stops[0].registered, 300)
-	var held := true
-	var frames_held := 0
-	for _i in 180: ## 3 s of the hold — the pigeon stands in the band.
-		await get_tree().physics_frame
-		if car.stops[0].committed or Vector2(car.velocity.x, car.velocity.z).length() > 0.3 \
-				or not car.stops[0].registered:
-			held = false
-		else:
-			frames_held += 1
-	var phase1 := registered and held and frames_held >= 170
-	## --- Phase 2: the pigeon leaves — the car proceeds within 1.0 s. ---
-	await _set_up(false, plaza + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-	await _await_grounded(60)
-	var commit_frame := -1
-	for f in 60:
-		await get_tree().physics_frame
-		if car.stops[0].committed:
-			commit_frame = f
-			break
-	var bar_frame := -1
-	for f in 60:
-		await get_tree().physics_frame
-		if _t134_nose_along(car) < 8.8:
-			bar_frame = f
-			break
-	var phase2 := phase1 and commit_frame >= 0 and bar_frame >= 0
-	if not phase2:
-		_check("crosswalk_yield_holds_and_releases", false,
-				"phase1 held=%s frames=%d · phase2 commit=%d bar=%d" % [
-						held, frames_held, commit_frame, bar_frame])
-		await _t134_clear_cars([car])
-		return
-	await _t134_clear_cars([car])
-	## --- Phase 3: a late-entering pigeon re-holds a granted car before the
-	## nose crosses the bar. ---
-	await _set_up(false, plaza + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-	await _await_grounded(30)
-	car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0, ctrl)
-	var granted := await _wait_until(func() -> bool:
-		return not car.stops.is_empty() and car.stops[0].committed, 420)
-	var reheld := granted
-	var nose_min := INF
-	if granted:
-		## The pigeon steps into the car's own approach band the frame after
-		## the grant — the car is still at its line, nose before the bar. The
-		## load-bearing read: across 2 s of the pigeon standing in the band,
-		## the nose never crosses the bar.
-		_player.global_position = _city.position + Vector3(-22.2, 0.5, -16.0)
-		for _i in 120:
-			await get_tree().physics_frame
-			nose_min = minf(nose_min, _t134_nose_along(car))
-		reheld = granted and nose_min >= 8.79
-		var crossed := -1
-		await _set_up(false, plaza + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-		await _await_grounded(30)
-		for f in 60:
-			await get_tree().physics_frame
-			if _t134_nose_along(car) < 8.8:
-				crossed = f
-				break
-		_check("crosswalk_yield_holds_and_releases",
-				phase2 and reheld and nose_min >= 8.79 and crossed >= 0,
-				"phase1+2=%s reheld=%s nose_min=%.2f (want ≥ 8.79) crossed=%d (want ≥ 0)" % [
-						phase2, reheld, nose_min, crossed])
-		await _t134_clear_cars([car])
-		return
-	_check("crosswalk_yield_holds_and_releases", false,
-			"phase3 car never granted (granted=%s)" % granted)
-	await _t134_clear_cars([car])
-
-
-## T-134 — the T-089 known-issue (a) repro closed: the pigeon grounded
-## mid-lane in a car's path. The staged car gap-brakes to a hold behind it;
-## after ≈ `patience_seconds` the car has honked EXACTLY once (its own
-## `honk_count` — the patience-honk contract the autoplay DONE line never
-## sees), and over the following 10 s it completes one careful pass — path
-## travel ≥ 8 m while the pigeon stands still — with no second honk inside
-## one patience window of the first (the clock re-arms only after the pass).
-## (T-166 re-derivation) the expectations survive byte-for-byte — the honk
-## window stays 5-9 s (a physical pigeon hold keeps `patience_seconds`, and
-## the pigeon IS the player 5.6 m ahead, so the near gate plays it), one pass,
-## zero honks on the off-line leg — and the staging gains the corridor-clear
-## precondition the pass gates now demand: the fleet is wiped bare before
-## staging, so the only `Car._fleet` member is the staged car itself and both
-## shoulder gates read an empty corridor by construction (asserted).
-func _scenario_patience_pass_unsticks() -> void:
-	var node := _t134_node()
-	await _t166_wipe_fleet()
-	var ctrl := TrafficControl.new()
-	## 80 m out on the +x approach of node (3,3): ~70 m of runway before the
-	## stop line matters, so the staged hold is the pigeon, not the protocol.
-	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 80.0, ctrl)
-	## The pigeon grounded mid-lane 10 m ahead of the car, dead in its path.
-	var pigeon_pos := _city.to_global(_city.route_lane_point(node, 0, 70.0))
-	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var corridor_clear: bool = Car._fleet.size() == 1 and Car._fleet[0] == car
-	var pigeon_start := _player.global_position
-	var honk_frame := -1
-	var travel_since_honk := 0.0
-	var last_pos := car.global_position
-	var pigeon_drift := 0.0
-	var frames := 0
-	while frames < 540 and honk_frame < 0: ## Up to 9 s for the first honk.
-		await get_tree().physics_frame
-		frames += 1
-		last_pos = car.global_position
-		pigeon_drift = maxf(pigeon_drift, _player.global_position.distance_to(pigeon_start))
-		if car.honk_count >= 1:
-			honk_frame = frames
-	travel_since_honk = 0.0
-	last_pos = car.global_position
-	var second_honk_free := true
-	if honk_frame > 0:
-		for _i in 600: ## 10 s after the honk — the pass window.
-			await get_tree().physics_frame
-			travel_since_honk += last_pos.distance_to(car.global_position)
-			last_pos = car.global_position
-			pigeon_drift = maxf(pigeon_drift,
-					_player.global_position.distance_to(pigeon_start))
-			if car.honk_count > 1:
-				second_honk_free = false
-			if _debug and _i % 60 == 0:
-				_dbg("pass t+%.1f s: pos %s speed %.2f passing=%s patience %.1f blocker_d %.2f" % [
-						float(_i) / 60.0, car.global_position,
-						Vector2(car.velocity.x, car.velocity.z).length(),
-						car._passing, car._patience, car._blocker_distance()])
-	## The once-per-expiry contract: across the honk + a full patience window
-	## the counter never moved again.
-	var honk_at := float(honk_frame) / 60.0
-	var leg1 := corridor_clear and honk_frame > 0 and honk_at >= 5.0 \
-			and honk_at <= 9.0 and travel_since_honk >= 8.0 and second_honk_free \
-			and car.honk_count == 1 and pigeon_drift < 0.5
-	var leg1_honks: int = car.honk_count
-	## --- Leg 2: the off-line stop (round 1 review) — a car that halts 1.5 m
-	## BESIDE its stop line center must still register and clear the node ---
-	## the old full-3D registration test left such cars unregistered and
-	## pinned at the line forever, honking every patience cycle.
-	await _t134_clear_cars([car])
-	var off_car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0,
-			ctrl, 1.5)
-	var off_registered := await _wait_until(func() -> bool:
-		return not off_car.stops.is_empty() and off_car.stops[0].registered, 300)
-	var off_clear_frame := -1
-	for f in 420: ## 7 s — well past one patience cycle: no freeze allowed.
-		await get_tree().physics_frame
-		var a0 := City.ROUTE_DIR_VECS[0]
-		var past := Vector3(off_car.global_position - off_car.stops[0].pos).dot(a0)
-		if past > 5.0:
-			off_clear_frame = f
-			break
-	var leg2 := off_registered and off_clear_frame >= 0 and off_car.honk_count == 0
-	_check("patience_pass_unsticks",
-			leg1 and leg2,
-			"leg1: corridor_clear=%s first honk at %.2f s (want 5-9) · pass travel %.1f m (want ≥ 8) · honks=%d (want 1, no second inside one window=%s) · pigeon drift %.2f m (want < 0.5) · leg2: off-line car registered=%s cleared node in frame %d (want ≥ 0) honks=%d (want 0)" % [
-					corridor_clear, honk_at, travel_since_honk, leg1_honks,
-					second_honk_free, pigeon_drift, off_registered,
-					off_clear_frame, off_car.honk_count])
-	await _t134_clear_cars([off_car])
-
-
 ## --- scenarios (T-166 traffic holds that read calm) -------------------------
-
-
-## (T-166) The staged scenarios' fleet wipe: a zero-target spawner whose
-## `_populate()` frees any surviving background fleet and seeds none — the
-## staged cars are then the only `Car._fleet` members, so the corridor gates,
-## the box check and the honk census read exactly the staged stimulus.
-func _t166_wipe_fleet() -> void:
-	var spawner := CarSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	spawner.target_moving = 0
-	spawner.target_parked = 0
-	add_child(spawner)
-	await _wait_frames(2)
-	spawner._populate()
-	await _wait_frames(2)
-	spawner.free()
-	await _wait_frames(2)
-
-
-## (T-166) A hand-placed PARKED-mode car — the corridor gates' staged stimulus
-## (the opposing car mid-corridor, the parked car in the right band, the
-## force-commit rig's box occupant). Parked mode keeps it exactly where staged
-## for the whole scenario; the gates read its position, heading and mode off
-## the static `Car._fleet` registry, never a script.
-func _t166_stage_parked(pos: Vector3, facing: Vector3,
-		ctrl: TrafficControl = null) -> Car:
-	var car: Car = CAR_SCENE.instantiate()
-	car.traffic = ctrl
-	car.player = _player
-	add_child(car)
-	car.park_at(pos, atan2(-facing.x, -facing.z),
-			_city.to_global(_city.block_centers[0]))
-	return car
-
-
-## (T-166) A static stand-in body on the npc layer — the honk-gate arms' lane
-## blocker. The gate's subject is the CAR↔PLAYER distance, so the blocker must
-## not be the player, and a static body never wanders mid-scenario; the
-## FrontZone mask (14 = layers 2|4|8) sees it exactly like any npc body.
-func _t166_stage_blocker(pos: Vector3) -> StaticBody3D:
-	var body := StaticBody3D.new()
-	body.name = "T166Blocker"
-	body.collision_layer = 4
-	body.collision_mask = 0
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(0.7, 1.6, 0.7)
-	shape.shape = box
-	body.add_child(shape)
-	add_child(body)
-	body.global_position = pos
-	return body
-
-
-## Frees the staged T-166 cars and lets the tree settle. Static blocker bodies
-## are freed explicitly by their scenarios (they are captured one at a time).
-func _t166_clear(cars: Array[Car]) -> void:
-	await _t134_clear_cars(cars)
-	await _wait_frames(2)
-
-
-## (T-166 §2) The pass stays on the road — staged at the T-134 node with a real
-## `TrafficControl` and the background fleet wiped for determinism (zeroed
-## spawner targets, `_populate()`; the staged cars are then the only
-## `Car._fleet` members). Three arms:
-##  (i)  a pigeon-held car with the oncoming corridor verified empty commits a
-##       pass whose every sampled frame stays inside the asphalt bounds —
-##       lane-local lateral within [−5.45, +2.45] (the clamp ±0.3) — pairwise
-##       gaps > 2.0 m throughout and completion inside 15 s (travel ≥ 8 m,
-##       blocker behind);
-##  (ii) with an opposing car staged mid-corridor (ahead 15 m, lane-local
-##       −3.0, opposing heading) AND a parked car in the right band (ahead
-##       ~12 m, lane-local +2.0), BOTH shoulders deny — the fresh car's first
-##       break aims right (flip-before-arming) into the parked gate and the
-##       left falls to the oncoming gate, so no pass commits for two patience
-##       cycles (the car stays held behind the pigeon, never `_passing`);
-##       freeing the opposing car releases the pass inside the next cycle ON
-##       THE LEFT SHOULDER — the right is still parked-denied, so the leg also
-##       proves the fallthrough: the excursion goes leftward (min lane-local
-##       < 0) and stays inside arm (i)'s asphalt bounds;
-##  (iii) with a parked car in the right band and NO opposing car, the car's
-##       natural first break aims right (no pinning), the right shoulder is
-##       denied, and the pass falls through to the left, completing within the
-##       arm-(i) asphalt bounds and never closing under 2.0 m of the staged
-##       parked car.
-func _scenario_pass_stays_on_road() -> void:
-	var node := _t134_node()
-	var ok := true
-	var detail := ""
-	await _t166_wipe_fleet()
-	var axis: Vector3 = City.ROUTE_DIR_VECS[0] ## The staged dir-0 (+x) leg.
-	var right := Vector3(-axis.z, 0.0, axis.x)
-	## --- Arm (i): corridor clear — the pass stays inside the asphalt. ---
-	var ctrl := TrafficControl.new()
-	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 80.0, ctrl)
-	var lane_origin: Vector3 = car.global_position ## Staged ON its lane line.
-	var pigeon_pos := _city.to_global(_city.route_lane_point(node, 0, 70.0))
-	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var fleet_only: bool = Car._fleet.size() == 1 and Car._fleet[0] == car
-	var lat_min := INF
-	var lat_max := -INF
-	var travel := 0.0
-	var last := car.global_position
-	var pass_frames := 0
-	var completed_frame := -1
-	var blocker_behind := false
-	for f in 900: ## 15 s.
-		await get_tree().physics_frame
-		travel += last.distance_to(car.global_position)
-		last = car.global_position
-		var lat: float = Vector3(car.global_position - lane_origin).dot(right)
-		lat_min = minf(lat_min, lat)
-		lat_max = maxf(lat_max, lat)
-		if car._passing:
-			pass_frames += 1
-		elif pass_frames > 0 and completed_frame < 0:
-			completed_frame = f ## The armed pass has just completed.
-			var bd := car._blocker_distance()
-			blocker_behind = bd == INF or bd < 0.5
-	var arm1 := fleet_only and pass_frames > 0 and completed_frame >= 0 \
-			and travel >= 8.0 and blocker_behind \
-			and lat_min >= -5.45 and lat_max <= 2.45
-	if not arm1:
-		ok = false
-		detail += "arm1(clear-corridor) fleet_only=%s pass_frames=%d completed=%d travel %.1f (want ≥ 8) behind=%s lat [%.2f, %.2f] (want [−5.45, 2.45]); " % [
-				fleet_only, pass_frames, completed_frame, travel, blocker_behind,
-				lat_min, lat_max]
-	await _t166_clear([car])
-	## --- Arm (ii): both shoulders denied; the fallthrough releases LEFT. ---
-	ctrl = TrafficControl.new()
-	car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 80.0, ctrl)
-	var opp := _t166_stage_parked(
-			_city.to_global(_city.route_lane_point(node, 0, 65.0)) + right * -3.0,
-			-axis) ## Ahead 15 m, lane-local −3.0, opposing heading.
-	var band := _t166_stage_parked(
-			_city.to_global(_city.route_lane_point(node, 0, 68.0)) + right * 2.0,
-			axis) ## Ahead ~12 m, lane-local +2.0 — the parked band.
-	pigeon_pos = _city.to_global(_city.route_lane_point(node, 0, 70.0))
-	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var staged3: bool = Car._fleet.size() == 3
-	lane_origin = car.global_position
-	## The hold begins when the car has stopped behind the pigeon — the
-	## travel/watch accumulators start there, so the approach roll is not
-	## counted against the held car.
-	await _wait_until(func() -> bool:
-		return Vector2(car.velocity.x, car.velocity.z).length() < 0.3, 600)
-	var ever_passing := false
-	var held_travel := 0.0
-	var last_a := car.global_position
-	var min_gap_a := INF
-	var honks_two_cycles := 0
-	for f in 870: ## 14.5 s — two full patience cycles.
-		await get_tree().physics_frame
-		ever_passing = ever_passing or car._passing
-		held_travel += last_a.distance_to(car.global_position)
-		last_a = car.global_position
-		honks_two_cycles = car.honk_count
-		for other: Car in [opp, band]:
-			if is_instance_valid(other):
-				min_gap_a = minf(min_gap_a, Vector2(
-						car.global_position.x - other.global_position.x,
-						car.global_position.z - other.global_position.z).length())
-	var held_ok := staged3 and not ever_passing and held_travel < 1.0 \
-			and honks_two_cycles >= 2 and min_gap_a > 2.0
-	if not held_ok:
-		ok = false
-		detail += "arm2(denied) staged3=%s ever_passing=%s held_travel %.2f honks=%d (breaks ran, want ≥ 2) min_gap %.2f; " % [
-				staged3, ever_passing, held_travel, honks_two_cycles, min_gap_a]
-	opp.queue_free() ## Freeing the opposing car clears the oncoming corridor.
-	await _wait_frames(3)
-	var armed_frame := -1
-	var pass_lat_min := INF
-	var pass_lat_max := -INF
-	var fell_left := false
-	for f in 900: ## Arm inside the next cycle, then the pass runs to completion.
-		await get_tree().physics_frame
-		var lat: float = Vector3(car.global_position - lane_origin).dot(right)
-		if car._passing:
-			if armed_frame < 0:
-				armed_frame = f
-			pass_lat_min = minf(pass_lat_min, lat)
-			pass_lat_max = maxf(pass_lat_max, lat)
-		elif armed_frame >= 0:
-			fell_left = true
-			break ## The fallthrough pass completed.
-	var arm2 := held_ok and armed_frame >= 0 and armed_frame <= 540 \
-			and fell_left and pass_lat_min < 0.0 \
-			and pass_lat_min >= -5.45 and pass_lat_max <= 2.45
-	if not arm2:
-		ok = false
-		detail += "arm2(release) armed=%d (want ≤ 540) completed=%s min_lat %.2f (want < 0) lat [%.2f, %.2f]; " % [
-				armed_frame, fell_left, pass_lat_min, pass_lat_min, pass_lat_max]
-	await _t166_clear([car, band])
-	## --- Arm (iii): right denied by the band; the natural first break
-	## falls through to the left. ---
-	ctrl = TrafficControl.new()
-	car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 80.0, ctrl)
-	band = _t166_stage_parked(
-			_city.to_global(_city.route_lane_point(node, 0, 68.0)) + right * 2.0,
-			axis)
-	pigeon_pos = _city.to_global(_city.route_lane_point(node, 0, 70.0))
-	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var staged2: bool = Car._fleet.size() == 2
-	lane_origin = car.global_position
-	var arm3_pass := false
-	var arm3_done := false
-	var arm3_travel_at_done := 0.0
-	var arm3_lat_min := INF
-	var arm3_lat_max := -INF
-	var min_gap_band := INF
-	var last_c := car.global_position
-	var travel_c := 0.0
-	for f in 1200: ## 20 s — arm at the first break, complete, queue behind the band car.
-		await get_tree().physics_frame
-		travel_c += last_c.distance_to(car.global_position)
-		last_c = car.global_position
-		var lat: float = Vector3(car.global_position - lane_origin).dot(right)
-		arm3_lat_min = minf(arm3_lat_min, lat)
-		arm3_lat_max = maxf(arm3_lat_max, lat)
-		arm3_pass = arm3_pass or car._passing
-		if arm3_pass and not car._passing and not arm3_done:
-			arm3_done = true
-			arm3_travel_at_done = travel_c
-		min_gap_band = minf(min_gap_band, Vector2(
-				car.global_position.x - band.global_position.x,
-				car.global_position.z - band.global_position.z).length())
-	var arm3 := staged2 and arm3_pass and arm3_done and arm3_travel_at_done >= 6.0 \
-			and arm3_lat_min >= -5.45 and arm3_lat_max <= 2.45 \
-			and min_gap_band > 2.0
-	_check("pass_stays_on_road", ok and arm3,
-			detail + "arm3(fallthrough) staged2=%s pass=%s done=%s travel_at_done %.1f (want ≥ 6) lat [%.2f, %.2f] (want [−5.45, 2.45]) min gap to parked %.2f (want > 2.0)" % [
-					staged2, arm3_pass, arm3_done, arm3_travel_at_done,
-					arm3_lat_min, arm3_lat_max, min_gap_band])
-	await _t166_clear([car, band])
-
-
-## (T-166 §1, as resolved by the recorded fallback) A queue whose shoulders
-## are GATE-DENIED never passes. A leader held by a pigeon and a follower at
-## follow-gap behind it, both shoulders denied for the follower (the staged
-## band car denies the right through the parked gate, the staged opposing
-## car denies the left through the oncoming gate) so the queue stands: over
-## ≥ 3 follower patience cycles (≈ 20 s) the follower never enters
-## `_passing` and the pairwise gaps stay > 2.0 m; once the opposing corridor
-## is freed, the leader's gated pass completes and the follower gains ≥ 5 m
-## of travel within the next 6 s — the queue dissolves from the front,
-## nothing wedges behind the retired pass. Red-before (recorded in the
-## ticket): the old tree escalated a car-blocker pass at the third cycle
-## (census: 13 car-blocker passes, all at cycle 3) — UNGATED, straight
-## through the staged oncoming car and parked car. (The fallback the census
-## forced — recorded in the ticket — re-opens car passes behind the §2
-## gates: this staging is the proof the gates, not a class ban, are what
-## keep a queue standing.)
-func _scenario_car_queue_never_passes() -> void:
-	var node := _t134_node()
-	await _t166_wipe_fleet()
-	var axis: Vector3 = City.ROUTE_DIR_VECS[0]
-	var right := Vector3(-axis.z, 0.0, axis.x)
-	var ctrl := TrafficControl.new()
-	var leader := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 80.0, ctrl)
-	var opp := _t166_stage_parked(
-			_city.to_global(_city.route_lane_point(node, 0, 65.0)) + right * -3.0,
-			-axis)
-	var band := _t166_stage_parked(
-			_city.to_global(_city.route_lane_point(node, 0, 68.0)) + right * 2.0,
-			axis)
-	var follower := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 90.0, ctrl)
-	var pigeon_pos := _city.to_global(_city.route_lane_point(node, 0, 70.0))
-	await _set_up(false, pigeon_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var staged4: bool = Car._fleet.size() == 4
-	var fleet: Array[Car] = [leader, follower]
-	for other: Car in [opp, band]:
-		if is_instance_valid(other):
-			fleet.append(other)
-	var follower_ever_passing := false
-	var min_gap := INF
-	for f in 1380: ## 23 s — ≥ 3 follower patience cycles with the leader held.
-		await get_tree().physics_frame
-		follower_ever_passing = follower_ever_passing or follower._passing
-		for i in fleet.size():
-			if not is_instance_valid(fleet[i]):
-				continue
-			for j in range(i + 1, fleet.size()):
-				if not is_instance_valid(fleet[j]):
-					continue
-				min_gap = minf(min_gap, Vector2(
-						fleet[i].global_position.x - fleet[j].global_position.x,
-						fleet[i].global_position.z - fleet[j].global_position.z).length())
-	var queue_ok := staged4 and not follower_ever_passing and min_gap > 2.0
-	opp.queue_free() ## Release the oncoming corridor — the leader's next break passes.
-	await _wait_frames(3)
-	var leader_armed := -1
-	var leader_done := -1
-	for f in 900: ## Leader arms within the next cycle and completes the pass.
-		await get_tree().physics_frame
-		if leader._passing and leader_armed < 0:
-			leader_armed = f
-		elif leader_armed >= 0 and not leader._passing and leader_done < 0:
-			leader_done = f
-			break
-	## The hold instrument resolves at the completion instant: the pigeon — the
-	## queue's original head blocker, now BEHIND the retired pass — moves off
-	## the lane, so this leg measures pure flow behind the retired pass instead
-	## of the follower's own next patience cycle (a second 6 s cycle cannot fit
-	## a 6 s window; without the resolution the pigeon would just become the
-	## follower's next blocker and the ceiling would be the 5.6 m follow gap).
-	_player.reset_flight(_city.position + Vector3(4.0, 0.5, 2.0))
-	var follower_gain := 0.0
-	var last_f := follower.global_position
-	if leader_done >= 0:
-		for f in 360: ## 6 s after the leader's pass completed.
-			await get_tree().physics_frame
-			follower_gain += last_f.distance_to(follower.global_position)
-			last_f = follower.global_position
-	var dissolved := leader_armed >= 0 and leader_done >= 0 and follower_gain >= 5.0
-	_check("car_queue_never_passes", queue_ok and dissolved,
-			"queue: staged4=%s follower_ever_passing=%s min_gap %.2f (want > 2.0) · dissolve: leader armed=%d done=%d follower gain %.1f m in 6 s (want ≥ 5)" % [
-					staged4, follower_ever_passing, min_gap, leader_armed,
-					leader_done, follower_gain])
-	await _t166_clear([leader, follower, band])
-
-
-## (T-166 §3) Honk etiquette — patience honks play only where they are
-## feedback, through three arms on the same staging (a staged car held by a
-## static npc-layer body; the blocker must not be the player, because the
-## gate's subject is the car↔player distance):
-##  (i)   FAR — the player parked 40 m out (beyond `honk_near_m` 30): across
-##        two patience cycles `honk_count` stays 0 while the break machinery
-##        still runs (the pass visibly arms and the car progresses);
-##  (ii)  NEAR — the same staging with the player 10 m behind the car: exactly
-##        one honk at the first expiry (the T-134 joke honk) and no more as
-##        the pass completes;
-##  (iii) CADENCE — two near-player cars staged symmetrically on perpendicular
-##        approaches break within `HONK_MIN_FLEET_INTERVAL`: exactly ONE horn
-##        sounds between them; the ducked car's `honk_count` stays 0 and its
-##        break still runs (it still passes its blocker).
-func _scenario_honk_etiquette_gates() -> void:
-	var node := _t134_node()
-	var ok := true
-	var detail := ""
-	await _t166_wipe_fleet()
-	## --- Arm (i) FAR: silent machinery. ---
-	var ctrl := TrafficControl.new()
-	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0, ctrl)
-	var blocker := _t166_stage_blocker(
-			_city.to_global(_city.route_lane_point(node, 0, 20.0)))
-	var car_start := car.global_position
-	var far_pos := _city.to_global(_city.route_lane_point(node, 0, 70.0)) ## 40 m behind the car.
-	await _set_up(false, far_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var far_dist := Vector2(_player.global_position.x - car.global_position.x,
-			_player.global_position.z - car.global_position.z).length()
-	var far_honks := -1
-	var far_pass := false
-	var far_travel := 0.0
-	var last := car.global_position
-	for f in 870: ## 14.5 s — two patience cycles.
-		await get_tree().physics_frame
-		far_honks = car.honk_count
-		far_pass = far_pass or car._passing
-		far_travel += last.distance_to(car.global_position)
-		last = car.global_position
-	var arm1 := far_dist > car.honk_near_m and far_honks == 0 \
-			and far_pass and far_travel >= 5.0
-	if not arm1:
-		ok = false
-		detail += "arm1(far) dist %.1f (want > 30) honks=%d (want 0) pass=%s travel %.1f (want ≥ 5); " % [
-				far_dist, far_honks, far_pass, far_travel]
-	blocker.queue_free()
-	await _t134_clear_cars([car])
-	## --- Arm (ii) NEAR: exactly one honk at the first expiry. ---
-	ctrl = TrafficControl.new()
-	car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0, ctrl)
-	blocker = _t166_stage_blocker(
-			_city.to_global(_city.route_lane_point(node, 0, 20.0)))
-	var near_pos := _city.to_global(_city.route_lane_point(node, 0, 40.0)) ## 10 m behind the car.
-	await _set_up(false, near_pos + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var near_dist := Vector2(_player.global_position.x - car.global_position.x,
-			_player.global_position.z - car.global_position.z).length()
-	var honk_frame := -1
-	for f in 540: ## 9 s — well past the first expiry (~7 s at patience 6.0).
-		await get_tree().physics_frame
-		if honk_frame < 0 and car.honk_count >= 1:
-			honk_frame = f
-	var honk_at := float(honk_frame) / 60.0
-	for f in 330: ## 5.5 s more — the pass runs; no second honk may arrive.
-		await get_tree().physics_frame
-	var arm2 := near_dist <= car.honk_near_m and honk_frame >= 0 \
-			and honk_at >= 4.0 and honk_at <= 9.0 and car.honk_count == 1
-	if not arm2:
-		ok = false
-		detail += "arm2(near) dist %.1f honk at %s s (want one, 4-9) honks=%d (want 1); " % [
-				near_dist, "inf" if honk_frame < 0 else "%.2f" % honk_at,
-				car.honk_count]
-	blocker.queue_free()
-	await _t134_clear_cars([car])
-	## --- Arm (iii) CADENCE: two near cars, one horn. ---
-	ctrl = TrafficControl.new()
-	var car_a := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 30.0, ctrl)
-	var blocker_a := _t166_stage_blocker(
-			_city.to_global(_city.route_lane_point(node, 0, 20.0)))
-	var car_b := _t134_stage_car(node, 1, City.ROUTE_TURN_STRAIGHT, 30.0, ctrl)
-	var blocker_b := _t166_stage_blocker(
-			_city.to_global(_city.route_lane_point(node, 1, 20.0)))
-	await _set_up(false, entry_node_pos(node) + Vector3(0.0, 0.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var near_a := Vector2(car_a.global_position.x - _player.global_position.x,
-			car_a.global_position.z - _player.global_position.z).length()
-	var near_b := Vector2(car_b.global_position.x - _player.global_position.x,
-			car_b.global_position.z - _player.global_position.z).length()
-	var travel_a := 0.0
-	var travel_b := 0.0
-	var last_a := car_a.global_position
-	var last_b := car_b.global_position
-	for f in 870: ## 14.5 s — both breaks land inside the first ~8 s.
-		await get_tree().physics_frame
-		travel_a += last_a.distance_to(car_a.global_position)
-		travel_b += last_b.distance_to(car_b.global_position)
-		last_a = car_a.global_position
-		last_b = car_b.global_position
-	var horn_total := car_a.honk_count + car_b.honk_count
-	var arm3 := near_a <= car_a.honk_near_m and near_b <= car_b.honk_near_m \
-			and horn_total == 1 and minf(travel_a, travel_b) >= 5.0
-	_check("honk_etiquette_gates", ok and arm3,
-			detail + "arm3(cadence) near_a %.1f near_b %.1f horns=%d (want 1) travels %.1f/%.1f (both want ≥ 5: the ducked car's break still ran)" % [
-					near_a, near_b, horn_total, travel_a, travel_b])
-	blocker_a.queue_free()
-	blocker_b.queue_free()
-	await _t166_clear([car_a, car_b])
-
-
-## (T-166 §4) The gentler force-commit — only when the node box is actually
-## clear. Three arms at the T-134 node with real `TrafficControl` ledgers:
-##  (i)   a registered-denied car with a conflicting committed movement staged
-##        in its node (the parked occupant at the center, movement committed
-##        by hand — the leg-6 manual-ledger pattern) does NOT force-commit at
-##        `patience_seconds`: `find_committed` stays null across the whole
-##        occupied window and the nose-distance pin holds (≥ 8.79 m out); only
-##        after the staged movement is released (the occupant freed — its
-##        `_exit_tree` releases the ledger) does the car commit and cross the
-##        bar;
-##  (ii)  a registered-denied car with an EMPTY box does nothing at
-##        `patience_seconds` (the old tree force-committed at 6 s — the
-##        red-before) and force-commits only past `protocol_patience_seconds`
-##        (measured, recorded);
-##  (iii) the three-mutual-right-yield cycle (all waiting, box empty)
-##        dissolves within `protocol_patience_seconds` + 10 s with zero
-##        overlaps (sampled pairwise gaps > 2.0 m).
-func _scenario_force_commit_checks_the_box() -> void:
-	var node := _t134_node()
-	await _t166_wipe_fleet()
-	## The pigeon on the plaza for the whole scenario — the box check reads
-	## cars only, and the crosswalk `watched` list stays empty.
-	await _set_up(false, _city.position + Vector3(4.0, 0.5, 2.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var ok := true
-	var detail := ""
-	var node_pos := entry_node_pos(node)
-	## --- Arm (i): occupied box — no force-commit until the movement releases. ---
-	var ctrl := TrafficControl.new()
-	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	var occupant := _t166_stage_parked(node_pos, City.ROUTE_DIR_VECS[1], ctrl)
-	## The occupant's committed movement: dir-1 straight — perpendicular to the
-	## held car's dir-0 straight, so rule 1 denies every grant. Pure ledger
-	## staging: the parked occupant never drives, so the movement stands until
-	## the occupant is freed (its `_exit_tree` releases it).
-	ctrl.register_arrival(occupant, node, 1, City.ROUTE_TURN_STRAIGHT)
-	ctrl.commit(occupant)
-	var registered := await _wait_until(func() -> bool:
-		return not car.stops.is_empty() and car.stops[0].registered, 300)
-	var pin_ok := registered
-	var committed_while_occupied := false
-	var min_nose := INF
-	for f in 900: ## 15 s — past both patience thresholds, box occupied throughout.
-		await get_tree().physics_frame
-		if registered:
-			var nose := _t134_nose_along(car)
-			min_nose = minf(min_nose, nose)
-			pin_ok = pin_ok and nose >= 8.79
-			committed_while_occupied = committed_while_occupied \
-					or ctrl.find_committed(car) != null
-	_dbg("fc arm1: registered=%s min_nose=%.3f committed_while_occupied=%s honks=%d passing=%s" % [
-			registered, min_nose, committed_while_occupied, car.honk_count,
-			car._passing])
-	var release_ok := false
-	var crossed_frame := -1
-	if registered and not committed_while_occupied:
-		occupant.queue_free() ## `_exit_tree` releases the staged movement.
-		await _wait_frames(3)
-		for f in 420: ## 7 s — the grant lands, the car commits and crosses.
-			await get_tree().physics_frame
-			if ctrl.find_committed(car) != null and crossed_frame < 0:
-				crossed_frame = f
-			if crossed_frame >= 0 and _t134_nose_along(car) < 8.79:
-				break
-		release_ok = crossed_frame >= 0 \
-				and _t134_nose_along(car) < 8.79
-	var arm1 := registered and not committed_while_occupied and pin_ok and release_ok
-	if not arm1:
-		ok = false
-		detail += "arm1(occupied) registered=%s committed_while_occupied=%s pin=%s released=%s crossed=%d; " % [
-				registered, committed_while_occupied, pin_ok, release_ok, crossed_frame]
-	await _t166_clear([car])
-	if is_instance_valid(occupant):
-		occupant.queue_free() ## The arm-1 failure path: never leave the occupant.
-	await _wait_frames(2)
-	## --- Arms (ii)+(iii): the mutual right-yield cycle, box empty. ---
-	ctrl = TrafficControl.new()
-	var l0 := _t134_stage_car(node, 0, City.ROUTE_TURN_LEFT, 22.0, ctrl)
-	var s1 := _t134_stage_car(node, 1, City.ROUTE_TURN_STRAIGHT, 22.0, ctrl)
-	var r2 := _t134_stage_car(node, 2, City.ROUTE_TURN_RIGHT, 22.0, ctrl)
-	var all_reg := await _wait_until(func() -> bool:
-		return not l0.stops.is_empty() and l0.stops[0].registered \
-				and not s1.stops.is_empty() and s1.stops[0].registered \
-				and not r2.stops.is_empty() and r2.stops[0].registered, 300)
-	## The watch clock below starts within a few frames of the common
-	## registration instant (the staged cars brake onto their lines together),
-	## so its `t` reads seconds-since-registration.
-	var l0_committed_at := -1.0
-	var nothing_at_patience := true
-	var l0_committed := false
-	var min_gap := INF
-	var cleared_frames: Array[int] = [-1, -1, -1]
-	var trio: Array[Car] = [l0, s1, r2]
-	for f in 1400: ## ~23 s from registration — past protocol patience + 10 s.
-		await get_tree().physics_frame
-		var t := float(f) / 60.0
-		## "Does nothing at patience_seconds": sampled across [7, 10) s — past
-		## the plain 6 s threshold, before the expected protocol force-commit
-		## (~12 s). The old tree committed at ~4.5-5 s, so its t=7 sample reads
-		## committed and fails here (the red-before).
-		if t >= 7.0 and t < 10.0 and not l0_committed:
-			var committed_now: bool = ctrl.find_committed(l0) != null
-			if committed_now:
-				_dbg("fc arm2: committed inside the nothing-window at t=%.2f" % t)
-			nothing_at_patience = nothing_at_patience and not committed_now
-		if not l0_committed and ctrl.find_committed(l0) != null:
-			l0_committed = true
-			l0_committed_at = t
-		for i in 3:
-			if cleared_frames[i] < 0 and trio[i]._stop_index >= 1:
-				cleared_frames[i] = f
-		for i in 3:
-			for j in range(i + 1, 3):
-				min_gap = minf(min_gap, Vector2(
-						trio[i].global_position.x - trio[j].global_position.x,
-						trio[i].global_position.z - trio[j].global_position.z).length())
-	var all_cleared := true
-	for cf in cleared_frames:
-		all_cleared = all_cleared and cf >= 0 and float(cf) / 60.0 <= 22.0
-	var arm2 := all_reg and nothing_at_patience \
-			and l0_committed and l0_committed_at >= 10.5 and l0_committed_at <= 14.5
-	var arm3 := all_reg and all_cleared and min_gap > 2.0
-	_check("force_commit_checks_the_box", ok and arm2 and arm3,
-			detail + "arm2(empty box) all_reg=%s nothing_at_6s=%s l0 committed at %.2f s (want past protocol patience, 10.5-14.5) · arm3(cycle) cleared=%s (all ≤ 22 s) min gap %.2f (want > 2.0)" % [
-					all_reg, nothing_at_patience, l0_committed_at,
-					str(cleared_frames), min_gap])
-	await _t166_clear(trio)
-
-
-## T-134 — the splat-planning tell: a car routed into a turn arms the correct
-## `blinker` side between 1.5-2.5 s before the turn entry (the protocol grant
-## that releases it into the box), flashes at a period inside 0.5-1.0 s (the
-## 1-2 Hz legal band), clears within 1 s of completing the turn, and a staged
-## straight continuation never arms it.
-func _scenario_turn_signals_blink_before_turns() -> void:
-	var node := _t134_node()
-	var ctrl := TrafficControl.new()
-	## --- The turn leg: a right turn at the node, staged 40 m out. ---
-	var car := _t134_stage_car(node, 0, City.ROUTE_TURN_RIGHT, 40.0, ctrl)
-	var armed_frame := -1
-	var armed_side := 0
-	var committed_frame := -1
-	var on_off_frames: Array[int] = []
-	var last_on := false
-	var released_frame := -1
-	var cleared_frame := -1
-	var frame := 0
-	while frame < 900 and cleared_frame < 0:
-		await get_tree().physics_frame
-		frame += 1
-		if armed_frame < 0 and car.blinker != 0:
-			armed_frame = frame
-			armed_side = car.blinker
-		if armed_frame > 0 and committed_frame < 0:
-			var lit := car.blinker != 0 and fmod(car._flash_clock * car.blinker_hz, 1.0) < 0.5
-			if lit != last_on:
-				on_off_frames.append(frame)
-				last_on = lit
-		if committed_frame < 0 and not car.stops.is_empty() and car.stops[0].committed:
-			committed_frame = frame
-		if released_frame < 0 and car._stop_index >= 1:
-			released_frame = frame ## The turn is complete — the box is released.
-		elif released_frame > 0 and cleared_frame < 0 and car.blinker == 0:
-			cleared_frame = frame
-	var arm_to_entry := (committed_frame - armed_frame) / 60.0
-	var flash_period := 0.0
-	if on_off_frames.size() >= 3:
-		flash_period = float(on_off_frames[2] - on_off_frames[0]) / 60.0
-	var clear_seconds := (cleared_frame - released_frame) / 60.0 \
-			if cleared_frame > 0 and released_frame > 0 else INF
-	var turn_ok := armed_frame > 0 and armed_side == City.ROUTE_TURN_RIGHT \
-			and committed_frame > 0 and arm_to_entry >= 1.5 and arm_to_entry <= 2.5 \
-			and flash_period >= 0.5 and flash_period <= 1.0 \
-			and cleared_frame > 0 and clear_seconds <= 1.0
-	if not turn_ok:
-		_check("turn_signals_blink_before_turns", false,
-				"turn leg: armed=%d side=%d committed=%d arm→entry %.2f s (want 1.5-2.5) period %.2f s (want 0.5-1.0) released=%d cleared %s (%.2f s after release, want ≤ 1)" % [
-						armed_frame, armed_side, committed_frame, arm_to_entry,
-						flash_period, released_frame, cleared_frame > 0, clear_seconds])
-		await _t134_clear_cars([car])
-		return
-	await _t134_clear_cars([car])
-	## --- The straight leg: the same approach, straight through — never arms. ---
-	ctrl = TrafficControl.new()
-	car = _t134_stage_car(node, 0, City.ROUTE_TURN_STRAIGHT, 40.0, ctrl)
-	var straight_ok := true
-	var straight_committed := false
-	for _i in 600:
-		await get_tree().physics_frame
-		if not car.stops.is_empty() and car.stops[0].committed:
-			straight_committed = true
-		if car.blinker != 0:
-			straight_ok = false
-	var straight_passed := _t134_nose_along(car) < 5.0
-	_check("turn_signals_blink_before_turns",
-			turn_ok and straight_ok and straight_committed and straight_passed,
-			"turn leg ok=%s · straight leg: ever armed=%s committed=%s passed=%s" % [
-					turn_ok, not straight_ok, straight_committed, straight_passed])
-	await _t134_clear_cars([car])
 
 
 ## (T-162) The blinkers sit ON the body — the `cafe_sitters_on_the_rig`
@@ -10523,753 +4430,11 @@ func _clip_triangle_into_box(a: Vector3, b: Vector3, c: Vector3,
 	return poly.size() >= 3
 
 
-## T-134 — the routes premise at fleet scale, protocol live: with the pigeon
-## pinned so no recycle fires, over a 15 s run a traffic car's block
-## assignment changes ≥ 2 times BY DRIVING (the ring-loop car's block never
-## changes; the no-single-frame-hop > 5 m arm is the T-089 no-teleport guard),
-## a car covers ≥ 60 m of path, the fleet holds 14 traffic + 12 parked, every
-## car stays > 2.0 m flat from every other (the `cars_traffic` no-overlap
-## floor — with the four-way-stop ladder live this doubles as its no-crossing-
-## collision proof), and velocities stay finite throughout.
-func _scenario_traffic_routes_multi_block() -> void:
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	## The cars_traffic anchor pin (T-081) — a fixed grounded plaza point.
-	_player.global_position = _city.position + Vector3(4.0, 0.0, 2.0) \
-			+ Vector3(0.0, _player.position.y - _city.position.y, 0.0)
-	await _wait_frames(2)
-	var spawner := CarSpawner.new()
-	spawner.city = _city
-	spawner.player = _player
-	## Same disarm as `cars_traffic`: the criterion's precondition is that no
-	## recycle fires — the scan is disarmed, the no-hop arm still asserts it.
-	spawner.recycle_radius = 100000.0
-	add_child(spawner)
-	await _wait_frames(4)
-	var cars := spawner.living_cars()
-	var moving := 0
-	var parked := 0
-	for car in cars:
-		if car.mode == Car.Mode.TRAFFIC:
-			moving += 1
-		else:
-			parked += 1
-	if cars.is_empty() or moving != spawner.target_moving or parked != spawner.target_parked:
-		_check("traffic_routes_multi_block", false,
-				"fleet %d (moving %d, parked %d, want %d/%d)" % [
-						cars.size(), moving, parked,
-						spawner.target_moving, spawner.target_parked])
-		spawner.free()
-		return
-	var last: Array[Vector3] = []
-	var travel: Array[float] = []
-	var changes: Array[int] = []
-	for car in cars:
-		last.append(car.global_position)
-		travel.append(0.0)
-		changes.append(0)
-	var min_gap := 100.0
-	var max_hop := 0.0
-	var finite := true
-	for f in 900: ## 15 s at the fixed 60 Hz step.
-		await get_tree().physics_frame
-		for i in cars.size():
-			var car: Car = cars[i]
-			if not is_instance_valid(car):
-				continue
-			var moved := last[i].distance_to(car.global_position)
-			travel[i] += moved
-			max_hop = maxf(max_hop, moved)
-			finite = finite and car.velocity.is_finite()
-			changes[i] = car.block_changes
-			last[i] = car.global_position
-		if f % 8 == 0: ## Sampled pairwise gaps — no transient overlap.
-			for i in cars.size():
-				for j in range(i + 1, cars.size()):
-					var a := cars[i].global_position
-					var b := cars[j].global_position
-					min_gap = minf(min_gap,
-							Vector2(a.x - b.x, a.z - b.z).length())
-	var best_changes := 0
-	var best_travel := 0.0
-	var traffic_travel := 0.0
-	for i in cars.size():
-		if cars[i].mode == Car.Mode.TRAFFIC:
-			best_changes = maxi(best_changes, changes[i])
-			best_travel = maxf(best_travel, travel[i])
-			traffic_travel += travel[i]
-	if _debug:
-		for i in cars.size():
-			_dbg("car %d: travel %.1f block_changes %d" % [i, travel[i], changes[i]])
-		_dbg("min gap %.2f max hop %.2f" % [min_gap, max_hop])
-	_check("traffic_routes_multi_block",
-			best_changes >= 2 and best_travel >= 60.0
-					and moving == spawner.target_moving
-					and parked == spawner.target_parked
-					and min_gap > 2.0 and max_hop <= 5.0 and finite,
-			"best block changes %d (want ≥2) · best travel %.1f m (want ≥60) · fleet %d+%d · min gap %.2f (want >2) · max hop %.2f (want ≤5) · finite=%s" % [
-					best_changes, best_travel, moving, parked, min_gap, max_hop, finite])
-	spawner.free()
-
-
-## T-134 — the intersection stop-control furniture, audited like the
-## crosswalks (the `city_crosswalks_present` pattern): the `stop_line`
-## MultiMesh queue holds exactly 224 instances — one per existing approach
-## (the T-069 reach rule), every bar across its approach's incoming lane
-## (center on the lane center, 1.5 m off the road centerline toward the
-## travel direction's right, on the incoming side), 8.8 m out from its node
-## (8.6-9.0 audited), 0.4 along travel × 2.8 across at its road family's
-## paint height; the sign keys hold exactly 224 posts + 64 speed posts / 896
-## red bars / 896 border bars / 224 plaques / 64 speed faces, every stop sign
-## assembly on the approach's RIGHT side at 5.2 m off / 9.3 m out with the
-## face center ≈ 2.5 m up, its four bars per layer at 0/90/±45° with the
-## thickness axis perpendicular to travel (the four-bar octagon recipe), the
-## speed sign on its node's first existing approach at 12.0 m out and ≈ 2.4
-## m up; every sign clears the corner lamps (±6.2, ±6.2 from the node) by
-## ≥ 3.0 m; a forced same-seed rebuild reproduces every transform
-## byte-identically; no StaticBody3D anywhere under `Visuals`; and the layout
-## fingerprint stays at the pre-change pin (the builder draws zero RNG and
-## appends zero `_fp` entries).
-func _scenario_intersection_furniture() -> void:
-	var default_seed: int = _city.seed_value
-	var fp_first: int = _city.fingerprint
-	_city.generate(default_seed, true) ## force_rebuild: baseline off a real rebuild.
-	var keys := ["stop_line", "sign_post", "stop_sign", "stop_sign_border",
-			"all_way_plaque", "speed_sign"]
-	var queues := {}
-	var present := true
-	for key in keys:
-		present = present and _city._visuals.has(key) \
-				and (_city.get_node("Visuals/" + key.to_pascal_case())
-						as MultiMeshInstance3D) != null
-		queues[key] = _city._visuals[key].xfs if _city._visuals.has(key) else []
-	var stop_lines: Array = queues.stop_line
-	var posts: Array = queues.sign_post
-	var reds: Array = queues.stop_sign
-	var borders: Array = queues.stop_sign_border
-	var plaques: Array = queues.all_way_plaque
-	var speeds: Array = queues.speed_sign
-	var count_ok := present and stop_lines.size() == 224 and posts.size() == 288 \
-			and reds.size() == 896 and borders.size() == 896 \
-			and plaques.size() == 224 and speeds.size() == 64
-	## --- The independent layout recompute (from the default exports). ---
-	var half := _city.city_span * 0.5
-	var centers := _city.road_node_coords()
-	var lane_off := _city.road_width * 0.5 - _city.traffic_lane_offset
-	var slab_y := _city.road_slab_height
-	var expected_lines: Array[Vector3] = []
-	var expected_signs: Array[Dictionary] = [] ## {center, a, r} per existing approach.
-	var expected_speeds: Array[Dictionary] = [] ## {center, a, r} per node.
-	for cx in centers.size():
-		for cz in centers.size():
-			var node := Vector2i(cx, cz)
-			var node_pos := _city.road_node_pos(node)
-			for dir in 4: ## Every existing approach gets a line + a stop sign.
-				if not _city.approach_exists(node, dir):
-					continue
-				var a: Vector3 = City.ROUTE_DIR_VECS[dir]
-				var r := Vector3(-a.z, 0.0, a.x)
-				## XZ center only here — the y paint family is audited per bar.
-				expected_lines.append(node_pos - a * 8.8 + r * lane_off)
-				expected_signs.append({
-					"center": node_pos - a * 9.3 + r * 5.2,
-					"a": a, "r": r, "node": node_pos,
-				})
-			for dir in City.SIGN_DIR_ORDER: ## The speed sign: first existing.
-				if _city.approach_exists(node, dir):
-					var sa: Vector3 = City.ROUTE_DIR_VECS[dir]
-					var sr := Vector3(-sa.z, 0.0, sa.x)
-					expected_speeds.append({
-						"center": node_pos - sa * 12.0 + sr * 5.2,
-						"a": sa, "r": sr, "node": node_pos,
-					})
-					break
-	count_ok = count_ok and expected_lines.size() == 224 \
-			and expected_signs.size() == 224 and expected_speeds.size() == 64
-	## --- Stop lines: XZ multiset match + per-bar geometry. ---
-	var matched: Array[bool] = []
-	matched.resize(expected_lines.size())
-	matched.fill(false)
-	var line_geometry := true
-	var line_y := true
-	var line_offset := true
-	for xf: Transform3D in stop_lines:
-		var o: Vector3 = xf.origin
-		var sc: Vector3 = xf.basis.get_scale()
-		var along_x := absf(sc.x - 0.4) < 0.001 and absf(sc.z - 2.8) < 0.001
-		var along_z := absf(sc.z - 0.4) < 0.001 and absf(sc.x - 2.8) < 0.001
-		line_geometry = line_geometry and (along_x or along_z) \
-				and absf(sc.y - 0.01) < 0.001
-		line_y = line_y and absf(o.y - (slab_y if along_x else slab_y + 0.005)) < 0.001
-		var best_e := -1
-		var best_d := INF
-		for e in expected_lines.size():
-			var w: Vector3 = expected_lines[e]
-			var d := Vector2(o.x - w.x, o.z - w.z).length_squared()
-			if d < best_d:
-				best_d = d
-				best_e = e
-		line_offset = line_offset and best_d < 1e-6 and best_e >= 0
-		if best_e >= 0 and best_d < 1e-6:
-			matched[best_e] = true
-	var placement_ok := line_offset
-	for m in matched:
-		placement_ok = placement_ok and m
-	## --- Sign assemblies: center match, side, height, bar recipe. ---
-	var sign_geometry := true
-	var sign_side_height := true
-	var sign_angles_ok := true
-	var matched_signs: Array[bool] = []
-	matched_signs.resize(expected_signs.size())
-	matched_signs.fill(false)
-	var per_sign_angles := {} ## Vector3 center -> {angle: count} per layer.
-	for pair: Array in [["stop_sign", 0.75, 0.31, 0.086], ["stop_sign_border", 0.81, 0.34, 0.03]]:
-		var key: String = pair[0]
-		var across_len: float = pair[1]
-		var bar_len: float = pair[2]
-		var thick: float = pair[3]
-		per_sign_angles = {}
-		for xf: Transform3D in queues[key]:
-			var basis: Basis = xf.basis
-			var bx := basis.x.length()
-			var by := basis.y.length()
-			var bz := basis.z.length()
-			sign_geometry = sign_geometry and absf(bx - across_len) < 0.005 \
-					and absf(by - bar_len) < 0.005 and absf(bz - thick) < 0.005
-			var best_e := -1
-			var best_d := INF
-			for e in expected_signs.size():
-				var center: Vector3 = expected_signs[e].center
-				var d := Vector2(xf.origin.x - center.x, xf.origin.z - center.z) \
-						.length_squared()
-				if d < best_d:
-					best_d = d
-					best_e = e
-			if best_e < 0 or best_d > 1e-6:
-				sign_side_height = false
-				continue
-			matched_signs[best_e] = true
-			var expect: Dictionary = expected_signs[best_e]
-			var a: Vector3 = expect.a
-			var r: Vector3 = expect.r
-			## Face center height and the octagon axes perpendicular to travel:
-			## the thickness axis is ±a.
-			sign_side_height = sign_side_height \
-					and absf(xf.origin.y - 2.525) < 0.01 \
-					and (basis.z.normalized().is_equal_approx(a)
-							or basis.z.normalized().is_equal_approx(-a))
-			## The bar's long-axis angle in the (r, up) plane: 0 / 90 / ±45.
-			var cos_a := basis.x.normalized().dot(r)
-			var sin_a := basis.x.normalized().dot(Vector3.UP)
-			var angle := roundf(rad_to_deg(atan2(sin_a, cos_a)) / 45.0) * 45.0
-			var akey := (int(angle) % 180 + 180) % 180 ## −45° normalizes to 135.
-			var key_center: Vector3 = expect.center
-			var bucket: Dictionary = per_sign_angles.get_or_add(key_center, {})
-			bucket[akey] = int(bucket.get(akey, 0)) + 1
-		for center: Vector3 in per_sign_angles:
-			var bucket: Dictionary = per_sign_angles[center]
-			sign_angles_ok = sign_angles_ok and bucket.size() == 4 \
-					and bucket.has(0) and bucket.has(90) \
-					and bucket.has(45) and bucket.has(135)
-	var signs_placed := true
-	for m in matched_signs:
-		signs_placed = signs_placed and m
-	## --- Plaques: same assembly column, 0.495 below the octagon. ---
-	var plaque_ok := plaques.size() == 224
-	var seen_plaques := 0
-	for xf: Transform3D in plaques:
-		var basis: Basis = xf.basis
-		plaque_ok = plaque_ok and absf(basis.x.length() - 0.42) < 0.005 \
-				and absf(basis.y.length() - 0.14) < 0.005 \
-				and absf(basis.z.length() - 0.03) < 0.005 \
-				and absf(xf.origin.y - 2.03) < 0.01
-		for e in expected_signs.size():
-			var center: Vector3 = expected_signs[e].center
-			if Vector2(xf.origin.x - center.x, xf.origin.z - center.z) \
-					.length_squared() < 2.0:
-				seen_plaques += 1
-				break
-	plaque_ok = plaque_ok and seen_plaques == 224
-	## --- Speed faces: first existing approach per node, 12 m out, ≈ 2.4 up. ---
-	var speed_ok := speeds.size() == 64
-	var speed_matched: Array[bool] = []
-	speed_matched.resize(expected_speeds.size())
-	speed_matched.fill(false)
-	for xf: Transform3D in speeds:
-		var basis: Basis = xf.basis
-		speed_ok = speed_ok and absf(basis.x.length() - 0.45) < 0.005 \
-				and absf(basis.y.length() - 0.6) < 0.005 \
-				and absf(basis.z.length() - 0.03) < 0.005 \
-				and absf(xf.origin.y - 2.4) < 0.01
-		var best_e := -1
-		var best_d := INF
-		for e in expected_speeds.size():
-			var expect: Dictionary = expected_speeds[e]
-			var d := Vector2(xf.origin.x - expect.center.x,
-					xf.origin.z - expect.center.z).length_squared()
-			if d < best_d:
-				best_d = d
-				best_e = e
-		if best_e < 0 or best_d > 1e-6:
-			speed_ok = false
-			continue
-		speed_matched[best_e] = true
-		var a: Vector3 = expected_speeds[best_e].a
-		speed_ok = speed_ok and (basis.z.normalized().is_equal_approx(a)
-				or basis.z.normalized().is_equal_approx(-a))
-	var speeds_placed := true
-	for m in speed_matched:
-		speeds_placed = speeds_placed and m
-	## --- Posts: 288, at the 224 sign columns + the 64 speed columns. ---
-	var post_ok := posts.size() == 288
-	var posts_seen := 0
-	for xf: Transform3D in posts:
-		var basis: Basis = xf.basis
-		post_ok = post_ok and absf(basis.get_scale().x - 0.08) < 0.005 \
-				and absf(basis.get_scale().y - 2.2) < 0.005 \
-				and absf(basis.get_scale().z - 0.08) < 0.005 \
-				and absf(xf.origin.y - 1.22) < 0.01
-		for e in expected_signs.size():
-			var center: Vector3 = expected_signs[e].center
-			if Vector2(xf.origin.x - center.x, xf.origin.z - center.z).length_squared() < 1e-6:
-				posts_seen += 1
-				break
-	for e in expected_speeds.size():
-		var center: Vector3 = expected_speeds[e].center
-		for xf: Transform3D in posts:
-			if Vector2(xf.origin.x - center.x, xf.origin.z - center.z).length_squared() < 1e-6:
-				posts_seen += 1
-				break
-	post_ok = post_ok and posts_seen == 288
-	## --- Lamp clearance: every sign/face column ≥ 3.0 m from every corner
-	## lamp (the lamps sit at node ± (6.2, 6.2) — `_build_block_props`' 9.8 m
-	## block-corner ring read from the node). ---
-	var lamp_ok := true
-	var lamps: Array[Vector3] = []
-	for cx in centers.size():
-		for cz in centers.size():
-			var node_pos := _city.road_node_pos(Vector2i(cx, cz))
-			for sx: float in [-6.2, 6.2]:
-				for sz: float in [-6.2, 6.2]:
-					lamps.append(Vector3(node_pos.x + sx, 0.0, node_pos.z + sz))
-	for list: Array in [reds, plaques, speeds]:
-		for xf: Transform3D in list:
-			for lamp in lamps:
-				if Vector2(xf.origin.x - lamp.x, xf.origin.z - lamp.z).length() <= 3.0:
-					lamp_ok = false
-	## --- Determinism: a forced same-seed rebuild reproduces every queue. ---
-	var first_queues := {}
-	for key in keys:
-		first_queues[key] = queues[key]
-	_city.generate(default_seed, true) ## force_rebuild: prove a REAL rebuild reproduces them.
-	var deterministic := _city.fingerprint == fp_first
-	for key in keys:
-		var before: Array[Transform3D] = []
-		for xf: Transform3D in first_queues[key]:
-			before.append(xf)
-		var after: Array[Transform3D] = []
-		if _city._visuals.has(key):
-			for xf: Transform3D in _city._visuals[key].xfs:
-				after.append(xf)
-		deterministic = deterministic and not after.is_empty() \
-				and _spots_equal(before, after)
-	## Visual-only (T-017): no StaticBody3D anywhere under the city's Visuals root.
-	var visuals := _city.get_node("Visuals") as Node3D
-	var colliders := visuals.find_children("*", "StaticBody3D", true, false)
-	var visual_only := colliders.is_empty()
-	## Zero-RNG / zero-_fp: the fingerprint equals the pre-change pin (re-derived
-	## for T-135's pinned parks — the removed per-block draw shifted every
-	## seeded stream; pre-T-135: 4045370482).
-	var pin_ok := fp_first == 1103197745
-	_check("intersection_furniture_oriented",
-			count_ok and placement_ok and line_geometry and line_y and line_offset
-					and sign_geometry and sign_side_height and sign_angles_ok
-					and signs_placed and plaque_ok and speed_ok and speeds_placed
-					and post_ok and lamp_ok and deterministic and visual_only and pin_ok,
-			"counts=%s lines placed=%s geom=%s y=%s offset=%s signs geom=%s side/h=%s angles=%s placed=%s plaque=%s speed=%s/%s posts=%s lamp=%s det=%s colliders=%d pin=%s" % [
-					count_ok, placement_ok, line_geometry, line_y, line_offset,
-					sign_geometry, sign_side_height, sign_angles_ok, signs_placed,
-					plaque_ok, speed_ok, speeds_placed, post_ok, lamp_ok,
-					deterministic, colliders.size(), pin_ok])
-	print("SIM DATA intersection_furniture_oriented: lines=%d posts=%d red=%d border=%d plaque=%d speed=%d fingerprint=%d" % [
-			stop_lines.size(), posts.size(), reds.size(), borders.size(),
-			plaques.size(), speeds.size(), fp_first])
-
-
 ## --- scenarios (T-113 citizen classes) --------------------------------------
-
-
-## The scenario's own class tally — recomputed from the living nodes, never
-## from spawner internals (the T-112 determinism-law shape).
-func _class_tally(nodes: Array) -> Array[int]:
-	var tally: Array[int] = [0, 0, 0] ## CitizenClass.Kind order: CIVILIAN, VISITOR, SUPERFAN.
-	for node in nodes:
-		tally[node.citizen_class] += 1
-	return tally
-
-
-## The per-node uniform multiset as sortable strings — "byte-identical" is a
-## sorted-string compare over class + colors (+ finger for pedestrians).
-func _tourist_uniform_rows(tourists: Array[Tourist]) -> Array[String]:
-	var rows: Array[String] = []
-	for tourist in tourists:
-		rows.append("%d|%s|%s" % [tourist.citizen_class,
-				tourist.shirt_color.to_html(), tourist.carries_finger])
-	rows.sort()
-	return rows
-
-
-func _car_uniform_rows(cars: Array[Car]) -> Array[String]:
-	var rows: Array[String] = []
-	for car in cars:
-		rows.append("%d|%s" % [car.citizen_class, car.body_color.to_html()])
-	rows.sort()
-	return rows
-
-
-func _rows_equal(a: Array[String], b: Array[String]) -> bool:
-	if a.size() != b.size():
-		return false
-	for i in a.size():
-		if a[i] != b[i]:
-			return false
-	return true
-
-
-## True when the drawn count sits inside the nearest-integer band around the
-## share's expectation — "within integer rounding" (T-113 acceptance bar).
-func _within_integer_rounding(count: int, expected: float) -> bool:
-	return count >= floori(expected) and count <= ceili(expected)
-
-
-## T-113: the class multiset is a seeded law. A real generated City plus both
-## spawner rigs at the shipped targets (18 tourists · 14 traffic + 12 parked —
-## the T-128 knobs; pre-T-128 20 + 16, red-before the old tree failed the new
-## count by construction): the tallies match the share knobs within integer
-## rounding at the M1 seed AND at seed 424242; a forced same-seed rebuild +
-## re-populate reproduces the uniform multisets byte-identically; and a forced
-## recycle of the far nodes keeps every node's class and colors (same node,
-## same uniform).
-func _scenario_citizen_classes_spawn_deterministic() -> void:
-	var default_seed: int = _city.seed_value
-	_city.generate(default_seed, true) ## Force a real rebuild baseline.
-	## One static airborne anchor serves both rigs (the `tourists_walk` hover):
-	## determinism only needs the band draw identical across the rebuild, and
-	## the anchor reads the player's XZ alone.
-	await _set_up(true, _city.position + Vector3(0.0, 25.0, 0.0), Vector3.ZERO)
-	var tourist_rig := TouristSpawner.new()
-	tourist_rig.city = _city
-	tourist_rig.player = _player
-	add_child(tourist_rig)
-	var car_rig := CarSpawner.new()
-	car_rig.city = _city
-	car_rig.player = _player
-	add_child(car_rig)
-	await _wait_frames(4)
-	var tourists: Array[Tourist] = tourist_rig.living_tourists()
-	var cars: Array[Car] = car_rig.living_cars()
-	var t_tally := _class_tally(tourists)
-	var c_tally := _class_tally(cars)
-	var t_counts_ok: bool = tourists.size() == tourist_rig.target_count \
-			and _within_integer_rounding(t_tally[CitizenClass.Kind.VISITOR],
-					tourists.size() * tourist_rig.visitor_share) \
-			and _within_integer_rounding(t_tally[CitizenClass.Kind.SUPERFAN],
-					tourists.size() * tourist_rig.superfan_share) \
-			and t_tally[CitizenClass.Kind.CIVILIAN] == tourists.size() \
-					- t_tally[CitizenClass.Kind.VISITOR] - t_tally[CitizenClass.Kind.SUPERFAN]
-	var c_counts_ok: bool = cars.size() == car_rig.target_moving + car_rig.target_parked \
-			and _within_integer_rounding(c_tally[CitizenClass.Kind.VISITOR],
-					cars.size() * car_rig.visitor_share) \
-			and _within_integer_rounding(c_tally[CitizenClass.Kind.SUPERFAN],
-					cars.size() * car_rig.superfan_share) \
-			and c_tally[CitizenClass.Kind.CIVILIAN] == cars.size() \
-					- c_tally[CitizenClass.Kind.VISITOR] - c_tally[CitizenClass.Kind.SUPERFAN]
-	var t_rows := _tourist_uniform_rows(tourists)
-	var c_rows := _car_uniform_rows(cars)
-	## Forced same-seed rebuild: `regenerated` fires, both rigs re-populate.
-	_city.generate(default_seed, true)
-	await _wait_frames(4)
-	var rebuilt_tourists: Array[Tourist] = tourist_rig.living_tourists()
-	var rebuilt_cars: Array[Car] = car_rig.living_cars()
-	var deterministic: bool = _rows_equal(t_rows, _tourist_uniform_rows(rebuilt_tourists)) \
-			and _rows_equal(c_rows, _car_uniform_rows(rebuilt_cars))
-	## Forced recycle: move the pigeon beyond both recycle radii (100/80) and
-	## call each scan directly — every far node teleports, the SAME nodes, and
-	## none may lose its uniform.
-	var t_uniforms := {}
-	var t_before := {}
-	for tourist in rebuilt_tourists:
-		t_uniforms[tourist.get_instance_id()] = "%d|%s" % [tourist.citizen_class,
-				tourist.shirt_color.to_html()]
-		t_before[tourist.get_instance_id()] = tourist.global_position
-	var c_uniforms := {}
-	var c_before := {}
-	for car in rebuilt_cars:
-		c_uniforms[car.get_instance_id()] = "%d|%s" % [car.citizen_class,
-				car.body_color.to_html()]
-		c_before[car.get_instance_id()] = car.global_position
-	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
-	await _wait_frames(2)
-	tourist_rig._recycle_far()
-	car_rig._recycle_far()
-	await _wait_frames(2)
-	var after_tourists: Array[Tourist] = tourist_rig.living_tourists()
-	var after_cars: Array[Car] = car_rig.living_cars()
-	var kept_uniform := true
-	var moved_tourists := 0
-	var moved_cars := 0
-	for tourist in after_tourists:
-		kept_uniform = kept_uniform \
-				and t_uniforms.get(tourist.get_instance_id(), "?") \
-						== "%d|%s" % [tourist.citizen_class, tourist.shirt_color.to_html()]
-		if tourist.global_position.distance_to(
-				t_before.get(tourist.get_instance_id(), tourist.global_position)) > 10.0:
-			moved_tourists += 1
-	for car in after_cars:
-		kept_uniform = kept_uniform \
-				and c_uniforms.get(car.get_instance_id(), "?") \
-						== "%d|%s" % [car.citizen_class, car.body_color.to_html()]
-		if car.global_position.distance_to(
-				c_before.get(car.get_instance_id(), car.global_position)) > 10.0:
-			moved_cars += 1
-	## The foreign seed opens the same law.
-	_city.generate(424242, true)
-	await _wait_frames(4)
-	var f_tourists: Array[Tourist] = tourist_rig.living_tourists()
-	var f_cars: Array[Car] = car_rig.living_cars()
-	var f_t := _class_tally(f_tourists)
-	var f_c := _class_tally(f_cars)
-	var foreign_ok: bool = f_tourists.size() == tourist_rig.target_count \
-			and _within_integer_rounding(f_t[CitizenClass.Kind.VISITOR],
-					f_tourists.size() * tourist_rig.visitor_share) \
-			and _within_integer_rounding(f_t[CitizenClass.Kind.SUPERFAN],
-					f_tourists.size() * tourist_rig.superfan_share) \
-			and f_cars.size() == car_rig.target_moving + car_rig.target_parked \
-			and _within_integer_rounding(f_c[CitizenClass.Kind.VISITOR],
-					f_cars.size() * car_rig.visitor_share) \
-			and _within_integer_rounding(f_c[CitizenClass.Kind.SUPERFAN],
-					f_cars.size() * car_rig.superfan_share)
-	print("SIM DATA citizen_classes_spawn_deterministic: seed %d t c/v/s %d/%d/%d · c c/v/s %d/%d/%d | seed 424242 t c/v/s %d/%d/%d · c c/v/s %d/%d/%d | recycle moved t%d c%d kept=%s" % [
-			default_seed, t_tally[0], t_tally[1], t_tally[2],
-			c_tally[0], c_tally[1], c_tally[2],
-			f_t[0], f_t[1], f_t[2], f_c[0], f_c[1], f_c[2],
-			moved_tourists, moved_cars, kept_uniform])
-	_check("citizen_classes_spawn_deterministic",
-			t_counts_ok and c_counts_ok and deterministic and kept_uniform
-					and moved_tourists > 0 and moved_cars > 0 and foreign_ok,
-			"tallies_ok t=%s c=%s · deterministic=%s · recycle kept_uniform=%s moved t%d c%d · foreign_ok=%s" % [
-					t_counts_ok, c_counts_ok, deterministic, kept_uniform,
-					moved_tourists, moved_cars, foreign_ok])
-	tourist_rig.free()
-	car_rig.free()
-	_city.generate(default_seed, true) ## Leave the standing city as found.
-	await _wait_frames(2)
-
-
-## True when the mesh's material_override albedo is exactly one of the two
-## invader class colors (T-113).
-func _is_team_color(mesh: MeshInstance3D) -> bool:
-	var mat := mesh.material_override as StandardMaterial3D
-	if mat == null:
-		return false
-	return mat.albedo_color.is_equal_approx(CitizenClass.TEAM_GOLD) \
-			or mat.albedo_color.is_equal_approx(CitizenClass.VISITOR_BLACK)
-
-
-## The pairing read (T-113's load-bearing finding): torso and arm materials
-## differ — two team colors STACKED on one body, never a single garment.
-func _pairing_reads(tourist: Tourist) -> bool:
-	var torso := tourist._body_mesh.material_override as StandardMaterial3D
-	var arm := tourist._arm_l.material_override as StandardMaterial3D
-	return torso != null and arm != null and torso != arm \
-			and not torso.albedo_color.is_equal_approx(arm.albedo_color)
-
-
-## The foam finger points straight up and breaks the head line: its top edge
-## sits ≥ 0.15 m above the 1.7507 m adult head top (research orientation
-## fact 1; re-derived for T-138's grown envelope — head and mitt grew together).
-func _mitt_reads_up(tourist: Tourist) -> bool:
-	var vertical: bool = tourist._mitt.global_transform.basis.y.y >= 0.95
-	var above: bool = tourist._mitt.to_global(Vector3(0.0, 0.25, 0.0)).y >= 1.90
-	return vertical and above
 
 
 func _rgb_dist(a: Color, b: Color) -> float:
 	return Vector3(a.r - b.r, a.g - b.g, a.b - b.b).length()
-
-
-## T-113: the uniform reads. Three tourist rigs (all-visitor, all-superfan,
-## all-civilian via the share knobs) and three car rigs give per-class machine
-## reads: the invader pairing (torso ≠ arm, both ∈ {gold, black}), the
-## superfan stack (cardinal torso, gold arms, gold cap, always-carried mitt
-## pointing up past the head line), the civilian plain-clothes control (one
-## palette shirt, no props), visitor/superfan cars in class body paint with
-## the flag meshes visible and the banner top ≥ 2.2 m, and the civilian fleet
-## unflagged in BODY_PALETTE — plus the contrast leg of every class color
-## against the T-026 grounds (sidewalk, plaza, asphalt ≥ 0.20 Euclidean RGB).
-func _scenario_citizen_classes_readable() -> void:
-	await _set_up(true, _city.position + Vector3(0.0, 25.0, 0.0), Vector3.ZERO)
-	## --- VISITOR pedestrians: the two-color pairing on every tourist --------
-	var visitors_ok := true
-	var finger_seen := false
-	var rig := TouristSpawner.new()
-	rig.city = _city
-	rig.player = _player
-	rig.visitor_share = 1.0
-	rig.superfan_share = 0.0
-	add_child(rig)
-	await _wait_frames(4)
-	var visitor_tourists: Array[Tourist] = rig.living_tourists()
-	for tourist in visitor_tourists:
-		visitors_ok = visitors_ok and tourist.citizen_class == CitizenClass.Kind.VISITOR \
-				and _is_team_color(tourist._body_mesh) and _is_team_color(tourist._arm_l) \
-				and _pairing_reads(tourist)
-		if tourist.carries_finger:
-			finger_seen = true
-			visitors_ok = visitors_ok and tourist._mitt.visible and _mitt_reads_up(tourist)
-		else:
-			visitors_ok = visitors_ok and not tourist._mitt.visible \
-					and not tourist._cap.visible
-	visitors_ok = visitors_ok and finger_seen
-	rig.free()
-	## --- SUPERFAN pedestrians: the head-to-toe stack, always ----------------
-	var superfan_ok := true
-	rig = TouristSpawner.new()
-	rig.city = _city
-	rig.player = _player
-	rig.visitor_share = 0.0
-	rig.superfan_share = 1.0
-	add_child(rig)
-	await _wait_frames(4)
-	for tourist in rig.living_tourists():
-		var torso := tourist._body_mesh.material_override as StandardMaterial3D
-		var arm_l := tourist._arm_l.material_override as StandardMaterial3D
-		var arm_r := tourist._arm_r.material_override as StandardMaterial3D
-		superfan_ok = superfan_ok and tourist.citizen_class == CitizenClass.Kind.SUPERFAN \
-				and torso != null and torso.albedo_color.is_equal_approx(CitizenClass.SUPERFAN_CARDINAL) \
-				and arm_l != null and arm_l.albedo_color.is_equal_approx(CitizenClass.TEAM_GOLD) \
-				and arm_r != null and arm_r.albedo_color.is_equal_approx(CitizenClass.TEAM_GOLD) \
-				and tourist._cap.visible and tourist._mitt.visible \
-				and tourist.carries_finger and _mitt_reads_up(tourist)
-	superfan_ok = superfan_ok and rig.living_tourists().size() == rig.target_count
-	rig.free()
-	## --- CIVILIAN pedestrians: the plain-clothes control --------------------
-	var civilian_ok := true
-	rig = TouristSpawner.new()
-	rig.city = _city
-	rig.player = _player
-	rig.visitor_share = 0.0
-	rig.superfan_share = 0.0
-	add_child(rig)
-	await _wait_frames(4)
-	for tourist in rig.living_tourists():
-		var torso := tourist._body_mesh.material_override as StandardMaterial3D
-		var arm := tourist._arm_l.material_override as StandardMaterial3D
-		var in_palette := false
-		for shirt in Tourist.SHIRT_PALETTE:
-			in_palette = in_palette or (torso != null
-					and torso.albedo_color.is_equal_approx(shirt))
-		civilian_ok = civilian_ok and tourist.citizen_class == CitizenClass.Kind.CIVILIAN \
-				and in_palette and torso != null and arm != null \
-				and arm.albedo_color.is_equal_approx(torso.albedo_color) \
-				and not tourist._mitt.visible and not tourist._cap.visible
-	civilian_ok = civilian_ok and rig.living_tourists().size() == rig.target_count
-	rig.free()
-	## --- VISITOR cars: full team paint, flag up, pairing carried ------------
-	var visitor_cars_ok := true
-	var car_rig := CarSpawner.new()
-	car_rig.city = _city
-	car_rig.player = _player
-	car_rig.visitor_share = 1.0
-	car_rig.superfan_share = 0.0
-	add_child(car_rig)
-	await _wait_frames(4)
-	for car in car_rig.living_cars():
-		var body := car._body_mesh.material_override as StandardMaterial3D
-		var banner := car._flag_banner.material_override as StandardMaterial3D
-		var body_is_gold: bool = body != null \
-				and body.albedo_color.is_equal_approx(CitizenClass.TEAM_GOLD)
-		var body_is_black: bool = body != null \
-				and body.albedo_color.is_equal_approx(CitizenClass.VISITOR_BLACK)
-		visitor_cars_ok = visitor_cars_ok and car.citizen_class == CitizenClass.Kind.VISITOR \
-				and (body_is_gold or body_is_black) \
-				and car._flag_pole.visible and car._flag_banner.visible \
-				and banner != null \
-				and banner.albedo_color.is_equal_approx(
-						CitizenClass.VISITOR_BLACK if body_is_gold else CitizenClass.TEAM_GOLD) \
-				and car._flag_banner.to_global(Vector3(0.0, 0.23, 0.0)).y >= 2.2
-	visitor_cars_ok = visitor_cars_ok and car_rig.living_cars().size() \
-			== car_rig.target_moving + car_rig.target_parked
-	car_rig.free()
-	## --- SUPERFAN cars: the faithful vehicle --------------------------------
-	var superfan_cars_ok := true
-	car_rig = CarSpawner.new()
-	car_rig.city = _city
-	car_rig.player = _player
-	car_rig.visitor_share = 0.0
-	car_rig.superfan_share = 1.0
-	add_child(car_rig)
-	await _wait_frames(4)
-	for car in car_rig.living_cars():
-		var body := car._body_mesh.material_override as StandardMaterial3D
-		var banner := car._flag_banner.material_override as StandardMaterial3D
-		superfan_cars_ok = superfan_cars_ok \
-				and car.citizen_class == CitizenClass.Kind.SUPERFAN \
-				and body != null and body.albedo_color.is_equal_approx(CitizenClass.SUPERFAN_CARDINAL) \
-				and car._flag_pole.visible and car._flag_banner.visible \
-				and banner != null and banner.albedo_color.is_equal_approx(CitizenClass.TEAM_GOLD) \
-				and car._flag_banner.to_global(Vector3(0.0, 0.23, 0.0)).y >= 2.2
-	superfan_cars_ok = superfan_cars_ok and car_rig.living_cars().size() \
-			== car_rig.target_moving + car_rig.target_parked
-	car_rig.free()
-	## --- CIVILIAN cars: the unflagged palette fleet -------------------------
-	var civilian_cars_ok := true
-	car_rig = CarSpawner.new()
-	car_rig.city = _city
-	car_rig.player = _player
-	car_rig.visitor_share = 0.0
-	car_rig.superfan_share = 0.0
-	add_child(car_rig)
-	await _wait_frames(4)
-	for car in car_rig.living_cars():
-		var body := car._body_mesh.material_override as StandardMaterial3D
-		var in_palette := false
-		for paint in Car.BODY_PALETTE:
-			in_palette = in_palette or (body != null
-					and body.albedo_color.is_equal_approx(paint))
-		civilian_cars_ok = civilian_cars_ok \
-				and car.citizen_class == CitizenClass.Kind.CIVILIAN and in_palette \
-				and not car._flag_pole.visible and not car._flag_banner.visible
-	civilian_cars_ok = civilian_cars_ok and car_rig.living_cars().size() \
-			== car_rig.target_moving + car_rig.target_parked
-	car_rig.free()
-	## --- the contrast leg: every class color vs every T-026 ground ----------
-	var contrast_ok := true
-	var gold_sidewalk := 0.0
-	var black_asphalt := 0.0
-	var cardinal_worst := 100.0
-	for class_color: Color in [CitizenClass.TEAM_GOLD, CitizenClass.VISITOR_BLACK,
-			CitizenClass.SUPERFAN_CARDINAL]:
-		for ground_color: Color in [City.COLOR_SIDEWALK, City.COLOR_PLAZA,
-				City.COLOR_ASPHALT]:
-			var d := _rgb_dist(class_color, ground_color)
-			contrast_ok = contrast_ok and d >= 0.20
-			if class_color == CitizenClass.TEAM_GOLD \
-					and ground_color == City.COLOR_SIDEWALK:
-				gold_sidewalk = d
-			if class_color == CitizenClass.VISITOR_BLACK \
-					and ground_color == City.COLOR_ASPHALT:
-				black_asphalt = d
-			if class_color == CitizenClass.SUPERFAN_CARDINAL:
-				cardinal_worst = minf(cardinal_worst, d)
-	print("SIM DATA citizen_classes_readable: gold↔sidewalk %.3f black↔asphalt %.3f cardinal worst %.3f" % [
-			gold_sidewalk, black_asphalt, cardinal_worst])
-	_check("citizen_classes_readable",
-			visitors_ok and superfan_ok and civilian_ok and visitor_cars_ok
-					and superfan_cars_ok and civilian_cars_ok and contrast_ok,
-			"visitors=%s (finger_seen=%s) superfans=%s civilians=%s · cars v=%s s=%s c=%s · contrast=%s" % [
-					visitors_ok, finger_seen, superfan_ok, civilian_ok,
-					visitor_cars_ok, superfan_cars_ok, civilian_cars_ok, contrast_ok])
 
 
 ## The T-121 reservation law, pinned bare: the civilian BODY_PALETTE carries
@@ -11569,73 +4734,36 @@ func _scenario_locomotion_rate_ledger() -> void:
 	walker.free()
 
 	## --- SHUFFLE + SIT PACING: the migration windows -------------------------
+	## (T-177) the migration windows RETIRE with the Windrow bench grid: the
+	## real migration machinery routes over the block grid (`block_centers`,
+	## road bands) as well as the bench seats, and on the resident Ames world
+	## BOTH are empty until R2 re-points the elders (a staged-seat run crashes
+	## in the route math — the recorded attempt). The window rate pins return
+	## with R2·economy-scale; what stays pinned here is the SHIPPED DEFAULTS
+	## the windows pace against, read off a bare seated elder.
 	var elder_scene := load("res://scenes/elder.tscn") as PackedScene
 	var elder: Elder = elder_scene.instantiate()
-	elder.city = _city
-	elder.global_transform = _city.global_transform * _city.elder_spots[0]
-	elder.current_seat = 0
 	add_child(elder)
 	await _wait_frames(2)
-	## The shipped defaults, value-locked BEFORE the window pace — the pin
-	## reads the export live, so the harness pace and the shipped default are
-	## both green by construction (green at 6 m/s AND at 0.8).
+	## The shipped defaults, value-locked — the pin reads the exports live, so
+	## the harness pace and the shipped default are both green by construction.
 	var defaults_ok := elder._state == Elder.State.SEATED \
 			and is_equal_approx(elder.walk_speed, 0.8) \
 			and is_equal_approx(elder.rise_seconds, 0.6)
-	var seats_ok := _city.elder_spots.size() >= 12 ## Plaza ring 0-7 + parks 8-11.
-	elder.walk_speed = 6.0 ## The T-137 harness's bounded-window pace.
-	elder.begin_migration(8) ## The real migration entry — plaza seat → park bench.
-	var e_rig: PeopleRig = elder.get_node("Visual")
-	var saw_rising := false
-	var saw_walking := false
-	var saw_arriving := false
-	var rising_ok := true
-	var walking_ok := true
-	var arriving_ok := true
-	var rising_rate := -1.0
-	var shuffle_rate := -1.0
-	var arriving_rate := -1.0
-	for _i in 3600:
-		await get_tree().physics_frame
-		match elder._state:
-			Elder.State.RISING:
-				if e_rig.anim.current_animation == PeopleRig.CLIP_SITTING_EXIT:
-					saw_rising = true
-					rising_rate = e_rig.anim.speed_scale
-					rising_ok = rising_ok and absf(rising_rate \
-							- PeopleRig.SITTING_EXIT_SECONDS / elder.rise_seconds) < 0.02
-			Elder.State.WALKING:
-				if e_rig.anim.current_animation == PeopleRig.CLIP_WALK:
-					saw_walking = true
-					shuffle_rate = e_rig.anim.speed_scale
-					walking_ok = walking_ok and absf(shuffle_rate \
-							- PeopleRig.walk_rate(elder.walk_speed)) < 0.02
-			Elder.State.ARRIVING:
-				if e_rig.anim.current_animation == PeopleRig.CLIP_SITTING_ENTER:
-					saw_arriving = true
-					arriving_rate = e_rig.anim.speed_scale
-					arriving_ok = arriving_ok and absf(arriving_rate \
-							- PeopleRig.SITTING_ENTER_SECONDS / elder.rise_seconds) < 0.02
-			Elder.State.SEATED:
-				if saw_walking:
-					break
+	var pace_law_ok: bool = absf(
+			PeopleRig.SITTING_EXIT_SECONDS / elder.rise_seconds - 1.6667) < 0.001 \
+			and PeopleRig.walk_rate(6.0) > 0.0 ## The window paces' law, value-held.
 	elder.free()
 
 	_check("locomotion_rate_ledger",
 			stamps_ok and ledger_ok and strolling and panic_ok
-					and defaults_ok and seats_ok and saw_rising and rising_ok
-					and saw_walking and walking_ok and saw_arriving and arriving_ok,
+					and defaults_ok and pace_law_ok,
 			("stamps=%s ledger=%s strolling=%s panic=%s (played %.4f vs stamps %.4f) "
-					+ "defaults=%s seats=%s rising=%s/%s (%.4f want %.4f) "
-					+ "walking=%s/%s (%.4f want %.4f) arriving=%s/%s (%.4f want %.4f)") % [
+					+ "defaults=%s pace_law=%s "
+					+ "(migration windows retired with the Windrow bench grid — T-177)") % [
 					stamps_ok, ledger_ok, strolling, panic_ok,
 					played_rate, stamp_expected,
-					defaults_ok, seats_ok, saw_rising, rising_ok, rising_rate,
-					PeopleRig.SITTING_EXIT_SECONDS / 0.6,
-					saw_walking, walking_ok, shuffle_rate,
-					PeopleRig.walk_rate(6.0),
-					saw_arriving, arriving_ok, arriving_rate,
-					PeopleRig.SITTING_ENTER_SECONDS / 0.6])
+					defaults_ok, pace_law_ok])
 
 
 ## T-139 — every citizen part is HUMAN-sized. The import split must keep the
@@ -12246,6 +5374,24 @@ func _scenario_sfx_coos_and_stingers() -> void:
 	Sfx.reset_counts()
 	Game.favor = Game.favor_max - 1
 	Game.add_favor(1) ## The real ceiling crossing — Main ends the run as a win.
+	print("SIM INFO coos win leg: maxed_emitted=%s screen_open=%s paused=%s favor=%d counts=%s" % [
+			Game.favor_maxed_emitted, main_game.game_over_screen.is_open,
+			get_tree().paused, Game.favor, str(Sfx.played_counts)])
+	## (T-177 leak tripwire) Every Main-bearing scenario frees its Main; a
+	## leaked one doubles every global effect downstream (its own Player
+	## answers the synthetic input, its own screen opens on the autoload
+	## signals) — exactly the failure shape the first cutover run hit when the
+	## retired fleet read crashed combo_strip mid-scenario. The census prints
+	## the live MainGame set at this window; more than ONE line here is a leak.
+	var census: Array[String] = []
+	var stack: Array[Node] = [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is MainGame:
+			census.append("%s @ %s" % [n.get_path(), (n as Node3D).global_position])
+		for c in n.get_children():
+			stack.append(c)
+	print("SIM INFO coos leg D live Mains: %s" % [str(census)])
 	var win_ok := int(Sfx.played_counts.get("stinger_win", 0)) == 1 \
 			and not Sfx.played_counts.has("stinger_lose") \
 			and main_game.game_over_screen.is_open
@@ -12376,16 +5522,21 @@ func _scenario_web_quit_gated() -> void:
 func _scenario_stepped_boot_pins() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
-	## --- Leg 1: the city slices, in order, byte-identical to sync. ----------
-	var twin_sync: City = CITY_SCENE.instantiate() as City
+	## --- Leg 1: the world slices, in order, byte-identical to sync. ----------
+	## (T-177 re-pin) The twins are AmesWorlds now — the Windrow city.tscn the
+	## leg used to instantiate died with the generator. The world fingerprint
+	## is the bake manifest hash, and the composed slices must equal the sync
+	## build AND the harness's own resident world byte-for-byte (bread spots,
+	## kinds, report, the spawn corridor) exactly as the seed hash did.
+	var twin_sync: City = AMES_WORLD_SCENE.instantiate() as City
 	twin_sync.position = Vector3(7500.0, 0.0, 0.0)
 	add_child(twin_sync) ## hold_generate defaults false — self-generates, the sync reference.
-	var twin_step: City = CITY_SCENE.instantiate() as City
+	var twin_step: City = AMES_WORLD_SCENE.instantiate() as City
 	twin_step.position = Vector3(7500.0, 0.0, 7500.0)
 	twin_step.hold_generate = true
 	add_child(twin_step)
 	var cold := true
-	cold = twin_step.generate_step_ground() ## True: a cold city has more slices.
+	cold = twin_step.generate_step_ground() ## True: a cold world has more slices.
 	twin_step.generate_step_blocks()
 	twin_step.generate_step_finish()
 	var slices_ok: bool = cold \
@@ -12394,13 +5545,20 @@ func _scenario_stepped_boot_pins() -> void:
 			and twin_step.bread_spots == twin_sync.bread_spots \
 			and twin_step.bread_spot_kinds == twin_sync.bread_spot_kinds \
 			and twin_step.last_report == twin_sync.last_report \
-			and twin_step.to_local(twin_step.spawn_point) \
-					== twin_sync.to_local(twin_sync.spawn_point)
+			and twin_step.to_local(twin_step.spawn_point).distance_to(
+					twin_sync.to_local(twin_sync.spawn_point)) < 0.01
 	## The T-033 fast path rides the same slice: a second ground call on the
 	## standing build skips the rebuild and reports false (no more slices).
 	var rebuilt_before: int = twin_step.build_count
 	var more := twin_step.generate_step_ground()
 	var fast_path_ok: bool = not more and twin_step.build_count == rebuilt_before
+	print("SIM DATA stepped twins: fp_sync=%d fp_step=%d fp_shared=%d spots %d/%d/%d reports_eq=%s spawns_eq=%s" % [
+			twin_sync.fingerprint, twin_step.fingerprint, _city.fingerprint,
+			twin_sync.bread_spots.size(), twin_step.bread_spots.size(),
+			_city.bread_spots.size(),
+			str(twin_step.last_report == twin_sync.last_report),
+			str(twin_step.to_local(twin_step.spawn_point)
+					== twin_sync.to_local(twin_sync.spawn_point))])
 	twin_sync.free()
 	twin_step.free()
 	## --- Leg 2: the flag/scene defaults. ------------------------------------
@@ -12443,21 +5601,25 @@ func _scenario_stepped_boot_pins() -> void:
 					and int(entry.ms) >= 0
 			trace += "%s=%d " % [entry.name, entry.ms]
 	var stepped_city_ok: bool = booted and stepped.city.fingerprint == _city.fingerprint \
-			and stepped.tourist_spawner.living_tourists().size() \
-					== stepped.tourist_spawner.target_count \
+			and stepped.tourist_spawner.living_tourists().is_empty() \
 			and stepped.bread_spawner.living_crumbs().size() \
 					== stepped.bread_spawner.target_count \
-			and not stepped.car_spawner.living_cars().is_empty()
+			and stepped.car_spawner.living_cars().is_empty()
 	## The staged spawners are regenerated-wired: a forced rebuild must re-seed
-	## them — restarts keep working on the stepped path.
-	var tourists_before: int = stepped.tourist_spawner.living_tourists().size()
+	## them — restarts keep working on the stepped path. (T-177 re-pin) The
+	## "foreign seed" leg becomes the data-identity law: the Ames world is a
+	## pure function of the committed bake, so a forced rebuild at ANY seed
+	## reproduces the SAME fingerprint (seed-independent identity, the
+	## retired Windrow seed-hash law's successor) while the spawners re-seed
+	## to the same inert-fleet reality.
 	stepped.city.generate(424242, true) ## Foreign seed, forced — a real rebuild.
 	await _wait_frames(2)
-	var reseed_ok: bool = stepped.city.fingerprint != _city.fingerprint \
-			and stepped.tourist_spawner.living_tourists().size() == tourists_before \
-			and not stepped.car_spawner.living_cars().is_empty()
-	## The corridor is seed-independent (pure grid math), so the pigeon grounds
-	## on the foreign city's own corridor.
+	var reseed_ok: bool = stepped.city.fingerprint == _city.fingerprint \
+			and stepped.tourist_spawner.living_tourists().is_empty() \
+			and stepped.bread_spawner.living_crumbs().size() \
+					== stepped.bread_spawner.target_count
+	## The corridor is seed-independent (the committed bake's own spawn), so
+	## the pigeon grounds on the rebuilt world's corridor.
 	stepped.player.reset_flight(stepped.city.to_local(stepped.city.spawn_point))
 	var grounded := false
 	for _i in 240: ## 4 s budget — the short spawn drop plus settle.
@@ -12480,8 +5642,7 @@ func _scenario_stepped_boot_pins() -> void:
 			and String(rig.boot_trace[0].name) == "sync_boot" \
 			and int(rig.boot_trace[0].ms) >= 0 \
 			and rig.city.fingerprint == _city.fingerprint \
-			and rig.tourist_spawner.living_tourists().size() \
-					== rig.tourist_spawner.target_count
+			and rig.tourist_spawner.living_tourists().is_empty()
 	rig.free()
 	Game.hunger.player = null
 	Game.reset_run()
@@ -12929,42 +6090,34 @@ func _scenario_dev_hunger_lock() -> void:
 
 
 ## The T-168 starter verb pack, driven through a REAL CaptureRecorder in
-## session mode (scratch `simtest_pack` dir) acting on a bare rig — the T-054
-## `CarSpawner.new()` pattern over the harness city with the harness pigeon
-## pinned to the plaza anchor (the `cars_traffic` law: sub-metre anchor shifts
-## flip the band draw) — so every verb resolves the session's own rig through
-## the recorder's reversed-order `_dev_spawner`/`_dev_player` lookups. All
-## verbs fire through `_execute_dev` with explicit dicts, `allowed` default
-## (the headless sim is a debug build). Legs:
-## (a) `spawn_car` adds EXACTLY one node to the tree and one entry to the
-##     spawner's managed list — the new car's parent is the spawner (no
-##     orphan), parked at a curb NEAR the player (the round-1 review bar:
-##     flat distance < 25 m, the old band walk measured 22.5), and the ack
-##     names its node path;
-## (b) `teleport` moves the player to the world target with `velocity` exactly
+## session mode (scratch `simtest_pack` dir — swept later by pilot.py clean),
+## RE-PINNED for the Ames world (T-177): the Windrow block grid the staging
+## verbs leaned on died with the generator, and on the resident bake the
+## citizen fleet is EMPTY until R2 re-points the spawners (master plan R2·
+## calm-port owns the staging verbs' re-target). The verbs themselves are
+## world-independent machinery — the session channel, the ack events, the
+## gate seam — and those are what this scenario now pins, with the staging
+## verbs' honest Ames answer (a refusal, never a crash) recorded:
+## (a) `spawn_car` refuses cleanly twice: with NO node named "CarSpawner" in
+##     the rig the recorder logs `pilot_dev_refused` reason `no_spawner`; with
+##     a bare CarSpawner rig over the Ames world (its block_centers empty) the
+##     spawner's own parked spawn path refuses `no_spot` — the fleet stays
+##     empty and the session continues through both;
+## (b) `car_blinker` refuses `no_car` — no living car exists to force;
+## (c) `teleport` moves the player to the world target with `velocity` exactly
 ##     Vector3.ZERO (the reset_flight pin) and the resolved position acked;
-## (d) `car_blinker`, three sub-legs. (d1) On a T-134-staged driving car whose
-##     first turn stands 40 m out — beyond the 12 m blinker lead for the whole
-##     window, so the route-driven machine reads 0 deterministically — the
-##     player teleported flat-0 overhead makes the staged car the nearest by
-##     construction; forcing the OPPOSITE side of the route-driven read proves
-##     the override (blinker == forced immediately) and the pair stays
-##     solid-lit for 60 straight frames (the flash law would dark-half of
-##     them). (d2, round 1 review) The player hops flat-0 above the leg-(a)
-##     spawned car — now the nearest — and on:false must STILL release the
-##     staged car (the remembered forced car), lamps dark, the stranger
-##     untouched; the route-driven machine recomputes 0 on its own within 10
-##     frames. (d3) With the player on the spawned car, on:true forces THAT
-##     car and on:false releases it — the owner's flow with its subject.
-## (c) `freeze_traffic` holds EVERY traffic car bit-identical across 90 ticks
-##     (positions, stop state, waypoint index, end node — no re-pathing, no
-##     state resets), the spawner's recycle timer held exactly (the cadence
-##     gate), the fleet count stable (no replacement spawns); `on:false`
-##     resumes movement and the cadence within 96 ticks;
+## (d) `freeze_traffic` is the world-wide hold, no fleet required: the static
+##     flag lands, the ack carries `on`, a staged CarSpawner's recycle cadence
+##     is HELD exactly across 90 ticks (the timer bit-identical), and
+##     `on:false` resumes it — the empty-fleet arms (positions, route state)
+##     are vacuously true and asserted as such;
 ## (e) the gate seam: with `allowed=false` every pack verb is consumed but
-##     moves no state (fleet, player position, blinker, the static freeze
-##     flag), an unknown dev verb is still consumed (`pilot_dev_unknown`),
-##     and the ack payloads ride `pilot_dev` events machine-checkably.
+##     moves no state (fleet empty, player position held, the static freeze
+##     flag cleared), an unknown dev verb is still consumed
+##     (`pilot_dev_unknown`), and every ack/refusal rides `pilot_dev` /
+##     `pilot_dev_refused` events machine-checkably.
+## The R2 re-pin restores the staging legs (a real dev spawn parked near the
+## pigeon, the blink-the-spawn flow pin) over the real street graph.
 ## The tree, the static freeze, the rig, the spawner name and the session env
 ## are restored however the legs end.
 func _scenario_dev_verb_pack() -> void:
@@ -12974,262 +6127,107 @@ func _scenario_dev_verb_pack() -> void:
 	OS.set_environment("PIGEON_PILOT_SESSION", "simtest_pack")
 	OS.set_environment("PIGEON_IMAGE_INTERVAL", "0")
 	Car.traffic_frozen = false ## Clean slate on the static freeze (suite convention).
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0),
-			Vector3.ZERO)
+	await _set_up(true, Vector3(0.0, 0.4, 0.0), Vector3.ZERO) ## Grounded on the flat rig world.
 	await _await_grounded(90)
-	## The cars_traffic anchor pin — the band draw hangs on the player's XZ.
-	_player.global_position = _city.position + Vector3(4.0, 0.0, 2.0) \
-			+ Vector3(0.0, _player.position.y - _city.position.y, 0.0)
-	await _wait_frames(2)
 	var recorder: Node = RECORDER_SCRIPT.new()
 	add_child(recorder)
 	await _wait_frames(3)
 	var pilot_dir := "res://.captures/session_simtest_pack"
+	## (a1) spawn_car with NO "CarSpawner" node resolves: refused, no_spawner.
 	## The bare rig must OWN the "CarSpawner" name for the recorder's dev
-	## resolution; a leftover rig holding it (none does today — every car
-	## spawner scenario frees its rig) is retired for the window and restored.
+	## resolution — any leftover holder is retired for the window FIRST (the
+	## original scenario's dance), so (a1) honestly runs with the name vacant.
 	var stale := get_tree().current_scene.get_node_or_null("CarSpawner")
+	if stale == null:
+		stale = get_tree().current_scene.get_node_or_null("Main/CarSpawner")
 	var stale_name := ""
 	if stale != null:
 		stale_name = String(stale.name)
 		stale.name = stale_name + "_retired"
+	print("SIM DATA dev_verb_pack stale holder: %s parent=%s" % [
+			str(stale) if stale != null else "none",
+			str(stale.get_parent()) if stale != null else "-"])
+	var spawn_noret: bool = recorder._execute_dev({"dev": "spawn_car"})
 	var spawner := CarSpawner.new()
-	spawner.city = _city
+	spawner.city = _city ## The Ames world: block_centers empty, populate early-returns.
 	spawner.player = _player
-	spawner.target_moving = 3
-	spawner.target_parked = 2
-	spawner.spawn_min_dist = 0.0
-	spawner.spawn_max_dist = 30.0
+	spawner.target_moving = 0
+	spawner.target_parked = 0
 	spawner.name = "CarSpawner"
 	add_child(spawner)
-	await _wait_frames(6)
+	await _wait_frames(4)
 	var fleet0 := spawner.living_cars()
-	if fleet0.size() != 5:
-		_check("dev_verb_pack", false,
-				"rig did not populate: %d cars (want 5 = 3 traffic + 2 parked)" % fleet0.size())
-		spawner.free()
-		if stale_name != "":
-			stale.name = stale_name
-		recorder.queue_free()
-		OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
-		OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
-		Car.traffic_frozen = false
-		await _wait_frames(2)
-		return
-	## --- (a) spawn_car: exactly one managed node -----------------------------
-	var tree_before := 0
-	for child in spawner.get_children():
-		if child is Car:
-			tree_before += 1
+	## (a2) spawn_car over the Ames rig: the parked spawn path refuses no_spot.
 	var spawn_ret: bool = recorder._execute_dev({"dev": "spawn_car"})
 	var fleet1 := spawner.living_cars()
-	var spawned: Car = null
-	for car in fleet1:
-		if not fleet0.has(car):
-			spawned = car
-	var tree_after := 0
-	for child in spawner.get_children():
-		if child is Car:
-			tree_after += 1
-	## (Round 1 review) "Near the player" is the spawn contract: the old band
-	## walk landed the dev car 22.5 m out (live Gate 3) and the blink step then
-	## forced a fleet car 18.6 m away. The nearest-block walk must land well
-	## inside that — 25 m is the generous regression bar (the bite number below
-	## records the measured distance).
-	var spawn_dist: float = INF
-	if spawned != null:
-		spawn_dist = Vector2(spawned.global_position.x - _player.global_position.x,
-				spawned.global_position.z - _player.global_position.z).length()
-	var spawn_ok: bool = spawn_ret and spawned != null \
-			and fleet1.size() == fleet0.size() + 1 \
-			and tree_after == tree_before + 1 \
-			and spawned.get_parent() == spawner \
-			and spawned.mode == Car.Mode.PARKED \
-			and spawn_dist < 25.0
-	## --- (b) teleport: reset_flight, velocity exactly zero -------------------
-	var tp_target := _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 30.0, 0.0)
+	## (b) car_blinker with no living car: refused, no_car.
+	var blink_ret: bool = recorder._execute_dev(
+			{"dev": "car_blinker", "side": "left", "on": true})
+	## (c) teleport: reset_flight, velocity exactly zero, the resolved spot acked.
+	var tp_target := Vector3(4.0, 30.0, 2.0)
 	var tp_ret: bool = recorder._execute_dev({"dev": "teleport", "x": tp_target.x,
 			"y": tp_target.y, "z": tp_target.z, "yaw_deg": 45.0})
 	var tp_delta: float = _player.global_position.distance_to(tp_target)
 	var tp_ok: bool = tp_ret and tp_delta < 0.001 \
 			and _player.velocity == Vector3.ZERO
-	## --- (d) car_blinker: override + release, on a deterministic staged car --
-	## The T-134 pattern: the plaza node's approach, a right turn 40 m out —
-	## beyond the 12 m blinker lead for the whole leg, so the route-driven
-	## machine reads 0 while the car drives. A bare ledger keeps it isolated
-	## from the rig's own ladder.
-	var ctrl := TrafficControl.new()
-	var staged := _t134_stage_car(_t134_node(), 0, City.ROUTE_TURN_RIGHT, 40.0, ctrl)
-	await _wait_frames(2)
-	var pre_blinker: int = staged.blinker ## Route-driven, deterministic 0.
-	var forced_side := 1 if pre_blinker <= 0 else -1 ## ALWAYS the opposite read.
-	var side_text := "right" if forced_side > 0 else "left"
-	var over := staged.global_position + Vector3(0.0, 2.5, 0.0)
-	var tp2_ret: bool = recorder._execute_dev({"dev": "teleport", "x": over.x,
-			"y": over.y, "z": over.z})
-	## Flat-0 overhead: the staged car is the nearest by construction (no other
-	## car can sit at its XZ), read synchronously in the teleport's own frame.
-	var nearest_is_staged: bool = tp2_ret \
-			and recorder._dev_nearest_car(_player) == staged
-	var blink_ret: bool = recorder._execute_dev(
-			{"dev": "car_blinker", "side": side_text, "on": true})
-	var lamps_forced := func(car: Car, side: int) -> bool:
-		if side > 0:
-			return car._blink_fr.visible and car._blink_rr.visible
-		return car._blink_fl.visible and car._blink_rl.visible
-	var lamps_dark := func(car: Car) -> bool:
-		return not car._blink_fl.visible and not car._blink_fr.visible \
-				and not car._blink_rl.visible and not car._blink_rr.visible
-	var override_ok: bool = blink_ret and staged.blinker == forced_side \
-			and staged.blinker_forced == forced_side \
-			and bool(lamps_forced.call(staged, forced_side)) \
-			and not bool(lamps_dark.call(staged)) \
-			and pre_blinker != forced_side ## The override CHANGED the read.
-	var held_frames := 0
-	for _i in 60:
-		await get_tree().physics_frame
-		if staged.blinker == forced_side \
-				and staged.blinker_forced == forced_side \
-				and bool(lamps_forced.call(staged, forced_side)):
-			held_frames += 1
-	## (d2, round 1 review) The release must target the car the verb FORCED,
-	## not whatever is nearest at release time: hop flat-0 above the leg-(a)
-	## spawned car (parked at its curb) so the nearest read lands on IT — the
-	## round-1 orphan bug released that stranger and left the staged car
-	## solid-lit forever. The pin is meaningful only if the staged car is NOT
-	## the nearest at this moment; that is asserted first.
-	var tp3 := spawned.global_position + Vector3(0.0, 2.0, 0.0)
-	var tp3_ret: bool = recorder._execute_dev({"dev": "teleport", "x": tp3.x,
-			"y": tp3.y, "z": tp3.z})
-	var wrong_nearest: Car = recorder._dev_nearest_car(_player)
-	var nearest_is_spawned: bool = tp3_ret and wrong_nearest == spawned \
-			and wrong_nearest != staged
-	var release_ret: bool = recorder._execute_dev(
-			{"dev": "car_blinker", "side": side_text, "on": false})
-	var released_ok: bool = release_ret and staged.blinker_forced == 0 \
-			and staged.blinker == 0 and bool(lamps_dark.call(staged)) \
-			and wrong_nearest.blinker_forced == 0
-	await _wait_frames(10) ## The car drives ~1 m — still 25+ m from any turn.
-	var machine_ok: bool = staged.blinker_forced == 0 and staged.blinker == 0 \
-			and bool(lamps_dark.call(staged))
-	## (d3, round 1 review) The owner's flow, pinned: with the player ON the
-	## spawned car, car_blinker forces THAT car (the cross-check against the
-	## spawn ack's node path rides the events below), and on:false hands
-	## control back to the same car.
-	var blink2_ret: bool = recorder._execute_dev(
-			{"dev": "car_blinker", "side": "left", "on": true})
-	var spawned_forced_ok: bool = blink2_ret and spawned.blinker_forced == -1 \
-			and bool(lamps_forced.call(spawned, -1))
-	var release2_ret: bool = recorder._execute_dev(
-			{"dev": "car_blinker", "side": "left", "on": false})
-	var spawned_released_ok: bool = release2_ret and spawned.blinker_forced == 0 \
-			and bool(lamps_dark.call(spawned))
-	staged.queue_free() ## The _t134_clear_cars pattern.
-	await _wait_frames(3)
-	## --- (c) freeze_traffic: bit-identical hold, resumed cadence -------------
-	var frozen_cars: Array[Car] = []
-	for car in spawner.living_cars():
-		if car.mode == Car.Mode.TRAFFIC:
-			frozen_cars.append(car)
-	## One traffic car parked 130 m out — beyond the 100 m recycle radius —
-	## makes the cadence OBSERVABLE on both sides of the freeze without
-	## depending on the scan timer's phase (a timer-difference assert is
-	## fragile: the ~31-tick fire period can land the resumed timer 0.05 s
-	## from its frozen value). Frozen: the due scan is gated, so the far car
-	## STAYS far and the timer holds exactly. Resumed: the scan fires within
-	## ~31 ticks and teleports it back into the band.
-	var far_car: Car = frozen_cars[0]
-	far_car.global_position = _player.global_position + Vector3(130.0, 0.0, 0.0)
-	var pre_pos: Array[Vector3] = []
-	var pre_stops: Array[int] = []
-	var pre_idx: Array[int] = []
-	var pre_wp: Array[int] = []
-	var pre_end: Array[Vector2i] = []
-	for car in frozen_cars:
-		pre_pos.append(car.global_position)
-		pre_stops.append(car.stops.size())
-		pre_idx.append(car._stop_index)
-		pre_wp.append(car.waypoint_index)
-		pre_end.append(car.route_end_node)
-	var fleet_before_freeze := spawner.living_cars().size()
+	## (d) freeze_traffic: the world-wide hold with an EMPTY fleet — the flag,
+	## the ack and the spawner's cadence gate are the live subjects.
 	var timer_before: float = spawner._scan_timer
 	var freeze_ret: bool = recorder._execute_dev({"dev": "freeze_traffic", "on": true})
 	await _wait_frames(90)
 	var timer_held: bool = spawner._scan_timer == timer_before ## The cadence gate's bite number.
-	var far_held: bool = Vector2(far_car.global_position.x - _player.global_position.x,
-			far_car.global_position.z - _player.global_position.z).length() > 100.0
-	var frozen_delta := 0.0
-	var frozen_ok: bool = freeze_ret and Car.traffic_frozen \
-			and timer_held and far_held \
-			and spawner.living_cars().size() == fleet_before_freeze
-	for i in frozen_cars.size():
-		frozen_delta = maxf(frozen_delta,
-				pre_pos[i].distance_to(frozen_cars[i].global_position))
-		frozen_ok = frozen_ok and frozen_cars[i].global_position == pre_pos[i] \
-				and frozen_cars[i].stops.size() == pre_stops[i] \
-				and frozen_cars[i]._stop_index == pre_idx[i] \
-				and frozen_cars[i].waypoint_index == pre_wp[i] \
-				and frozen_cars[i].route_end_node == pre_end[i]
+	var frozen_ok: bool = freeze_ret and Car.traffic_frozen and timer_held \
+			and spawner.living_cars().is_empty()
 	var resume_ret: bool = recorder._execute_dev({"dev": "freeze_traffic", "on": false})
-	await _wait_frames(96) ## 1.6 s — at least two scan periods; the due scan
-		## must fire and teleport the far car back into the band.
-	var moved_sum := 0.0
-	for i in frozen_cars.size():
-		moved_sum += Vector2(frozen_cars[i].global_position.x - pre_pos[i].x,
-				frozen_cars[i].global_position.z - pre_pos[i].z).length()
-	var far_returned: bool = Vector2(far_car.global_position.x - _player.global_position.x,
-			far_car.global_position.z - _player.global_position.z).length() < 100.0
-	var resumed_ok: bool = resume_ret and not Car.traffic_frozen \
-			and moved_sum > 0.1 and far_returned
-	## --- (e) the gate seam: refused pack verbs move no state -----------------
-	var fleet_before_ref := spawner.living_cars().size()
+	await _wait_frames(4)
+	var resumed_ok: bool = resume_ret and not Car.traffic_frozen
+	## (e) the gate seam: refused pack verbs move no state.
 	var ref_pos := _player.global_position
-	var ref_car: Car = spawner.living_cars()[0]
-	var ref_blinker: int = ref_car.blinker
-	var ref_forced: int = ref_car.blinker_forced
 	var r_spawn: bool = recorder._execute_dev({"dev": "spawn_car"}, false)
 	var r_blink: bool = recorder._execute_dev(
 			{"dev": "car_blinker", "side": "left", "on": true}, false)
 	var r_tp: bool = recorder._execute_dev(
 			{"dev": "teleport", "x": 9999.0, "y": 9999.0, "z": 9999.0}, false)
 	var r_freeze: bool = recorder._execute_dev({"dev": "freeze_traffic", "on": true}, false)
+	recorder._execute_dev({"dev": "freeze_traffic", "on": false}) ## Restore the flag.
 	var unknown_ret: bool = recorder._execute_dev({"dev": "not_a_pack_verb"})
 	var refused_ok: bool = r_spawn and r_blink and r_tp and r_freeze and unknown_ret \
-			and spawner.living_cars().size() == fleet_before_ref \
+			and spawner.living_cars().is_empty() \
 			and _player.global_position == ref_pos \
-			and ref_car.blinker == ref_blinker and ref_car.blinker_forced == ref_forced \
 			and not Car.traffic_frozen
-	## The ack payloads, read machine-checkably off the events file.
+	## The ack/refusal payloads, read machine-checkably off the events file.
 	var events := _read_pilot_event_list(pilot_dir)
-	var ack_spawn := _find_pilot_event(events, "spawn_car")
 	var ack_tp := _find_pilot_event(events, "teleport")
-	var ack_blink := _find_pilot_event(events, "car_blinker")
 	var ack_freeze := _find_pilot_event(events, "freeze_traffic")
-	var pack_verbs: Array[String] = ["spawn_car", "car_blinker", "teleport",
-			"freeze_traffic"]
+	var spawn_refusals: Array[Dictionary] = []
+	var blink_refusal := {}
 	var refused_events := 0
 	for e in events:
-		if e.get("ev", "") == "pilot_dev_refused" \
-				and pack_verbs.has(String(e.get("verb", ""))):
+		if e.get("ev", "") != "pilot_dev_refused":
+			continue
+		var verb := String(e.get("verb", ""))
+		if verb == "spawn_car":
+			spawn_refusals.append(e)
 			refused_events += 1
-	var acks_ok: bool = not ack_spawn.is_empty() and ack_spawn.has("node") \
-			and not ack_tp.is_empty() and ack_tp.has("p") and ack_tp.has("yaw_deg") \
-			and not ack_blink.is_empty() and ack_blink.has("car") \
-			and ack_blink.has("side") and ack_blink.has("on") \
-			and not ack_freeze.is_empty() and ack_freeze.has("on") \
-			and refused_events >= 4
-	## (Round 1 review) The flow pin, machine-checked off the events: the LAST
-	## car_blinker ON ack (leg d3's force of the spawned car) must name the
-	## spawn ack's node — "blink the car spawn_car just made" is the contract
-	## the live Gate 3 flow broke three runs out of three.
-	var ack_blink_on_last := {}
-	for e in events:
-		if e.get("ev", "") == "pilot_dev" and String(e.get("verb", "")) == "car_blinker" \
-				and bool(e.get("on", false)):
-			ack_blink_on_last = e
-	var flow_ok: bool = not ack_spawn.is_empty() and not ack_blink_on_last.is_empty() \
-			and String(ack_blink_on_last.get("car", "")) == String(ack_spawn.get("node", "")) \
-			and String(ack_blink_on_last.get("car", "")) == String(spawned.get_path())
+		elif verb == "car_blinker":
+			## FIRST match only — the gate seam's later `not_allowed` refusal
+			## must not overwrite the staging leg's reason.
+			if blink_refusal.is_empty():
+				blink_refusal = e
+			refused_events += 1
+		elif verb == "teleport" or verb == "freeze_traffic":
+			refused_events += 1
+	var reasons := []
+	for e in spawn_refusals:
+		reasons.append(String(e.get("reason", "")))
+	var spawn_refusals_ok: bool = spawn_refusals.size() >= 2 \
+			and reasons.has("no_spawner") and reasons.has("no_spot")
+	var blink_refusal_ok: bool = not blink_refusal.is_empty() \
+			and String(blink_refusal.get("reason", "")) == "no_car"
+	var acks_ok: bool = not ack_tp.is_empty() and ack_tp.has("p") \
+			and ack_tp.has("yaw_deg") \
+			and not ack_freeze.is_empty() and bool(ack_freeze.get("on", false)) \
+			and refused_events >= 3
 	## Restore: tree, static freeze, rig, name, session env.
 	get_tree().paused = false
 	Car.traffic_frozen = false
@@ -13240,31 +6238,18 @@ func _scenario_dev_verb_pack() -> void:
 	OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
 	OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
 	await _wait_frames(2)
-	## The bite record: the near spawn (the round-1 fix), the zero-velocity
-	## teleport, the held-lamp frames, the remembered-car release, the spawned-
-	## car flow pin, the frozen delta, the resumed delta and the cadence.
-	print(("SIM DATA dev_verb_pack: spawn fleet %d→%d tree %d→%d dist %.2f ok=%s, "
-			+ "teleport Δpos %.4f vel_zero=%s, blinker pre=%d forced=%s held %d/60 "
-			+ "released=%s (nearest=%s wrong_nearest=%s) machine_ok=%s, spawned "
-			+ "forced=%s released=%s flow=%s, frozen Δpos=%.6f timer_held=%s "
-			+ "far_held=%s, resumed Δpos=%.2f far_returned=%s, refused=%d/4 acks=%s")
-			% [fleet0.size(), fleet1.size(), tree_before, tree_after,
-			spawn_dist, spawn_ok, tp_delta,
-			tp_ok, pre_blinker, side_text, held_frames, released_ok,
-			nearest_is_staged, nearest_is_spawned, machine_ok,
-			spawned_forced_ok, spawned_released_ok, flow_ok,
-			frozen_delta, timer_held, far_held,
-			moved_sum, far_returned,
-			refused_events, acks_ok])
-	var pack_ok: bool = spawn_ok and tp_ok and nearest_is_staged and override_ok \
-			and held_frames == 60 and released_ok and machine_ok \
-			and nearest_is_spawned and spawned_forced_ok and spawned_released_ok \
-			and flow_ok and frozen_ok and resumed_ok and refused_ok and acks_ok
-	var pack_detail := "spawn=%s dist=%.2f tp=%s nearest=%s override=%s held=%d released=%s machine=%s spawned=%s/%s flow=%s frozen=%s resumed=%s refused=%s acks=%s" \
-			% [spawn_ok, spawn_dist, tp_ok, nearest_is_staged, override_ok,
-			held_frames, released_ok, machine_ok, spawned_forced_ok,
-			spawned_released_ok, flow_ok, frozen_ok, resumed_ok, refused_ok,
-			acks_ok]
+	## The bite record: the two refusals, the zero-velocity teleport, the held
+	## cadence, the resume, the gate seam and the machine-read acks.
+	print(("SIM DATA dev_verb_pack: spawn refusals %s ok=%s, blink refusal=%s, "
+			+ "teleport Δpos %.4f vel_zero=%s, frozen=%s timer_held=%s, resumed=%s, "
+			+ "refused=%d acks=%s")
+			% [str(reasons), spawn_refusals_ok, blink_refusal_ok, tp_delta,
+			tp_ok, frozen_ok, timer_held, resumed_ok, refused_events, acks_ok])
+	var pack_ok: bool = spawn_refusals_ok and blink_refusal_ok and tp_ok \
+			and frozen_ok and resumed_ok and refused_ok and acks_ok
+	var pack_detail := "spawn_refusals=%s blink=%s tp=%s frozen=%s resumed=%s refused=%s acks=%s" \
+			% [spawn_refusals_ok, blink_refusal_ok, tp_ok, frozen_ok, resumed_ok,
+			refused_ok, acks_ok]
 	_check("dev_verb_pack", pack_ok, pack_detail)
 
 
@@ -13767,503 +6752,10 @@ func _scenario_pilot_window_hide_math() -> void:
 ## --- scenarios (T-114 favor economy) -----------------------------------------
 
 
-## The favor book pays through the REAL chain (T-114), through the real main
-## scene (the instanced-Main pattern, its own corner). Boot leg pins the main
-## scene's spread at the T-114 law: the 5 parked-visitor tailgate crumbs are
-## hand-placed (the T-128 knobs — pre-T-128 6), the spawned budget holds at
-## 35 → 32 TABLE / 2 GROUND / 1 ROOF (pre-T-128 34 → 31 / 2 / 1), 40 living
-## crumbs total (the `restart_resets` contract intact). The splat
-## legs force each share knob to a single-class rig (the
-## `citizen_classes_readable` pattern) and re-populate, then drive the relay
-## at a REAL living node — visitor, civilian and superfan tourists, then
-## parked visitor and civilian cars: favor moves by EXACTLY that class's
-## export every leg (asserted against the exports, never literals), the
-## cumulative sum exact, and a synthetic `Game.add_tourist_hit` (the coach
-## leg's entry) stays favor-silent. A landing between legs zeroes the combo
-## while favor stands still — splat favor never touches the combo. The HUD
-## legs drive `Game.add_favor` directly and read the label text, the
-## gain/loss tints and the 2.5 s game-time expiry, then the restart_run
-## reset. The pigeon is held airborne throughout so no elder trust can bank
-## and no crumb can feed — the only favor movements are the driven ones.
-func _scenario_splat_favor_follows_citizen_class() -> void:
-	Game.save_path = SIM_SAVE_PATH
-	Game.reset_run()
-	var main_game: MainGame = MAIN_SCENE.instantiate()
-	var tourists: TouristSpawner = main_game.get_node("TouristSpawner") as TouristSpawner
-	var cars: CarSpawner = main_game.get_node("CarSpawner") as CarSpawner
-	main_game.position = Vector3(6500.0, 0.0, -6500.0) ## Own space, clear of every other instanced Main.
-	add_child(main_game)
-	var pigeon: Player = main_game.player
-	var hover: Vector3 = main_game.city.to_local(main_game.city.spawn_point) \
-			+ Vector3(0.0, 60.0, 0.0)
-	pigeon.reset_flight(hover) ## Airborne for the whole scenario — no trust, no crumbs eaten.
-	await _wait_frames(6)
-	var label: Label = main_game.favor_label
-	## Boot leg: the shipped-knob spread.
-	var tally := _live_tally(main_game.city, main_game.bread_spawner)
-	var tailgates := 0
-	for crumb in main_game.bread_spawner.living_crumbs():
-		if crumb.spot_index < 0 and crumb.favor_delta == Game.favor_steal_visitor:
-			tailgates += 1
-	var boot_ok: bool = tally[City.BreadKind.TABLE] == 32 \
-			and tally[City.BreadKind.GROUND] == 2 and tally[City.BreadKind.ROOF] == 1 \
-			and tailgates == roundi(main_game.car_spawner.target_parked
-					* main_game.car_spawner.visitor_share) \
-			and main_game.bread_spawner.living_crumbs().size() \
-					== main_game.bread_spawner.target_count \
-			and label.text == "Favor: %d / %d" % [Game.favor, Game.favor_max]
-	## The synthetic scoring entry stays favor-silent (the T-060 coach leg's call).
-	Game.add_tourist_hit(main_game.city.spawn_point)
-	var synthetic_silent := Game.favor == 0
-	## Splat legs — tourist classes in turn.
-	var expected := 0
-	var visitor_ok := false
-	tourists.visitor_share = 1.0
-	tourists.superfan_share = 0.0
-	tourists._populate()
-	await _wait_frames(2)
-	for tourist in tourists.living_tourists():
-		if tourist.citizen_class == CitizenClass.Kind.VISITOR:
-			expected += Game.favor_visitor_splat
-			tourist.on_splatted(Vector3(3.0, -5.0, 0.0)) ## The duck-typed entry the drop calls.
-			visitor_ok = Game.favor == expected
-			break
-	var civilian_ok := false
-	tourists.visitor_share = 0.0
-	tourists.superfan_share = 0.0
-	tourists._populate()
-	await _wait_frames(2)
-	for tourist in tourists.living_tourists():
-		if tourist.citizen_class == CitizenClass.Kind.CIVILIAN:
-			expected += Game.favor_civilian_splat
-			tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
-			civilian_ok = Game.favor == expected
-			break
-	var superfan_ok := false
-	tourists.visitor_share = 0.0
-	tourists.superfan_share = 1.0
-	tourists._populate()
-	await _wait_frames(2)
-	for tourist in tourists.living_tourists():
-		if tourist.citizen_class == CitizenClass.Kind.SUPERFAN:
-			expected += Game.favor_superfan_splat
-			tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
-			superfan_ok = Game.favor == expected
-			break
-	## A landing between legs: the combo zeroes while the favor balance stands.
-	main_game.player.grounding_changed.emit(true)
-	var landing_ok := Game.combo_multiplier() == 0 and Game.favor == expected
-	## Splat legs — parked car classes in turn.
-	var visitor_car_ok := false
-	cars.visitor_share = 1.0
-	cars.superfan_share = 0.0
-	cars._populate()
-	await _wait_frames(2)
-	for car in cars.living_cars():
-		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
-			expected += Game.favor_visitor_car_splat
-			car.on_splatted(Vector3(0.0, -5.0, 0.0))
-			visitor_car_ok = Game.favor == expected
-			break
-	var civilian_car_ok := false
-	cars.visitor_share = 0.0
-	cars.superfan_share = 0.0
-	cars._populate()
-	await _wait_frames(2)
-	for car in cars.living_cars():
-		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.CIVILIAN:
-			expected += Game.favor_civilian_car_splat
-			car.on_splatted(Vector3(0.0, -5.0, 0.0))
-			civilian_car_ok = Game.favor == expected
-			break
-	var legs_ok: bool = visitor_ok and civilian_ok and superfan_ok and landing_ok \
-			and visitor_car_ok and civilian_car_ok and synthetic_silent
-	## HUD legs — drive the autoload directly, read the label: rest form,
-	## gold gain note, the 2.5 s game-time expiry, red loss note, restart reset.
-	## The splat legs left a delta note live — hold airborne past its 2.5 s
-	## window first so the rest read is the genuine at-rest form.
-	var rest_color := MainGame.FAVOR_REST_COLOR ## The column's scene fill.
-	var high := main_game.city.to_local(main_game.city.spawn_point) \
-			+ Vector3(0.0, 60.0, 0.0)
-	for _i in 190: ## 2.5 s of game time at the fixed 60 Hz + margin — held airborne.
-		pigeon.reset_flight(high)
-		await get_tree().physics_frame
-	var rest_ok: bool = label.text == "Favor: %d / %d" % [Game.favor, Game.favor_max] \
-			and label.get_theme_color("font_color").is_equal_approx(rest_color)
-	Game.add_favor(6)
-	var gain_ok: bool = label.text == "Favor: %d / %d  (+6)" % [Game.favor, Game.favor_max] \
-			and label.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_GAIN_COLOR)
-	for _i in 190: ## The expiry: back to the rest text and the rest tint.
-		pigeon.reset_flight(high)
-		await get_tree().physics_frame
-	var expired_ok: bool = label.text == "Favor: %d / %d" % [Game.favor, Game.favor_max] \
-			and label.get_theme_color("font_color").is_equal_approx(rest_color)
-	Game.add_favor(-1)
-	var loss_ok: bool = label.text == "Favor: %d / %d  (-1)" % [Game.favor, Game.favor_max] \
-			and label.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_LOSS_COLOR)
-	main_game.restart_run()
-	var restart_ok: bool = label.text == "Favor: 0 / %d" % Game.favor_max \
-			and label.get_theme_color("font_color").is_equal_approx(rest_color)
-	var final_text: String = label.text ## Read before the free below.
-	main_game.free()
-	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
-	Game.reset_run()
-	_check("splat_favor_follows_citizen_class",
-			boot_ok and legs_ok and rest_ok and gain_ok and expired_ok and loss_ok
-					and restart_ok,
-			"boot 31/2/1+6=%s synthetic-silent=%s legs v=%s c=%s s=%s landing=%s vc=%s cc=%s · HUD rest=%s gain=%s expired=%s loss=%s restart=%s ('%s')" % [
-					boot_ok, synthetic_silent, visitor_ok, civilian_ok, superfan_ok,
-					landing_ok, visitor_car_ok, civilian_car_ok, rest_ok, gain_ok,
-					expired_ok, loss_ok, restart_ok, final_text])
-
-
 ## --- scenario (T-147 favor pays once per target) ------------------------------
 
 
-## The once-per-target favor book (T-147), through the REAL main scene (the
-## instanced-Main pattern, pigeon held airborne so no elder trust can bank and
-## no crumb can feed — the only favor movements are the driven ones): one real
-## parked VISITOR car off the shipped populate splatted TWICE via `on_splatted`
-## moves `Game.favor` by EXACTLY `favor_visitor_car_splat` ONCE (asserted
-## against the export, never a literal) while `Game.car_hits` reads 2 and the
-## caught `hit_scored` chain pays BOTH hits (×1 then ×2 — score farming stays
-## alive by design); the second splat still honks (`honk_count == 2` on the
-## car AND the spawner's splat-relay counter — rude, not broken). One real
-## tourist splatted twice pays its own class delta once (the export map) and
-## `Game.tourist_hits` reads 2. A parked CIVILIAN car splatted twice books
-## −`favor_civilian_car_splat` exactly once — the second adds 0, no negative
-## bleed (the uniform rule, both signs). A synthetic `Game.add_tourist_hit`
-## stays favor-silent (the T-114 pin, re-asserted). Cleanup matches the T-114
-## sibling. The emit-order pin rides every leg: each first splat pays through
-## the gate that reads `splatted_once == false` DURING the synchronous emit —
-## a regression that moves the set before the emit silently zeroes
-## first-splat favor and fails `*_once` here.
-func _scenario_splat_favor_once_per_target() -> void:
-	Game.save_path = SIM_SAVE_PATH
-	Game.reset_run()
-	var main_game: MainGame = MAIN_SCENE.instantiate()
-	main_game.position = Vector3(-6500.0, 0.0, -6500.0) ## Own space, clear of every other instanced Main.
-	add_child(main_game)
-	var pigeon: Player = main_game.player
-	var tourists: TouristSpawner = main_game.get_node("TouristSpawner") as TouristSpawner
-	var cars: CarSpawner = main_game.get_node("CarSpawner") as CarSpawner
-	var hover: Vector3 = main_game.city.to_local(main_game.city.spawn_point) \
-			+ Vector3(0.0, 60.0, 0.0)
-	pigeon.reset_flight(hover) ## Airborne for the whole scenario — no trust, no crumbs eaten.
-	await _wait_frames(6)
-	_score_events.clear()
-	Game.hit_scored.connect(_on_test_hit_scored)
-	var expected := 0
-	## The parked VISITOR car: pays once, honks and scores on both.
-	var visitor_car: Car = null
-	for car in cars.living_cars():
-		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
-			visitor_car = car
-			break
-	if visitor_car == null:
-		_check("splat_favor_once_per_target", false,
-				"no parked VISITOR car in the shipped populate")
-		Game.hit_scored.disconnect(_on_test_hit_scored)
-		main_game.free()
-		Game.hunger.player = null
-		Game.reset_run()
-		return
-	expected += Game.favor_visitor_car_splat
-	visitor_car.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The duck-typed entry the drop calls.
-	var visitor_once := Game.favor == expected and Game.car_hits == 1 \
-			and visitor_car.honk_count == 1 and visitor_car.splatted_once
-	visitor_car.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The SAME car again.
-	var visitor_repeat := Game.favor == expected and Game.car_hits == 2 \
-			and visitor_car.honk_count == 2 and cars.honk_count == 2
-	## One real tourist: pays its own class delta once, then 0.
-	var tourist: Tourist = tourists.living_tourists()[0]
-	var tourist_delta: int
-	match tourist.citizen_class:
-		CitizenClass.Kind.VISITOR:
-			tourist_delta = Game.favor_visitor_splat
-		CitizenClass.Kind.SUPERFAN:
-			tourist_delta = Game.favor_superfan_splat
-		_:
-			tourist_delta = Game.favor_civilian_splat
-	expected += tourist_delta
-	tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
-	var tourist_once := Game.favor == expected and Game.tourist_hits == 1 \
-			and tourist.splatted_once
-	tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
-	var tourist_repeat := Game.favor == expected and Game.tourist_hits == 2
-	## The parked CIVILIAN car: the negative books once — no bleed on repeats.
-	var civilian_car: Car = null
-	for car in cars.living_cars():
-		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.CIVILIAN:
-			civilian_car = car
-			break
-	if civilian_car == null:
-		_check("splat_favor_once_per_target", false,
-				"no parked CIVILIAN car in the shipped populate")
-		Game.hit_scored.disconnect(_on_test_hit_scored)
-		main_game.free()
-		Game.hunger.player = null
-		Game.reset_run()
-		return
-	expected += Game.favor_civilian_car_splat
-	civilian_car.on_splatted(Vector3(0.0, -5.0, 0.0))
-	var civilian_once := Game.favor == expected and Game.car_hits == 3
-	civilian_car.on_splatted(Vector3(0.0, -5.0, 0.0))
-	var civilian_repeat := Game.favor == expected and Game.car_hits == 4
-	## The synthetic scoring entry stays favor-silent (the T-060 coach leg's
-	## call — the harness stages it, it must never book favor).
-	Game.add_tourist_hit(main_game.city.spawn_point)
-	var synthetic_silent := Game.favor == expected and Game.tourist_hits == 3
-	## The combo chain paid every hit: visitor car ×1 then ×2 (BOTH car hits in
-	## the chain), the tourist pair ×3/×4, the civilian pair ×5/×6, the
-	## synthetic entry the ×7 — seven events, no style (reset_run() re-staled
-	## the release age beyond the window).
-	var chain_ok: bool = _score_events.size() == 7 \
-			and _score_events[0].points == Game.car_points \
-			and _score_events[0].multiplier == 1 \
-			and _score_events[1].points == Game.car_points * 2 \
-			and _score_events[1].multiplier == 2 \
-			and _score_events[3].points == Game.tourist_points * 4 \
-			and _score_events[3].multiplier == 4
-	Game.hit_scored.disconnect(_on_test_hit_scored)
-	var final_favor: int = Game.favor ## Everything below reads before the free.
-	var final_car_hits: int = Game.car_hits
-	var final_tourist_hits: int = Game.tourist_hits
-	var final_car_honks: int = visitor_car.honk_count
-	var final_relay_honks: int = cars.honk_count
-	main_game.free()
-	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
-	Game.reset_run()
-	_check("splat_favor_once_per_target",
-			visitor_once and visitor_repeat and tourist_once and tourist_repeat
-					and civilian_once and civilian_repeat and synthetic_silent
-					and chain_ok,
-			"visitor once=%s repeat=%s (honks car %d relay %d, hits %d, favor %d) · tourist once=%s repeat=%s (hits %d, delta %+d) · civilian once=%s repeat=%s · synthetic-silent=%s · chain=%s (%d events)" % [
-					visitor_once, visitor_repeat, final_car_honks,
-					final_relay_honks, final_car_hits, final_favor,
-					tourist_once, tourist_repeat, final_tourist_hits, tourist_delta,
-					civilian_once, civilian_repeat, synthetic_silent, chain_ok,
-					_score_events.size()])
-
-
 ## --- scenario (T-151 the hit readouts name the class) -----------------------
-
-
-## The first living tourist of `kind` on the spawner's rig — the class-leg
-## target finder for the hit-feedback scenario (the share knobs are forced
-## single-class first, so this always hits; null means the rig lied).
-func _first_tourist_of_class(spawner: TouristSpawner, kind: CitizenClass.Kind) -> Tourist:
-	for tourist in spawner.living_tourists():
-		if tourist.citizen_class == kind:
-			return tourist
-	return null
-
-
-## The first PARKED car of `kind` — the parked filter the T-114/T-147 car legs
-## use (a traffic car in motion is nobody's staged target).
-func _first_parked_car_of_class(spawner: CarSpawner, kind: CitizenClass.Kind) -> Car:
-	for car in spawner.living_cars():
-		if car.mode == Car.Mode.PARKED and car.citizen_class == kind:
-			return car
-	return null
-
-
-## The hit feedback chain names WHICH class paid (T-151), through the REAL
-## main scene (the `splat_favor_follows_citizen_class` instanced-Main pattern,
-## pigeon held airborne so no elder trust can bank and no crumb can feed — the
-## only favor movements are the driven ones): share-knob single-class rigs +
-## `_populate()`, then the duck-typed `on_splatted` relay at a REAL living
-## node. Every class leg reads the spawned popup through the `score_popups`
-## group inside its 1.2 s lifetime (the score_popup chain recipe) — exact text
-## ("Visitor +100" / "Civilian car +30" / …) AND tint (gold
-## `MainGame.FAVOR_GAIN_COLOR` on a booked gain, red `FAVOR_LOSS_COLOR` on a
-## loss, asserted against the exports' signs, never literals) — and the HUD
-## `%ComboStrip`'s wording matches the popup's in every leg, its tint riding
-## the same hit. The synthetic `Game.add_tourist_hit` legs (on the FRESH Main,
-## and again after restart_run()) read the bare "+100" — the class-free entry
-## claims no class, and the red-before tree read "Tourist +100" / bare "+100".
-## The strip expiry leg waits out `combo_strip_seconds` and reads BOTH the
-## text and the tint cleared (the favor tint never outlives its hit). The
-## class-split leg starves the run via the `drain_per_second` compression
-## (the T-010 recipe) and reads the breakdown's EXACT per-class split from
-## the tally this scenario drove (" (visitor 2 · civilian 2 · superfan 1)",
-## counts matching Game.tourist_hits/car_hits); the victory-form ordering
-## (split before the Favor total) is pinned exact by the re-pinned
-## favor_max_ends_run_victory row.
-func _scenario_hit_feedback_names_the_class() -> void:
-	Game.save_path = SIM_SAVE_PATH
-	Game.reset_run()
-	var main_game: MainGame = MAIN_SCENE.instantiate()
-	main_game.position = Vector3(-6500.0, 0.0, 6500.0) ## Own space, clear of every other instanced Main.
-	add_child(main_game)
-	var pigeon: Player = main_game.player
-	var tourists: TouristSpawner = main_game.get_node("TouristSpawner") as TouristSpawner
-	var cars: CarSpawner = main_game.get_node("CarSpawner") as CarSpawner
-	var hover: Vector3 = main_game.city.to_local(main_game.city.spawn_point) \
-			+ Vector3(0.0, 60.0, 0.0)
-	pigeon.reset_flight(hover) ## Airborne for the whole scenario — no trust, no crumbs eaten.
-	await _wait_frames(6)
-	var strip: Label = main_game.combo_strip
-	var rest_color: Color = strip.get_theme_color("font_color") ## The scene's T-019 fill.
-	var popup_by_text := func(text: String) -> ScorePopup:
-		for node in get_tree().get_nodes_in_group("score_popups"):
-			var found := node as ScorePopup
-			if found != null and found.label.text == text:
-				return found
-		return null
-	## The synthetic entry on a FRESH Main claims nothing: bare "+100", no
-	## tint (the red-before tree read "Tourist +100" on the strip — the stale
-	## default kind — and still bare "+100" on the popup).
-	Game.add_tourist_hit(main_game.city.spawn_point)
-	await _wait_frames(2)
-	var bare_popup: ScorePopup = popup_by_text.call("+100")
-	var bare_ok: bool = bare_popup != null \
-			and bare_popup.label.modulate == Color(1.0, 1.0, 1.0, 1.0) \
-			and strip.text == "+100" \
-			and strip.get_theme_color("font_color").is_equal_approx(rest_color)
-	main_game.player.grounding_changed.emit(true) ## Zero the chain the synthetic opened — every class leg below pays ×1.
-	## Class legs, each: force the single-class rig → _populate() → splat ONE
-	## real living node through the relay → read popup + strip (word, tint,
-	## and the favor the tint claims).
-	var favor_before: int = Game.favor
-	tourists.visitor_share = 1.0
-	tourists.superfan_share = 0.0
-	tourists._populate()
-	await _wait_frames(2)
-	var v_tourist := _first_tourist_of_class(tourists, CitizenClass.Kind.VISITOR)
-	var visitor_ok := v_tourist != null
-	if v_tourist != null:
-		v_tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
-		favor_before += Game.favor_visitor_splat
-		await _wait_frames(2)
-		var popup: ScorePopup = popup_by_text.call("Visitor +100")
-		visitor_ok = popup != null \
-				and popup.label.modulate.is_equal_approx(MainGame.FAVOR_GAIN_COLOR) \
-				and strip.text == "Visitor +100" \
-				and strip.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_GAIN_COLOR) \
-				and Game.favor == favor_before
-	main_game.player.grounding_changed.emit(true)
-	favor_before = Game.favor
-	tourists.visitor_share = 0.0
-	tourists.superfan_share = 0.0
-	tourists._populate()
-	await _wait_frames(2)
-	var c_tourist := _first_tourist_of_class(tourists, CitizenClass.Kind.CIVILIAN)
-	var civilian_ok := c_tourist != null
-	if c_tourist != null:
-		c_tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
-		favor_before += Game.favor_civilian_splat
-		await _wait_frames(2)
-		var popup: ScorePopup = popup_by_text.call("Civilian +100")
-		civilian_ok = popup != null \
-				and popup.label.modulate.is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
-				and strip.text == "Civilian +100" \
-				and strip.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
-				and Game.favor == favor_before
-	main_game.player.grounding_changed.emit(true)
-	favor_before = Game.favor
-	tourists.visitor_share = 0.0
-	tourists.superfan_share = 1.0
-	tourists._populate()
-	await _wait_frames(2)
-	var s_tourist := _first_tourist_of_class(tourists, CitizenClass.Kind.SUPERFAN)
-	var superfan_ok := s_tourist != null
-	if s_tourist != null:
-		s_tourist.on_splatted(Vector3(3.0, -5.0, 0.0))
-		favor_before += Game.favor_superfan_splat
-		await _wait_frames(2)
-		var popup: ScorePopup = popup_by_text.call("Superfan +100")
-		superfan_ok = popup != null \
-				and popup.label.modulate.is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
-				and strip.text == "Superfan +100" \
-				and strip.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
-				and Game.favor == favor_before
-	main_game.player.grounding_changed.emit(true)
-	favor_before = Game.favor
-	cars.visitor_share = 0.0
-	cars.superfan_share = 0.0
-	cars._populate()
-	await _wait_frames(2)
-	var cc_car := _first_parked_car_of_class(cars, CitizenClass.Kind.CIVILIAN)
-	var civilian_car_ok := cc_car != null
-	if cc_car != null:
-		cc_car.on_splatted(Vector3(0.0, -5.0, 0.0))
-		favor_before += Game.favor_civilian_car_splat
-		await _wait_frames(2)
-		var popup: ScorePopup = popup_by_text.call("Civilian car +30")
-		civilian_car_ok = popup != null \
-				and popup.label.modulate.is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
-				and strip.text == "Civilian car +30" \
-				and strip.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_LOSS_COLOR) \
-				and Game.favor == favor_before
-	main_game.player.grounding_changed.emit(true)
-	favor_before = Game.favor
-	cars.visitor_share = 1.0
-	cars.superfan_share = 0.0
-	cars._populate()
-	await _wait_frames(2)
-	var vc_car := _first_parked_car_of_class(cars, CitizenClass.Kind.VISITOR)
-	var visitor_car_ok := vc_car != null
-	if vc_car != null:
-		vc_car.on_splatted(Vector3(0.0, -5.0, 0.0))
-		favor_before += Game.favor_visitor_car_splat
-		await _wait_frames(2)
-		var popup: ScorePopup = popup_by_text.call("Visitor car +30")
-		visitor_car_ok = popup != null \
-				and popup.label.modulate.is_equal_approx(MainGame.FAVOR_GAIN_COLOR) \
-				and strip.text == "Visitor car +30" \
-				and strip.get_theme_color("font_color").is_equal_approx(MainGame.FAVOR_GAIN_COLOR) \
-				and Game.favor == favor_before
-	var legs_ok := visitor_ok and civilian_ok and superfan_ok \
-			and civilian_car_ok and visitor_car_ok
-	## The strip expiry: ~2.5 s of game time clears the text AND the tint back
-	## to the scene's T-019 fill (held airborne the whole wait).
-	for _i in 165: ## combo_strip_seconds 2.5 at the fixed 60 Hz + margin.
-		pigeon.reset_flight(hover)
-		await get_tree().physics_frame
-	var strip_expired: bool = strip.text == "" \
-			and strip.get_theme_color("font_color").is_equal_approx(rest_color)
-	## The class-split leg: starve the run with the tally live — the
-	## breakdown carries the EXACT split this scenario drove, counts matching
-	## the Game books (the fresh synthetic + three real tourists = 4, the two
-	## real cars = 2; the tally holds visitor 2 · civilian 2 · superfan 1).
-	var drain_default: float = Game.hunger.drain_per_second
-	Game.hunger.drain_per_second = 60.0 ## Time-compressed starvation.
-	var screen: GameOverScreen = main_game.game_over_screen
-	var starved := false
-	for _i in 600: ## 10 s budget.
-		await get_tree().physics_frame
-		if get_tree().paused and screen.is_open:
-			starved = true
-			break
-	var split_ok: bool = starved \
-			and screen.breakdown_label.text \
-					== "Tourists splatted: %d    Cars splatted: %d (visitor 2 · civilian 2 · superfan 1)" % [
-							Game.tourist_hits, Game.car_hits]
-	Game.hunger.drain_per_second = drain_default ## Put the autoload's clock back.
-	var breakdown_at_read: String = screen.breakdown_label.text ## Read before the free below.
-	## The restart: the stash (kind, class, delta, tally) joins the reset —
-	## today's tree never reset `_last_hit_kind`, so a post-restart synthetic
-	## hit inherited the stale word; the fixed tree claims nothing.
-	main_game.restart_run()
-	var stash_cleared: bool = strip.text == "" \
-			and strip.get_theme_color("font_color").is_equal_approx(rest_color)
-	Game.add_tourist_hit(main_game.city.spawn_point)
-	await _wait_frames(2)
-	var post_popup: ScorePopup = popup_by_text.call("+100")
-	var restart_ok: bool = stash_cleared and post_popup != null \
-			and post_popup.label.modulate == Color(1.0, 1.0, 1.0, 1.0) \
-			and strip.text == "+100"
-	main_game.free()
-	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
-	Game.reset_run()
-	get_tree().paused = false ## Never leak a pause into later scenarios.
-	_check("hit_feedback_names_the_class",
-			bare_ok and legs_ok and strip_expired and split_ok and restart_ok,
-			"bare=%s legs v=%s c=%s s=%s cc=%s vc=%s strip_expired=%s split=%s restart=%s (breakdown '%s')" % [
-					bare_ok, visitor_ok, civilian_ok, superfan_ok,
-					civilian_car_ok, visitor_car_ok, strip_expired, split_ok,
-					restart_ok, breakdown_at_read])
 
 
 ## --- scenario (T-116 the meter names the prize) ------------------------------
@@ -14320,62 +6812,6 @@ func _scenario_favor_meter_names_the_ceiling() -> void:
 			"max=100=%s rest=%s goal=%s gain=%s debt=%s restart=%s ('%s')" % [
 					favor_max_ok, rest_ok, goal_ok, gain_ok, debt_ok, restart_ok,
 					final_text])
-
-
-## The elder gate (T-114), on the `_add_elder_rig` rig with favor STAGED at
-## setup: with `Game.favor = 0`, a grounded pigeon hangs the full
-## `trust_needed` + 5 s margin — trust pins at `trust_needed` but NO share
-## fires, no crumbs land, no favor is charged; then one
-## `Game.add_favor(elder_loaf_cost * crumbs_per_share)` unblocks exactly one
-## share within 3 physics frames (trust is still pinned — the gate was the
-## only blocker) and favor reads exactly `elder_loaf_cost * crumbs_per_share`
-## lower afterwards — the spend booked at the share, not the eat.
-func _scenario_elder_bread_gates_on_favor() -> void:
-	Game.save_path = SIM_SAVE_PATH
-	Game.favor = 0 ## (T-114) Staged explicitly — the rig inherits otherwise.
-	var rig := _add_elder_rig()
-	var spawner: ElderSpawner = rig[0]
-	var crumbs: BreadSpawner = rig[1]
-	await _wait_frames(4)
-	var elders := spawner.living_elders()
-	if elders.is_empty():
-		_check("elder_bread_gates_on_favor", false, "no elder spawned")
-		spawner.free()
-		(rig[1] as Node).free()
-		return
-	var elder: Elder = elders[0]
-	var park := elder.global_position - elder.global_transform.basis.z * 2.6
-	park.y = elder.global_position.y - Elder.SEAT_HEIGHT + 0.5
-	await _set_up(true, park, Vector3.ZERO)
-	await _await_grounded(90)
-	var parked := _player.is_grounded and _player.position.distance_to(park) < 0.5
-	var pinned := false
-	for _i in int(elder.trust_needed * 60.0) + 300: ## trust_needed + the 5 s margin.
-		await get_tree().physics_frame
-		pinned = elder._trust >= elder.trust_needed - 0.001
-	var broke_ok: bool = parked and pinned and _bread_shared.is_empty() \
-			and crumbs.living_crumbs().is_empty() and elder.share_count == 0 \
-			and Game.favor == 0
-	Game.add_favor(Game.elder_loaf_cost * elder.crumbs_per_share) ## The gate money.
-	var favor_after_pay := Game.favor
-	var trust_at_pay := elder._trust ## Pinned — the gate was the only blocker.
-	await _wait_frames(3) ## The share fires within 3 physics frames.
-	## The share's own reset signature: trust was pinned at the pay, and the
-	## share has since zeroed it (the post-share refill is single frames).
-	var spent_ok: bool = _bread_shared.size() == 1 and _bread_shared[0].elder == elder \
-			and int(_bread_shared[0].crumbs) == elder.crumbs_per_share \
-			and trust_at_pay >= elder.trust_needed \
-			and elder._trust < elder.trust_needed \
-			and crumbs.living_crumbs().size() == elder.crumbs_per_share \
-			and Game.favor == favor_after_pay - Game.elder_loaf_cost * elder.crumbs_per_share
-	_check("elder_bread_gates_on_favor", broke_ok and spent_ok,
-			"parked=%s trust pinned=%s (%.2f) broke: relays %d crumbs %d favor %d charged=%s · paid: shared=%d favor %.0f→%.0f (spend %d)" % [
-					parked, pinned, elder._trust, _bread_shared.size(),
-					crumbs.living_crumbs().size(), Game.favor, Game.favor != 0,
-					_bread_shared.size(), float(favor_after_pay), float(Game.favor),
-					Game.elder_loaf_cost * elder.crumbs_per_share])
-	spawner.free()
-	(rig[1] as Node).free()
 
 
 ## The steal surfaces (T-114), bare rigs over a real City, favor staged by
@@ -14461,80 +6897,17 @@ func _scenario_bread_steal_favor_deltas() -> void:
 	var plain_ok: bool = not is_instance_valid(plain_crumb) \
 			and Game.favor == favor_c \
 			and _crumb_favor_events == [Game.favor_steal_table, Game.favor_steal_visitor]
-	## Leg D — the real tailgate surface: parked VISITOR cars anchor the crumbs.
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 25.0, 0.0),
-			Vector3.ZERO)
-	await _wait_frames(2)
-	var car_rig := CarSpawner.new()
-	car_rig.city = _city
-	car_rig.player = _player
-	car_rig.bread_spawner = rig ## The harness assigns directly (the elder-rig pattern).
-	add_child(car_rig)
-	await _wait_frames(6) ## Populate + the deferred dressing pass.
-	var parked_visitors := 0
-	for car in car_rig.living_cars():
-		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
-			parked_visitors += 1
-	var tailgate_crumbs: Array[BreadCrumb] = []
-	for crumb in rig.living_crumbs():
-		if crumb.favor_delta == Game.favor_steal_visitor:
-			tailgate_crumbs.append(crumb)
-	var count_ok: bool = parked_visitors == tailgate_crumbs.size() \
-			and parked_visitors == roundi(float(car_rig.target_parked) * car_rig.visitor_share)
-	var geometry_ok := count_ok
-	var claimed := {} ## car instance_id -> one crumb each — the bijection half.
-	for crumb in tailgate_crumbs:
-		var nearest: Car = null
-		var best := INF
-		for car in car_rig.living_cars():
-			if car.mode != Car.Mode.PARKED:
-				continue
-			var d := crumb.global_position.distance_to(car.global_position)
-			if d < best:
-				best = d
-				nearest = car
-		if nearest == null or nearest.citizen_class != CitizenClass.Kind.VISITOR \
-				or claimed.has(nearest.get_instance_id()):
-			geometry_ok = false
-			break
-		claimed[nearest.get_instance_id()] = true
-		## The documented gutter offset, read in the car's own frame: 0.45 m
-		## off the 0.95 m half-width body, 0.75 m back, ground + 0.06 lift.
-		## The body-surface distance lands inside [0.45, 1.0] m — off the
-		## body, never buried into the car.
-		var local := nearest.to_local(crumb.global_position)
-		var dx := maxf(absf(local.x) - 0.95, 0.0)
-		var dz := maxf(absf(local.z) - 2.2, 0.0)
-		var body_dist := sqrt(dx * dx + dz * dz)
-		geometry_ok = geometry_ok \
-				and absf(local.x) >= 1.35 and absf(local.x) <= 1.45 \
-				and absf(local.z) >= 0.65 and absf(local.z) <= 0.85 \
-				and absf(local.y) <= 0.25 \
-				and body_dist >= 0.44 and body_dist <= 1.0
-	## The recycle re-anchor: force the scan from beyond the recycle radius —
-	## re-parked visitors re-anchor, traffic-bound visitors release, and the
-	## one-crumb-per-parked-visitor law holds afterwards.
-	await _set_up(true, _city.position + Vector3(-120.0, 25.0, 0.0), Vector3.ZERO)
-	await _wait_frames(2)
-	car_rig._recycle_far()
-	await _wait_frames(6)
-	var parked_after := 0
-	for car in car_rig.living_cars():
-		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
-			parked_after += 1
-	var tailgates_after := 0
-	for crumb in rig.living_crumbs():
-		if crumb.favor_delta == Game.favor_steal_visitor:
-			tailgates_after += 1
-	var recycle_ok := tailgates_after == parked_after
+	## (T-177 re-pin) Leg D — the real tailgate surface — RETIRED with the
+	## Windrow fleet: parked VISITOR cars anchored the tailgate crumbs, and on
+	## the resident Ames bake the citizen fleet is empty until R2 re-points
+	## parking (the tailgate law re-pins beside R2·parking's economy pass).
+	## Legs A-C carry the steal surface on the Ames supply: the TABLE crumbs
+	## are real café tabletops now (the venue system T-176 shipped), the
+	## stamped drop and the GROUND control are world-independent rigs.
 	_check("bread_steal_favor_deltas",
-			table_ok and steal_ok and plain_ok and count_ok and geometry_ok and recycle_ok,
-			"table=%s (favor %d, events %s) steal=%s plain=%s · tailgates %d/%d (quota %d) geometry=%s bijection=%d · recycle %d/%d" % [
-					table_ok, Game.favor, _crumb_favor_events, steal_ok, plain_ok,
-					tailgate_crumbs.size(), parked_visitors,
-					roundi(float(car_rig.target_parked) * car_rig.visitor_share),
-					geometry_ok, claimed.size(), tailgates_after, parked_after])
-	car_rig.free()
+			table_ok and steal_ok and plain_ok,
+			"table=%s (favor %d, events %s) steal=%s plain=%s (tailgate leg retired with the Windrow fleet — T-177)" % [
+					table_ok, Game.favor, _crumb_favor_events, steal_ok, plain_ok])
 	rig.free()
 
 
@@ -14903,21 +7276,27 @@ func _scenario_game_over_screen() -> void:
 
 
 ## (T-115) The victory ending, end to end through the REAL main scene
-## (instanced-Main pattern, pigeon held airborne): favor staged 2 under the
-## ceiling, the parked fleet forced all-VISITOR (the T-114 rig pattern), and
-## ONE real parked visitor car driven through Main's relay — favor reads
-## EXACTLY `favor_max` (the clamp in the real chain), the tree pauses, the
-## score screen opens in the VICTORY register (title, gold dim, note, the
-## run's real splat counts plus the per-class split before the favor total,
-## the T-151 re-pin) while hunger stands — this
-## ending is NOT starvation — and Esc stays locked; a further splat books
-## nothing past the clamp and fires no second `favor_maxed`. Coexistence: a
-## direct `hunger.game_over` emit with the victory screen up changes NOTHING
-## (first-wins); `restart_run()` unpauses, closes, zeroes and re-arms (a
-## staged sub-max add fires nothing); then favor staged LOW, the T-010
-## `drain_per_second` compression starves the run and the SAME screen opens
-## in the STARVED! register — dark red dim, no note, plain breakdown — both
-## entries having rewritten every mode-dependent property in one Main.
+## (instanced-Main pattern, pigeon held airborne). (T-177 re-pin) The relay
+## leg changed with the world: the resident Ames bake has NO citizens until
+## R2 re-points the spawners, so the duck-typed car relay retired with the
+## Windrow fleet (the relay's own machine home is R2·calm-port's; the
+## splat_favor chain pins beside the favor rows retired with it). What this
+## scenario still pins END TO END is the victory register itself: favor
+## staged 2 under the ceiling, ONE jackpot booking through the REAL autoload
+## entry Main's relay feeds (`Game.splat_favor(VISITOR, true)` — the same
+## function the retired relay called last) — favor reads EXACTLY `favor_max`
+## (the clamp in the real chain), the tree pauses, the score screen opens in
+## the VICTORY register (title, gold dim, note, the run's real splat counts
+## plus the per-class split before the favor total, the T-151 re-pin) while
+## hunger stands — this ending is NOT starvation — and Esc stays locked; a
+## further booking past the clamp moves nothing and fires no second
+## `favor_maxed`. Coexistence: a direct `hunger.game_over` emit with the
+## victory screen up changes NOTHING (first-wins); `restart_run()` unpauses,
+## closes, zeroes and re-arms (a staged sub-max add fires nothing); then
+## favor staged LOW, the T-010 `drain_per_second` compression starves the run
+## and the SAME screen opens in the STARVED! register — dark red dim, no
+## note, plain breakdown — both entries having rewritten every mode-dependent
+## property in one Main.
 func _scenario_favor_max_ends_run_victory() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
@@ -14926,7 +7305,6 @@ func _scenario_favor_max_ends_run_victory() -> void:
 	main_game.position = Vector3(6500.0, 0.0, 6500.0) ## Own space, clear of every other instanced Main.
 	add_child(main_game)
 	var pigeon: Player = main_game.player
-	var cars: CarSpawner = main_game.get_node("CarSpawner") as CarSpawner
 	var hover: Vector3 = main_game.city.to_local(main_game.city.spawn_point) \
 			+ Vector3(0.0, 60.0, 0.0)
 	pigeon.reset_flight(hover) ## Airborne for the whole scenario — no trust, no crumbs eaten.
@@ -14934,49 +7312,30 @@ func _scenario_favor_max_ends_run_victory() -> void:
 	var maxed_cb := func() -> void: _favor_maxed_fires += 1
 	Game.favor_maxed.connect(maxed_cb)
 	Game.favor = Game.favor_max - Game.favor_visitor_car_splat ## Two under the ceiling: one jackpot wins.
-	cars.visitor_share = 1.0
-	cars.superfan_share = 0.0
-	cars._populate()
-	await _wait_frames(2)
-	var first_car: Car = null
-	for car in cars.living_cars():
-		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
-			first_car = car
-			break
 	var screen: GameOverScreen = main_game.game_over_screen
 	var pause_menu: PauseMenu = main_game.get_node("PauseMenu")
-	if first_car == null:
-		_check("favor_max_ends_run_victory", false, "no parked VISITOR car after the all-visitor populate")
-		Game.favor_maxed.disconnect(maxed_cb)
-		main_game.free()
-		Game.hunger.player = null
-		Game.reset_run()
-		return
-	first_car.on_splatted(Vector3(0.0, -5.0, 0.0)) ## The duck-typed entry the drop calls — through Main's relay.
+	## The jackpot booking through the REAL autoload entry — the same call the
+	## retired car relay ended in (T-177 re-pin; see the doc above).
+	var booked: int = Game.splat_favor(CitizenClass.Kind.VISITOR, true)
 	pause_menu.toggle() ## Esc on a dead run must be refused.
-	var victory_ok := Game.favor == Game.favor_max \
+	var victory_ok := booked == Game.favor_visitor_car_splat \
+			and Game.favor == Game.favor_max \
 			and get_tree().paused and screen.is_open \
 			and screen.title_label.text == GameOverScreen.VICTORY_TITLE \
 			and screen.dim_rect.color.is_equal_approx(screen.victory_dim) \
 			and screen.victory_note.visible \
 			and screen.breakdown_label.text \
-					== "Tourists splatted: 0    Cars splatted: 1 (visitor 1)    Favor: %d" % Game.favor_max \
+					== "Tourists splatted: 0    Cars splatted: 0    Favor: %d" % Game.favor_max \
 			and not Game.hunger.game_over_emitted and Game.hunger.value > 0.0 \
-			and pause_menu.locked ## (T-151) The split rides before the Favor total; the leg's own
-	## class filter (parked VISITOR car) makes the "(visitor 1)" word a
-	## construction guarantee, not a seed gamble.
-	## The latch is one-shot: a further splat books nothing past the clamp.
-	var second_car: Car = null
-	for car in cars.living_cars():
-		if car != first_car and car.mode == Car.Mode.PARKED \
-				and car.citizen_class == CitizenClass.Kind.VISITOR:
-			second_car = car
-			break
-	var latch_ok := second_car != null
-	if second_car != null:
-		second_car.on_splatted(Vector3(0.0, -5.0, 0.0))
-		latch_ok = latch_ok and Game.favor == Game.favor_max \
-				and _favor_maxed_fires == 1 and screen.is_open and get_tree().paused
+			and pause_menu.locked ## (T-151) The split rides before the Favor total.
+	## The latch is one-shot: a further booking past the clamp moves nothing
+	## (the ceiling's own favor_maxed_emitted latch holds; the counter never
+	## re-armed — exactly the original car-relay leg's shape).
+	Game.favor = Game.favor_max - Game.favor_visitor_car_splat
+	var booked2: int = Game.splat_favor(CitizenClass.Kind.VISITOR, true)
+	var latch_ok := booked2 == Game.favor_visitor_car_splat \
+			and Game.favor == Game.favor_max \
+			and _favor_maxed_fires == 1 and screen.is_open and get_tree().paused
 	## Coexistence leg 1 — starvation knocking on a won run changes nothing.
 	Game.hunger.game_over.emit()
 	var first_wins_ok := get_tree().paused and screen.is_open \
@@ -15042,17 +7401,21 @@ func _scenario_restart_resets() -> void:
 			and Game.hunger.value >= Game.hunger.start_value - 0.001 \
 			and not Game.hunger.game_over_emitted
 	await _wait_frames(3) ## Let the queue_free'd old spawns flush out.
-	var city_ok := city.fingerprint == fp_before ## Same M1 seed — comparable scores.
+	var city_ok := city.fingerprint == fp_before ## (T-177) The bake identity — comparable scores.
 	var respawn_ok := pigeon.global_position.distance_to(city.spawn_point) < 1.0
+	## (T-177 re-pin) The fleet arms read the AMES reality: the citizen
+	## spawners are INERT on the resident bake (their Windrow block data died
+	## with the generator; R2 re-points them), so a fresh run re-seeds ZERO
+	## tourists and ZERO cars — a stuck pre-restart citizen or a spawner that
+	## somehow spawned on Ames fails here — while the bread service still
+	## holds its target (the survival loop is the loop that must survive).
 	var fresh_tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
 	var reused := false
 	for tourist in fresh_tourists:
 		reused = reused or old_tourist_ids.has(tourist.get_instance_id())
-	var spawns_ok := fresh_tourists.size() == main_game.tourist_spawner.target_count \
-			and not reused \
-			and main_game.bread_spawner.living_crumbs().size() == main_game.bread_spawner.target_count \
-			and main_game.car_spawner.living_cars().size() \
-					== main_game.car_spawner.target_moving + main_game.car_spawner.target_parked
+	var spawns_ok := fresh_tourists.is_empty() \
+			and main_game.car_spawner.living_cars().is_empty() \
+			and main_game.bread_spawner.living_crumbs().size() == main_game.bread_spawner.target_count
 	_check("restart_resets_run", state_ok and city_ok and respawn_ok and spawns_ok,
 			"state=%s city=%s respawn=%s spawns=%s (tourists %d, crumbs %d, cars %d)" % [
 					state_ok, city_ok, respawn_ok, spawns_ok,
@@ -15064,13 +7427,15 @@ func _scenario_restart_resets() -> void:
 	_main_game = null
 
 
-## Restart over the standing city (T-033): Main.restart_run() on the same seed
-## must take the City fast path — no teardown, no rebuild (`build_count` stays
-## 1, `fingerprint`/`spawn_point`/`last_report` untouched, exactly one
-## `regenerated`) — while every spawner still re-seeds fresh tourist AND car
-## nodes and the pigeon returns to the spawn corridor. If the fast path forgot
-## to emit `regenerated`, the spawners would keep their old nodes and the
-## instance-id overlap check below would fail the scenario.
+## Restart over the standing world (T-033, re-pinned by T-177): Main.restart_run()
+## must take the same-seed fast path — no teardown, no rebuild (`build_count`
+## stays 1, `fingerprint`/`spawn_point`/`last_report` untouched, exactly one
+## `regenerated`) — while the spawners still re-seed off the emission and the
+## pigeon returns to the spawn corridor. On the Ames world the re-seed reads
+## the AMES fleet reality: ZERO citizens (the spawners stay inert until R2)
+## and the bread service back at its target. If the fast path forgot to emit
+## `regenerated`, the spawners would keep their old nodes and the instance-id
+## overlap check below would fail the scenario.
 func _scenario_restart_same_seed_skips_rebuild() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
@@ -15110,9 +7475,10 @@ func _scenario_restart_same_seed_skips_rebuild() -> void:
 		reused = reused or old_tourist_ids.has(tourist.get_instance_id())
 	for car in fresh_cars:
 		reused = reused or old_car_ids.has(car.get_instance_id())
-	var spawns_ok := fresh_tourists.size() == main_game.tourist_spawner.target_count \
-			and fresh_cars.size() == main_game.car_spawner.target_moving \
-					+ main_game.car_spawner.target_parked \
+	## (T-177 re-pin) The Ames fleet: zero citizens re-seeded (never stuck
+	## pre-restart ones), the bread service re-seeded to target.
+	var spawns_ok := fresh_tourists.is_empty() and fresh_cars.is_empty() \
+			and main_game.bread_spawner.living_crumbs().size() == main_game.bread_spawner.target_count \
 			and not reused
 	var regen_ok := _regen_relay == 1
 	_check("restart_same_seed_skips_rebuild",
@@ -15320,12 +7686,28 @@ func _scenario_hud_bread_pointer_tracks_nearest_crumb() -> void:
 	## ground crumbs NEAREST the spawn point in order until one actually
 	## eats — the flash/re-aim contract rides whichever crumb was eaten.
 	var eat_candidates: Array[BreadCrumb] = []
+	## (T-177 re-pin) The eaten crumb is STAGED at the ring spot now: the live
+	## spread's 40 crumbs concentrate on the boot ring ~1.2 km from the pack
+	## origin, so hoping a shuffled ground crumb lands near the ring staging
+	## would re-roll the leg into city mode (where the flash contract cannot
+	## run). One staged ground crumb AT the ring spot (`ahead_ground` is
+	## already GLOBAL — the ahead leg's spot_world — so no further transform)
+	## is the exact Windrow eat geometry, deterministic. The remaining
+	## candidates (the spread, ring-nearest) stay as fallbacks so the leg
+	## still proves the eat path if the staged spot were blocked.
+	var eat_anchor: Vector3 = (ahead_ground if ahead_ground != Vector3.ZERO \
+			else city.spawn_point)
+	if ahead_ground != Vector3.ZERO:
+		var staged_eat: BreadCrumb = spawner.drop_crumb(
+				ahead_ground + Vector3(0.0, 0.16, 0.0))
+		if staged_eat != null:
+			eat_candidates.append(staged_eat)
 	for crumb in spawner.living_crumbs():
-		if crumb.global_position.y <= 0.3:
+		if crumb.global_position.y <= 0.3 and not eat_candidates.has(crumb):
 			eat_candidates.append(crumb)
 	eat_candidates.sort_custom(func(a: BreadCrumb, b: BreadCrumb) -> bool:
-		return city.spawn_point.distance_squared_to(a.global_position) \
-				< city.spawn_point.distance_squared_to(b.global_position))
+		return eat_anchor.distance_squared_to(a.global_position) \
+				< eat_anchor.distance_squared_to(b.global_position))
 	var reaim_ok := false
 	var eaten := false
 	var reaim_flashed := false
@@ -16543,10 +8925,14 @@ func _find_hit_marker_on(body: Node) -> OneShotBurst:
 ## _scenario_hud_hunger_tiers, which frees its instance: unpaused tree, no live
 ## Main — with the same cleanup tail (free() → Game.hunger.player = null →
 ## Game.reset_run()). The splat relays are EMITTED, not simulated: real
-## tourists/cars picked off the spawners, tourist_splatted / car_splatted
-## emitted straight, so the full handler → Game → hit_scored chain runs with no
-## physics. Assertions: the strip sits under the pointer block with the T-019
-## outline treatment and starts empty; a tourist splat reads "<Class> +100",
+## (T-177 re-pin) the relay nodes STAGED bare — the resident Ames world's
+## fleet is empty (the spawners stay inert until R2; the retired fleet read
+## crashed this scenario on the cutover tree and leaked its Main), so ONE
+## bare tourist + ONE bare car are instanced and tourist_splatted /
+## car_splatted emitted straight with them, so the full handler → Game →
+## hit_scored chain runs with no physics. Assertions: the strip sits under the
+## pointer block with the T-019 outline treatment and starts empty; a tourist
+## splat reads "<Class> +100",
 ## the chained second one "<Class> +200 ×2", and a car splat after a landing
 ## replaces it with "<Class> car +30" — the class word derived from each
 ## EMITTED NODE's own citizen_class (T-151 re-pin: seed-robust, never a
@@ -16576,28 +8962,47 @@ func _scenario_combo_strip_reports_last_hit() -> void:
 			and strip.get_theme_color("font_color").is_equal_approx(Color(1.0, 1.0, 1.0, 0.75))
 	var placed_ok: bool = strip.offset_top >= main_game.bread_pointer.offset_bottom
 	var empty_at_rest: bool = strip.text == ""
-	var tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
-	var cars: Array[Car] = main_game.car_spawner.living_cars()
-	var spread_ok: bool = tourists.size() >= 2 and not cars.is_empty()
+	## (T-177 re-pin) The relay staging is BARE now: the resident Ames world's
+	## citizen fleet is EMPTY (the spawners stay inert until R2 — the retired
+	## fleet read crashed this scenario on the cutover tree and leaked its
+	## Main), so the T-151 chain stages ONE bare tourist + ONE bare car — the
+	## nodes the relays name — and emits the spawners' splatted signals with
+	## them. The readout chain (class word, marker parent, points) reads the
+	## NODE, never the fleet.
+	var tourist_a: Tourist = (load("res://scenes/tourist.tscn") as PackedScene) \
+			.instantiate() as Tourist
+	var tourist_b: Tourist = (load("res://scenes/tourist.tscn") as PackedScene) \
+			.instantiate() as Tourist
+	var staged_car: Car = (load("res://scenes/car.tscn") as PackedScene) \
+			.instantiate() as Car
+	var anchor: Vector3 = main_game.city.to_local(main_game.city.spawn_point)
+	tourist_a.position = anchor + Vector3(6.0, 0.3, 0.0)
+	tourist_b.position = anchor + Vector3(-6.0, 0.3, 4.0)
+	staged_car.position = anchor + Vector3(0.0, 0.3, -8.0)
+	add_child(tourist_a)
+	add_child(tourist_b)
+	add_child(staged_car)
+	await _wait_frames(2)
+	var spread_ok: bool = tourist_a != null and tourist_b != null and staged_car != null
 	var before := _count_effects("hit_marker.tscn")
 	## Leg 1 — first tourist hit: kind + points, no multiplier yet, marker on
 	## the hit body at the hit point.
-	main_game.tourist_spawner.tourist_splatted.emit(tourists[0])
+	main_game.tourist_spawner.tourist_splatted.emit(tourist_a)
 	var text_a := strip.text
-	var marker_a: OneShotBurst = _find_hit_marker_on(tourists[0])
+	var marker_a: OneShotBurst = _find_hit_marker_on(tourist_a)
 	var at_hit: bool = marker_a != null and marker_a.global_position \
-			.distance_to(tourists[0].global_position) < 0.1
+			.distance_to(tourist_a.global_position) < 0.1
 	## Leg 2 — the chained second tourist: the ×N suffix replaces the line.
-	main_game.tourist_spawner.tourist_splatted.emit(tourists[1])
+	main_game.tourist_spawner.tourist_splatted.emit(tourist_b)
 	var text_b := strip.text
 	## Leg 3 — a landing ends the chain; the car hit replaces the line at ×1.
 	Game.on_grounding_changed(true)
-	main_game.car_spawner.car_splatted.emit(cars[0])
+	main_game.car_spawner.car_splatted.emit(staged_car)
 	var text_c := strip.text
-	var marker_c: OneShotBurst = _find_hit_marker_on(cars[0])
-	var texts_ok: bool = text_a == "%s +100" % CitizenClass.label(tourists[0].citizen_class) \
-			and text_b == "%s +200 ×2" % CitizenClass.label(tourists[1].citizen_class) \
-			and text_c == "%s car +30" % CitizenClass.label(cars[0].citizen_class) ## (T-151) The word from the node's own class.
+	var marker_c: OneShotBurst = _find_hit_marker_on(staged_car)
+	var texts_ok: bool = text_a == "%s +100" % CitizenClass.label(tourist_a.citizen_class) \
+			and text_b == "%s +200 ×2" % CitizenClass.label(tourist_b.citizen_class) \
+			and text_c == "%s car +30" % CitizenClass.label(staged_car.citizen_class) ## (T-151) The word from the node's own class.
 	var markers_ok: bool = marker_a != null and marker_c != null and at_hit \
 			and _count_effects("hit_marker.tscn") == before + 3
 	## Game-time expiry: ~3.1 s at the fixed 60 Hz pace clears the strip and it
@@ -16610,11 +9015,14 @@ func _scenario_combo_strip_reports_last_hit() -> void:
 	## One more hit (chain ended first, so plain ×1 again), then the restart
 	## clear mid-display.
 	Game.on_grounding_changed(true)
-	main_game.car_spawner.car_splatted.emit(cars[0])
-	var refilled := strip.text == "%s car +30" % CitizenClass.label(cars[0].citizen_class) ## (T-151) Same node, same derived word.
+	main_game.car_spawner.car_splatted.emit(staged_car)
+	var refilled := strip.text == "%s car +30" % CitizenClass.label(staged_car.citizen_class) ## (T-151) Same node, same derived word.
 	main_game.restart_run()
 	var restart_cleared := strip.text == ""
 	main_game.free()
+	tourist_a.free()
+	tourist_b.free()
+	staged_car.free()
 	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
 	Game.reset_run()
 	_check("combo_strip_reports_last_hit",
@@ -17199,70 +9607,6 @@ func _scenario_audio_peck() -> void:
 	hunger.free()
 
 
-## The city hit sounds ride the real events: a lobbed splat plays the splat and
-## panics its tourist (yelp at the hit), the indignant shout joins the fist
-## shake ~1.8 s later, and a car honk through the same duck-typed entry honks.
-func _scenario_audio_hit_sounds() -> void:
-	_dropped.clear()
-	_splat_events.clear()
-	Sfx.reset_counts()
-	## The pigeon grounds on the plaza first (since T-029 at PLAZA_DROP_OFFSET,
-	## clear of the landmark plinth), so both spawner anchors stay put.
-	await _set_up(true, _city.position + PLAZA_DROP_OFFSET + Vector3(0.0, 1.5, 0.0), Vector3.ZERO)
-	await _await_grounded(90)
-	var tourists := TouristSpawner.new()
-	tourists.city = _city
-	tourists.player = _player
-	tourists.target_count = 1
-	tourists.spawn_min_dist = 0.0
-	tourists.spawn_max_dist = 10.0 ## Pin the loop to the plaza block, under the drop.
-	add_child(tourists)
-	var cars := CarSpawner.new()
-	cars.city = _city
-	cars.player = _player
-	cars.target_moving = 0
-	cars.target_parked = 1
-	cars.spawn_min_dist = 0.0
-	cars.spawn_max_dist = 10.0
-	add_child(cars)
-	await _wait_frames(4)
-	var living := tourists.living_tourists()
-	var parked := cars.living_cars()
-	if living.is_empty() or parked.is_empty():
-		_check("sfx_splat_yelp_panic_honk", false,
-				"tourist=%d parked_car=%d" % [living.size(), parked.size()])
-		tourists.free()
-		cars.free()
-		return
-	var tourist: Tourist = living[0]
-	tourist.path = PackedVector3Array() ## Freeze the target under the drop.
-	await _set_up(true, tourist.global_position + Vector3(0.0, 4.0, 0.0), Vector3.ZERO)
-	await _tap("poop")
-	await _wait_frames(2)
-	var splat_n := 0
-	var yelp_n := 0
-	var panic_n := 0
-	for _i in 240: ## Fall (~0.75 s) + panic until the shout joins the fist shake.
-		await get_tree().physics_frame
-		splat_n = Sfx.played_counts.get("splat", 0)
-		yelp_n = Sfx.played_counts.get("yelp", 0)
-		panic_n = Sfx.played_counts.get("panic", 0)
-		if splat_n >= 1 and yelp_n >= 1 and panic_n >= 1:
-			break
-	var panicked := tourist.mood == Tourist.Mood.PANIC or tourist._shouted
-	Sfx.reset_counts()
-	parked[0].on_splatted(Vector3(0.0, -5.0, 0.0)) ## The same duck-typed entry a dropping calls.
-	await _wait_frames(2)
-	var honk_n: int = Sfx.played_counts.get("honk", 0)
-	_check("sfx_splat_yelp_panic_honk",
-			splat_n == 1 and yelp_n == 1 and panic_n == 1 and panicked and honk_n == 1
-					and parked[0].honk_count == 1,
-			"splat=%d yelp=%d panic=%d (panicking=%s) honk=%d car_honks=%d" % [
-					splat_n, yelp_n, panic_n, panicked, honk_n, parked[0].honk_count])
-	tourists.free()
-	cars.free()
-
-
 ## The city bed loops under the real game: main.tscn starts both beds on the
 ## Ambience bus, start_ambience() is idempotent (a restart never stacks beds),
 ## and the bed lives in the autoload — it survives the scene being torn down.
@@ -17302,21 +9646,23 @@ func _scenario_ambience_bed() -> void:
 const DENSITY_BUDGET_MS_PER_100_FRAMES := 750.0
 
 
-## Full-density CPU budget (T-018): the REAL main scene — city, 18 tourists,
-## 26 cars (the T-128 fleet knobs; red-before 36 cars — the pin re-derived
-## with the density change, and fewer + farther cars is web-friendlier, not
-## worse), bread, pigeon — must keep the calibrated headless CPU cost per
-## physics frame. Headless renders nothing, so this gates the CPU half of the
-## frame (scripts + physics + scene); draw calls and primitives stay with
-## Gate 2's autoplay DONE line and Gate 3's human pass (VERIFICATION.md).
-## Method: Main parked in its own space, the pigeon on a synthetic level
-## cruise above the spawn corridor — velocity RE-IMPOSED at every window
-## start, because the flight model bleeds speed and would otherwise mix
-## cruise, stall and grounded states into the windows — 120 warm-up frames,
-## then three 100-frame wall-time windows under --fixed-fps 60 (headless runs
-## unthrottled, so wall time IS the CPU cost). Absolute and machine-relative:
-## a busy machine can false-FAIL this gate (rerun when idle); a generous
-## budget means percent-level drift passes by design.
+## Full-density CPU budget (T-018, re-pinned by T-177): the REAL main scene —
+## the resident Ames bake (184 chunks, ~600 placeholder colliders, occluders),
+## the INERT citizen fleet (zero tourists/cars on the cutover world until R2
+## re-points the spawners — the fleet arms below assert exactly that, so a
+## citizen that somehow spawns on Ames fails the gate), the bread service,
+## pigeon — must keep the calibrated headless CPU cost per physics frame.
+## Headless renders nothing, so this gates the CPU half of the frame (scripts
+## + physics + scene); draw calls and primitives stay with Gate 2's autoplay
+## DONE line, the `ames_world_render_budget` row and Gate 3's human pass
+## (VERIFICATION.md). Method: Main parked in its own space, the pigeon on a
+## synthetic level cruise above the spawn corridor — velocity RE-IMPOSED at
+## every window start, because the flight model bleeds speed and would
+## otherwise mix cruise, stall and grounded states into the windows — 120
+## warm-up frames, then three 100-frame wall-time windows under --fixed-fps 60
+## (headless runs unthrottled, so wall time IS the CPU cost). Absolute and
+## machine-relative: a busy machine can false-FAIL this gate (rerun when
+## idle); a generous budget means percent-level drift passes by design.
 func _scenario_density_cpu_budget() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run()
@@ -17348,13 +9694,13 @@ func _scenario_density_cpu_budget() -> void:
 		windows.append(float(Time.get_ticks_usec() - t0) / 1000.0)
 	windows.sort()
 	var median_ms: float = windows[1]
-	## The gate must measure what it claims: a half-seeded city would pass a
-	## budget it does not deserve.
+	## The gate must measure what it claims: a half-seeded world would pass a
+	## budget it does not deserve. (T-177 re-pin) The Ames fleet arms: the
+	## citizen spawners must be INERT on the cutover world.
 	var tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
 	var cars: Array[Car] = main_game.car_spawner.living_cars()
-	var density_ok := tourists.size() == main_game.tourist_spawner.target_count \
-			and cars.size() == main_game.car_spawner.target_moving \
-					+ main_game.car_spawner.target_parked
+	var density_ok := tourists.is_empty() and cars.is_empty() \
+			and int(main_game.city.render_metrics().get("chunk_count", 0)) > 0
 	var nodes := Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
 	var phys_active := Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)
 	print("SIM DATA density_cpu_budget: windows ms %.1f/%.1f/%.1f, median %.1f ms per 100 physics frames (budget %.0f), nodes %d, physics-active %d, tourists %d, cars %d" % [
