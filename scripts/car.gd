@@ -711,12 +711,18 @@ func _break_hold(entry: Dictionary) -> void:
 	## passes that remain are the GHOST-safe ones: pigeon/tourist bodies
 	## (the car's mask never included the player/npc layers) and the
 	## no-body curb-grind wedge (blocker null), where contact is physically
-	## impossible. T-179 (calm port) re-derives the etiquette for real lanes.
+	## impossible. (T-179) The GATE ITSELF lands here — the round-2 record
+	## described it, but the code below still armed a pass for every blocker
+	## class (only the clearance differed), and the calm-port staged probes
+	## measured a mover swinging around its parked blocker on the resident
+	## graph. The stuck escape above stays the car-blocker liveness path.
 	_no_progress_breaks += 1
 	if _no_progress_breaks >= STUCK_BREAKS:
 		_no_progress_breaks = 0
 		_progress_accum = 0.0
 		stuck.emit(self)
+	if blocker is Car:
+		return
 	_pass_origin = global_position
 	var axis := _leg_axis()
 	var first_clear := _shoulder_clear(_pass_side, axis)
@@ -851,20 +857,21 @@ func _lane_local(p: Vector3, axis: Vector3) -> float:
 	return rel.dot(_lane_right(axis))
 
 
-## (T-166 §2, corridor bounds re-derived per leg by T-179) The shoulder check
-## for one pass side against the lane line through `_pass_origin`. Side −1 is
-## the LEFT shoulder — the oncoming gate: denied while any fleet car with an
-## opposing heading (flat forward dot < −0.5) sits ahead of the origin within
-## `pass_lookahead` at lane-local lateral < −0.5 (at/over the centerline) —
-## a verified-clear oncoming lane is exactly when a real overtake crosses,
-## and the corridor band is the leg's REAL asphalt ([−(W + L), +(W − L)]):
-## on Lincoln Way the opposing lane rides lane-local −13.0, well past the
-## retired Windrow band's −6.5 edge. Side +1 is the RIGHT shoulder — the
-## parked gate: denied while any PARKED-mode fleet car sits ahead within
-## `pass_lookahead` at lane-local lateral > +1.0 (the parked band — the
-## graph's curb spots sit +2.45 off the lane line on every unclamped width).
-## The in-pass 2.6 m proximity brake stays as the floor's last line either
-## way.
+## (T-166 §2, corridor bounds re-derived per leg by T-179) The shoulder gate
+## for one pass side against the lane line through `_pass_origin`. The side
+## pairs with the aim it clears (the `_break_hold` multiplier): side +1 is a
+## LEFTWARD aim across the LEFT shoulder — the oncoming gate denies while any
+## fleet car with an opposing heading (flat forward dot < −0.5) sits ahead of
+## the origin within `pass_lookahead` at lane-local lateral < −0.5 (at/over
+## the centerline) — a verified-clear oncoming lane is exactly when a real
+## overtake crosses, and the corridor band is the leg's REAL asphalt
+## ([−(W + L), +(W − L)]): on Lincoln Way the opposing lane rides lane-local
+## −13.0, well past the retired Windrow band's −6.5 edge. Side −1 is a
+## RIGHTWARD aim across the RIGHT shoulder — the parked gate denies while any
+## PARKED-mode fleet car sits ahead within `pass_lookahead` at lane-local
+## lateral > +1.0 (the parked band — the graph's curb spots sit +2.45 off the
+## lane line on every unclamped width). The in-pass 2.6 m proximity brake
+## stays as the floor's last line either way.
 func _shoulder_clear(side: int, axis: Vector3) -> bool:
 	var right := _lane_right(axis)
 	var corridor := _pass_corridor()
