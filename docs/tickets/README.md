@@ -361,7 +361,7 @@ scan (T-170 was max; no workflows in flight).
 | T-178 | [Traffic graph](T-178-ames-traffic-graph.md) | R2 The Life | T-177 | done |
 | T-179 | [Traffic calm port](T-179-ames-traffic-calm-port.md) | R2 The Life | T-178 | done |
 | T-180 | [Intersections](T-180-ames-intersections.md) | R2 The Life | T-178, T-179 | done |
-| T-181 | [Pedestrian zones](T-181-ames-pedestrian-zones.md) | R2 The Life | T-177, T-180 | proposed |
+| T-181 | [Pedestrian zones](T-181-ames-pedestrian-zones.md) | R2 The Life | T-177, T-180 | doing |
 | T-182 | [Parking](T-182-ames-parking-lots.md) | R2 The Life | T-178 | proposed |
 | T-183 | [Economy scale](T-183-ames-economy-scale.md) | R2 The Life | T-176, T-181, T-182 | proposed |
 | T-184 | [R2 cutover](T-184-ames-r2-cutover.md) | R2 The Life | T-178..T-183 | proposed |

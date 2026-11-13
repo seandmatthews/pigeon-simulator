@@ -1,6 +1,6 @@
 # T-181 — Ames R2 · pedestrian zones: people where Ames actually has people
 
-- **Status:** proposed · **Category:** worldbuilding · **Ring:** R2 The Life ·
+- **Status:** doing · **Category:** worldbuilding · **Ring:** R2 The Life ·
   **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-177, T-180 (crossings to cross at)
 - **Refs:** `census/BUILD-CENSUS.md` §5 (191.8 km footway — the reason

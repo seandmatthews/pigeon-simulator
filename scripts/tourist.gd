@@ -56,9 +56,25 @@ const PANIC_TINT := Color(0.92, 0.22, 0.18)
 @export var flinch_seconds: float = 0.5 ## Length of the flinch duck.
 @export var flinch_squash: float = 0.72 ## Visual Y scale at the bottom of the duck.
 
+@export_group("Crossing") ## (T-181) The zone-walk crossing gate — the curb
+## hold before a marked crossing leg, the elder's T-137 law on the tourist.
+@export var curb_car_radius: float = 15.0 ## CURB_WAIT radius (m): no car inside it may be closing before a crossing.
+
 ## Sidewalk loop (global coords) this tourist patrols — assigned by the
 ## spawner. Empty means stand still (the sim harness freezes targets with it).
 var path: PackedVector3Array = PackedVector3Array()
+## (T-181) Per waypoint: the leg ARRIVING at `path[i]` crosses road asphalt
+## (inside a pinned crosswalk band). Empty = no crossing legs (the block-loop
+## law). While a crossing leg is pending the tourist holds the curb until no
+## car is within `curb_car_radius` and closing, then commits to the far curb
+## (a mid-leg hold would stand it in the lane).
+var path_cross: Array[bool] = []
+## (T-181) Open zone paths bounce (the walk reverses at the ends) instead of
+## wrapping — the Ames zone sidewalks are there-and-back strolls, not rings.
+var path_bounce: bool = false
+## (T-181) The pedestrian zone that owns this walker ("" on the block-loop
+## law) — tests and the pilot read the zone crowd through it.
+var zone_id: String = ""
 var waypoint_index: int = 0
 var mood: Mood = Mood.WALK
 ## Global center of the block whose loop this tourist walks — tests and the
@@ -88,6 +104,8 @@ var _panic_dir := Vector3.RIGHT
 var _shouted: bool = true ## True except mid-panic — the shout fires once per panic (T-012).
 var _flinch_left: float = 0.0
 var _buzz_cd: float = 0.0
+var _bounce_dir: int = 1 ## (T-181) The bounce walk's direction along `path`.
+var _cross_committed: bool = false ## (T-181) Mid-crossing commit (the elder's law).
 var _arm_raise: float = 0.0 ## 0 = arms down, 1 = arms up; doubles as the panic tint intensity.
 var _arm_r_raise: float = 0.0 ## The right arm's own raise — finger carriers hold the raised baseline (T-113).
 var _tint_panic: bool = false ## (T-055) Panic state the shirt material last showed — false matches _ready's initial shirt_color write, so the flush is written only on a change, not every tick.
@@ -221,20 +239,73 @@ func _retarget_nearest_waypoint() -> void:
 
 func _walk(delta: float) -> void:
 	if path.size() >= 2:
-		var to_target := path[waypoint_index] - global_position
-		to_target.y = 0.0
-		if to_target.length() < waypoint_reach:
-			waypoint_index = (waypoint_index + 1) % path.size()
+		var crossing := _leg_is_crossing()
+		if crossing and not _cross_committed and not _road_clear():
+			velocity.x = 0.0 ## Hold the curb — the crossing waits for a gap
+			velocity.z = 0.0 ## (the elder's T-137 law; cars never yield).
 		else:
-			var dir := to_target / to_target.length()
-			velocity.x = dir.x * walk_speed * pace
-			velocity.z = dir.z * walk_speed * pace
-			_face(dir, delta, walk_turn_rate)
+			if crossing:
+				_cross_committed = true
+			var to_target := path[waypoint_index] - global_position
+			to_target.y = 0.0
+			if to_target.length() < waypoint_reach:
+				_advance_waypoint()
+			else:
+				var dir := to_target / to_target.length()
+				velocity.x = dir.x * walk_speed * pace
+				velocity.z = dir.z * walk_speed * pace
+				_face(dir, delta, walk_turn_rate)
 	else:
 		velocity.x = 0.0 ## No loop (spawner tests freeze targets this way): stand still.
 		velocity.z = 0.0
 	velocity.y = -2.0 ## Stay glued to the slab.
 	move_and_slide()
+
+
+## (T-181) Whether the leg the tourist is ABOUT to walk crosses road
+## asphalt: `path_cross` is LEG-indexed (leg i joins waypoints i and i+1),
+## so the read is the lower of the two waypoints the walk spans — loops
+## arrive at `waypoint_index` from i−1, bounce walks run i±1 by
+## `_bounce_dir`. Empty `path_cross` (the block-loop law) never crosses.
+func _leg_is_crossing() -> bool:
+	if path_cross.is_empty() or path.size() < 2:
+		return false
+	var leg: int
+	if path_bounce:
+		leg = mini(waypoint_index, waypoint_index - _bounce_dir)
+	else:
+		leg = (waypoint_index - 1 + path.size()) % path.size()
+	return leg >= 0 and leg < path_cross.size() and path_cross[leg]
+
+
+## (T-181) The next waypoint along `path`: zone bounce paths reverse at the
+## ends; loops wrap as always.
+func _advance_waypoint() -> void:
+	if path_bounce:
+		var next := waypoint_index + _bounce_dir
+		if next >= path.size() or next < 0:
+			_bounce_dir = -_bounce_dir
+			next = waypoint_index + _bounce_dir
+		waypoint_index = next
+	else:
+		waypoint_index = (waypoint_index + 1) % path.size()
+	_cross_committed = false
+
+
+## (T-181) The crossing gate's road read — the elder's `_road_blocked` rule:
+## any car within `curb_car_radius` whose velocity carries it toward this
+## tourist holds the crossing. Parked cars (velocity ≈ 0) never block.
+func _road_clear() -> bool:
+	for car: Car in Car._fleet:
+		if car == null or not is_instance_valid(car):
+			continue
+		var flat := Vector2(car.global_position.x - global_position.x,
+				car.global_position.z - global_position.z)
+		if flat.length() >= curb_car_radius:
+			continue
+		if Vector2(car.velocity.x, car.velocity.z).dot(-flat) > 0.0:
+			return false ## Within the radius and closing.
+	return true
 
 
 func _panic(delta: float) -> void:

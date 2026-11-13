@@ -121,11 +121,16 @@ var bread_spawner: BreadSpawner
 ## (T-137) The city the routes read — the spawner assigns it before _ready.
 var city: City
 ## (T-137) The seat this elder occupies — an index into `City.elder_spots`.
-## −1 = seatless (a bare rig elder never migrates).
+## −1 = seatless (a bare rig elder never migrates). (T-181) The zone locals
+## stay seatless — the favor/trust machinery is SEAT-owned, so a zone elder
+## neither accrues nor shares; the zone benches join the economy with T-183.
 var current_seat: int = -1
 ## (T-137) The seat this elder departed from on its current migration — the
 ## `elder_relocated` event's `from` half.
 var departed_seat: int = -1
+## (T-181) The pedestrian zone that owns this local ("" on the seat law) —
+## tests and the pilot read the zone crowd through it.
+var zone_id: String = ""
 
 ## Shares so far this run — the spawner relays and the autoplay DONE line reports it.
 var share_count: int = 0
@@ -134,6 +139,7 @@ var _trust: float = 0.0
 var _cooldown_left: float = 0.0
 var _state: State = State.SEATED
 var _dest_seat: int = -1
+var _zone_loop: bool = false ## (T-181) A zone route wraps instead of arriving.
 var _route := PackedVector3Array() ## Global waypoints; `_route_cross[i]` marks the leg ARRIVING at i a road crossing.
 var _route_cross: Array[bool] = []
 var _wp: int = 0
@@ -190,7 +196,10 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
 	var present := _pigeon_present()
-	if _state == State.SEATED:
+	## (T-181) Trust accrues ONLY on a SEAT (the favor machinery is the seat
+	## system's — the zone locals stand seatless on the T-181 paths, so their
+	## benches hold no economy until T-183 re-homes it).
+	if _state == State.SEATED and current_seat >= 0:
 		## (T-137) Trust accrues ONLY while seated — the walk pauses accrual
 		## and decay alike (the existing bank/decay rules cover walk-aways).
 		if present:
@@ -274,6 +283,7 @@ func begin_migration(dest_seat: int) -> void:
 		return
 	if dest_seat < 0 or dest_seat >= city.elder_spots.size():
 		return ## Defensive: an out-of-range seat (never with the shipped city).
+	_zone_loop = false ## (T-181) A migration always arrives; the zone wrap is off.
 	departed_seat = current_seat
 	current_seat = dest_seat
 	_dest_seat = dest_seat
@@ -288,6 +298,53 @@ func begin_migration(dest_seat: int) -> void:
 	_cross_committed = false
 	velocity = Vector3.ZERO
 	_state = State.RISING
+
+
+## --- the zone stroll (T-181) ------------------------------------------------
+
+
+## (T-181) Zone mode, seated: byte-exact placement onto a zone bench's seat
+## line (`zone.benches`, the `elder_spots` transform convention — the spawner
+## passes the GLOBAL transform), straight into SEATED. The sink/slide ease in
+## through `_animate` — the T-141 sit composite with the T-163 contact law,
+## on the new benches exactly as on the retired plaza ring. `current_seat`
+## stays −1: the trust/share machinery is seat-owned and stays dark here.
+func zone_seat(xf: Transform3D) -> void:
+	global_transform = xf
+	velocity = Vector3.ZERO
+	_state = State.SEATED
+
+
+## (T-181) Zone mode, walking: follow the zone route (global waypoints, the
+## same `_route`/`_route_cross` machinery the migration shuffle walks — curb
+## waits included, though no zone route crosses a road yet) and WRAP at the
+## end — zone locals stroll closed loops, the walk never arrives (there is
+## no reserved bench to settle onto; the seated locals are placed seated).
+func zone_walk(route: PackedVector3Array, cross_flags: Array[bool]) -> void:
+	if route.size() < 2:
+		return
+	_route = route
+	_route_cross = cross_flags.duplicate()
+	_zone_loop = true
+	_wp = 0
+	_cross_committed = false
+	_stall_left = stall_skip_seconds
+	_stall_pos = global_position
+	velocity = Vector3.ZERO
+	_state = State.WALKING
+
+
+## The route's end, shared by the migration arrival and the zone wrap: a zone
+## loop wraps to its first waypoint (the stroll never ends); a migration
+## arrives onto its reserved bench.
+func _route_end() -> void:
+	if _zone_loop:
+		_wp = 0
+		_cross_committed = false
+		_stall_left = stall_skip_seconds
+		_stall_pos = global_position
+	else:
+		_begin_arrival()
 
 
 ## Builds the shuffle route as GLOBAL waypoints: origin bench stand point →
@@ -505,7 +562,7 @@ func _rising_tick(delta: float) -> void:
 ## the CURB_WAIT gate holds until the road is clear.
 func _walking_tick(delta: float) -> void:
 	if _wp >= _route.size():
-		_begin_arrival()
+		_route_end()
 		return
 	if _route_cross[_wp] and not _cross_committed:
 		if _road_blocked():
@@ -520,7 +577,7 @@ func _walking_tick(delta: float) -> void:
 		_stall_left = stall_skip_seconds
 		_stall_pos = global_position
 		if _wp >= _route.size():
-			_begin_arrival()
+			_route_end()
 		return
 	## Progress watchdog: an RNG edge bench can sit anywhere along the lane -
 	## when the shuffle stops making ground for `stall_skip_seconds`, it skips
@@ -534,7 +591,7 @@ func _walking_tick(delta: float) -> void:
 			_wp += 1
 			_cross_committed = false
 			if _wp >= _route.size():
-				_begin_arrival()
+				_route_end()
 			return
 	else:
 		_stall_left = stall_skip_seconds
