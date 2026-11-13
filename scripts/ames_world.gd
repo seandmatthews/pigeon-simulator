@@ -339,6 +339,9 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	_campanile_cap = Vector3.ZERO
 	_roof_spots = []
 	_hero_roof_tops = {}
+	_lamp_mm = null ## (T-180) The corner-dress lamp state rebuilds with the world.
+	_lamp_kinds = PackedInt32Array()
+	_signal_phase = -1
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
 	_manifest = AmesBaker.read_manifest(CHUNKS_DIR)
 	if _manifest.is_empty():
@@ -370,6 +373,16 @@ func generate_step_blocks() -> void:
 func generate_step_finish() -> void:
 	_build_survival()
 	_build_traffic_graph()
+	_build_intersection_furniture() ## (T-180) The pinned corners' paint/signs/signals.
+	var pinned := 0
+	var signalized := 0
+	if traffic_graph != null:
+		for a in traffic_graph.intersection_count():
+			if traffic_graph.intersection_pin(a) == AmesTrafficGraph.PIN_NONE:
+				continue
+			pinned += 1
+			if traffic_graph.intersection_is_signal(a):
+				signalized += 1
 	last_report = {
 		"world": WORLD_ID,
 		"chunks": _chunks.size(),
@@ -384,6 +397,8 @@ func generate_step_finish() -> void:
 		"traffic_nodes": traffic_graph.node_count() if traffic_graph != null else 0,
 		"traffic_runs": traffic_graph.run_count() if traffic_graph != null else 0,
 		"traffic_km": snappedf(traffic_graph.total_km(), 0.01) if traffic_graph != null else 0.0,
+		"intersections_pinned": pinned,
+		"intersections_signals": signalized,
 	}
 	## Deterministic identity: the bake manifest's total hash — a re-bake that
 	## moves a byte moves the fingerprint, exactly the layout-fingerprint
@@ -399,6 +414,283 @@ func generate_step_finish() -> void:
 ## first `regenerated`.
 func _build_traffic_graph() -> void:
 	traffic_graph = AmesTrafficGraph.new()
+
+
+## --- T-180 intersection furniture -------------------------------------------
+## The corner dress the pinned start set earns, built straight off the graph's
+## classification (the same derivation the stop entries stamp, so paint and
+## cars can never disagree): zebra bands at every pinned approach (T-069's
+## longitudinal zebra, the worn-white read), stop lines + T-134 stop-sign
+## assemblies (the T-143 red-face relief) at the all-way corners, and one
+## mast-arm signal per signal corner whose head lamps run the city-wide
+## phase (`TrafficControl.signal_phase`) — the same clock the cars' gate
+## reads. Visual-only throughout (the T-017 decision): zero colliders, zero
+## RNG of any stream — a rebuild reproduces every transform byte-identically.
+
+## Corner paint + sign colors (the T-069/T-134 palette, ported).
+const COLOR_CROSSWALK := Color(0.78, 0.78, 0.75) ## T-069's worn white.
+const COLOR_SIGN_WHITE := Color(0.94, 0.94, 0.92) ## T-134 sign faces.
+const COLOR_STOP_SIGN := Color(0.78, 0.10, 0.10) ## T-134's red octagon.
+const COLOR_SIGN_POST := Color(0.25, 0.25, 0.28)
+const COLOR_MAST := Color(0.22, 0.23, 0.25)
+const COLOR_HEAD := Color(0.13, 0.13, 0.15)
+
+## The mast's lamp colors per kind (0 red / 1 amber / 2 green): [lit, off].
+## Amber never lights — the phase model is a two-state green/red cycle.
+const SIGNAL_LAMP_COLORS: Dictionary = {
+	0: [Color(0.85, 0.08, 0.06), Color(0.18, 0.05, 0.05)],
+	1: [Color(0.9, 0.55, 0.08), Color(0.16, 0.12, 0.05)],
+	2: [Color(0.1, 0.8, 0.18), Color(0.05, 0.15, 0.08)],
+}
+
+## Mast geometry (m): pole 5.8 tall standing 0.6 past the arterial stop line
+## at the road edge + 0.7; the arm spans to 1.2 m short of the far asphalt
+## edge at 5.6; the two heads hang at 4.9 over the arterial's two lane lines.
+const MAST_HEIGHT := 5.8
+const MAST_ARM_Y := 5.6
+const MAST_HEAD_Y := 4.9
+const MAST_POLE_CLEAR := 0.6
+const MAST_POLE_SIDE := 0.7
+const MAST_ARM_END_CLEAR := 1.2
+const MAST_HEAD_DEPTH := 0.30
+const MAST_LAMP_PITCH := 0.33
+const MAST_LAMP_OUT := 0.18
+
+## The sign assembly's heights (m over the ground plate): octagon face center
+## 2.5 (the T-134 read — bottom ≈ 2.1 over the asphalt), plaque just below.
+const SIGN_FACE_Y := 2.5
+const SIGN_POST_HEIGHT := 2.5
+const SIGN_PLAQUE_Y := 2.0
+
+## (T-180) Live lamp state: the lamp MultiMesh + its per-lamp kind (0 red /
+## 1 amber / 2 green), and the last painted phase (−1 until the first
+## `_process` pass paints it).
+var _lamp_mm: MultiMesh = null
+var _lamp_kinds: PackedInt32Array = PackedInt32Array()
+var _signal_phase: int = -1
+
+
+func _process(_delta: float) -> void:
+	if _lamp_mm == null:
+		return
+	var phase := TrafficControl.signal_phase()
+	if phase == _signal_phase:
+		return
+	_signal_phase = phase
+	for i in _lamp_kinds.size():
+		var kind := _lamp_kinds[i]
+		var lit: bool = kind == (2 if phase == 0 else 0) ## Green on the
+			## arterial's phase, red on the cross street's — the mast serves
+			## the arterial's two approaches, so both heads flip together.
+		var colors: Array = SIGNAL_LAMP_COLORS[kind]
+		_lamp_mm.set_instance_color(i, colors[0] if lit else colors[1])
+
+
+## Builds the whole corner dress off the graph's pinned anchors (the finish
+## slice, after the graph exists).
+func _build_intersection_furniture() -> void:
+	var graph := traffic_graph
+	if graph == null:
+		return
+	var paint: Array[Transform3D] = []
+	var stop_lines: Array[Transform3D] = []
+	var posts: Array[Transform3D] = []
+	var red_bars: Array[Transform3D] = []
+	var border_bars: Array[Transform3D] = []
+	var plaques: Array[Transform3D] = []
+	var masts: Array[Transform3D] = []
+	var heads: Array[Transform3D] = []
+	var lamps: Array[Transform3D] = []
+	_lamp_kinds = PackedInt32Array()
+	for a in graph.intersection_count():
+		if graph.intersection_pin(a) == AmesTrafficGraph.PIN_NONE:
+			continue
+		var signalized := graph.intersection_is_signal(a)
+		for member: int in graph.intersection_members(a):
+			for edge in graph.node_in_edges(member):
+				var geo := graph.approach_geometry(member, edge)
+				if not bool(geo["fits"]):
+					continue
+				_queue_corner_paint(paint, graph.node_pos(member), geo)
+				if signalized:
+					continue ## Signals replace the all-way stop furniture.
+				_queue_corner_stop(stop_lines, posts, red_bars, border_bars,
+						plaques, graph.node_pos(member), geo)
+		if signalized:
+			_queue_signal_mast(masts, heads, lamps, a, graph)
+	_spawn_corner_visuals(paint, stop_lines, posts, red_bars, border_bars,
+			plaques, masts, heads, lamps)
+
+
+## One approach's zebra band (T-069/T-102 geometry at the measured width):
+## `bars` longitudinal bars tiled across the asphalt at BAR_PITCH on centers,
+## each a BAND_DEPTH-long × BAR_WIDTH-wide box riding the paint level.
+func _queue_corner_paint(paint: Array[Transform3D], node_pos: Vector3,
+		geo: Dictionary) -> void:
+	var axis := (geo["axis"] as Vector3)
+	var across := Vector3(-axis.z, 0.0, axis.x)
+	var band: Dictionary = geo["band"]
+	var center := Vector3(band["center"].x, AmesTrafficGraph.PAINT_CENTER_Y,
+			band["center"].y)
+	var bars := int(geo["bars"])
+	var pitch := AmesTrafficGraph.CROSSWALK_BAR_PITCH
+	var depth := AmesTrafficGraph.CROSSWALK_BAND_DEPTH
+	var width := AmesTrafficGraph.CROSSWALK_BAR_WIDTH
+	var basis := Basis(axis * depth, Vector3.UP * AmesTrafficGraph.PAINT_THICKNESS,
+			across * width)
+	for k in bars:
+		var lateral := (float(k) - float(bars - 1) * 0.5) * pitch
+		paint.append(Transform3D(basis, center + across * lateral))
+
+
+## One approach's all-way-stop furniture: the stop bar across the incoming
+## lane (centered on the lane line at the adapted outset — the exact line the
+## stop entries stamp) plus the T-134 sign assembly on the approach's right
+## (post, the four-bar red octagon over its white border — the T-143 relief
+## — and the all-way plaque).
+func _queue_corner_stop(stop_lines: Array[Transform3D],
+		posts: Array[Transform3D], red_bars: Array[Transform3D],
+		border_bars: Array[Transform3D], plaques: Array[Transform3D],
+		node_pos: Vector3, geo: Dictionary) -> void:
+	var axis := (geo["axis"] as Vector3)
+	var lane := float(geo["lane_off"])
+	var half := float(geo["half_width"])
+	var stop_outset := float(geo["stop_outset"])
+	var right := Vector3(-axis.z, 0.0, axis.x)
+	## The stop bar: 0.4 along travel × 2.8 across the lane, paint level.
+	var line_pos := node_pos - axis * stop_outset + right * lane
+	stop_lines.append(Transform3D(
+			Basis(axis * AmesTrafficGraph.STOP_LINE_WIDTH,
+					Vector3.UP * AmesTrafficGraph.PAINT_THICKNESS,
+					right * AmesTrafficGraph.STOP_LINE_SPAN),
+			Vector3(line_pos.x, AmesTrafficGraph.PAINT_CENTER_Y, line_pos.z)))
+	## The sign assembly on the approach's right, just past the stop line.
+	var post_pos := node_pos - axis * (stop_outset + AmesTrafficGraph.SIGN_OUTSET_GAP) \
+			+ right * (half + AmesTrafficGraph.SIGN_EDGE_OFFSET)
+	posts.append(Transform3D(
+			Basis(Vector3.RIGHT * 0.08, Vector3.UP * SIGN_POST_HEIGHT,
+					Vector3.BACK * 0.08),
+			Vector3(post_pos.x, SIGN_POST_HEIGHT * 0.5, post_pos.z)))
+	var face := Vector3(post_pos.x, SIGN_FACE_Y, post_pos.z)
+	var normal := -axis ## The face looks back at the approaching driver.
+	var plane := Basis(right, Vector3.UP, normal)
+	_queue_octagon(red_bars, face, plane, normal,
+			Vector3(0.75, 0.31, AmesTrafficGraph.STOP_SIGN_THICKNESS))
+	_queue_octagon(border_bars, face, plane, normal,
+			Vector3(0.81, 0.34, AmesTrafficGraph.STOP_SIGN_BORDER_THICKNESS))
+	plaques.append(Transform3D(
+			Basis(right * 0.42, Vector3.UP * 0.14, normal
+					* AmesTrafficGraph.STOP_SIGN_BORDER_THICKNESS),
+			Vector3(post_pos.x, SIGN_PLAQUE_Y, post_pos.z)))
+
+
+## The T-134 octagon read as the union of FOUR equal bars — one axis-aligned
+## with its long side across the approach, one at 90°, one ±45° — queued at
+## `center` in the sign's face plane (`plane` carries the un-rotated frame,
+## `normal` the face normal the bars rotate about).
+func _queue_octagon(queue: Array[Transform3D], center: Vector3,
+		plane: Basis, normal: Vector3, size: Vector3) -> void:
+	for theta: float in [0.0, PI * 0.5, PI * 0.25, PI * 0.75]:
+		var rot := Basis(normal, theta)
+		queue.append(Transform3D(
+				Basis(rot * plane.x * size.x, rot * plane.y * size.y,
+						normal * size.z),
+				center))
+
+
+## One signal corner's mast-arm assembly: the pole on the arterial approach's
+## right corner, the arm spanning the asphalt, and two three-lamp heads over
+## the arterial's two lane lines — lamps queued in RED/AMBER/GREEN order per
+## head, each facing its own direction's drivers.
+func _queue_signal_mast(masts: Array[Transform3D], heads: Array[Transform3D],
+		lamps: Array[Transform3D], anchor: int, graph: AmesTrafficGraph) -> void:
+	var axis := graph.intersection_signal_axis(anchor)
+	if axis == Vector3.ZERO:
+		return
+	var half := graph.intersection_signal_half_width(anchor)
+	var lane := graph.intersection_signal_lane_off(anchor)
+	var node := graph.intersection_signal_node(anchor)
+	var node_pos := graph.node_pos(node)
+	var stop_outset := lane + AmesTrafficGraph._STOP_OUTSET_TAIL
+	var right := Vector3(-axis.z, 0.0, axis.x)
+	var along := stop_outset + MAST_POLE_CLEAR
+	## The pole, just past the arterial's stop line on its right.
+	var pole_pos := node_pos - axis * along + right * (half + MAST_POLE_SIDE)
+	masts.append(Transform3D(
+			Basis(Vector3.RIGHT * 0.16, Vector3.UP * MAST_HEIGHT,
+					Vector3.BACK * 0.16),
+			Vector3(pole_pos.x, MAST_HEIGHT * 0.5, pole_pos.z)))
+	## The arm: from the pole across the asphalt, ending clear of the far edge.
+	var arm_len := (half + MAST_POLE_SIDE) + half - MAST_ARM_END_CLEAR
+	var arm_center := pole_pos - right * (arm_len * 0.5)
+	masts.append(Transform3D(
+			Basis(Vector3.RIGHT * 0.16, Vector3.UP * 0.16, right * arm_len),
+			Vector3(arm_center.x, MAST_ARM_Y, arm_center.z)))
+	## Two heads over the arterial's two lane lines, each with its three
+	## lamps facing the drivers it serves (red top, amber mid, green bottom).
+	for side: float in [1.0, -1.0]:
+		var head_pos := node_pos - axis * along + right * (lane * side)
+		var face := -axis * float(signf(side)) ## Head over the +lane serves
+			## the +axis direction: its face (and lamps) look back down −axis.
+		heads.append(Transform3D(
+				Basis(right * 0.42, Vector3.UP * 1.05, face * MAST_HEAD_DEPTH),
+				Vector3(head_pos.x, MAST_HEAD_Y, head_pos.z)))
+		for lamp_i in 3:
+			var dy := MAST_LAMP_PITCH * (1.0 - float(lamp_i))
+			var lamp_pos := head_pos + Vector3(0.0, dy, 0.0) \
+					+ face * (MAST_HEAD_DEPTH * 0.5 + 0.02)
+			lamps.append(Transform3D(
+					Basis(right * 0.26, Vector3.UP * 0.26, face * 0.05),
+					lamp_pos))
+			_lamp_kinds.append(lamp_i) ## 0 red, 1 amber, 2 green.
+
+
+## Spawns the corner-dress MultiMeshes (one node per family under
+## `Intersections/`), the lamp family's MultiMesh retained for the live
+## phase paint. Every instance is colored per family (the vertex-color box
+## mesh), no colliders anywhere.
+func _spawn_corner_visuals(paint: Array[Transform3D],
+		stop_lines: Array[Transform3D], posts: Array[Transform3D],
+		red_bars: Array[Transform3D], border_bars: Array[Transform3D],
+		plaques: Array[Transform3D], masts: Array[Transform3D],
+		heads: Array[Transform3D], lamps: Array[Transform3D]) -> void:
+	var root := Node3D.new()
+	root.name = "Intersections"
+	add_child(root)
+	_spawn_corner_family(root, "CrosswalkPaint", paint, COLOR_CROSSWALK)
+	_spawn_corner_family(root, "StopLines", stop_lines, COLOR_CROSSWALK)
+	_spawn_corner_family(root, "SignPosts", posts, COLOR_SIGN_POST)
+	_spawn_corner_family(root, "StopFaces", red_bars, COLOR_STOP_SIGN)
+	_spawn_corner_family(root, "StopBorders", border_bars, COLOR_SIGN_WHITE)
+	_spawn_corner_family(root, "Plaques", plaques, COLOR_SIGN_WHITE)
+	_spawn_corner_family(root, "Masts", masts, COLOR_MAST)
+	_spawn_corner_family(root, "Heads", heads, COLOR_HEAD)
+	var lamp_mm := _new_multimesh(lamps.size())
+	for i in lamps.size():
+		lamp_mm.set_instance_transform(i, lamps[i])
+		var colors: Array = SIGNAL_LAMP_COLORS[_lamp_kinds[i]]
+		lamp_mm.set_instance_color(i, colors[1]) ## Off until _process paints.
+	var lamp_node := MultiMeshInstance3D.new()
+	lamp_node.name = "SignalLamps"
+	lamp_node.multimesh = lamp_mm
+	root.add_child(lamp_node)
+	_lamp_mm = lamp_mm
+	_signal_phase = -1
+
+
+## One colored corner family: a MultiMeshInstance3D of the given transforms.
+func _spawn_corner_family(root: Node3D, node_name: String,
+		xfs: Array[Transform3D], color: Color) -> void:
+	if xfs.is_empty():
+		return
+	var mm := _new_multimesh(xfs.size())
+	for i in xfs.size():
+		mm.set_instance_transform(i, xfs[i])
+		mm.set_instance_color(i, color)
+	var node := MultiMeshInstance3D.new()
+	node.name = node_name
+	node.multimesh = mm
+	root.add_child(node)
 
 
 ## --- T-176 survival re-base ------------------------------------------------

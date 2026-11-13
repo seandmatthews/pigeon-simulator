@@ -463,7 +463,17 @@ func _drive(delta: float) -> void:
 	else:
 		_stalled = 0.0
 	if held or target_speed < cruise * pace * 0.5 or _stalled > 1.0:
-		_patience += delta
+		## (T-180) A red-light hold alone never feeds the clock: the signal
+		## guarantees progress, and a break would run the red. Every OTHER
+		## hold (the ladder on green, a crosswalk body, a physical blocker, a
+		## wedge) accumulates exactly as before — a red that also holds for a
+		## pigeon in the band keeps the pedestrian-priority hold's patience
+		## frozen until the green, then it runs its own clock.
+		var red_hold := held and entry != null and not entry.is_empty() \
+				and entry.has("signal_group") \
+				and traffic.signal_red_for_group(int(entry["signal_group"]))
+		if not red_hold:
+			_patience += delta
 		## (T-166) One accumulated clock; the threshold reads the CURRENT hold
 		## class each frame — `held` (a registered ladder denial or a crosswalk
 		## hold, from `_protocol_speed`) expires at `protocol_patience_seconds`,
@@ -585,6 +595,14 @@ func _protocol_speed(entry: Dictionary, hspeed: float, target_speed: float) -> V
 	var along := _entry_along(entry) ## > 0 while the nose is before the line.
 	if not entry.committed:
 		if entry.registered:
+			## (T-180) Signal control: at a signalized corner the phase gate
+			## fronts the ladder — a red parks the car at its line (held).
+			## The hold deliberately does not feed the patience clock (the
+			## `_drive` accumulation reads `signal_red_hold` below): the light
+			## guarantees progress, and the force-commit break would run it.
+			if entry.has("signal_group") \
+					and traffic.signal_red_for_group(int(entry["signal_group"])):
+				return Vector2(0.0, true)
 			## Stopped at the line: hold until the ladder (and the crosswalk)
 			## both say go, then commit and roll.
 			if _crosswalk_blocked(entry):
@@ -622,7 +640,10 @@ func _protocol_speed(entry: Dictionary, hspeed: float, target_speed: float) -> V
 
 ## True while any watched body (player or tourist) stands in the node's padded
 ## crosswalk bands — the pedestrian-priority hold. A cheap rect-overlap point
-## test; no raycasts.
+## test; no raycasts. (T-180) The Ames entries carry ORIENTED band records
+## `{center: Vector2, axis: Vector2, half_along, half_across}` (global XZ —
+## real streets run at arbitrary angles, which an axis-aligned Rect2 cannot
+## span); the Windrow seam's axis-aligned Rect2s duck-type alongside.
 func _crosswalk_blocked(entry: Dictionary) -> bool:
 	if traffic == null or entry.is_empty():
 		return false
@@ -631,9 +652,18 @@ func _crosswalk_blocked(entry: Dictionary) -> bool:
 			continue
 		var p := body.global_position
 		var flat := Vector2(p.x, p.z)
-		for band: Rect2 in entry.bands:
-			if band.has_point(flat):
-				return true
+		for band: Variant in entry.bands:
+			if band is Rect2:
+				if (band as Rect2).has_point(flat):
+					return true
+			elif band is Dictionary:
+				var b := band as Dictionary
+				var rel := flat - (b["center"] as Vector2)
+				var axis := (b["axis"] as Vector2)
+				if absf(rel.dot(axis)) <= float(b["half_along"]) \
+						and absf(rel.dot(Vector2(-axis.y, axis.x))) \
+								<= float(b["half_across"]):
+					return true
 	return false
 
 
