@@ -283,14 +283,19 @@ func _swap_to_ames_world() -> void:
 	windrow.queue_free()
 
 
-## (T-129) The synchronous boot — the rig path, byte-as-today: the whole
-## `city.generate()` burst and every spawner populate land inside _ready
-## (scene child order, cars ahead of bread — the tailgate-crumb handover),
-## exactly where City._ready and every spawner _ready performed them before
-## T-129 held them. The one `BOOT` line keeps the trace contract on this path.
+## (T-129) The synchronous boot — the rig path: the whole `city.generate()`
+## burst and every spawner populate land inside _ready (scene child order,
+## cars ahead of bread — the tailgate-crumb handover), exactly where
+## City._ready and every spawner _ready performed them before T-129 held
+## them. (T-178 round 2) The pigeon is placed on the corridor BEFORE the
+## spawners populate — the same ordering rule the stepped path follows — so
+## every band spawner anchors on the pigeon on BOTH boot paths (the round-1
+## fix's claim, now true here too). The one `BOOT` line keeps the trace
+## contract on this path.
 func _boot_sync() -> void:
 	var t0 := Time.get_ticks_msec()
 	city.generate()
+	_place_pigeon_on_corridor()
 	_populate_staged_spawners()
 	var ms := Time.get_ticks_msec() - t0
 	boot_trace.append({"name": "sync_boot", "ms": ms})

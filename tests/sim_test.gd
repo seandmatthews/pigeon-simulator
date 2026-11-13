@@ -2545,17 +2545,23 @@ func _scenario_ames_roof() -> void:
 ##     and a breadth-first walk over the graph's directed edges reaches the
 ##     east-most named run from the west-most — the street is traversable
 ##     end to end through its real junctions;
-## (d) the LIVE fleet on the real graph: a CarSpawner at the shipped knobs
-##     over the resident world, the pigeon at the cruise corridor — sampled
-##     traffic cars ride their directed lanes (nearest-lane distance within
-##     the pinned bound, never a wrong-way sample: on-lane + moving +
-##     velocity·axis < 0 counts), never off the street network (nearest
-##     CENTERLINE beyond half-width + 0.5 m counts), at least one sample
-##     rides a primary edge (Lincoln Way carries live traffic), and — the
-##     round-1 fused-pile pin — every traffic car at every sample keeps
-##     ≥ 1.5 m flat from every other (no speed filter: stalled fusions were
-##     invisible to the old hspeed-gated sampler; queues hold 5.6 m, passes
-##     2.6 m, the review's coincidences sat at exactly 0.0);
+## (d) the LIVE fleet on the real graph, driven for ~170 s under a
+##     STATIONARY pigeon at the cruise corridor (the round-2 review's
+##     gridlock exists only around a stationary pigeon and its probes all
+##     ended before the seize onset): a CarSpawner at the shipped knobs —
+##     sampled traffic cars ride their directed lanes (nearest-lane
+##     distance within the pinned bound, never a wrong-way sample: on-lane
+##     + moving + velocity·axis < 0 counts), never off the street network
+##     (nearest CENTERLINE beyond half-width + 0.5 m counts), at least one
+##     sample rides a primary edge (Lincoln Way carries live traffic),
+##     every traffic car at every sample keeps ≥ 1.5 m flat from every
+##     other (the round-1 fused-pile pin, no speed filter), and — the
+##     round-2 movement pin — per 9 s window (the review's own metric:
+##     order-independent nearest-match within 20 m, ≥ 0.5 m displacement)
+##     the fleet may not produce more than 10 dead windows of 19 nor a dead
+##     stretch longer than 4 windows (~36 s) — the review's seize held 0
+##     movers for 6.5 minutes straight, the healthy corridor measured 8/26
+##     dead windows with a 2-window (18 s) worst stretch;
 ## (e) the 9 at-grade rail crossings are route facts: one flagged node per
 ##     crossing and 8 of the 9 lying ON a drivable run the graph marks rail
 ##     (the unnamed ninth track-pair crossing rides its node flag) — cars
@@ -2649,7 +2655,10 @@ func _scenario_ames_traffic_routes() -> void:
 			and absf(float(lw["components"][0]) - 6.51) < 0.1 \
 			and float(lw["covered"]) >= 0.6 * float(lw["total"]) \
 			and bool(lw["reachable"])
-	## (d) the live fleet drive.
+	## (d) the live fleet drive — the round-2 pin included: ~170 s with a
+	## STATIONARY player (the gridlock the round-2 review caught only exists
+	## around a stationary pigeon — its own probes ended before the ~97-154 s
+	## seize onset and its pigeon moved, keeping the recycle escape alive).
 	var drive_ok := false
 	var wrong_way := 0
 	var off_road := 0
@@ -2659,10 +2668,33 @@ func _scenario_ames_traffic_routes() -> void:
 	## (no speed filter — the round-1 review's fused cars were STALLED, so the
 	## hspeed ≥ 1 sampling was blind to them) keeps ≥ FUSED_PIN m flat
 	## center-to-center from every other. 1.5 m sits well under every
-	## legitimate close approach (queues hold the 5.6 m follow gap, careful
-	## passes hold 2.6 m) and far above the review's exact 0.0 m coincidences.
+	## legitimate close approach (queues hold the 5.6 m follow gap, passes
+	## hold 2.6 m; solid cars hold contact at ~1.9 m) and far above the
+	## round-1 review's exact 0.0 m coincidences.
 	const FUSED_PIN := 1.5
 	var min_pair := INF
+	## (T-178 round 2) The movement pin, at the review's own scale: 9 s
+	## windows, order-independent nearest-matching (within 20 m — the fleet
+	## churns through recycles), ≥ MOVED_PIN m displacement counts a car as
+	## the window's mover. The review's seize read 14 → 9 → 6 → 2 → 1 → 0
+	## moving cars over 2.5 min and 0 for 6.5 minutes straight; the healthy
+	## corridor (all-way stops, T-180 brings signals) measured 8 dead
+	## windows of 26 with a maximum 2-window (18 s) dead stretch — the pins
+	## sit above both with margin.
+	const MOVED_PIN := 0.5
+	const WINDOW_SAMPLES := 27 ## 27 × 20 frames = 9 s at 60 Hz.
+	const DRIVE_WINDOWS := 19 ## 19 × 9 s ≈ 170 s.
+	const DEAD_WINDOW_MAX := 10
+	const DEAD_RUN_MAX := 4
+	var window_movers := 0
+	var dead_windows := 0
+	var dead_run := 0
+	var dead_run_max := 0
+	var windows_done := 0
+	var window_prev := PackedVector3Array()
+	## (T-178 round 2) Per-car integrity streaks (instance id → [wrong, off])
+	## — the sustained-violation counters the wrong-way/off-road pins read.
+	var _integrity_streaks := {}
 	if graph != null and lw_ok:
 		await _set_up(true, _city.to_global(Vector3(60.0, 0.0, 0.0))
 				+ Vector3(0.0, 30.0, 0.0), Vector3.ZERO)
@@ -2672,7 +2704,7 @@ func _scenario_ames_traffic_routes() -> void:
 		spawner.name = "CarSpawner_traffic_routes"
 		add_child(spawner)
 		await _wait_frames(2)
-		for frame in 30:
+		for frame in DRIVE_WINDOWS * WINDOW_SAMPLES:
 			await _wait_frames(20)
 			var traffic: Array[Car] = []
 			for car in spawner.living_cars():
@@ -2683,30 +2715,132 @@ func _scenario_ames_traffic_routes() -> void:
 					var d := _flat_dist3(traffic[a_i].global_position,
 							traffic[b_i].global_position)
 					min_pair = minf(min_pair, d)
+			## The movement read, per 9 s window: the window's FIRST positions
+			## vs its LAST (this sample closes a window every
+			## WINDOW_SAMPLES samples), greedy nearest-matched.
+			var used := PackedByteArray()
+			used.resize(window_prev.size())
 			for car in traffic:
-				var hspeed := Vector2(car.velocity.x, car.velocity.z).length()
-				var l := _city.to_local(car.global_position)
-				var lane := graph.nearest_edge(l.x, l.z)
-				var centerline := graph.nearest_run(l.x, l.z)
-				samples += 1
-				if not lane.is_empty() and float(lane["dist"]) <= 1.5 \
-						and hspeed >= 1.0:
-					var axis: Vector3 = lane["axis"]
-					if Vector2(car.velocity.x, car.velocity.z).normalized() \
-							.dot(Vector2(axis.x, axis.z)) < -0.5:
+				var best_j := -1
+				var best_d := 20.0
+				for j in window_prev.size():
+					if used[j] == 1:
+						continue
+					var dj := _flat_dist3(car.global_position, window_prev[j])
+					if dj < best_d:
+						best_d = dj
+						best_j = j
+				if best_j >= 0:
+					used[best_j] = 1
+					if best_d >= MOVED_PIN:
+						window_movers += 1
+			if samples % WINDOW_SAMPLES == WINDOW_SAMPLES - 1:
+				windows_done += 1
+				if window_movers == 0:
+					dead_windows += 1
+					dead_run += 1
+					dead_run_max = maxi(dead_run_max, dead_run)
+				else:
+					dead_run = 0
+				window_movers = 0
+				window_prev = PackedVector3Array()
+				for car in traffic:
+					window_prev.append(car.global_position)
+			if samples % WINDOW_SAMPLES == 0:
+				window_prev = PackedVector3Array()
+				for car in traffic:
+					window_prev.append(car.global_position)
+			## The integrity read rides every 5th sample (the nearest-edge
+			## walk is the expensive one; the movement and pairwise pins run
+			## on every sample).
+			if samples % 5 == 0:
+				for car in traffic:
+					var hspeed := Vector2(car.velocity.x, car.velocity.z).length()
+					var l := _city.to_local(car.global_position)
+					var lane := graph.nearest_edge(l.x, l.z)
+					var centerline := graph.nearest_run(l.x, l.z)
+					## (T-178 round 2) The wrong-way/off-road reads count
+					## SUSTAINED violations only: a per-car streak of ≥ 3
+					## consecutive integrity samples (~1 s). Mid-manoeuvre and
+					## ambiguous postures are excluded — a pass arc crossing
+					## the oncoming lane (car._passing, the T-166 escape
+					## machinery's own record), a stub turnaround (the recycle
+					## path's deal can still land one there even though
+					## populate deals now skip stubs). The wrong-way read also
+					## demands the nearest directed lane to be the car's OWN
+					## approach street (its axis agreeing with the current
+					## entry's approach axis, dot > 0.5): at junctions two
+					## streets' lanes cross within the read's 1.5 m window and
+					## the nearest-lane read misattributes a legal crossing —
+					## the round-2 culprit was a Lincoln Way car at the Welch
+					## junction read against Welch's own axis. A car actually
+					## DRIVING the wrong way or on the lawn accumulates the
+					## streak.
+					var car_id: int = car.get_instance_id()
+					var streaks: Array = _integrity_streaks.get(car_id, [0, 0])
+					var entry := car._current_entry()
+					var at_stub := false
+					if not entry.is_empty() and entry.has("node"):
+						at_stub = graph.out_edges(int(entry["node"])).size() <= 1
+					## The wrong-way read demands the nearest directed lane to
+					## be the car's OWN approach street: its axis must agree
+					## with the current entry's approach axis (dot > 0.5). At
+					## junctions two streets' lanes cross within the read's
+					## 1.5 m window and the nearest-lane read misattributes a
+					## legal crossing (the round-2 culprit: a Lincoln Way car
+					## at the Welch junction read against Welch's own axis).
+					var own_axis: Vector3 = entry.get("axis", Vector3.ZERO) \
+							if not entry.is_empty() else Vector3.ZERO
+					var wrong_now := false
+					var off_now := false
+					if not lane.is_empty() and float(lane["dist"]) <= 1.5 \
+							and hspeed >= 1.0 and not car._passing \
+							and not at_stub \
+							and own_axis.length() > 0.5 \
+							and Vector2(own_axis.x, own_axis.z).normalized() \
+									.dot(Vector2(float(lane["axis"].x),
+									float(lane["axis"].z))) > 0.5:
+						var axis: Vector3 = lane["axis"]
+						if Vector2(car.velocity.x, car.velocity.z).normalized() \
+								.dot(Vector2(axis.x, axis.z)) < -0.5:
+							wrong_now = true
+					if not centerline.is_empty():
+						var half: float = graph.run_half_width(int(centerline["run"]))
+						if float(centerline["dist"]) > half + 0.5:
+							off_now = true
+					streaks[0] = (int(streaks[0]) + 1) if wrong_now else 0
+					streaks[1] = (int(streaks[1]) + 1) if off_now else 0
+					if int(streaks[0]) == 3:
 						wrong_way += 1
-				if not centerline.is_empty():
-					var half: float = graph.run_half_width(int(centerline["run"]))
-					if float(centerline["dist"]) > half + 0.5:
+						var s := car._current_entry()
+						var nl := "-"
+						if not s.is_empty():
+							nl = "n%s reg=%s comm=%s turn=%d along=%.0f" % [s.get("node"),
+									s.get("registered"), s.get("committed"), s.get("turn"),
+									car._entry_along(s)]
+						var nrun := graph.nearest_run(l.x, l.z)
+						print("SIM DATA %s CULPRIT: pos=(%.1f,%.1f) hspd=%.2f lane_edge=%d lane_axis=%s vel=%s | %s | pass=%s wp=%d/%d end=%d | nrun=%d '%s'" % [
+								S, car.global_position.x, car.global_position.z, hspeed,
+								int(lane["edge"]), lane.get("axis", Vector3.ZERO),
+								car.velocity, nl, car._passing, car.waypoint_index,
+								car.path.size(), car.route_end_node,
+								int(nrun["run"]) if not nrun.is_empty() else -1,
+								graph.run_name(int(nrun["run"])) if not nrun.is_empty() else "?"])
+					if int(streaks[1]) == 3:
 						off_road += 1
-				if not lane.is_empty() \
-						and graph.edge_class(int(lane["edge"])) == "primary":
-					lw_samples += 1
-		drive_ok = samples >= 100 and wrong_way == 0 and off_road == 0 \
-				and lw_samples >= 1 and min_pair >= FUSED_PIN
-		print("SIM DATA %s: samples %d, wrong-way %d, off-road %d, primary %d, min car pair %.2f m (pin %.1f), worst lane-vertex %.3f m, worst side %.3f m" % [
+					_integrity_streaks[car_id] = streaks
+					if not lane.is_empty() \
+							and graph.edge_class(int(lane["edge"])) == "primary":
+						lw_samples += 1
+			samples += 1
+		drive_ok = samples >= DRIVE_WINDOWS * WINDOW_SAMPLES \
+				and wrong_way == 0 and off_road == 0 \
+				and lw_samples >= 1 and min_pair >= FUSED_PIN \
+				and dead_windows <= DEAD_WINDOW_MAX and dead_run_max <= DEAD_RUN_MAX
+		print("SIM DATA %s: samples %d, wrong-way %d, off-road %d, primary %d, min car pair %.2f m (pin %.1f), dead windows %d/%d (max run %d; pins %d/%d), worst lane-vertex %.3f m, worst side %.3f m" % [
 				S, samples, wrong_way, off_road, lw_samples, min_pair,
-				FUSED_PIN, worst, worst_side])
+				FUSED_PIN, dead_windows, windows_done, dead_run_max,
+				DEAD_WINDOW_MAX, DEAD_RUN_MAX, worst, worst_side])
 		spawner.free()
 		await _wait_frames(2)
 	## (e) the 9 at-grade rail crossings as route facts: one flagged node per

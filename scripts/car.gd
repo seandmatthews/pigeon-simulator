@@ -19,10 +19,11 @@ extends CharacterBody3D
 ## honks once through the etiquette gate (T-166: only near the player, under
 ## the fleet cadence cap) and either commits through a protocol denial whose
 ## node box is actually clear, or steers one careful lateral pass around
-## whatever holds it — a pigeon/tourist body at one cycle, a car-blocker
-## queue from the third (T-134's stagger) — never blind: the pass arms only
-## across a verified shoulder (the oncoming gate and the parked gate), with
-## the aim clamped inside the asphalt. Amber corner
+## what holds it — a pigeon/tourist body (a CAR blocker never arms a pass:
+## cars are solid to each other and a crossing arc would wedge, T-178
+## round 2; the blocked car waits for the ladder and the queue to drain) —
+## never blind: the pass arms only across a verified shoulder (the oncoming
+## gate and the parked gate), with the aim clamped inside the asphalt. Amber corner
 ## blinkers arm `blinker_lead` before the route's next turn and flash at
 ## `blinker_hz` — the splat-planning tell (T-134 §5). Either mode takes a poop
 ## splat through the duck-typed `on_splatted` convention (T-006): the car
@@ -39,6 +40,14 @@ signal route_exhausted(car: Car)
 ## Fired on every splat this car takes — the spawner relays it into the Game
 ## autoload's score table (T-009).
 signal splatted(car: Car)
+
+## (T-178 round 2) Fired when the car has broken against CAR blockers too
+## many times in a row — the solid-fleet world's wedged-car tell: a pass
+## arc (or any physical contact the front zone cannot see) can pin a car
+## with no logic escape, and the owning spawner answers by re-staging the
+## car onto a clear lane point (the reviewer-proven recycle escape,
+## automated).
+signal stuck(car: Car)
 
 ## PARKED sits at the curb · TRAFFIC drives its route.
 enum Mode { PARKED, TRAFFIC }
@@ -279,18 +288,23 @@ var _pass_side := 1
 ## Pass progress watch: the best travel so far and how long since it grew.
 var _pass_best := 0.0
 var _pass_stall := 0.0
-## Consecutive patience breaks against a plain CAR queue (T-134's stagger,
-## re-landed with T-166's gates): a car-blocker pass may not arm before the
-## third cycle, so adjacent queue cars' passes stay staggered — two
-## same-direction passes arming in one window crossed mid-arc at 1.12 m in
-## the T-166 census (the round-1 defect signature); the pigeon/tourist/
-## parked/wedge classes pass at one cycle exactly as the ticket keeps them.
-var _car_block_cycles := 0
 ## The wedge watchdog: last frame's flat position and how long the car has
 ## commanded real speed without actually moving (a curb/slab grind the zone
 ## can never see — blocker INF, target cruise, zero displacement).
 var _prev_pos := Vector3.ZERO
 var _stalled := 0.0
+## (T-178 round 2) The no-progress break counter — the wedged-car tell in
+## the solid-fleet world: a pass arc can wedge a car against ANOTHER CAR
+## (side contact the front zone misses) or against a BUILDING corner
+## collider (invisible to the zone's mask entirely), and the crawl that
+## follows defeats the pass's stall watchdog by advancing `traveled`
+## millimetres at a time. Every patience break with no genuine travel
+## behind it counts; `STUCK_BREAKS` in a row fires `stuck` and the owning
+## spawner re-stages the car (the reviewer-proven recycle escape). Any
+## accumulated travel over 1 m resets it.
+var _no_progress_breaks := 0
+var _progress_accum := 0.0
+const STUCK_BREAKS := 3
 ## Post-turn blinker hold: the side just driven and the seconds left on it.
 var _blinker_side: int = 0
 var _blinker_hold: float = 0.0
@@ -386,10 +400,30 @@ func _drive(delta: float) -> void:
 	var moved := Vector2(global_position.x - _prev_pos.x,
 			global_position.z - _prev_pos.z).length()
 	_prev_pos = global_position
+	## (T-178 round 2) Genuine travel resets the no-progress break counter —
+	## a creeping wedge advances `traveled` millimetres at a time and would
+	## otherwise sit under the stall watchdogs forever.
+	_progress_accum += moved
+	if _progress_accum > 1.0:
+		_progress_accum = 0.0
+		_no_progress_breaks = 0
 	var entry := _current_entry()
 	## The previous frame's motion may have carried us past the active node —
 	## release before anything else reads the entry.
 	entry = _advance_past_entry(entry)
+	## (T-178 round 2) A nose beyond the line's registration window can never
+	## resolve its entry: the brake cap reads 0 past the line
+	## (`maxf(0, along − STOP_MARGIN)`) and the [−3, +1] m window excludes
+	## registration, so the car would hold forever, invisible to the ladder —
+	## the round-2 review's corridor lock (cars staged or rebased inside the
+	## stop-line window). The placement now refuses such candidates; this
+	## self-heal releases any entry a car still finds itself past, exactly
+	## like the past-the-node release above: the ledger entry releases, the
+	## stop index advances, the car moves on.
+	if not entry.is_empty() and traffic != null \
+			and _entry_along(entry) < -3.0:
+		_finish_entry(entry)
+		entry = _current_entry()
 	## (T-178) The leg's cruise: the current stop entry's `cruise` (the speed
 	## class of the street being driven — Lincoln Way faster, residential
 	## calm), falling back to the car's own `cruise_speed` on the Windrow seam.
@@ -522,16 +556,24 @@ func _advance_past_entry(entry: Dictionary) -> Dictionary:
 	return entry
 
 
+## The signed nose-to-line distance for one entry (m, > 0 while the nose is
+## before the line) — the brake profile's and the registration window's read,
+## shared with the past-line self-heal in `_drive`.
+func _entry_along(entry: Dictionary) -> float:
+	var a := _entry_axis(entry)
+	var nose := global_position + _flat_forward() * HALF_LENGTH
+	var to_line := Vector3(entry.line - nose)
+	to_line.y = 0.0
+	return to_line.dot(a)
+
+
 ## The protocol's speed cap for one frame against `entry` (null-safe).
 ## Returns (capped target speed, held-now) as a Vector2 pair.
 func _protocol_speed(entry: Dictionary, hspeed: float, target_speed: float) -> Vector2:
 	if entry.is_empty() or traffic == null:
 		return Vector2(target_speed, false)
 	var a := _entry_axis(entry)
-	var nose := global_position + _flat_forward() * HALF_LENGTH
-	var to_line := Vector3(entry.line - nose)
-	to_line.y = 0.0
-	var along := to_line.dot(a) ## > 0 while the nose is before the line.
+	var along := _entry_along(entry) ## > 0 while the nose is before the line.
 	if not entry.committed:
 		if entry.registered:
 			## Stopped at the line: hold until the ladder (and the crosswalk)
@@ -598,14 +640,14 @@ func _crosswalk_blocked(entry: Dictionary) -> bool:
 ##      HEAD-TO-HEAD FACE-OFFS — wrong-side cars (pass-overshoot U-turns)
 ##      nose-to-nose with oncoming traffic, each the other's only blocker,
 ##      a stand-off no ladder, box check or parked rule can dissolve. The
-##      gates make the car pass what §1 wanted all along: not a blind swerve
-##      into oncoming, but a verified-clear overtake (T-134 round 1's
-##      mid-arc crossing happened precisely because those passes were
-##      UNGATED). Car-blocker passes additionally stagger to the third
-##      patience cycle (T-134's `_car_block_cycles`, re-landed here): two
-##      same-direction passes that arm inside one window cross mid-arc, and
-##      the stagger is what keeps adjacent queue breaks out of each other's
-##      arcs while the gates keep every pass on a verified shoulder.
+##      gates made the car pass what §1 wanted all along: not a blind swerve
+##      into oncoming, but a verified-clear overtake. (T-178 round 2
+##      supersedes the car pass entirely on the resident world: cars are
+##      SOLID to each other now, a crossing arc wedges instead of ghosting,
+##      and the directed-lane graph cannot produce the face-offs — one-way
+##      lanes, no U-turns in deals, forward-snapped recycles — so a car
+##      blocker waits for the ladder and the queue to drain. T-179
+##      re-derives the etiquette for real lanes.)
 ##   2. A protocol denial with nothing physical ahead force-commits through
 ##      (the liveness guarantee that no ladder cycle can deadlock the city) —
 ##      but ONLY when the node box is actually clear (`_box_clear`, geometric:
@@ -616,15 +658,16 @@ func _crosswalk_blocked(entry: Dictionary) -> bool:
 ##      the occupant's own breaks. The three-mutual-right-yield cycle (all
 ##      waiting, box empty) still force-commits, at protocol patience,
 ##      exactly as `TrafficControl`'s liveness note documents.
-##   3. A pigeon/tourist body, a parked car, a driving car, or a wedge grind
-##      gets one careful lateral pass at corner speed — but only across a
-##      VERIFIED shoulder: the oncoming gate denies the left while an
-##      opposing car sits in the corridor, the parked gate denies the right
-##      while a parked car occupies the band, the alternated shoulder is
-##      tried first and a denied one falls to the other, and the aim is
-##      clamped so the pass center can never leave the asphalt. Both
-##      shoulders denied arms no pass this cycle — the gated honk, the clock
-##      re-arms, the next cycle re-checks.
+##   3. A pigeon/tourist body or a wedge grind gets one careful lateral pass
+##      at corner speed — but only across a VERIFIED shoulder: the oncoming
+##      gate denies the left while an opposing car sits in the corridor, the
+##      parked gate denies the right while a parked car occupies the band,
+##      the alternated shoulder is tried first and a denied one falls to the
+##      other, and the aim is clamped so the pass center can never leave the
+##      asphalt. A car blocker (parked or driving) arms NO pass since the
+##      round-2 gate above — the car waits. Both shoulders denied arms no
+##      pass this cycle — the gated honk, the clock re-arms, the next cycle
+##      re-checks.
 func _break_hold(entry: Dictionary) -> void:
 	_play_patience_honk()
 	_patience = 0.0
@@ -643,14 +686,26 @@ func _break_hold(entry: Dictionary) -> void:
 		entry.committed = true
 		return
 	var blocker := _nearest_blocker()
-	if blocker is Car:
-		_car_block_cycles += 1
-		if _car_block_cycles < 3:
-			return ## A queue pass staggers to the third cycle — the two
-				## same-direction passes that arm inside one window cross
-				## mid-arc (round 1: 1.11 m; T-166 census: 1.12 m).
-	else:
-		_car_block_cycles = 0
+	## (T-178 round 2) A CAR blocker — parked or driving — never arms a pass:
+	## cars are SOLID to each other now (car.tscn mask 9, the round-1
+	## fused-pile fix), and a pass whose arc crosses its blocker's body can
+	## no longer ghost through — it wedges at contact, re-arms, wedges again,
+	## and the standing tangle locks the corridor (the round-2 review's
+	## total gridlock: 14 moving at t=12 s, 0 from t=154 s, the only escape
+	## the player-anchored recycle). On the directed-lane graph a blocked car
+	## simply WAITS: the head of the queue rolls when its junction box
+	## clears, and the ladder + follow-gap logic drain the line behind it —
+	## the Windrow head-to-head standoffs the pass existed for cannot arise
+	## (one-way lanes, no U-turns in deals, forward-snapped recycles). The
+	## passes that remain are the GHOST-safe ones: pigeon/tourist bodies
+	## (the car's mask never included the player/npc layers) and the
+	## no-body curb-grind wedge (blocker null), where contact is physically
+	## impossible. T-179 (calm port) re-derives the etiquette for real lanes.
+	_no_progress_breaks += 1
+	if _no_progress_breaks >= STUCK_BREAKS:
+		_no_progress_breaks = 0
+		_progress_accum = 0.0
+		stuck.emit(self)
 	_pass_origin = global_position
 	var axis := _leg_axis()
 	var first_clear := _shoulder_clear(_pass_side, axis)
@@ -806,7 +861,6 @@ func _update_pass(_delta: float) -> void:
 		_passing = false
 		_pass_stall = 0.0
 		_patience = 0.0
-		_car_block_cycles = 0
 
 
 ## Waypoint-adoption bookkeeping (T-134): ask the spawner for a fresh route
@@ -1123,7 +1177,8 @@ func start_route(pos: Vector3, new_path: PackedVector3Array,
 	_pass_side = 1
 	_pass_best = 0.0
 	_pass_stall = 0.0
-	_car_block_cycles = 0
+	_no_progress_breaks = 0
+	_progress_accum = 0.0
 	_stalled = 0.0
 	_prev_pos = pos
 	velocity = Vector3.ZERO

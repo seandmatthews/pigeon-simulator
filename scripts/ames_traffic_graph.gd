@@ -95,6 +95,10 @@ const PARK_EDGE_OFFSET := 1.05
 ## Curb parking spot pitch along a run (m) and the minimum spot spacing check
 ## radius the spawner's `_spot_taken` applies (a car length plus margin).
 const CURB_SPOT_PITCH := 7.0
+## (T-178 round 2) Curb spots keep this far (arc m) from either run end — the
+## junction corner-swing zone the grid parking stayed clear of. See
+## `run_curb_spots`.
+const CURB_CORNER_CLEAR := 14.0
 ## A graph node flags `rail` when an at-grade crossing center sits within
 ## this radius (m) — the crossing geometry's own road half-width.
 const RAIL_NODE_RADIUS := 14.0
@@ -417,9 +421,23 @@ func deal_route(start_node: int, in_edge: int, steps: int,
 		var cands := PackedInt32Array()
 		var totals := PackedFloat64Array()
 		var total := 0.0
+		## (T-178 round 2) Candidates into DEAD-END stubs are skipped while
+		## any other candidate exists: a car driven into a stub must
+		## 3-point-turn across the lane on its next extension — a transient
+		## wrong-way/off-lane posture the route-integrity pins would honestly
+		## flag. (The deal still takes a dead end when it is the only exit —
+		## the fallback below — so no car is ever stranded.)
+		var alternatives := false
+		for e: int in pool:
+			if (incoming < 0 or e != edge_reverse(incoming)) \
+					and _out_edges[_edge_to[e]].size() > 1:
+				alternatives = true
+				break
 		for e: int in pool:
 			if incoming >= 0 and e == edge_reverse(incoming):
 				continue ## No U-turn.
+			if alternatives and _out_edges[_edge_to[e]].size() <= 1:
+				continue ## Never enter a dead-end stub while anywhere else to go.
 			var w := 1.0
 			if incoming >= 0:
 				var t := turn_of(incoming, e)
@@ -539,12 +557,24 @@ func nearest_runs(x: float, z: float, count: int) -> Array[Dictionary]:
 ## `width*0.5 - PARK_EDGE_OFFSET` off the centerline, yaw along the side's
 ## travel direction (right-hand: parked cars face with the adjacent lane).
 ## Both sides share the walk; the spot list order is deterministic.
+## (T-178 round 2) Spots within `CURB_CORNER_CLEAR` of either run end are
+## SKIPPED — the grid parking's own "well clear of the intersection
+## corners" rule: a parked car beside the corner-swing zone sits inside the
+## turning arcs of the solid fleet, and a car rounding the corner wedges
+## against it (the deterministic (507, −238) Wallace Road wedge: a traffic
+## car pinned nose-first against a curb-spotted car 3.9 m away, creeping at
+## 0.06 m/s until the stuck escape fired). The clearance covers the stop
+## box (8.8 m) plus the swinging body (4.4 m) plus margin.
 func run_curb_spots(run_id: int) -> Array:
 	var run := _runs[run_id]
 	if not run.curb_spots.is_empty():
 		return run.curb_spots
 	var pts := run.points
+	var total := 0.0
+	for i in pts.size() - 1:
+		total += pts[i].distance_to(pts[i + 1])
 	var carry := 0.0
+	var walked := 0.0
 	var i := 0
 	while i < pts.size() - 1:
 		var a := pts[i]
@@ -559,16 +589,19 @@ func run_curb_spots(run_id: int) -> Array:
 		var along := -carry
 		while along <= seg_len:
 			if along >= 0.0:
-				var p := a + dir * along
-				var off := run.width_m * 0.5 - PARK_EDGE_OFFSET
-				run.curb_spots.append({ ## Right side — travels a→b.
-					"pos": p + right * off, "yaw": atan2(-dir.x, -dir.y),
-				})
-				run.curb_spots.append({ ## Left side — travels b→a.
-					"pos": p - right * off, "yaw": atan2(dir.x, dir.y),
-				})
+				var arc := walked + along
+				if arc >= CURB_CORNER_CLEAR and arc <= total - CURB_CORNER_CLEAR:
+					var p := a + dir * along
+					var off := run.width_m * 0.5 - PARK_EDGE_OFFSET
+					run.curb_spots.append({ ## Right side — travels a→b.
+						"pos": p + right * off, "yaw": atan2(-dir.x, -dir.y),
+					})
+					run.curb_spots.append({ ## Left side — travels b→a.
+						"pos": p - right * off, "yaw": atan2(dir.x, dir.y),
+					})
 			along += CURB_SPOT_PITCH
 		carry = along - seg_len
+		walked += seg_len
 		i += 1
 	return run.curb_spots
 

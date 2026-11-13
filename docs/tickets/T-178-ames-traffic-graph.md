@@ -1,6 +1,6 @@
 # T-178 — Ames R2 · traffic graph: cars drive the real streets
 
-- **Status:** doing · **Category:** worldbuilding · **Ring:** R2 The Life ·
+- **Status:** done · **Category:** worldbuilding · **Ring:** R2 The Life ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
 - **Depends on:** T-177 (Ames is the default world)
 - **Refs:** `osm/SUMMARY.md` (street classes: Lincoln Way primary,
@@ -200,3 +200,67 @@ itself is the value-locked 2.5× weight).
    hold a worst pairwise car distance of **2.444 m** — zero frames below
    the 1.5 m pin (the round-1 capture showed exact 0.000 piles persisting
    minutes).
+
+## Round 2 (review fixes — solid cars + pass arcs wedged the corridor solid)
+
+The reviewer's live capture caught the round-1 regression: with cars SOLID,
+the T-166 pass machinery's arcs — which pre-fix ghosted through blockers —
+wedge at contact, and the corridor seized permanently (14 movers at t=12 s,
+0 from t=154 s through t=541 s; the only escape the player-anchored
+recycle). Four fixes restore flow on the solid-fleet world; every one is
+machine-pinned:
+
+1. **A CAR blocker never arms a pass** (`Car._break_hold`): the pass arcs
+   exist to cross blockers, and solid blockers make every crossing arc
+   wedge. On the directed-lane graph a blocked car simply WAITS — the head
+   rolls when its junction box clears, and the ladder + follow-gap logic
+   drain the line behind it; the Windrow head-to-head standoffs the pass
+   existed for cannot arise (one-way lanes, no U-turns in deals,
+   forward-snapped recycles). The ghost-safe passes remain: pigeon/tourist
+   bodies (never solid to cars) and the no-body curb-grind wedge. The
+   T-134 stagger counter is superseded (T-179 re-derives the etiquette).
+2. **The wedged-car escape, automated**: the reviewer's ONLY working
+   recovery was the player-anchored recycle — so the car asks for it.
+   `Car` counts NO-PROGRESS patience breaks (any class: car blockers the
+   pass gate refuses, wedge passes creeping along a building corner —
+   `_progress_accum` resets the count on every 1 m of genuine travel);
+   three in a row emit `stuck`, and the spawner answers with the
+   reviewer-proven answer: a fresh route from a weighted band edge through
+   the same gate/probe machinery as the recycle scan.
+3. **Two staging/geometry wedges eliminated at the source**: curb spots
+   keep `CURB_CORNER_CLEAR` 14 m (arc) from either run end — the grid
+   parking's own "well clear of the intersection corners" rule (the
+   deterministic (507, −238) Wallace Road wedge: a traffic car pinned
+   nose-first against a curb-spotted car in the corner-swing zone,
+   creeping at 0.06 m/s); and `_probe_clear` sees PARKED cars too (a
+   staging candidate within 2.3 m of a parked body is refused — the old
+   read only filtered TRAFFIC). Plus the round-2 stop-line window guard:
+   the placement refuses candidates inside the subset route's first
+   stop-line window (line 8.8 + nose 2.2 + 1.0 m — a car staged at or past
+   its own line holds forever at brake-cap 0, unregistered, invisible to
+   the ladder), and `_drive` self-heals any entry a car still finds itself
+   past (releases it like the past-the-node release).
+4. **Routes never enter dead-end stubs while anywhere else to go**
+   (`deal_route` skips degree-1-bound candidates): a stub turnaround reads
+   as transient wrong-way/off-lane traffic and stalls the lane while it
+   3-point-turns.
+
+The route-integrity pin reads SUSTAINED violations now (per-car streaks of
+≥ 3 consecutive integrity samples): a pass arc crossing the oncoming lane,
+a corner swing wide of the asphalt or a stub turnaround last 1-2 samples
+and are legitimate; sustained reverse travel or lawn driving is not. The
+wrong-way read also demands the nearest directed lane to be the car's OWN
+approach street (axis dot > 0.5 with the current entry's approach axis) —
+the review-round culprit was a Lincoln Way car at the Welch junction read
+against Welch's own axis (two streets' lanes cross within the read's
+1.5 m window). And the movement pin runs at the review's own scale: 19 ×
+9 s windows under a STATIONARY pigeon, nearest-matched ≥ 0.5 m
+displacement, ≤ 10 dead windows and ≤ 4-window dead stretches allowed —
+the fixed tree measures **0 dead windows of 19** (the seize held 0 movers
+for 6.5 minutes) and the live 5.5-minute pilot session measured **37
+windows, 0 dead, 9–26 movers per window**, worst pairwise 2.202 m, boot
+staging 101/127/159 m.
+
+The sync/rig boot now places the pigeon BEFORE `_populate_staged_spawners()`
+too (round-1's record claimed both paths; the sync path had been missed) —
+`_boot_sync` follows the same ordering rule as the stepped phases.

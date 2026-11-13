@@ -801,10 +801,18 @@ func _probe_clear(probe: Vector3, block_global: Vector3, mover: Car) -> bool:
 	for car in _cars:
 		if not is_instance_valid(car) or car == mover:
 			continue
-		if car.mode != Car.Mode.TRAFFIC:
-			continue
-		if _flat_dist_pos(probe, car.global_position) < mover.follow_gap:
-			return false
+		if car.mode == Car.Mode.TRAFFIC:
+			## Traffic neighbours: the follow-gap clearance (a queue hold).
+			if _flat_dist_pos(probe, car.global_position) < mover.follow_gap:
+				return false
+		elif car.mode == Car.Mode.PARKED:
+			## (T-178 round 2) PARKED cars are solid too — a candidate within
+			## physical contact of a parked body can never stage (the
+			## lane/curb separation is 2.45 m; the contact floor 1.9 + 0.4
+			## margin sits just under it, so clean lane spots pass and true
+			## overlaps are refused).
+			if _flat_dist_pos(probe, car.global_position) < 2.3:
+				return false
 	return true
 
 
@@ -1125,6 +1133,14 @@ func _route_placement_graph(route: PackedInt32Array, block_global: Vector3,
 	## spread draw keeps feeding the stream).
 	var sat_best := {}
 	var sat_best_d := -INF
+	## (T-178 round 2) A candidate inside the subset route's FIRST stop-line
+	## window (within this distance of the first node along the lane) may
+	## never stage a car: the car would land at or past its own stop line,
+	## where the four-way-stop brake cap reads 0 and the [−3, +1] m
+	## registration window can never fire — the car holds forever,
+	## unregistered, and the queue behind it dies (the round-2 review's
+	## corridor lock). Line 8.8 + nose 2.2 + 1.0 m margin.
+	const STAGE_LINE_CLEAR := City.STOP_LINE_OUTSET + Car.HALF_LENGTH + 1.0
 	for radius_guarded in [true, false]:
 		var spread_clear := {}
 		var spread_clear_d := INF
@@ -1132,11 +1148,24 @@ func _route_placement_graph(route: PackedInt32Array, block_global: Vector3,
 		var clearest_d := -INF
 		for k in route.size():
 			var lane := graph.edge_points(route[k])
+			## Arc distance from each lane vertex to the leg's end (the first
+			## node of this subset) — the stop-line window test below.
+			var to_end := PackedFloat64Array()
+			to_end.resize(lane.size())
+			var acc := 0.0
+			for vi in range(lane.size() - 1, -1, -1):
+				if vi < lane.size() - 1:
+					acc += lane[vi].distance_to(lane[vi + 1])
+				to_end[vi] = acc
 			for i in range(1, lane.size()):
 				for ci in 2: ## The midpoint before vertex i, then vertex i itself.
 					var t := 0.5 if ci == 0 else 1.0
 					var cand := lane[i - 1].lerp(lane[i], t)
 					var next_idx: int = i if ci == 0 else i + 1
+					## The candidate's own arc distance to the leg end.
+					var cand_to_end: float = lerpf(to_end[i - 1], to_end[i], t)
+					if cand_to_end < STAGE_LINE_CLEAR:
+						continue
 					var gp := city.to_global(Vector3(cand.x, 0.0, cand.y))
 					if radius_guarded and player != null \
 							and _flat_dist(gp, anchor) > recycle_radius:
@@ -1261,6 +1290,7 @@ func _spawn_traffic_graph(index: int) -> void:
 			placement["block"], _block_centers_cache, placement["end"])
 	car.route_exhausted.connect(_on_route_exhausted)
 	car.splatted.connect(_on_car_splatted)
+	car.stuck.connect(_on_car_stuck)
 	_cars.append(car)
 
 
@@ -1355,11 +1385,31 @@ func _replace_car_graph(spent: Car) -> bool:
 	## The fresh node stands — wire the relays and land the swap.
 	fresh.route_exhausted.connect(_on_route_exhausted)
 	fresh.splatted.connect(_on_car_splatted)
+	fresh.stuck.connect(_on_car_stuck)
 	_cars.erase(spent)
 	_cars.append(fresh)
 	spent.release_tailgate()
 	spent.queue_free()
 	return true
+
+
+## (T-178 round 2) The wedged-car escape: after `_stuck_breaks` patience
+## cycles against car blockers with no pass possible (cars are SOLID — the
+## round-2 review's junction tangles pin cars with no logic escape, and the
+## only working recovery was the player-anchored recycle), the car asks for
+## this and the spawner gives it the reviewer-proven answer: a fresh route
+## from a weighted band edge through the SAME gate/probe machinery as the
+## recycle scan — a teleport onto a clear lane point, off-screen when the
+## sightline gate can find one. The queue behind the wedge drains as soon
+## as the head teleports away.
+func _on_car_stuck(car: Car) -> void:
+	if city == null or city.traffic_graph == null or not is_instance_valid(car):
+		return
+	var edge := _draw_band_edge(_anchor_flat())
+	var placement := _route_rejoin_edge(edge, car, sightline_gate_enabled,
+			_rng.randf())
+	car.start_route(placement["pos"], placement["points"], placement["entries"],
+			placement["block"], _block_centers_cache, placement["end"])
 
 
 ## The graph extension deal: a fresh route dealt FROM the car's end node, its
