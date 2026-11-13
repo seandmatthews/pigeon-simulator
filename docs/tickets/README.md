@@ -359,7 +359,7 @@ scan (T-170 was max; no workflows in flight).
 | T-176 | [Survival rebase](T-176-ames-survival-rebase.md) | R1 The Map | T-173, T-175 | done |
 | T-177 | [R1 cutover](T-177-ames-r1-cutover.md) | R1 The Map | T-174..T-176 | done |
 | T-178 | [Traffic graph](T-178-ames-traffic-graph.md) | R2 The Life | T-177 | done |
-| T-179 | [Traffic calm port](T-179-ames-traffic-calm-port.md) | R2 The Life | T-178 | doing |
+| T-179 | [Traffic calm port](T-179-ames-traffic-calm-port.md) | R2 The Life | T-178 | done |
 | T-180 | [Intersections](T-180-ames-intersections.md) | R2 The Life | T-178, T-179 | proposed |
 | T-181 | [Pedestrian zones](T-181-ames-pedestrian-zones.md) | R2 The Life | T-177, T-180 | proposed |
 | T-182 | [Parking](T-182-ames-parking-lots.md) | R2 The Life | T-178 | proposed |
