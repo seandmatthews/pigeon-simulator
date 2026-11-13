@@ -183,6 +183,22 @@ func node_stops(node: int) -> bool:
 	return _node_kind[node] == KIND_JUNCTION
 
 
+## The junction's arm extent (m): the widest street half-width among the runs
+## touching `node`. Every run that touches a node files one of its directed
+## edges under that node's out-edges (a run ending here as node_b still
+## leaves via its b→a edge), so the out-edge scan covers all arms. The
+## four-way-stop box's half-extent the force-commit's occupancy check derives
+## from (T-179 — the T-166 box radius was the Windrow ±5 m grid box's
+## half-diagonal; a real junction is as wide as its widest street).
+func node_extent(node: int) -> float:
+	var extent := 0.0
+	if node < 0 or node >= _out_edges.size():
+		return extent
+	for e in _out_edges[node]:
+		extent = maxf(extent, edge_half_width(e))
+	return extent
+
+
 ## The node's kind (KIND_SPLICE / KIND_CORNER / KIND_JUNCTION) — the routes
 ## scenario reads it; a turn waypoint can only ever sit at a ≥ KIND_CORNER
 ## node (a splice's only non-reverse exit is its straight continuation).

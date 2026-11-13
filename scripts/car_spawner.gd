@@ -1074,9 +1074,13 @@ func _build_route_graph(start_node: int, route: PackedInt32Array,
 ## One stop entry for the car's `stops` walk over the graph — the grid
 ## `_stop_entry`'s fields, with the real approach `axis` (the protocol's
 ## direction read), the leg's speed-class `cruise` and the arriving directed
-## `edge` (the extension deal's continuity), and EMPTY crosswalk bands (the
-## grid rects are Windrow paint; the yield stays inert until R2 fills real
-## crosswalks). All in GLOBAL coords.
+## `edge` (the extension deal's continuity), the leg's REAL lane geometry
+## (`lane_off` / `half_width`, T-179 — the careful-pass corridor gates and
+## the asphalt clamp derive their lane-local bounds from it, the `cruise`
+## stamp precedent) and the junction's box radius (`box_radius` — the
+## force-commit occupancy check's half-diagonal over the node's widest
+## arm), and EMPTY crosswalk bands (the grid rects are Windrow paint; the
+## yield stays inert until R2 fills real crosswalks). All in GLOBAL coords.
 func _stop_entry_graph(node: int, in_edge: int, out_edge: int) -> Dictionary:
 	var graph := city.traffic_graph
 	var axis := graph.edge_axis(in_edge)
@@ -1100,6 +1104,9 @@ func _stop_entry_graph(node: int, in_edge: int, out_edge: int) -> Dictionary:
 		"center": city.to_global(line_local) - axis_global * Car.HALF_LENGTH,
 		"cruise": graph.edge_cruise(in_edge),
 		"edge": in_edge,
+		"lane_off": graph.edge_lane_off(in_edge),
+		"half_width": graph.edge_half_width(in_edge),
+		"box_radius": graph.node_extent(node) * sqrt(2.0),
 	}
 
 

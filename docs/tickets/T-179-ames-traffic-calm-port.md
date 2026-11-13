@@ -1,6 +1,6 @@
 # T-179 — Ames R2 · calm port: T-166 traffic etiquette on the real graph
 
-- **Status:** proposed · **Category:** worldbuilding · **Ring:** R2 The Life ·
+- **Status:** doing · **Category:** worldbuilding · **Ring:** R2 The Life ·
   **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-178 (the graph routes it dresses)
 - **Refs:** T-166 (honk etiquette, oncoming-gated passes, force-commit
