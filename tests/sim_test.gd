@@ -181,6 +181,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_roof() ## T-177 — the roof re-pin: an authored building's top is landable and walkable.
 	await _scenario_ames_traffic_routes() ## T-178 — the traffic graph: census-shape lanes, Lincoln Way end-to-end, the live fleet on its directed lanes.
 	await _scenario_ames_traffic_density() ## T-178 — the density law value-locked + the fleet's class mix at the cruise camera and low-hover positions, stable across seeds.
+	await _scenario_ames_traffic_calm() ## T-179 — the T-166 calm etiquette re-derived on the real graph: staged honk gates, the pass on real lanes, the live fleet's hold/blinker/honk reads.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -3120,6 +3121,701 @@ func _edge_of_class(graph: AmesTrafficGraph, cls: String, district: String) -> i
 		if graph.edge_class(e) == cls and graph.edge_district(e) == district:
 			return e
 	return -1
+
+
+## --- scenarios (T-179 Ames calm port) --------------------------------------
+
+
+## Interpolated point at arc distance `s` along a polyline (the last point
+## past the end) — the calm probes' lane-line placement read.
+func _lane_arc_point(pts: PackedVector2Array, s: float) -> Vector2:
+	var acc := 0.0
+	for i in pts.size() - 1:
+		var seg := pts[i].distance_to(pts[i + 1])
+		if acc + seg >= s:
+			return pts[i].lerp(pts[i + 1], (s - acc) / maxf(seg, 0.0001))
+		acc += seg
+	return pts[pts.size() - 1]
+
+
+## A massing-free ground spot for the calm probes' pigeon placements: walks
+## the radius band around `center` (2 m steps, 24 bearings) for the first
+## point whose `ground_height` reads the bare plate (0.0), not ahead of the
+## staging forward axis (`dot(p − center, fwd) ≤ 2` — never in a car's drive
+## path) and clear of the road corridor (`|dot(p − road_center, road_right)|
+## ≥ road_half_width + 1` — never on the asphalt). Vector3.INF when the walk
+## finds nothing (the honest failure).
+func _calm_ground_spot(center: Vector3, fwd: Vector3, r_min: float,
+		r_max: float, road_center: Vector3, road_right: Vector3,
+		road_half_width: float) -> Vector3:
+	for r in range(0, int(ceil((r_max - r_min) / 2.0)) + 1):
+		var radius := r_min + float(r) * 2.0
+		for k in 24:
+			var ang := TAU * float(k) / 24.0
+			var dir := Vector3(cos(ang), 0.0, sin(ang))
+			var p := center + dir * radius
+			if (p - center).dot(fwd) > 2.0:
+				continue
+			if absf((p - road_center).dot(road_right)) < road_half_width + 1.0:
+				continue
+			if _city.ground_height(p) > 0.01:
+				continue
+			return p
+	return Vector3.INF
+
+
+## Stages one traffic car on a directed graph edge for the calm probes: a bare
+## civilian (no class draw — determinism), `traffic` + `player` wired before
+## `_ready`, `start_route` onto the edge's own lane line at `arc` metres with
+## one stop entry for the run's end node built through the spawner's OWN
+## `_stop_entry_graph` (the production lane_off/half_width/box_radius stamps
+## included). The car drives the edge toward its junction.
+func _calm_stage_mover(spawner: CarSpawner, edge: int, arc: float) -> Car:
+	var graph: AmesTrafficGraph = _city.traffic_graph
+	var lane := graph.edge_points(edge)
+	var start := _lane_arc_point(lane, arc)
+	var path := PackedVector3Array()
+	var acc := 0.0
+	for i in range(1, lane.size()):
+		acc += lane[i - 1].distance_to(lane[i])
+		if acc >= arc + 8.0:
+			path.append(_city.to_global(Vector3(lane[i].x, 0.0, lane[i].y)))
+	if path.is_empty():
+		var last := lane[lane.size() - 1]
+		path.append(_city.to_global(Vector3(last.x, 0.0, last.y)))
+	var car: Car = CAR_SCENE.instantiate() as Car
+	car.traffic = spawner.traffic_ctrl
+	car.player = _player
+	add_child(car)
+	var stops: Array[Dictionary] = [spawner._stop_entry_graph(
+			graph.edge_to(edge), edge, -1)]
+	car.start_route(_city.to_global(Vector3(start.x, 0.0, start.y)), path,
+			stops, spawner._edge_block_global(edge), PackedVector3Array(),
+			graph.edge_to(edge))
+	return car
+
+
+## Stages one parked car (the calm probes' blocker / curb row / opposing
+## stand-in): bare civilian, `player` wired, `park_at` onto the given world
+## spot — the production parked path's own node state (mode PARKED, lamps
+## dark).
+func _calm_stage_parked(pos: Vector3, yaw: float, block: Vector3) -> Car:
+	var car: Car = CAR_SCENE.instantiate() as Car
+	car.player = _player
+	add_child(car)
+	car.park_at(pos, yaw, block)
+	return car
+
+
+## The yaw along a flat travel axis (the `_snap_to_waypoint` convention) —
+## the calm probes' parked-car heading read.
+func _calm_axis_yaw(axis: Vector3) -> float:
+	return atan2(-axis.x, -axis.z)
+
+
+## A directed edge for the calm probes, deterministic ascending pick: straight
+## (chord ≥ `min_straight` of length — the pass arms need 0.999, a run whose
+## lane-local frame the flat axis math can read; the round-1 pick allowed a
+## run that bends ~2 m over the staging window), ending at a real stop
+## junction, at least `min_len` long, class among `classes`. −1 when none
+## qualifies.
+func _calm_pick_edge(graph: AmesTrafficGraph, classes: Array[String],
+		min_len: float, min_straight: float) -> int:
+	for e in graph.edge_count():
+		if not classes.has(graph.edge_class(e)):
+			continue
+		if graph.edge_length(e) < min_len:
+			continue
+		var pts := graph.run_points(e / 2)
+		var chord := (pts[pts.size() - 1] - pts[0]).length()
+		if chord / maxf(graph.edge_length(e), 0.001) < min_straight:
+			continue
+		if not graph.node_stops(graph.edge_to(e)):
+			continue
+		return e
+	return -1
+
+
+## The pigeon onto a grounded staging spot (y 0.4 like the takeoff scenario;
+## the plate settles it). The INF failure (no clear spot found) places
+## nothing — the arm's own reads fail honestly.
+func _calm_place_pigeon(pos: Vector3) -> void:
+	if pos == Vector3.INF:
+		return
+	await _set_up(false, Vector3(pos.x, 0.4, pos.z), Vector3.ZERO)
+	await _await_grounded(90)
+
+
+## The T-166 calm etiquette re-derived on the resident graph (T-179): the
+## hold/yield/pass/blink machinery measured on REAL Ames streets, the pass
+## bounds recomputed IN-SCENARIO from the run's own lane geometry (the
+## no-self-test rule), every measured value printed for the record. Arms:
+## (1) HONK ETIQUETTE, staged on one real calm run with the fleet wiped (the
+##     staged cars are the only `Car._fleet` members — the T-166 determinism
+##     discipline), blocker parked mid-lane 16 m ahead of a fresh mover:
+##     (i) NEAR — the pigeon 8-14 m off the road: the mover honks exactly
+##         once at its first patience expiry (the 6 s class) and never arms a
+##         pass against a CAR blocker (the T-178 round-2 law, on Ames);
+##     (ii) FAR — the pigeon 55-65 m out: honk_count holds 0 across two
+##         patience cycles while the break machinery still runs (two
+##         no-progress breaks);
+##     (iii) CADENCE — two movers staged at EQUAL 16 m gaps break within a
+##         moment of each other with the pigeon near both: exactly one horn
+##         between them (the 3.0 s fleet cap ducks the second; both breaks
+##         ran).
+## (2) THE PASS ON REAL LANES, staged on one real WIDE run (arterial class —
+##     the oncoming lane rides lane-local −2·L, well past the retired
+##     Windrow band's −6.5 edge, so the gate re-derivation is load-bearing):
+##     (iv) CLEAR — a pigeon-held mover (blocker body in the lane) commits a
+##         pass whose every sampled frame stays inside the per-leg asphalt
+##         bounds [−(W+L−1.35) − 0.3, (W−L−1.35) + 0.3] (the closed form off
+##         the run's half-width W and lane offset L), swings RIGHT (the fresh
+##         car's first break), completes inside 15 s with the blocker behind,
+##         one honk;
+##     (v) GATES — with an opposing car staged in the REAL oncoming lane
+##         (lane-local −2·L) and a parked car at the REAL curb offset
+##         (W−1.05) ahead, BOTH shoulders are denied: no pass for two
+##         patience cycles (the mover never `_passing`, displacement under
+##         1.5 m); freeing the opposing car releases the pass inside the next
+##         cycle ON THE LEFT (the right is still parked-denied) — leftward
+##         excursion, inside the bounds, never under 2.0 m of the parked
+##         car, completed inside 15 s.
+## (3) THE LIVE FLEET (the shipped 14 + 12 through the spawner's own seeded
+##     stream at the cruise corridor, ~90 s under a pigeon held on station):
+##     (a) hold rate — standing traffic cars observed (junction and queue
+##         holds) with the liveness floor held (the routes scenario's
+##         dead-window metric at a generous bound);
+##     (b) blinker solids — every sampled car inside `blinker_lead` of its
+##         next turning entry reads blinker == that entry's turn (the law
+##         recomputed from the entries; the post-turn hold windows skipped);
+##     (c) honk suppression on the live street — every patience honk
+##         attributes within honk_near_m + 1 of the pigeon (the far gate) and
+##         consecutive honks sit ≥ 2.9 s apart (the 3.0 s fleet cap at
+##         sampling tolerance); the spawner's relay counter stays 0 (patience
+##         honks never reach the DONE line — the T-134 contract, on Ames).
+## The spawner, every staged car, the static honk clock and the world seed
+## are restored however the legs end.
+func _scenario_ames_traffic_calm() -> void:
+	const S := "ames_traffic_calm"
+	Car.traffic_frozen = false ## Clean slate on the static freeze (suite convention).
+	Car._last_fleet_patience_honk = -INF ## Ditto on the fleet honk clock.
+	var graph: AmesTrafficGraph = _city.traffic_graph
+	if graph == null:
+		_check(S, false, "no traffic graph on the resident world")
+		return
+	var honk_edge := _calm_pick_edge(graph,
+			["residential", "unclassified"] as Array[String], 65.0, 0.98)
+	var pass_edge := _calm_pick_edge(graph,
+			["primary", "secondary"] as Array[String], 90.0, 0.999)
+	if honk_edge < 0 or pass_edge < 0:
+		_check(S, false, "probe runs not found (honk %d, pass %d)"
+				% [honk_edge, pass_edge])
+		return
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	spawner.target_moving = 0
+	spawner.target_parked = 0
+	spawner.name = "CarSpawner_traffic_calm"
+	add_child(spawner)
+	await _wait_frames(2)
+	var pass_w := graph.edge_half_width(pass_edge)
+	var pass_l := graph.edge_lane_off(pass_edge)
+	var clamp_left := -(pass_w + pass_l) + 1.35
+	var clamp_right := pass_w - pass_l - 1.35
+	var arm_i := await _calm_arm_honk_near(spawner, honk_edge)
+	var arm_ii := await _calm_arm_honk_far(spawner, honk_edge)
+	var arm_iii := await _calm_arm_honk_cadence(spawner, honk_edge)
+	var arm_iv := await _calm_arm_pass_clear(spawner, pass_edge)
+	var arm_v := await _calm_arm_pass_gates(spawner, pass_edge)
+	var live := await _calm_arm_live_fleet()
+	spawner.free()
+	await _wait_frames(2)
+	var ok := bool(arm_i["ok"]) and bool(arm_ii["ok"]) and bool(arm_iii["ok"]) \
+			and bool(arm_iv["ok"]) and bool(arm_v["ok"]) and bool(live["ok"])
+	print("SIM DATA %s: honk_edge %d pass_edge %d (W %.1f L %.1f clamp [%.2f, %.2f]) | near: hold@%.1f honk@%.1f (Δ%.1f) breaks=%d ok=%s | far: breaks=%d honks=%d ok=%s | cadence: horns=%d ok=%s | pass: lat [%.2f, %.2f] in [%.2f, %.2f] complete %.1fs honks=%d ok=%s | gates: min_lat %.2f parked_gap %.2f drift %.2f pass@+%.1fs ok=%s | live: samples %d stand %d cars %d blinker_obs %d viol %d honks %d far %d cadence_viol %d relay %d dead %d/%d ok=%s" % [
+			S, honk_edge, pass_edge, pass_w, pass_l, clamp_left, clamp_right,
+			float(arm_i["hold_at"]), float(arm_i["honk_at"]),
+			float(arm_i["honk_at"]) - float(arm_i["hold_at"]),
+			int(arm_i["breaks"]), bool(arm_i["ok"]),
+			int(arm_ii["breaks"]), int(arm_ii["honks"]), bool(arm_ii["ok"]),
+			int(arm_iii["horns"]), bool(arm_iii["ok"]),
+			float(arm_iv["min_lat"]), float(arm_iv["max_lat"]),
+			clamp_left, clamp_right, float(arm_iv["complete_s"]),
+			int(arm_iv["honks"]), bool(arm_iv["ok"]),
+			float(arm_v["min_lat"]), float(arm_v["parked_gap"]),
+			float(arm_v["drift"]), float(arm_v["pass_s"]), bool(arm_v["ok"]),
+			int(live["samples"]), int(live["stand_samples"]),
+			int(live["hold_cars"]), int(live["blinker_obs"]),
+			int(live["blinker_violations"]), int(live["honks"]),
+			int(live["far_honks"]), int(live["cadence_violations"]),
+			int(live["relay_honks"]), int(live["dead_windows"]),
+			int(live["windows_done"]), bool(live["ok"])])
+	_check(S, ok, "near=%s far=%s cadence=%s pass=%s gates=%s live=%s" % [
+			bool(arm_i["ok"]), bool(arm_ii["ok"]), bool(arm_iii["ok"]),
+			bool(arm_iv["ok"]), bool(arm_v["ok"]), bool(live["ok"])])
+
+
+## Arm 1.i — the near-player patience honk (the ticket's etiquette re-derived):
+## one mover, one parked blocker, the pigeon just off the road. Returns
+## {ok, hold_at, honk_at, breaks}.
+func _calm_arm_honk_near(spawner: CarSpawner, edge: int) -> Dictionary:
+	Car._last_fleet_patience_honk = -INF
+	var graph: AmesTrafficGraph = _city.traffic_graph
+	var axis: Vector3 = graph.edge_axis(edge)
+	var lane := graph.edge_points(edge)
+	var mover := _calm_stage_mover(spawner, edge, 24.0)
+	var block_pos := _lane_arc_point(lane, 40.0)
+	var blocker := _calm_stage_parked(
+			_city.to_global(Vector3(block_pos.x, 0.0, block_pos.y)),
+			_calm_axis_yaw(axis), spawner._edge_block_global(edge))
+	var right := Vector3(-axis.z, 0.0, axis.x)
+	var center := _city.to_global(Vector3(block_pos.x, 0.0, block_pos.y)) \
+			- right * graph.edge_lane_off(edge)
+	var pigeon_pos := _calm_ground_spot(mover.global_position, axis, 8.0, 14.0,
+			center, right, graph.edge_half_width(edge))
+	await _calm_place_pigeon(pigeon_pos)
+	var t0 := TrafficControl.now()
+	var hold_at := -1.0
+	var honk_at := -1.0
+	var breaks := 0
+	var passing := false
+	if pigeon_pos != Vector3.INF:
+		var traveled := 0.0
+		var prev := mover.global_position
+		for f in 20 * 60:
+			await _wait_frames(1)
+			traveled += Vector2(mover.global_position.x - prev.x,
+					mover.global_position.z - prev.z).length()
+			prev = mover.global_position
+			var hspeed := Vector2(mover.velocity.x, mover.velocity.z).length()
+			if hold_at < 0.0 and traveled > 3.0 and hspeed < 0.3:
+				hold_at = TrafficControl.now() - t0
+			if mover.honk_count > 0 and honk_at < 0.0:
+				honk_at = TrafficControl.now() - t0
+			breaks = mover._no_progress_breaks
+			if mover._passing:
+				passing = true
+				break ## A car blocker never arms a pass — any pass is a defect.
+			if honk_at >= 0.0 and TrafficControl.now() - t0 - honk_at > 1.5:
+				break ## The first expiry's evidence is in.
+	var ok := hold_at >= 0.0 and honk_at >= 0.0 \
+			and honk_at - hold_at >= 4.5 and honk_at - hold_at <= 9.0 \
+			and mover.honk_count == 1 and breaks >= 1 \
+			and not passing and not mover._passing
+	mover.queue_free()
+	blocker.queue_free()
+	await _wait_frames(2)
+	return {"ok": ok, "hold_at": hold_at, "honk_at": honk_at, "breaks": breaks}
+
+
+## Arm 1.ii — the far gate: the same staging with the pigeon 55-65 m out; two
+## patience cycles run silent while the break machinery still counts. Returns
+## {ok, breaks, honks}.
+func _calm_arm_honk_far(spawner: CarSpawner, edge: int) -> Dictionary:
+	Car._last_fleet_patience_honk = -INF
+	var graph: AmesTrafficGraph = _city.traffic_graph
+	var axis: Vector3 = graph.edge_axis(edge)
+	var lane := graph.edge_points(edge)
+	var mover := _calm_stage_mover(spawner, edge, 24.0)
+	var block_pos := _lane_arc_point(lane, 40.0)
+	var blocker := _calm_stage_parked(
+			_city.to_global(Vector3(block_pos.x, 0.0, block_pos.y)),
+			_calm_axis_yaw(axis), spawner._edge_block_global(edge))
+	var right := Vector3(-axis.z, 0.0, axis.x)
+	var center := _city.to_global(Vector3(block_pos.x, 0.0, block_pos.y)) \
+			- right * graph.edge_lane_off(edge)
+	var pigeon_pos := _calm_ground_spot(mover.global_position, axis, 55.0, 65.0,
+			center, right, graph.edge_half_width(edge))
+	await _calm_place_pigeon(pigeon_pos)
+	var t0 := TrafficControl.now()
+	var hold_at := -1.0
+	var breaks := 0
+	var honks := -1
+	var passing := false
+	if pigeon_pos != Vector3.INF:
+		var traveled := 0.0
+		var prev := mover.global_position
+		for f in 30 * 60:
+			await _wait_frames(1)
+			traveled += Vector2(mover.global_position.x - prev.x,
+					mover.global_position.z - prev.z).length()
+			prev = mover.global_position
+			var hspeed := Vector2(mover.velocity.x, mover.velocity.z).length()
+			if hold_at < 0.0 and traveled > 3.0 and hspeed < 0.3:
+				hold_at = TrafficControl.now() - t0
+			breaks = mover._no_progress_breaks
+			honks = mover.honk_count
+			if mover._passing:
+				passing = true
+			if hold_at >= 0.0 and TrafficControl.now() - t0 - hold_at > 14.0:
+				break ## Two patience cycles witnessed.
+	var ok := pigeon_pos != Vector3.INF and hold_at >= 0.0 and honks == 0 \
+			and breaks >= 2 and not passing and not mover._passing
+	mover.queue_free()
+	blocker.queue_free()
+	await _wait_frames(2)
+	return {"ok": ok, "breaks": breaks, "honks": honks}
+
+
+## Arm 1.iii — the fleet cadence cap: two movers at equal 16 m gaps expire
+## together near the pigeon; exactly one horn sounds between them. Returns
+## {ok, horns}.
+func _calm_arm_honk_cadence(spawner: CarSpawner, edge: int) -> Dictionary:
+	Car._last_fleet_patience_honk = -INF
+	var graph: AmesTrafficGraph = _city.traffic_graph
+	var axis: Vector3 = graph.edge_axis(edge)
+	var lane := graph.edge_points(edge)
+	var m1 := _calm_stage_mover(spawner, edge, 30.0)
+	var b1_pos := _lane_arc_point(lane, 46.0)
+	var b1 := _calm_stage_parked(
+			_city.to_global(Vector3(b1_pos.x, 0.0, b1_pos.y)),
+			_calm_axis_yaw(axis), spawner._edge_block_global(edge))
+	var m2 := _calm_stage_mover(spawner, edge, 8.0)
+	var b2_pos := _lane_arc_point(lane, 24.0)
+	var b2 := _calm_stage_parked(
+			_city.to_global(Vector3(b2_pos.x, 0.0, b2_pos.y)),
+			_calm_axis_yaw(axis), spawner._edge_block_global(edge))
+	var right := Vector3(-axis.z, 0.0, axis.x)
+	var mid := (m1.global_position + m2.global_position) * 0.5
+	var center := mid - right * graph.edge_lane_off(edge)
+	var pigeon_pos := _calm_ground_spot(mid, axis, 8.0, 14.0,
+			center, right, graph.edge_half_width(edge))
+	await _calm_place_pigeon(pigeon_pos)
+	if pigeon_pos != Vector3.INF:
+		for f in 18 * 60:
+			await _wait_frames(1)
+			if m1._no_progress_breaks >= 1 and m2._no_progress_breaks >= 1:
+				break ## Both breaks witnessed — read the horns now.
+		await _wait_frames(60) ## 1 s past the paired expiry, before the next.
+	var horns := m1.honk_count + m2.honk_count
+	var ok := pigeon_pos != Vector3.INF \
+			and m1._no_progress_breaks >= 1 and m2._no_progress_breaks >= 1 \
+			and horns == 1 \
+			and not m1._passing and not m2._passing
+	m1.queue_free()
+	b1.queue_free()
+	m2.queue_free()
+	b2.queue_free()
+	await _wait_frames(2)
+	return {"ok": ok, "horns": horns}
+
+
+## Arm 2.iv — the clear pass inside the per-leg asphalt: the pigeon stands IN
+## the lane as the blocker; the pass commits on the fresh car's first break
+## (right shoulder), every sampled frame lane-local inside the closed-form
+## bounds. Returns {ok, min_lat, max_lat, complete_s, honks}.
+func _calm_arm_pass_clear(spawner: CarSpawner, edge: int) -> Dictionary:
+	Car._last_fleet_patience_honk = -INF
+	var graph: AmesTrafficGraph = _city.traffic_graph
+	var axis: Vector3 = graph.edge_axis(edge)
+	var mover := _calm_stage_mover(spawner, edge, 24.0)
+	var lane := graph.edge_points(edge)
+	var pigeon_lane := _lane_arc_point(lane, 42.0)
+	var pigeon_pos := _city.to_global(Vector3(pigeon_lane.x, 0.0, pigeon_lane.y))
+	await _calm_place_pigeon(pigeon_pos)
+	var right := Vector3(-axis.z, 0.0, axis.x)
+	var t0 := TrafficControl.now()
+	var origin_seen := false
+	var origin := Vector3.ZERO
+	var pass_at := -1.0
+	var done_at := -1.0
+	var min_lat := INF
+	var max_lat := -INF
+	var aim_lat := INF
+	for f in 30 * 60:
+		await _wait_frames(1)
+		if mover._passing:
+			if not origin_seen:
+				origin_seen = true
+				origin = mover._pass_origin
+				pass_at = TrafficControl.now() - t0
+				var aim_rel := mover._pass_aim - origin
+				aim_rel.y = 0.0
+				aim_lat = aim_rel.dot(right) ## The armed aim's side — the
+					## fresh car's first break must read RIGHT (positive).
+			else:
+				var rel := mover.global_position - origin
+				rel.y = 0.0
+				var lat := rel.dot(right)
+				min_lat = minf(min_lat, lat)
+				max_lat = maxf(max_lat, lat)
+		elif origin_seen:
+			done_at = TrafficControl.now() - t0
+			break
+	var honks := mover.honk_count
+	var complete_s := -1.0
+	var behind := false
+	if origin_seen and done_at >= 0.0:
+		complete_s = done_at - pass_at
+		var to_pigeon := pigeon_pos - mover.global_position
+		to_pigeon.y = 0.0
+		behind = to_pigeon.dot(axis) < 0.5
+	var w := graph.edge_half_width(edge)
+	var l := graph.edge_lane_off(edge)
+	var clamp_left := -(w + l) + 1.35
+	var clamp_right := w - l - 1.35
+	var ok := origin_seen and done_at >= 0.0 and behind \
+			and complete_s >= 0.0 and complete_s <= 15.0 \
+			and min_lat >= clamp_left - 0.3 and max_lat <= clamp_right + 0.3 \
+			and aim_lat > 0.9 and max_lat > 0.3 and honks == 1
+	mover.queue_free()
+	await _wait_frames(2)
+	return {"ok": ok, "min_lat": min_lat, "max_lat": max_lat,
+			"complete_s": complete_s, "honks": honks, "aim_lat": aim_lat}
+
+
+## Arm 2.v — both shoulders denied, then the left fallthrough: the pigeon holds
+## the lane; a parked car at the REAL curb offset and an opposing car in the
+## REAL oncoming lane deny both shoulders for two patience cycles; freeing the
+## opposing car releases the pass on the left within the next cycle. Returns
+## {ok, min_lat, max_lat, parked_gap, drift, pass_s}.
+func _calm_arm_pass_gates(spawner: CarSpawner, edge: int) -> Dictionary:
+	Car._last_fleet_patience_honk = -INF
+	var graph: AmesTrafficGraph = _city.traffic_graph
+	var axis: Vector3 = graph.edge_axis(edge)
+	var mover := _calm_stage_mover(spawner, edge, 24.0)
+	var lane := graph.edge_points(edge)
+	var pigeon_lane := _lane_arc_point(lane, 42.0)
+	var pigeon_pos := _city.to_global(Vector3(pigeon_lane.x, 0.0, pigeon_lane.y))
+	var w := graph.edge_half_width(edge)
+	var l := graph.edge_lane_off(edge)
+	var curb := _lane_arc_point(lane, 50.0)
+	## The curb car rides the graph's real parking offset — `w − 1.05` off the
+	## CENTERLINE is `w − 1.05 − l` off the LANE LINE the gate reads, so the
+	## staged offset is lane-relative (the round-1 run double-counted the lane
+	## offset and staged the car 5.2 lane-local — outside the corridor band,
+	## invisible to the parked gate).
+	var curb_pos := _city.to_global(Vector3(curb.x, 0.0, curb.y)) \
+			+ Vector3(-axis.z, 0.0, axis.x) * (w - AmesTrafficGraph.PARK_EDGE_OFFSET - l)
+	var oncome := _lane_arc_point(lane, 52.0)
+	var oncome_pos := _city.to_global(Vector3(oncome.x, 0.0, oncome.y)) \
+			- Vector3(-axis.z, 0.0, axis.x) * (2.0 * l)
+	var curb_car := _calm_stage_parked(curb_pos, _calm_axis_yaw(axis),
+			spawner._edge_block_global(edge))
+	var opposing := _calm_stage_parked(oncome_pos,
+			_calm_axis_yaw(axis) + PI, spawner._edge_block_global(edge))
+	await _calm_place_pigeon(pigeon_pos)
+	var right := Vector3(-axis.z, 0.0, axis.x)
+	var t0 := TrafficControl.now()
+	var hold_at := -1.0
+	var freed_at := -1.0
+	var origin := Vector3.ZERO
+	var origin_seen := false
+	var pass_at := -1.0
+	var done_at := -1.0
+	var pass_seen := false
+	var min_lat := INF
+	var max_lat := -INF
+	var parked_gap := INF
+	var drift := 0.0
+	var traveled := 0.0
+	var prev := mover.global_position
+	var freed_pos := Vector3.ZERO
+	for f in 60 * 60:
+		await _wait_frames(1)
+		var now := TrafficControl.now() - t0
+		traveled += Vector2(mover.global_position.x - prev.x,
+				mover.global_position.z - prev.z).length()
+		prev = mover.global_position
+		var hspeed := Vector2(mover.velocity.x, mover.velocity.z).length()
+		if hold_at < 0.0 and traveled > 3.0 and hspeed < 0.3:
+			hold_at = now
+		if hold_at >= 0.0 and freed_at < 0.0 and now - hold_at > 13.5:
+			opposing.queue_free() ## The oncoming lane clears.
+			freed_at = now
+			freed_pos = mover.global_position
+		if freed_at >= 0.0 and not pass_seen:
+			drift = maxf(drift, Vector2(mover.global_position.x - freed_pos.x,
+					mover.global_position.z - freed_pos.z).length())
+		if mover._passing:
+			pass_seen = true
+			if not origin_seen:
+				origin_seen = true
+				origin = mover._pass_origin
+				pass_at = now
+			else:
+				var rel := mover.global_position - origin
+				rel.y = 0.0
+				var lat := rel.dot(right)
+				min_lat = minf(min_lat, lat)
+				max_lat = maxf(max_lat, lat)
+			parked_gap = minf(parked_gap,
+					Vector2(curb_car.global_position.x - mover.global_position.x,
+					curb_car.global_position.z - mover.global_position.z).length())
+		elif pass_seen:
+			done_at = now
+			break
+		if freed_at >= 0.0 and not pass_seen and now - freed_at > 9.0:
+			break ## The fallthrough never armed — read the failure.
+	var pass_s := pass_at - freed_at if pass_at >= 0.0 and freed_at >= 0.0 else -1.0
+	var completion_s := done_at - pass_at if done_at >= 0.0 and pass_at >= 0.0 else -1.0
+	var clamp_left := -(w + l) + 1.35
+	var clamp_right := w - l - 1.35
+	var ok := hold_at >= 0.0 and freed_at >= 0.0 and pass_seen \
+			and pass_s >= 0.0 and pass_s <= 7.0 and drift <= 1.5 \
+			and min_lat >= clamp_left - 0.3 and max_lat <= clamp_right + 0.3 \
+			and min_lat < -0.4 and parked_gap >= 2.0 \
+			and completion_s >= 0.0 and completion_s <= 15.0
+	mover.queue_free()
+	curb_car.queue_free()
+	if is_instance_valid(opposing):
+		opposing.queue_free() ## The mid-arm free ran only when the hold held.
+	await _wait_frames(2)
+	return {"ok": ok, "min_lat": min_lat, "max_lat": max_lat,
+			"parked_gap": parked_gap, "drift": drift, "pass_s": pass_s}
+
+
+## Arm 3 — the live fleet at the cruise corridor under a pigeon held on
+## station: hold rate, blinker solids, honk suppression. Returns
+## {ok, samples, stand_samples, hold_cars, blinker_obs, blinker_violations,
+## honks, far_honks, cadence_violations, relay_honks, dead_windows,
+## windows_done}.
+func _calm_arm_live_fleet() -> Dictionary:
+	Car._last_fleet_patience_honk = -INF
+	var anchor := _city.to_global(Vector3(60.0, 0.0, 0.0)) \
+			+ Vector3(0.0, 30.0, 0.0)
+	await _set_up(true, anchor, Vector3.ZERO)
+	var fleet := CarSpawner.new()
+	fleet.city = _city
+	fleet.player = _player
+	fleet.name = "CarSpawner_calm_live"
+	add_child(fleet)
+	await _wait_frames(2)
+	var t0 := TrafficControl.now()
+	var last_honks := {}
+	var last_pos := {}
+	var standing_ids := {}
+	var stand_samples := 0
+	var blinker_obs := 0
+	var blinker_violations := 0
+	var honks := 0
+	var far_honks := 0
+	var cadence_violations := 0
+	var last_honk_t := -INF
+	var dead_windows := 0
+	var windows_done := 0
+	var window_movers := 0
+	var window_prev := PackedVector3Array()
+	var pigeon_prev := anchor
+	var samples := 0
+	const LIVE_WINDOWS := 10
+	const WINDOW_SAMPLES := 27 ## 27 × 5 frames = 9 s at 60 Hz.
+	for w in LIVE_WINDOWS:
+		for ws in WINDOW_SAMPLES:
+			await _wait_frames(5)
+			var now := TrafficControl.now() - t0
+			## The pigeon held on station (the dev-teleport shape) — a re-set
+			## sample's honk attribution is skipped (the teleport would
+			## mis-band it); re-sets land 30 m up, never on a car.
+			var pigeon_reset := false
+			if samples % 180 == 179:
+				_player.reset_flight(anchor, 0.0)
+				pigeon_reset = true
+			var pigeon_d := _player.global_position
+			var pigeon_moved := pigeon_reset \
+					or Vector2(pigeon_d.x - pigeon_prev.x,
+					pigeon_d.z - pigeon_prev.z).length() > 2.0
+			pigeon_prev = pigeon_d
+			var traffic: Array[Car] = []
+			for car in fleet.living_cars():
+				if car.mode == Car.Mode.TRAFFIC and is_instance_valid(car):
+					traffic.append(car)
+			var any_standing := false
+			for car in traffic:
+				var id := car.get_instance_id()
+				var hspeed := Vector2(car.velocity.x, car.velocity.z).length()
+				if hspeed < 0.1:
+					any_standing = true
+					standing_ids[id] = true
+				## The blinker law, recomputed from the entries: the first
+				## non-straight stop ahead arms its side inside the lead.
+				if car._blinker_hold <= 0.0 and car.blinker_forced == 0:
+					var armed := 0
+					var armed_d := INF
+					for i in range(car._stop_index, car.stops.size()):
+						var turn: int = car.stops[i]["turn"]
+						if turn == City.ROUTE_TURN_STRAIGHT:
+							continue
+						var d := Vector2(car.stops[i]["line"].x
+								- car.global_position.x,
+								car.stops[i]["line"].z
+								- car.global_position.z).length()
+						armed = turn
+						armed_d = d
+						break ## Only the NEXT entry can arm the tell.
+					if armed != 0 and armed_d < 12.0:
+						blinker_obs += 1
+						if car.blinker != armed:
+							blinker_violations += 1
+				## The honk attribution: patience honks ride car.honk_count
+				## only (the relay counter stays splat-only — nothing poops
+				## here, so any relay honk would itself be a defect); a new
+				## honk attributes to the NEARER of this and the last
+				## sample's pigeon distance (≤ 0.75 m drift at cruise).
+				var honks_now: int = car.honk_count
+				var honks_before: int = int(last_honks.get(id, 0))
+				if honks_now > honks_before:
+					honks += honks_now - honks_before
+					if not pigeon_moved:
+						var d_now := Vector2(pigeon_d.x - car.global_position.x,
+								pigeon_d.z - car.global_position.z).length()
+						var prev_car: Vector3 = last_pos.get(id,
+								car.global_position)
+						var d_before := Vector2(pigeon_d.x - prev_car.x,
+								pigeon_d.z - prev_car.z).length()
+						if minf(d_now, d_before) > 31.0:
+							far_honks += 1
+						if last_honk_t > -INF and now - last_honk_t < 2.9:
+							cadence_violations += 1
+						last_honk_t = now
+				last_honks[id] = honks_now
+				last_pos[id] = car.global_position
+			if any_standing:
+				stand_samples += 1
+			## The window's movement read (the routes scenario's metric).
+			if samples % WINDOW_SAMPLES == 0:
+				window_prev = PackedVector3Array()
+				for car in traffic:
+					window_prev.append(car.global_position)
+			else:
+				var used := PackedByteArray()
+				used.resize(window_prev.size())
+				for car in traffic:
+					var best_j := -1
+					var best_d := 20.0
+					for j in window_prev.size():
+						if used[j] == 1:
+							continue
+						var dj := Vector2(car.global_position.x - window_prev[j].x,
+								car.global_position.z - window_prev[j].z).length()
+						if dj < best_d:
+							best_d = dj
+							best_j = j
+					if best_j >= 0:
+						used[best_j] = 1
+						if best_d >= 0.5:
+							window_movers += 1
+				if samples % WINDOW_SAMPLES == WINDOW_SAMPLES - 1:
+					windows_done += 1
+					if window_movers == 0:
+						dead_windows += 1
+					window_movers = 0
+			samples += 1
+	var relay_honks := fleet.honk_count
+	var live_ok := samples >= LIVE_WINDOWS * WINDOW_SAMPLES \
+			and dead_windows <= 4 and stand_samples >= 60 \
+			and blinker_obs >= 5 and blinker_violations == 0 \
+			and far_honks == 0 and cadence_violations == 0 \
+			and relay_honks == 0
+	fleet.free()
+	await _wait_frames(2)
+	return {"ok": live_ok, "samples": samples, "stand_samples": stand_samples,
+			"hold_cars": standing_ids.size(), "blinker_obs": blinker_obs,
+			"blinker_violations": blinker_violations, "honks": honks,
+			"far_honks": far_honks, "cadence_violations": cadence_violations,
+			"relay_honks": relay_honks, "dead_windows": dead_windows,
+			"windows_done": windows_done}
 
 
 ## --- scenarios (T-001 flight model) --------------------------------------

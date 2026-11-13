@@ -113,33 +113,42 @@ const STOP_MARGIN := 0.3
 
 @export_group("Pass")
 @export var pass_lookahead: float = 25.0 ## (T-166) Corridor length (m) ahead of the pass origin the shoulder gates scan — ≈ 4 s at cruise 6 m/s.
-@export var box_clear_radius: float = 7.0 ## (T-166) The force-commit's node-box occupancy radius (m) ≈ the box half-diagonal (±5 m both axes): any other fleet car this close holds the break's force-commit arm.
+@export var box_clear_radius: float = 7.0 ## (T-166) The force-commit's node-box occupancy radius (m) ≈ the box half-diagonal (±5 m both axes): any other fleet car this close holds the break's force-commit arm. (T-179) A FLOOR now — the Ames entries' junction stamp (the widest arm's half-width × √2, `_entry_box_radius`) raises it over the real junction extent.
 
 ## (T-166) The fleet-wide patience-honk cadence floor (s), on the fixed physics
 ## clock (`TrafficControl.now` — deterministic under `--fixed-fps 60`): a
 ## patience honk may sound only this long after the previous fleet-wide one.
 ## Near honks set the clock; far honks (already silent) do not.
 const HONK_MIN_FLEET_INTERVAL := 3.0
-## (T-166) The pass aim's ABSOLUTE lane-local lateral bounds (m) — the asphalt
-## clamp. Derived from the street constants (city.gd `road_width` 10.0 →
-## half-width 5.0; `lane_center_off` 1.5 → the lane line sits 1.5 m right of
-## the road centerline; own half-width 0.95; the 0.4 m margin the
-## `pass_clearance` arithmetic already carries): the asphalt's right edge sits
-## 3.5 m right of the lane line (pass center bound 3.5 − 0.95 − 0.4 = 2.15),
-## the left edge 6.5 m left (6.5 − 0.95 − 0.4 = 5.15). No pass aim can leave
-## the asphalt from the clamp alone, whatever the origin's own lane-local
-## offset.
-const PASS_ASPHALT_LEFT := -5.15
-const PASS_ASPHALT_RIGHT := 2.15
-## (T-166) The corridor gates' lateral band (m, lane-local): THIS road's
-## asphalt, from the lane line — the left edge at −(5.0 + 1.5), the right at
-## (5.0 − 1.5). A pass corridor reads only cars ON this road; the raw
-## along-axis projection alone reaches cars on PARALLEL STREETS tens of
-## metres sideways (the census caught a wedge held 47 s by an opposing car
-## 68 m away and a parked car 10 m off-road, both through the unbounded
-## projection), so each gate checks the band as well as the corridor length.
-const PASS_CORRIDOR_LEFT := -6.5
-const PASS_CORRIDOR_RIGHT := 3.5
+## (T-166, re-derived per leg by T-179) The pass aim's ABSOLUTE lane-local
+## lateral bounds (m) — the asphalt clamp — and the corridor gates' band are
+## DERIVED from the leg's real lane geometry now (the Ames stop entries'
+## `lane_off` / `half_width` stamps, T-179): for a street of half-width W
+## whose lane line rides L off the centerline, the asphalt spans lane-local
+## [−(W + L), +(W − L)], so the corridor gates read exactly that band and
+## the aim clamp shrinks it by `PASS_EDGE_MARGIN` (own half-width 0.95 plus
+## the 0.4 m margin the `pass_clearance` arithmetic already carries) on each
+## side. The retired Windrow grid street (W 5.0, L 1.5) reproduces the landed
+## T-166 constants exactly — corridor [−6.5, +3.5], clamp [−5.15, +2.15] —
+## through the same derivation off the seam constants below (the fixed
+## constant pairs are gone: a per-leg bound cannot be a constant). On the
+## resident graph the bounds grow with the street: Lincoln Way's 20 m asphalt
+## reads a [−16.5, +3.5] corridor (the oncoming lane center at lane-local
+## −13.0 is INSIDE it — the gate checks the real opposing lane, which the
+## fixed Windrow band stopped 6.5 m short of), a residential street reads
+## [−7.5, +3.5]. No pass aim can leave the asphalt from the clamp alone,
+## whatever the origin's own lane-local offset.
+## (T-179) The clamp's margin inside the asphalt (m): the car's own
+## half-width 0.95 plus the 0.4 m aim margin. The clamp bound is the
+## corridor bound pulled in by this on each side.
+const PASS_EDGE_MARGIN := 1.35
+## (T-179) The Windrow-seam fallback lane geometry (m) — the retired grid
+## street's constants (`city.gd road_width` 10.0, `traffic_lane_offset`
+## 3.5 → lane line 1.5 off the centerline), from which the T-166 constant
+## pairs were derived. Entries without the `lane_off`/`half_width` stamps
+## (the grid seam) read these.
+const SEAM_LANE_OFF := 1.5
+const SEAM_HALF_WIDTH := 5.0
 
 ## Route lane waypoints (global coords) — the current route's corner points and
 ## leg leads, dealt and extended by the spawner. Empty (or PARKED mode) means
@@ -675,12 +684,14 @@ func _break_hold(entry: Dictionary) -> void:
 	if entry != null and traffic != null and entry.has("registered") \
 			and entry.registered and not entry.committed \
 			and _blocker_distance() == INF:
-		if not _box_clear(entry.pos, box_clear_radius):
+		if not _box_clear(entry.pos, _entry_box_radius(entry)):
 			## Occupied box: the break does nothing but the gated honk and
 			## re-arms (T-166 §4) — the occupant is mid-movement and clears
 			## in seconds, and liveness chains through the occupant's own
 			## breaks. Falling through to a wedge pass here would drive the
-			## registered car THROUGH the box it must respect.
+			## registered car THROUGH the box it must respect. (T-179) The
+			## radius reads the entry's junction stamp — a real junction is
+			## as wide as its widest street, not the Windrow ±5 m grid box.
 			return
 		traffic.force_commit(self, entry.node, _entry_axis(entry), entry.turn)
 		entry.committed = true
@@ -700,12 +711,18 @@ func _break_hold(entry: Dictionary) -> void:
 	## passes that remain are the GHOST-safe ones: pigeon/tourist bodies
 	## (the car's mask never included the player/npc layers) and the
 	## no-body curb-grind wedge (blocker null), where contact is physically
-	## impossible. T-179 (calm port) re-derives the etiquette for real lanes.
+	## impossible. (T-179) The GATE ITSELF lands here — the round-2 record
+	## described it, but the code below still armed a pass for every blocker
+	## class (only the clearance differed), and the calm-port staged probes
+	## measured a mover swinging around its parked blocker on the resident
+	## graph. The stuck escape above stays the car-blocker liveness path.
 	_no_progress_breaks += 1
 	if _no_progress_breaks >= STUCK_BREAKS:
 		_no_progress_breaks = 0
 		_progress_accum = 0.0
 		stuck.emit(self)
+	if blocker is Car:
+		return
 	_pass_origin = global_position
 	var axis := _leg_axis()
 	var first_clear := _shoulder_clear(_pass_side, axis)
@@ -723,15 +740,21 @@ func _break_hold(entry: Dictionary) -> void:
 	var left := Vector3(fwd.z, 0.0, -fwd.x) * float(
 			_pass_side if first_clear else -_pass_side)
 	var aim := global_position + fwd * 6.0 + left * clearance
-	## Asphalt clamp (T-166 §2): the aim's lane-local lateral offset may never
-	## leave [PASS_ASPHALT_LEFT, PASS_ASPHALT_RIGHT] — corrected along the
-	## leg's right axis, so even a yawed origin (whose `fwd * 6.0` term leaks
-	## lateral offset) cannot swing the aim off the asphalt.
+	## Asphalt clamp (T-166 §2, bounds re-derived per leg by T-179): the aim's
+	## lane-local lateral offset may never leave the leg's asphalt minus the
+	## PASS_EDGE_MARGIN — the corridor bounds pulled in by own half-width 0.95
+	## and the 0.4 m aim margin — corrected along the leg's right axis, so
+	## even a yawed origin (whose `fwd * 6.0` term leaks lateral offset)
+	## cannot swing the aim off the asphalt. The Windrow seam reproduces the
+	## landed [−5.15, +2.15] constants exactly.
+	var corridor := _pass_corridor()
+	var clamp_left := corridor.x + PASS_EDGE_MARGIN
+	var clamp_right := corridor.y - PASS_EDGE_MARGIN
 	var lat := _lane_local(aim, axis)
-	if lat > PASS_ASPHALT_RIGHT:
-		aim += _lane_right(axis) * (PASS_ASPHALT_RIGHT - lat)
-	elif lat < PASS_ASPHALT_LEFT:
-		aim += _lane_right(axis) * (PASS_ASPHALT_LEFT - lat)
+	if lat > clamp_right:
+		aim += _lane_right(axis) * (clamp_right - lat)
+	elif lat < clamp_left:
+		aim += _lane_right(axis) * (clamp_left - lat)
 	_pass_aim = aim
 
 
@@ -780,6 +803,51 @@ func _lane_right(axis: Vector3) -> Vector3:
 	return Vector3(-axis.z, 0.0, axis.x)
 
 
+## (T-179) The current leg's lane offset (m off the centerline) — the
+## `_leg_cruise` precedent: the active stop entry's `lane_off` stamp (the
+## spawner reads it off the arriving directed edge's run), falling back past
+## the last entry to ITS stamp, and to the Windrow-seam constant when no
+## entry carries one.
+func _leg_lane_off() -> float:
+	if _stop_index < stops.size():
+		if stops[_stop_index].has("lane_off"):
+			return float(stops[_stop_index]["lane_off"])
+	elif not stops.is_empty() and stops[stops.size() - 1].has("lane_off"):
+		return float(stops[stops.size() - 1]["lane_off"])
+	return SEAM_LANE_OFF
+
+
+## (T-179) The current leg's street half-width (m) — the same stamp read as
+## `_leg_lane_off`, Windrow-seam fallback included.
+func _leg_half_width() -> float:
+	if _stop_index < stops.size():
+		if stops[_stop_index].has("half_width"):
+			return float(stops[_stop_index]["half_width"])
+	elif not stops.is_empty() and stops[stops.size() - 1].has("half_width"):
+		return float(stops[stops.size() - 1]["half_width"])
+	return SEAM_HALF_WIDTH
+
+
+## (T-179) The pass corridor's lane-local lateral bounds for the CURRENT leg
+## (m) — Vector2(left, right): the leg's actual asphalt edges seen from the
+## lane line, [−(W + L), +(W − L)] for street half-width W and lane offset L.
+## The Windrow seam reads (−6.5, +3.5) — the landed T-166 constants; Lincoln
+## Way's 20 m asphalt reads (−16.5, +3.5), so the oncoming gate checks the
+## REAL opposing lane (lane-local −2·L ≈ −13.0) instead of stopping 6.5 m
+## short of it.
+func _pass_corridor() -> Vector2:
+	return Vector2(-(_leg_half_width() + _leg_lane_off()),
+			_leg_half_width() - _leg_lane_off())
+
+
+## (T-179) The force-commit's node-box occupancy radius for one entry (m):
+## the entry's junction stamp — the widest arm's half-width × √2, the box's
+## half-diagonal over the REAL junction extent — held above the
+## `box_clear_radius` export floor (the Windrow ±5 m grid box's 7.0).
+func _entry_box_radius(entry: Dictionary) -> float:
+	return maxf(box_clear_radius, float(entry.get("box_radius", 0.0)))
+
+
 ## (T-166 §2) A point's signed lateral offset (m) off the car's current lane
 ## line — the line through the pass origin parallel to the leg axis, right
 ## positive. Legs are grid-axis-aligned, so the offset is one flat projection.
@@ -789,17 +857,24 @@ func _lane_local(p: Vector3, axis: Vector3) -> float:
 	return rel.dot(_lane_right(axis))
 
 
-## (T-166 §2) The shoulder check for one pass side against the lane line
-## through `_pass_origin`. Side −1 is the LEFT shoulder — the oncoming gate:
-## denied while any fleet car with an opposing heading (flat forward dot
-## < −0.5) sits ahead of the origin within `pass_lookahead` at lane-local
-## lateral < −0.5 (at/over the centerline) — a verified-clear oncoming lane
-## is exactly when a real overtake crosses. Side +1 is the RIGHT shoulder —
-## the parked gate: denied while any PARKED-mode fleet car sits ahead within
-## `pass_lookahead` at lane-local lateral > +1.0 (the parked band). The
-## in-pass 2.6 m proximity brake stays as the floor's last line either way.
+## (T-166 §2, corridor bounds re-derived per leg by T-179) The shoulder gate
+## for one pass side against the lane line through `_pass_origin`. The side
+## pairs with the aim it clears (the `_break_hold` multiplier): side +1 is a
+## LEFTWARD aim across the LEFT shoulder — the oncoming gate denies while any
+## fleet car with an opposing heading (flat forward dot < −0.5) sits ahead of
+## the origin within `pass_lookahead` at lane-local lateral < −0.5 (at/over
+## the centerline) — a verified-clear oncoming lane is exactly when a real
+## overtake crosses, and the corridor band is the leg's REAL asphalt
+## ([−(W + L), +(W − L)]): on Lincoln Way the opposing lane rides lane-local
+## −13.0, well past the retired Windrow band's −6.5 edge. Side −1 is a
+## RIGHTWARD aim across the RIGHT shoulder — the parked gate denies while any
+## PARKED-mode fleet car sits ahead within `pass_lookahead` at lane-local
+## lateral > +1.0 (the parked band — the graph's curb spots sit +2.45 off the
+## lane line on every unclamped width). The in-pass 2.6 m proximity brake
+## stays as the floor's last line either way.
 func _shoulder_clear(side: int, axis: Vector3) -> bool:
 	var right := _lane_right(axis)
+	var corridor := _pass_corridor()
 	for other in _fleet:
 		if other == null or other == self or not is_instance_valid(other):
 			continue
@@ -813,14 +888,13 @@ func _shoulder_clear(side: int, axis: Vector3) -> bool:
 			## LEFT shoulder — the oncoming gate: an opposing car on THIS
 			## road's left half (at/over the centerline, out to the far
 			## asphalt edge) inside the corridor denies the pass.
-			if lat >= PASS_CORRIDOR_LEFT and lat < -0.5 \
+			if lat >= corridor.x and lat < -0.5 \
 					and other._flat_forward().dot(axis) < -0.5:
 				return false
-		elif other.mode == Mode.PARKED and lat > 1.0 \
-				and lat <= PASS_CORRIDOR_RIGHT:
+		elif other.mode == Mode.PARKED and lat > 1.0 and lat <= corridor.y:
 			## RIGHT shoulder — the parked gate: a parked car in THIS road's
-			## band (the row occupies lane-local +1.0..+3.4) inside the
-			## corridor denies the pass.
+			## band (the row occupies lane-local +1.0..+corridor.y) inside
+			## the corridor denies the pass.
 			return false
 	return true
 
