@@ -226,7 +226,14 @@ verify() {
 	for try in $(seq 1 "$attempts"); do
 		head="$(curl -fsSI --max-time 20 "${pin[@]}" "$PUBLIC_URL/" 2>/dev/null | head -1 | tr -d '\r' || true)"
 		if printf '%s' "$head" | grep -qE 'HTTP/.* 200'; then
-			if curl -fsS --max-time 20 "${pin[@]}" "$PUBLIC_URL/" 2>/dev/null | grep -qi '<html'; then
+			# T-211 fix: capture-then-grep — a bare `curl | grep -q` early-exits on
+			# match and SIGPIPE-kills curl, and under `set -o pipefail` the whole
+			# pipeline then FAILS whenever the body trickles slower than grep
+			# matches (the new box's path raced it every time; the old box's was
+			# fast enough to hide the bomb). printf is instant, so its pipe cannot
+			# SIGPIPE.
+			body="$(curl -fsS --max-time 20 "${pin[@]}" "$PUBLIC_URL/" 2>/dev/null || true)"
+			if printf '%s' "$body" | grep -qi '<html'; then
 				log "VERIFY OK: $head, HTML body served${DEPLOY_RESOLVED_IP:+ (pinned to $DEPLOY_RESOLVED_IP)}"
 				return 0
 			fi
@@ -234,12 +241,12 @@ verify() {
 		fi
 		if [ "$try" -eq 1 ]; then
 			log "not 200 yet (${head:-no response}) — nudging caddy (first-ever cert issuance can lag)"
-			printf 'systemctl reload caddy || systemctl restart caddy\necho RELOADED\n' >"$WORK/reload.sh"
+			printf 'systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || docker compose -f /home/sean/media-stack/docker-compose.yml exec -T caddy caddy reload --force 2>/dev/null || true\necho RELOADED\n' >"$WORK/reload.sh"
 			run_root "$WORK/reload.sh" || true
 		fi
 		sleep 8
 	done
-	fail "verify failed (${head:-no response}). First deploy? Check DNS, then journalctl -u caddy -n 50 on the box (sudo). ACME retries automatically once DNS is live."
+	fail "verify failed (${head:-no response}). First deploy? Check DNS, then the caddy container logs on the box (docker logs caddy — the compose stack, not a system unit). ACME retries automatically once DNS is live."
 }
 
 # --- main --------------------------------------------------------------------
