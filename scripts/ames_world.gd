@@ -342,6 +342,15 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	_lamp_mm = null ## (T-180) The corner-dress lamp state rebuilds with the world.
 	_lamp_kinds = PackedInt32Array()
 	_signal_phase = -1
+	_corner_paint_xfs = []
+	_corner_stop_line_xfs = []
+	_corner_post_xfs = []
+	_corner_red_xfs = []
+	_corner_border_xfs = []
+	_corner_plaque_xfs = []
+	_corner_mast_xfs = []
+	_corner_head_xfs = []
+	_corner_lamp_xfs = []
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
 	_manifest = AmesBaker.read_manifest(CHUNKS_DIR)
 	if _manifest.is_empty():
@@ -468,6 +477,22 @@ const SIGN_PLAQUE_Y := 2.0
 var _lamp_mm: MultiMesh = null
 var _lamp_kinds: PackedInt32Array = PackedInt32Array()
 var _signal_phase: int = -1
+
+## (T-180) The corner-dress transform queues, retained after the build in the
+## T-069 `_visuals[key].xfs` pattern: headless runs cannot read a MultiMesh's
+## instances back (the dummy RenderingServer uploads nothing), so the gate
+## walks the queues that fed the exact nodes — kept in sync by construction
+## (the spawn step copies them verbatim) and pinned by the instance-count
+## asserts. World-local coordinates.
+var _corner_paint_xfs: Array[Transform3D] = []
+var _corner_stop_line_xfs: Array[Transform3D] = []
+var _corner_post_xfs: Array[Transform3D] = []
+var _corner_red_xfs: Array[Transform3D] = []
+var _corner_border_xfs: Array[Transform3D] = []
+var _corner_plaque_xfs: Array[Transform3D] = []
+var _corner_mast_xfs: Array[Transform3D] = []
+var _corner_head_xfs: Array[Transform3D] = []
+var _corner_lamp_xfs: Array[Transform3D] = []
 
 
 func _process(_delta: float) -> void:
@@ -646,14 +671,24 @@ func _queue_signal_mast(masts: Array[Transform3D], heads: Array[Transform3D],
 
 
 ## Spawns the corner-dress MultiMeshes (one node per family under
-## `Intersections/`), the lamp family's MultiMesh retained for the live
-## phase paint. Every instance is colored per family (the vertex-color box
-## mesh), no colliders anywhere.
+## `Intersections/`), retaining the transform queues for the gate (the T-069
+## headless read pattern) and the lamp family's MultiMesh for the live phase
+## paint. Every instance is colored per family (the vertex-color box mesh),
+## no colliders anywhere.
 func _spawn_corner_visuals(paint: Array[Transform3D],
 		stop_lines: Array[Transform3D], posts: Array[Transform3D],
 		red_bars: Array[Transform3D], border_bars: Array[Transform3D],
 		plaques: Array[Transform3D], masts: Array[Transform3D],
 		heads: Array[Transform3D], lamps: Array[Transform3D]) -> void:
+	_corner_paint_xfs = paint
+	_corner_stop_line_xfs = stop_lines
+	_corner_post_xfs = posts
+	_corner_red_xfs = red_bars
+	_corner_border_xfs = border_bars
+	_corner_plaque_xfs = plaques
+	_corner_mast_xfs = masts
+	_corner_head_xfs = heads
+	_corner_lamp_xfs = lamps
 	var root := Node3D.new()
 	root.name = "Intersections"
 	add_child(root)
