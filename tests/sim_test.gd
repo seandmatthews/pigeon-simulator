@@ -179,6 +179,8 @@ func _run_scenarios() -> void:
 	await _scenario_ames_hunger_pins() ## T-176 — the drain quartet + favor ceiling diff-proven across the ames build.
 	await _scenario_ames_street_flyover() ## T-177 — the flyover re-pin: Lincoln Way west→east at 60 m over the real skeleton.
 	await _scenario_ames_roof() ## T-177 — the roof re-pin: an authored building's top is landable and walkable.
+	await _scenario_ames_traffic_routes() ## T-178 — the traffic graph: census-shape lanes, Lincoln Way end-to-end, the live fleet on its directed lanes.
+	await _scenario_ames_traffic_density() ## T-178 — the density law value-locked + the fleet's class mix at the cruise camera and low-hover positions, stable across seeds.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -2519,6 +2521,605 @@ func _scenario_ames_roof() -> void:
 			"airborne again, peaked at %.2f m (roof top %.2f)" % [
 					peak, roof.get("top", -1.0)])
 	world.queue_free()
+
+
+## --- scenarios (T-178 traffic graph) --------------------------------------
+
+
+## The Ames traffic graph, checked end to end (T-178):
+## (a) the graph SHAPE over the committed pack, recomputed against the
+##     census §4 stock: 777 runs / 91.9 km, per-class km matching the census
+##     table (primary 10.0, secondary 16.3, tertiary 13.1, residential 48.7,
+##     unclassified 4.0), 361 stop junctions;
+## (b) LANE DISCIPLINE — every directed lane's polyline vertices (and
+##     midpoints) sit on their OWN run's asphalt (≤ half-width + 0.05 m of
+##     the centerline — "no driving the lawn" is structural) and on their
+##     OWN travel direction's right (the side signed against the vertex's
+##     own centerline segment — the b→a lane read against its reversed
+##     pairing — violation ≤ 0.05 m; right-hand traffic, no wrong side);
+## (c) LINCOLN WAY end-to-end: the 52 named runs weld into ONE connected
+##     6.51 km component; the name-following walk east from the west-most
+##     directed edge (and west from the east-most) rides ≥ 60% of the named
+##     km (measured 4.02 of 6.51 — the asphalt continues past the walk's
+##     stops under OSM's OTHER name for the same road, "East Lincoln Way");
+##     and a breadth-first walk over the graph's directed edges reaches the
+##     east-most named run from the west-most — the street is traversable
+##     end to end through its real junctions;
+## (d) the LIVE fleet on the real graph, driven for ~170 s under a
+##     STATIONARY pigeon at the cruise corridor (the round-2 review's
+##     gridlock exists only around a stationary pigeon and its probes all
+##     ended before the seize onset): a CarSpawner at the shipped knobs —
+##     sampled traffic cars ride their directed lanes (nearest-lane
+##     distance within the pinned bound, never a wrong-way sample: on-lane
+##     + moving + velocity·axis < 0 counts), never off the street network
+##     (nearest CENTERLINE beyond half-width + 0.5 m counts), at least one
+##     sample rides a primary edge (Lincoln Way carries live traffic),
+##     every traffic car at every sample keeps ≥ 1.5 m flat from every
+##     other (the round-1 fused-pile pin, no speed filter), and — the
+##     round-2 movement pin — per 9 s window (the review's own metric:
+##     order-independent nearest-match within 20 m, ≥ 0.5 m displacement)
+##     the fleet may not produce more than 10 dead windows of 19 nor a dead
+##     stretch longer than 4 windows (~36 s) — the review's seize held 0
+##     movers for 6.5 minutes straight, the healthy corridor measured 8/26
+##     dead windows with a 2-window (18 s) worst stretch;
+## (e) the 9 at-grade rail crossings are route facts: one flagged node per
+##     crossing and 8 of the 9 lying ON a drivable run the graph marks rail
+##     (the unnamed ninth track-pair crossing rides its node flag) — cars
+##     traverse, nothing gates.
+## The spawner and its fleet are freed however the legs end.
+func _scenario_ames_traffic_routes() -> void:
+	const S := "ames_traffic_routes"
+	var graph := _city.traffic_graph
+	var shape_ok := graph != null and graph.run_count() == 777 \
+			and absf(graph.total_km() - 91.9) < 0.3
+	var km: Dictionary = graph.km_by_class() if graph != null else {}
+	var census := {
+		"primary": 10.0, "secondary": 16.3, "tertiary": 13.1,
+		"residential": 48.7, "unclassified": 4.0,
+	}
+	for cls: String in census:
+		shape_ok = shape_ok and km.has(cls) \
+				and absf(float(km[cls]) - float(census[cls])) < 0.15
+	var stops := 0
+	if graph != null:
+		for n in graph.node_count():
+			if graph.node_stops(n):
+				stops += 1
+	shape_ok = shape_ok and stops == 361
+	## (b) lane discipline over every directed edge's polyline.
+	var lane_ok := graph != null
+	var worst := 0.0
+	var worst_side := 0.0
+	if graph != null:
+		for r in graph.run_count():
+			var center := graph.run_points(r)
+			var half: float = graph.run_half_width(r) + 0.05
+			for dir in 2:
+				## The b→a lane polyline is the REVERSED centerline offset,
+				## so lane vertex i pairs with center vertex size−1−i there.
+				## The side expectation follows the DIRECTED lane: the a→b
+				## lane rides the a→b direction's right (signed ≥ 0), the
+				## b→a lane its own right (signed ≤ 0 against the stored
+				## polyline's right). The side reads against the vertex's
+				## OWN centerline segment — the miter at a bend keeps a
+				## positive projection on both its adjacent segment normals;
+				## a NEAREST-segment read would mis-sign a mitred bend
+				## vertex against the neighboring leg.
+				var lane := graph.edge_points(r * 2 + dir)
+				for i in lane.size():
+					var c_idx := i if dir == 0 else center.size() - 1 - i
+					for t in [0.0, 0.5, 1.0]:
+						var p := lane[i] if t == 0.0 \
+								else lane[maxi(i - 1, 0)].lerp(lane[i], t)
+						var d2 := INF
+						var best := {}
+						for c in center.size() - 1:
+							var cand := _lane_seg_d2(p, center[c], center[c + 1])
+							if cand["d2"] < d2:
+								d2 = cand["d2"]
+								best = cand
+						var d := sqrt(d2)
+						worst = maxf(worst, d)
+						## The side law reads at the VERTICES only, and skips
+						## HAIRPIN vertices (a pack way that doubles back on
+						## itself — the miter keeps the incoming side there,
+						## the honest lane through a 180° reversal; the
+						## asphalt check above still guards those vertices).
+						## Chord midpoints are skipped too: some centerlines
+						## jump (a data gap mid-run) and a midpoint has no
+						## own segment to sign against meaningfully.
+						if t == 0.0:
+							var seg_a := center[c_idx]
+							var seg_b := center[mini(c_idx + 1, center.size() - 1)] \
+									if c_idx < center.size() - 1 \
+									else center[c_idx - 1]
+							var seg := seg_b - seg_a
+							var pi_idx := c_idx - 1 if c_idx > 0 else c_idx
+							var pj_idx := c_idx if c_idx > 0 else c_idx + 1
+							var pseg := center[pj_idx] - center[pi_idx]
+							var reversal := pseg.length() > 0.001 \
+									and seg.normalized().dot(pseg.normalized()) <= -0.5
+							if not reversal:
+								var right := Vector2(-seg.y, seg.x).normalized()
+								var signed := (p - seg_a).dot(right)
+								var violation := -signed if dir == 0 else signed
+								worst_side = maxf(worst_side, violation)
+						if d > half:
+							lane_ok = false
+		lane_ok = lane_ok and worst_side <= 0.05
+	var lw := {"runs": [], "components": [], "covered": 0.0, "total": 0.0,
+			"reachable": false}
+	if graph != null:
+		lw = _lw_chain(graph)
+	var lw_ok: bool = lw["components"].size() == 1 \
+			and absf(float(lw["components"][0]) - 6.51) < 0.1 \
+			and float(lw["covered"]) >= 0.6 * float(lw["total"]) \
+			and bool(lw["reachable"])
+	## (d) the live fleet drive — the round-2 pin included: ~170 s with a
+	## STATIONARY player (the gridlock the round-2 review caught only exists
+	## around a stationary pigeon — its own probes ended before the ~97-154 s
+	## seize onset and its pigeon moved, keeping the recycle escape alive).
+	var drive_ok := false
+	var wrong_way := 0
+	var off_road := 0
+	var lw_samples := 0
+	var samples := 0
+	## (T-178 round 1) The fused-pile pin: EVERY traffic car at EVERY sample
+	## (no speed filter — the round-1 review's fused cars were STALLED, so the
+	## hspeed ≥ 1 sampling was blind to them) keeps ≥ FUSED_PIN m flat
+	## center-to-center from every other. 1.5 m sits well under every
+	## legitimate close approach (queues hold the 5.6 m follow gap, passes
+	## hold 2.6 m; solid cars hold contact at ~1.9 m) and far above the
+	## round-1 review's exact 0.0 m coincidences.
+	const FUSED_PIN := 1.5
+	var min_pair := INF
+	## (T-178 round 2) The movement pin, at the review's own scale: 9 s
+	## windows, order-independent nearest-matching (within 20 m — the fleet
+	## churns through recycles), ≥ MOVED_PIN m displacement counts a car as
+	## the window's mover. The review's seize read 14 → 9 → 6 → 2 → 1 → 0
+	## moving cars over 2.5 min and 0 for 6.5 minutes straight; the healthy
+	## corridor (all-way stops, T-180 brings signals) measured 8 dead
+	## windows of 26 with a maximum 2-window (18 s) dead stretch — the pins
+	## sit above both with margin.
+	const MOVED_PIN := 0.5
+	const WINDOW_SAMPLES := 27 ## 27 × 20 frames = 9 s at 60 Hz.
+	const DRIVE_WINDOWS := 19 ## 19 × 9 s ≈ 170 s.
+	const DEAD_WINDOW_MAX := 10
+	const DEAD_RUN_MAX := 4
+	var window_movers := 0
+	var dead_windows := 0
+	var dead_run := 0
+	var dead_run_max := 0
+	var windows_done := 0
+	var window_prev := PackedVector3Array()
+	## (T-178 round 2) Per-car integrity streaks (instance id → [wrong, off])
+	## — the sustained-violation counters the wrong-way/off-road pins read.
+	var _integrity_streaks := {}
+	if graph != null and lw_ok:
+		await _set_up(true, _city.to_global(Vector3(60.0, 0.0, 0.0))
+				+ Vector3(0.0, 30.0, 0.0), Vector3.ZERO)
+		var spawner := CarSpawner.new()
+		spawner.city = _city
+		spawner.player = _player
+		spawner.name = "CarSpawner_traffic_routes"
+		add_child(spawner)
+		await _wait_frames(2)
+		for frame in DRIVE_WINDOWS * WINDOW_SAMPLES:
+			await _wait_frames(20)
+			var traffic: Array[Car] = []
+			for car in spawner.living_cars():
+				if car.mode == Car.Mode.TRAFFIC and is_instance_valid(car):
+					traffic.append(car)
+			for a_i in traffic.size():
+				for b_i in range(a_i + 1, traffic.size()):
+					var d := _flat_dist3(traffic[a_i].global_position,
+							traffic[b_i].global_position)
+					min_pair = minf(min_pair, d)
+			## The movement read, per 9 s window: the window's FIRST positions
+			## vs its LAST (this sample closes a window every
+			## WINDOW_SAMPLES samples), greedy nearest-matched.
+			var used := PackedByteArray()
+			used.resize(window_prev.size())
+			for car in traffic:
+				var best_j := -1
+				var best_d := 20.0
+				for j in window_prev.size():
+					if used[j] == 1:
+						continue
+					var dj := _flat_dist3(car.global_position, window_prev[j])
+					if dj < best_d:
+						best_d = dj
+						best_j = j
+				if best_j >= 0:
+					used[best_j] = 1
+					if best_d >= MOVED_PIN:
+						window_movers += 1
+			if samples % WINDOW_SAMPLES == WINDOW_SAMPLES - 1:
+				windows_done += 1
+				if window_movers == 0:
+					dead_windows += 1
+					dead_run += 1
+					dead_run_max = maxi(dead_run_max, dead_run)
+				else:
+					dead_run = 0
+				window_movers = 0
+				window_prev = PackedVector3Array()
+				for car in traffic:
+					window_prev.append(car.global_position)
+			if samples % WINDOW_SAMPLES == 0:
+				window_prev = PackedVector3Array()
+				for car in traffic:
+					window_prev.append(car.global_position)
+			## The integrity read rides every 5th sample (the nearest-edge
+			## walk is the expensive one; the movement and pairwise pins run
+			## on every sample).
+			if samples % 5 == 0:
+				for car in traffic:
+					var hspeed := Vector2(car.velocity.x, car.velocity.z).length()
+					var l := _city.to_local(car.global_position)
+					var lane := graph.nearest_edge(l.x, l.z)
+					var centerline := graph.nearest_run(l.x, l.z)
+					## (T-178 round 2) The wrong-way/off-road reads count
+					## SUSTAINED violations only: a per-car streak of ≥ 3
+					## consecutive integrity samples (~1 s). Mid-manoeuvre and
+					## ambiguous postures are excluded — a pass arc crossing
+					## the oncoming lane (car._passing, the T-166 escape
+					## machinery's own record), a stub turnaround (the recycle
+					## path's deal can still land one there even though
+					## populate deals now skip stubs). The wrong-way read also
+					## demands the nearest directed lane to be the car's OWN
+					## approach street (its axis agreeing with the current
+					## entry's approach axis, dot > 0.5): at junctions two
+					## streets' lanes cross within the read's 1.5 m window and
+					## the nearest-lane read misattributes a legal crossing —
+					## the round-2 culprit was a Lincoln Way car at the Welch
+					## junction read against Welch's own axis. A car actually
+					## DRIVING the wrong way or on the lawn accumulates the
+					## streak.
+					var car_id: int = car.get_instance_id()
+					var streaks: Array = _integrity_streaks.get(car_id, [0, 0])
+					var entry := car._current_entry()
+					var at_stub := false
+					if not entry.is_empty() and entry.has("node"):
+						at_stub = graph.out_edges(int(entry["node"])).size() <= 1
+					## The wrong-way read demands the nearest directed lane to
+					## be the car's OWN approach street: its axis must agree
+					## with the current entry's approach axis (dot > 0.5). At
+					## junctions two streets' lanes cross within the read's
+					## 1.5 m window and the nearest-lane read misattributes a
+					## legal crossing (the round-2 culprit: a Lincoln Way car
+					## at the Welch junction read against Welch's own axis).
+					var own_axis: Vector3 = entry.get("axis", Vector3.ZERO) \
+							if not entry.is_empty() else Vector3.ZERO
+					var wrong_now := false
+					var off_now := false
+					if not lane.is_empty() and float(lane["dist"]) <= 1.5 \
+							and hspeed >= 1.0 and not car._passing \
+							and not at_stub \
+							and own_axis.length() > 0.5 \
+							and Vector2(own_axis.x, own_axis.z).normalized() \
+									.dot(Vector2(float(lane["axis"].x),
+									float(lane["axis"].z))) > 0.5:
+						var axis: Vector3 = lane["axis"]
+						if Vector2(car.velocity.x, car.velocity.z).normalized() \
+								.dot(Vector2(axis.x, axis.z)) < -0.5:
+							wrong_now = true
+					if not centerline.is_empty():
+						var half: float = graph.run_half_width(int(centerline["run"]))
+						if float(centerline["dist"]) > half + 0.5:
+							off_now = true
+					streaks[0] = (int(streaks[0]) + 1) if wrong_now else 0
+					streaks[1] = (int(streaks[1]) + 1) if off_now else 0
+					if int(streaks[0]) == 3:
+						wrong_way += 1
+						var s := car._current_entry()
+						var nl := "-"
+						if not s.is_empty():
+							nl = "n%s reg=%s comm=%s turn=%d along=%.0f" % [s.get("node"),
+									s.get("registered"), s.get("committed"), s.get("turn"),
+									car._entry_along(s)]
+						var nrun := graph.nearest_run(l.x, l.z)
+						print("SIM DATA %s CULPRIT: pos=(%.1f,%.1f) hspd=%.2f lane_edge=%d lane_axis=%s vel=%s | %s | pass=%s wp=%d/%d end=%d | nrun=%d '%s'" % [
+								S, car.global_position.x, car.global_position.z, hspeed,
+								int(lane["edge"]), lane.get("axis", Vector3.ZERO),
+								car.velocity, nl, car._passing, car.waypoint_index,
+								car.path.size(), car.route_end_node,
+								int(nrun["run"]) if not nrun.is_empty() else -1,
+								graph.run_name(int(nrun["run"])) if not nrun.is_empty() else "?"])
+					if int(streaks[1]) == 3:
+						off_road += 1
+					_integrity_streaks[car_id] = streaks
+					if not lane.is_empty() \
+							and graph.edge_class(int(lane["edge"])) == "primary":
+						lw_samples += 1
+			samples += 1
+		drive_ok = samples >= DRIVE_WINDOWS * WINDOW_SAMPLES \
+				and wrong_way == 0 and off_road == 0 \
+				and lw_samples >= 1 and min_pair >= FUSED_PIN \
+				and dead_windows <= DEAD_WINDOW_MAX and dead_run_max <= DEAD_RUN_MAX
+		print("SIM DATA %s: samples %d, wrong-way %d, off-road %d, primary %d, min car pair %.2f m (pin %.1f), dead windows %d/%d (max run %d; pins %d/%d), worst lane-vertex %.3f m, worst side %.3f m" % [
+				S, samples, wrong_way, off_road, lw_samples, min_pair,
+				FUSED_PIN, dead_windows, windows_done, dead_run_max,
+				DEAD_WINDOW_MAX, DEAD_RUN_MAX, worst, worst_side])
+		spawner.free()
+		await _wait_frames(2)
+	## (e) the 9 at-grade rail crossings as route facts: one flagged node per
+	## crossing, and 8 of the 9 lie ON a drivable run the graph marks rail
+	## (the ninth — the pack's unnamed second track of the Hazel/Brookridge
+	## pair — sits 11 m off North 4th Street, past the run-fact radius; its
+	## flagged node carries it). The cars cross them all; nothing gates.
+	var rail_ok := graph != null and graph.rail_nodes().size() == 9
+	if graph != null:
+		var on_runs := 0
+		for crossing: Dictionary in AmesDataPack.rail().get("crossings", []):
+			if str(crossing.get("grade", "")) != "at_grade":
+				continue
+			var pos: Array = crossing.get("pos", [])
+			var near := graph.nearest_run(float(pos[0]), float(pos[1]))
+			if not near.is_empty() and graph.run_is_rail(int(near["run"])) \
+					and float(near["dist"]) \
+							<= graph.run_half_width(int(near["run"])) + 2.0:
+				on_runs += 1
+		rail_ok = rail_ok and on_runs >= 8
+	_check(S, shape_ok and lane_ok and lw_ok and drive_ok and rail_ok,
+			"shape=%s lane=%s lw=%s drive=%s rail=%s (stops %d, lw covered %.2f/%.2f km)"
+			% [shape_ok, lane_ok, lw_ok, drive_ok, rail_ok, stops,
+			float(lw["covered"]) if graph != null else -1.0,
+			float(lw["total"]) if graph != null else -1.0])
+
+
+## The Lincoln Way chain: the named runs unioned through shared welded
+## endpoints, per-component km, the name-following walk's coverage from both
+## ends (each hop takes the same-name out-edge whose axis agrees most with
+## the current travel — a deterministic street-ride), and the breadth-first
+## reachability of the east-most named run from the west-most directed edge
+## (the end-to-end traversal fact). {runs, components: [km], covered,
+## total, reachable}.
+func _lw_chain(graph: AmesTrafficGraph) -> Dictionary:
+	var lw_runs: Array[int] = []
+	for r in graph.run_count():
+		if graph.run_name(r) == "Lincoln Way":
+			lw_runs.append(r)
+	var parent: Dictionary = {}
+	for r in lw_runs:
+		parent[r] = r
+	var node_users: Dictionary = {}
+	for r in lw_runs:
+		var pts := graph.run_points(r)
+		for p: Vector2 in [pts[0], pts[pts.size() - 1]]:
+			var key := Vector2i(roundi(p.x * 100.0), roundi(p.y * 100.0))
+			if not node_users.has(key):
+				node_users[key] = []
+			node_users[key].append(r)
+	for key: Vector2i in node_users:
+		var users: Array = node_users[key]
+		for i in range(1, users.size()):
+			var a := _lw_find(parent, int(users[0]))
+			var b := _lw_find(parent, int(users[i]))
+			if a != b:
+				parent[a] = b
+	var comps: Dictionary = {}
+	for r in lw_runs:
+		var root := _lw_find(parent, r)
+		comps[root] = float(comps.get(root, 0.0)) + graph.edge_length(r * 2) / 1000.0
+	var comp_list := []
+	for k in comps:
+		comp_list.append(snappedf(float(comps[k]), 0.01))
+	comp_list.sort()
+	## The name-following walks: east from the west-most directed edge, west
+	## from the east-most, the visited runs unioned and measured by km.
+	var west_edge := -1
+	var west_x := INF
+	var east_run := -1
+	var east_x := -INF
+	for r in lw_runs:
+		var pts := graph.run_points(r)
+		var x_min: float = minf(pts[0].x, pts[pts.size() - 1].x)
+		var x_max: float = maxf(pts[0].x, pts[pts.size() - 1].x)
+		if x_min < west_x:
+			west_x = x_min
+			west_edge = r * 2
+		if x_max > east_x:
+			east_x = x_max
+			east_run = r
+	if graph.edge_axis(west_edge).x < 0.0:
+		west_edge = graph.edge_reverse(west_edge)
+	var visited := {}
+	for start_edge: int in [west_edge, graph.edge_reverse(east_run * 2)]:
+		var cur := start_edge
+		visited[graph.edge_run_id(cur)] = true
+		for _i in 80:
+			var nxt := -1
+			var best_dot := -INF
+			for e in graph.out_edges(graph.edge_to(cur)):
+				if e == graph.edge_reverse(cur):
+					continue ## No U-turn.
+				if graph.edge_name(e) != graph.edge_name(cur):
+					continue ## The walk follows the NAME.
+				var d := graph.edge_axis(cur).dot(graph.edge_axis(e))
+				if d > best_dot:
+					best_dot = d
+					nxt = e
+			if nxt < 0:
+				break
+			cur = nxt
+			visited[graph.edge_run_id(cur)] = true
+	var covered := 0.0
+	var total := 0.0
+	for r in lw_runs:
+		total += graph.edge_length(r * 2) / 1000.0
+		if visited.has(r):
+			covered += graph.edge_length(r * 2) / 1000.0
+	## The end-to-end reachability: BFS over the graph's directed edges from
+	## the west-most named edge — the east-most named run must be reachable.
+	var visited_edges := {west_edge: true}
+	var queue: Array[int] = [west_edge]
+	while not queue.is_empty():
+		var e: int = queue.pop_front()
+		for o in graph.out_edges(graph.edge_to(e)):
+			if o == graph.edge_reverse(e) or visited_edges.has(o):
+				continue
+			visited_edges[o] = true
+			queue.append(o)
+	var reachable := false
+	for dir in 2:
+		if visited_edges.has(east_run * 2 + dir):
+			reachable = true
+	return {"runs": lw_runs, "components": comp_list, "covered": covered,
+			"total": total, "reachable": reachable}
+
+
+func _lw_find(parent: Dictionary, x: int) -> int:
+	while int(parent[x]) != x:
+		parent[x] = parent[parent[x]]
+		x = int(parent[x])
+	return x
+
+
+## Flat (XZ) distance between two world positions — the drive arm's
+## pairwise-car read.
+func _flat_dist3(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
+
+
+## Squared distance from p to segment ab with the segment direction and the
+## projection point returned ({d2, seg, at}).
+func _lane_seg_d2(p: Vector2, a: Vector2, b: Vector2) -> Dictionary:
+	var ab := b - a
+	var l2 := ab.length_squared()
+	var t := 0.0 if l2 < 1e-12 else clampf((p - a).dot(ab) / l2, 0.0, 1.0)
+	var at := a + ab * t
+	return {"d2": p.distance_squared_to(at), "seg": ab, "at": at}
+
+
+## The fleet density per street class at the two pinned pigeon positions
+## (T-178): the cruise camera position (35 m over the Campustown Lincoln Way
+## strip) and the low-hover position (4 m over the same strip, 90 m west) —
+## 3 seeds each through the spawner's own seeded stream:
+## (a) the density LAW value-locked off the live graph: the spawn weights
+##     read exactly 3.0 · 2.5 (primary · downtown) > 2.5 · 2.5 (secondary ·
+##     downtown) > ... > 0.7 · 1.0 (residential · residential) — the
+##     "arterial > downtown > residential" ordering the ticket pins, as the
+##     constants the population model actually draws by;
+## (b) the fleet contract holds at every seed: 14 moving + 12 parked;
+## (c) arterial dominance at BOTH positions, aggregated over the 3 seeds:
+##     primary-class cars ≥ 12 (measured 16 cruise / 27 low-hover on the
+##     [60, 140] band the round-1 review forced) while residential-class
+##     cars ≤ 9 (measured 7 / 4) — Lincoln Way carries the fleet, residential
+##     fabric stays sparse — and every seed stages ≥ 10 of its 14 moving
+##     cars on arterial classes (primary + secondary + tertiary; measured
+##     minimum 12);
+## (d) the downtown fabric carries its local fleet: at the downtown Main
+##     Street anchor every seed stages moving cars on downtown-district
+##     streets (position-read through the world's own district rule,
+##     ≥ 4 of 14 — measured 9/4/11; the round-1 [60, 140] band pulls the
+##     anchor's periphery onto Main-adjacent side streets the strict 90 m
+##     district rule does not claim, and the downtown TIER itself is the
+##     value-locked 2.5× weight the law leg reads).
+## The spawners and their fleets are freed; the world seed restored.
+func _scenario_ames_traffic_density() -> void:
+	const S := "ames_traffic_density"
+	var graph := _city.traffic_graph
+	## (a) the density law, read live off the graph's weighted edges.
+	var law_ok := graph != null
+	if graph != null:
+		law_ok = absf(graph.edge_weight(_edge_of_class(graph, "primary", "downtown")) - 7.5) < 0.01 \
+				and absf(graph.edge_weight(_edge_of_class(graph, "secondary", "downtown")) - 6.25) < 0.01 \
+				and absf(graph.edge_weight(_edge_of_class(graph, "tertiary", "downtown")) - 5.0) < 0.01 \
+				and absf(graph.edge_weight(_edge_of_class(graph, "residential", "residential")) - 0.7) < 0.01 \
+				and absf(graph.edge_weight(_edge_of_class(graph, "residential", "downtown")) - 1.75) < 0.01
+	var anchors := {
+		"cruise": _city.to_global(Vector3(60.0, 0.0, 0.0)) + Vector3(0.0, 35.0, 0.0),
+		"low_hover": _city.to_global(Vector3(-30.0, 0.0, 0.0)) + Vector3(0.0, 4.0, 0.0),
+	}
+	var tally := {}
+	var fleet_ok := true
+	var arterial_per_seed_ok := true
+	var downtown_leg_ok := true
+	var downtown_district_min := 99
+	if graph != null:
+		for anchor_name: String in anchors:
+			var pos: Vector3 = anchors[anchor_name]
+			await _set_up(true, pos, Vector3.ZERO)
+			tally[anchor_name] = {"primary": 0, "secondary": 0, "tertiary": 0,
+					"residential": 0, "unclassified": 0, "seeds": 0}
+			for seed_i in 3:
+				_city.seed_value = 20260928 + seed_i * 7919
+				var spawner := CarSpawner.new()
+				spawner.city = _city
+				spawner.player = _player
+				spawner.name = "CarSpawner_density_%s_%d" % [anchor_name, seed_i]
+				add_child(spawner)
+				await _wait_frames(2)
+				var moving := 0
+				var parked := 0
+				var arterial := 0
+				for car in spawner.living_cars():
+					if not is_instance_valid(car):
+						continue
+					if car.mode == Car.Mode.PARKED:
+						parked += 1
+						continue
+					moving += 1
+					var l := _city.to_local(car.global_position)
+					var near := graph.nearest_edge(l.x, l.z)
+					var cls := "residential"
+					if not near.is_empty():
+						cls = graph.edge_class(int(near["edge"]))
+					tally[anchor_name][cls] = int(tally[anchor_name][cls]) + 1
+					if cls == "primary" or cls == "secondary" or cls == "tertiary":
+						arterial += 1
+				fleet_ok = fleet_ok and moving == 14 and parked == 12
+				arterial_per_seed_ok = arterial_per_seed_ok and arterial >= 10
+				tally[anchor_name]["seeds"] = int(tally[anchor_name]["seeds"]) + 1
+				spawner.free()
+		## (d) the downtown leg at Main Street.
+		await _set_up(true, _city.to_global(Vector3(2700.0, 0.0, -255.0))
+				+ Vector3(0.0, 25.0, 0.0), Vector3.ZERO)
+		for seed_i in 3:
+			_city.seed_value = 20260928 + seed_i * 7919
+			var spawner := CarSpawner.new()
+			spawner.city = _city
+			spawner.player = _player
+			spawner.name = "CarSpawner_density_downtown_%d" % seed_i
+			add_child(spawner)
+			await _wait_frames(2)
+			var downtown_cars := 0
+			var moving := 0
+			for car in spawner.living_cars():
+				if is_instance_valid(car) and car.mode == Car.Mode.TRAFFIC:
+					moving += 1
+					if _city.district_at(car.global_position) == "downtown":
+						downtown_cars += 1
+			downtown_district_min = mini(downtown_district_min, downtown_cars)
+			downtown_leg_ok = downtown_leg_ok and moving == 14 and downtown_cars >= 4
+			spawner.free()
+	_city.seed_value = 20260928 ## Restore the world's seed for the later legs.
+	await _wait_frames(2)
+	var agg_ok := true
+	for anchor_name: String in anchors:
+		var t: Dictionary = tally[anchor_name]
+		agg_ok = agg_ok and int(t["primary"]) >= 12 and int(t["residential"]) <= 9
+	var print_tally := [] ## (the tallies print below; downtown_min rides the check)
+	for anchor_name: String in tally:
+		print_tally.append("%s=%s" % [anchor_name, tally[anchor_name]])
+	print("SIM DATA %s: law=%s fleet=%s arterial_seed=%s downtown_min=%d %s" % [
+			S, law_ok, fleet_ok, arterial_per_seed_ok, downtown_district_min,
+			" ".join(PackedStringArray(print_tally))])
+	_check(S, law_ok and fleet_ok and arterial_per_seed_ok and agg_ok
+			and downtown_leg_ok,
+			"law=%s fleet=%s arterial_seed=%s agg=%s downtown=%s" % [
+					law_ok, fleet_ok, arterial_per_seed_ok, agg_ok,
+					downtown_leg_ok])
+
+
+## The first directed edge in the graph carrying a given class AND district —
+## the density-law read (empty dictionary when the combination doesn't exist).
+func _edge_of_class(graph: AmesTrafficGraph, cls: String, district: String) -> int:
+	for e in graph.edge_count():
+		if graph.edge_class(e) == cls and graph.edge_district(e) == district:
+			return e
+	return -1
 
 
 ## --- scenarios (T-001 flight model) --------------------------------------
@@ -5604,7 +6205,11 @@ func _scenario_stepped_boot_pins() -> void:
 			and stepped.tourist_spawner.living_tourists().is_empty() \
 			and stepped.bread_spawner.living_crumbs().size() \
 					== stepped.bread_spawner.target_count \
-			and stepped.car_spawner.living_cars().is_empty()
+			and stepped.car_spawner.living_cars().size() \
+					== stepped.car_spawner.target_moving \
+							+ stepped.car_spawner.target_parked \
+			and stepped.city.traffic_graph != null \
+			and stepped.city.traffic_graph.run_count() == 777
 	## The staged spawners are regenerated-wired: a forced rebuild must re-seed
 	## them — restarts keep working on the stepped path. (T-177 re-pin) The
 	## "foreign seed" leg becomes the data-identity law: the Ames world is a
@@ -5617,7 +6222,10 @@ func _scenario_stepped_boot_pins() -> void:
 	var reseed_ok: bool = stepped.city.fingerprint == _city.fingerprint \
 			and stepped.tourist_spawner.living_tourists().is_empty() \
 			and stepped.bread_spawner.living_crumbs().size() \
-					== stepped.bread_spawner.target_count
+					== stepped.bread_spawner.target_count \
+			and stepped.car_spawner.living_cars().size() \
+					== stepped.car_spawner.target_moving \
+							+ stepped.car_spawner.target_parked
 	## The corridor is seed-independent (the committed bake's own spawn), so
 	## the pigeon grounds on the rebuilt world's corridor.
 	stepped.player.reset_flight(stepped.city.to_local(stepped.city.spawn_point))
@@ -6091,33 +6699,34 @@ func _scenario_dev_hunger_lock() -> void:
 
 ## The T-168 starter verb pack, driven through a REAL CaptureRecorder in
 ## session mode (scratch `simtest_pack` dir — swept later by pilot.py clean),
-## RE-PINNED for the Ames world (T-177): the Windrow block grid the staging
-## verbs leaned on died with the generator, and on the resident bake the
-## citizen fleet is EMPTY until R2 re-points the spawners (master plan R2·
-## calm-port owns the staging verbs' re-target). The verbs themselves are
-## world-independent machinery — the session channel, the ack events, the
-## gate seam — and those are what this scenario now pins, with the staging
-## verbs' honest Ames answer (a refusal, never a crash) recorded:
-## (a) `spawn_car` refuses cleanly twice: with NO node named "CarSpawner" in
-##     the rig the recorder logs `pilot_dev_refused` reason `no_spawner`; with
-##     a bare CarSpawner rig over the Ames world (its block_centers empty) the
-##     spawner's own parked spawn path refuses `no_spot` — the fleet stays
-##     empty and the session continues through both;
-## (b) `car_blinker` refuses `no_car` — no living car exists to force;
-## (c) `teleport` moves the player to the world target with `velocity` exactly
-##     Vector3.ZERO (the reset_flight pin) and the resolved position acked;
-## (d) `freeze_traffic` is the world-wide hold, no fleet required: the static
-##     flag lands, the ack carries `on`, a staged CarSpawner's recycle cadence
-##     is HELD exactly across 90 ticks (the timer bit-identical), and
-##     `on:false` resumes it — the empty-fleet arms (positions, route state)
-##     are vacuously true and asserted as such;
+## RE-PINNED onto the Ames traffic graph (T-178): the staging verbs work
+## unchanged on the new graph — the ack contract intact — through the
+## spawner's own graph paths:
+## (a) with NO node named "CarSpawner" in the rig, `spawn_car` refuses
+##     `no_spawner` (the name is retired for the window first, so the leg
+##     runs with the name honestly vacant);
+## (b) with a staged empty CarSpawner over the Ames world, `car_blinker`
+##     refuses `no_car` — no living car exists to force;
+## (c) `teleport` moves the player onto the world's spawn corridor with
+##     `velocity` exactly Vector3.ZERO (the reset_flight pin) and the
+##     resolved position acked;
+## (a2) `spawn_car` then WORKS through the graph's curb path: one car stages
+##     PARKED near the pigeon (the measured nearest-curb distance printed),
+##     the ack carries the node path, the position and the post-spawn fleet
+##     size, and the fleet reads exactly the staged car;
+## (b2) `car_blinker` on:true forces the NEAREST car — the staged one: the
+##     ack's `car` equals the spawn ack's `node`, `blinker`/`forced` read the
+##     forced side — and on:false releases it (blinker back to 0, the
+##     remembered-car release contract);
+## (d) `freeze_traffic` holds the world: the static flag lands, the ack
+##     carries `on`, the recycle cadence is HELD exactly across 90 ticks
+##     (the timer bit-identical) AND the staged car's transform holds —
+##     `on:false` resumes;
 ## (e) the gate seam: with `allowed=false` every pack verb is consumed but
-##     moves no state (fleet empty, player position held, the static freeze
-##     flag cleared), an unknown dev verb is still consumed
+##     moves no state (fleet unchanged, player position held, the static
+##     freeze flag cleared), an unknown dev verb is still consumed
 ##     (`pilot_dev_unknown`), and every ack/refusal rides `pilot_dev` /
 ##     `pilot_dev_refused` events machine-checkably.
-## The R2 re-pin restores the staging legs (a real dev spawn parked near the
-## pigeon, the blink-the-spawn flow pin) over the real street graph.
 ## The tree, the static freeze, the rig, the spawner name and the session env
 ## are restored however the legs end.
 func _scenario_dev_verb_pack() -> void:
@@ -6149,35 +6758,55 @@ func _scenario_dev_verb_pack() -> void:
 			str(stale.get_parent()) if stale != null else "-"])
 	var spawn_noret: bool = recorder._execute_dev({"dev": "spawn_car"})
 	var spawner := CarSpawner.new()
-	spawner.city = _city ## The Ames world: block_centers empty, populate early-returns.
+	spawner.city = _city ## The Ames world: the graph branch owns the fleet paths.
 	spawner.player = _player
 	spawner.target_moving = 0
 	spawner.target_parked = 0
 	spawner.name = "CarSpawner"
 	add_child(spawner)
 	await _wait_frames(4)
-	var fleet0 := spawner.living_cars()
-	## (a2) spawn_car over the Ames rig: the parked spawn path refuses no_spot.
-	var spawn_ret: bool = recorder._execute_dev({"dev": "spawn_car"})
-	var fleet1 := spawner.living_cars()
-	## (b) car_blinker with no living car: refused, no_car.
+	## (b) car_blinker with no living car: refused, no_car — BEFORE anything
+	## stages one.
 	var blink_ret: bool = recorder._execute_dev(
 			{"dev": "car_blinker", "side": "left", "on": true})
-	## (c) teleport: reset_flight, velocity exactly zero, the resolved spot acked.
-	var tp_target := Vector3(4.0, 30.0, 2.0)
+	## (c) teleport: reset_flight onto the world's spawn corridor, velocity
+	## exactly zero, the resolved spot acked.
+	var tp_target := _city.spawn_point
 	var tp_ret: bool = recorder._execute_dev({"dev": "teleport", "x": tp_target.x,
-			"y": tp_target.y, "z": tp_target.z, "yaw_deg": 45.0})
+			"y": tp_target.y, "z": tp_target.z, "yaw_deg": 180.0})
 	var tp_delta: float = _player.global_position.distance_to(tp_target)
 	var tp_ok: bool = tp_ret and tp_delta < 0.001 \
 			and _player.velocity == Vector3.ZERO
-	## (d) freeze_traffic: the world-wide hold with an EMPTY fleet — the flag,
-	## the ack and the spawner's cadence gate are the live subjects.
+	## (a2) spawn_car WORKS over the graph: one car stages PARKED near the
+	## pigeon through the spawner's own curb path.
+	var spawn_ret: bool = recorder._execute_dev({"dev": "spawn_car"})
+	var staged := spawner.living_cars()
+	var staged_ok: bool = spawn_ret and staged.size() == 1 \
+			and staged[0].mode == Car.Mode.PARKED
+	var spawn_dist := staged[0].global_position.distance_to(_player.global_position) \
+			if staged.size() == 1 else -1.0
+	## (b2) car_blinker forces the NEAREST car — the staged one — and releases
+	## it by the same verb.
+	var blink_on_ret: bool = recorder._execute_dev(
+			{"dev": "car_blinker", "side": "right", "on": true})
+	var forced_ok: bool = blink_on_ret and staged.size() == 1 \
+			and staged[0].blinker_forced == 1 and staged[0].blinker == 1
+	var blink_off_ret: bool = recorder._execute_dev(
+			{"dev": "car_blinker", "side": "right", "on": false})
+	var released_ok: bool = blink_off_ret and staged.size() == 1 \
+			and staged[0].blinker_forced == 0 and staged[0].blinker == 0
+	## (d) freeze_traffic: the world-wide hold with the staged car present —
+	## the flag, the ack, the spawner's cadence gate AND the car's transform.
+	var staged_pos := staged[0].global_position if staged.size() == 1 \
+			else Vector3.ZERO
 	var timer_before: float = spawner._scan_timer
 	var freeze_ret: bool = recorder._execute_dev({"dev": "freeze_traffic", "on": true})
 	await _wait_frames(90)
 	var timer_held: bool = spawner._scan_timer == timer_before ## The cadence gate's bite number.
+	var staged_held: bool = staged.size() == 1 \
+			and staged[0].global_position == staged_pos
 	var frozen_ok: bool = freeze_ret and Car.traffic_frozen and timer_held \
-			and spawner.living_cars().is_empty()
+			and staged_held
 	var resume_ret: bool = recorder._execute_dev({"dev": "freeze_traffic", "on": false})
 	await _wait_frames(4)
 	var resumed_ok: bool = resume_ret and not Car.traffic_frozen
@@ -6192,13 +6821,15 @@ func _scenario_dev_verb_pack() -> void:
 	recorder._execute_dev({"dev": "freeze_traffic", "on": false}) ## Restore the flag.
 	var unknown_ret: bool = recorder._execute_dev({"dev": "not_a_pack_verb"})
 	var refused_ok: bool = r_spawn and r_blink and r_tp and r_freeze and unknown_ret \
-			and spawner.living_cars().is_empty() \
+			and spawner.living_cars().size() == 1 \
 			and _player.global_position == ref_pos \
 			and not Car.traffic_frozen
 	## The ack/refusal payloads, read machine-checkably off the events file.
 	var events := _read_pilot_event_list(pilot_dir)
 	var ack_tp := _find_pilot_event(events, "teleport")
 	var ack_freeze := _find_pilot_event(events, "freeze_traffic")
+	var ack_spawn := _find_pilot_event(events, "spawn_car")
+	var ack_blink := _find_pilot_event(events, "car_blinker")
 	var spawn_refusals: Array[Dictionary] = []
 	var blink_refusal := {}
 	var refused_events := 0
@@ -6220,10 +6851,17 @@ func _scenario_dev_verb_pack() -> void:
 	var reasons := []
 	for e in spawn_refusals:
 		reasons.append(String(e.get("reason", "")))
-	var spawn_refusals_ok: bool = spawn_refusals.size() >= 2 \
-			and reasons.has("no_spawner") and reasons.has("no_spot")
+	var spawn_refusals_ok: bool = reasons.has("no_spawner") \
+			and not ack_spawn.is_empty() and ack_spawn.has("node") \
+			and ack_spawn.has("p") and int(ack_spawn.get("fleet", 0)) == 1
 	var blink_refusal_ok: bool = not blink_refusal.is_empty() \
 			and String(blink_refusal.get("reason", "")) == "no_car"
+	var blink_ack_ok: bool = not ack_blink.is_empty() \
+			and String(ack_blink.get("car", "")) == String(ack_spawn.get("node", "")) \
+			and int(ack_blink.get("blinker", 9)) == 1 \
+			and int(ack_blink.get("forced", 9)) == 1
+	var spawn_near_ok: bool = staged_ok and spawn_dist >= 0.0 \
+			and spawn_dist < 600.0
 	var acks_ok: bool = not ack_tp.is_empty() and ack_tp.has("p") \
 			and ack_tp.has("yaw_deg") \
 			and not ack_freeze.is_empty() and bool(ack_freeze.get("on", false)) \
@@ -6238,18 +6876,21 @@ func _scenario_dev_verb_pack() -> void:
 	OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
 	OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
 	await _wait_frames(2)
-	## The bite record: the two refusals, the zero-velocity teleport, the held
-	## cadence, the resume, the gate seam and the machine-read acks.
-	print(("SIM DATA dev_verb_pack: spawn refusals %s ok=%s, blink refusal=%s, "
-			+ "teleport Δpos %.4f vel_zero=%s, frozen=%s timer_held=%s, resumed=%s, "
-			+ "refused=%d acks=%s")
-			% [str(reasons), spawn_refusals_ok, blink_refusal_ok, tp_delta,
-			tp_ok, frozen_ok, timer_held, resumed_ok, refused_events, acks_ok])
+	## The bite record: the refusal, the zero-velocity teleport, the staged
+	## parked car + its ack contract, the blink force/release on it, the held
+	## cadence + transform, the resume, the gate seam and the machine-read acks.
+	print(("SIM DATA dev_verb_pack: spawn refusals %s staged_ok=%s staged_dist=%.1f "
+			+ "blink_ack=%s forced=%s released=%s, teleport Δpos %.4f vel_zero=%s, "
+			+ "frozen=%s timer_held=%s staged_held=%s, resumed=%s, refused=%d acks=%s")
+			% [str(reasons), staged_ok, spawn_dist, blink_ack_ok, forced_ok,
+			released_ok, tp_delta, tp_ok, frozen_ok, timer_held, staged_held,
+			resumed_ok, refused_events, acks_ok])
 	var pack_ok: bool = spawn_refusals_ok and blink_refusal_ok and tp_ok \
-			and frozen_ok and resumed_ok and refused_ok and acks_ok
-	var pack_detail := "spawn_refusals=%s blink=%s tp=%s frozen=%s resumed=%s refused=%s acks=%s" \
-			% [spawn_refusals_ok, blink_refusal_ok, tp_ok, frozen_ok, resumed_ok,
-			refused_ok, acks_ok]
+			and staged_ok and spawn_near_ok and blink_ack_ok and forced_ok \
+			and released_ok and frozen_ok and resumed_ok and refused_ok and acks_ok
+	var pack_detail := "spawn=%s staged=%s dist=%.1f blink=%s forced=%s released=%s tp=%s frozen=%s resumed=%s refused=%s acks=%s" \
+			% [spawn_refusals_ok, staged_ok, spawn_dist, blink_ack_ok, forced_ok,
+			released_ok, tp_ok, frozen_ok, resumed_ok, refused_ok, acks_ok]
 	_check("dev_verb_pack", pack_ok, pack_detail)
 
 
@@ -7393,6 +8034,9 @@ func _scenario_restart_resets() -> void:
 	var old_tourist_ids: Array[int] = []
 	for tourist in main_game.tourist_spawner.living_tourists():
 		old_tourist_ids.append(tourist.get_instance_id())
+	var old_car_ids: Array[int] = []
+	for car in main_game.car_spawner.living_cars():
+		old_car_ids.append(car.get_instance_id())
 	var fp_before: int = city.fingerprint
 	main_game.restart_run()
 	var state_ok := not get_tree().paused \
@@ -7403,24 +8047,29 @@ func _scenario_restart_resets() -> void:
 	await _wait_frames(3) ## Let the queue_free'd old spawns flush out.
 	var city_ok := city.fingerprint == fp_before ## (T-177) The bake identity — comparable scores.
 	var respawn_ok := pigeon.global_position.distance_to(city.spawn_point) < 1.0
-	## (T-177 re-pin) The fleet arms read the AMES reality: the citizen
-	## spawners are INERT on the resident bake (their Windrow block data died
-	## with the generator; R2 re-points them), so a fresh run re-seeds ZERO
-	## tourists and ZERO cars — a stuck pre-restart citizen or a spawner that
-	## somehow spawned on Ames fails here — while the bread service still
-	## holds its target (the survival loop is the loop that must survive).
+	## (T-178 re-pin) The fleet arms read the AMES reality: the tourist fleet
+	## stays INERT (R2·pedestrians owns its re-base), but the traffic graph
+	## (T-178) re-seeds a FRESH car fleet on the real streets — a stuck
+	## pre-restart car (a reused instance id) or a missing moving fleet fails
+	## here — while the bread service still holds its target.
 	var fresh_tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
+	var fresh_cars_reset: Array[Car] = main_game.car_spawner.living_cars()
 	var reused := false
 	for tourist in fresh_tourists:
 		reused = reused or old_tourist_ids.has(tourist.get_instance_id())
+	var moving_reset := 0
+	for car in fresh_cars_reset:
+		reused = reused or old_car_ids.has(car.get_instance_id())
+		if car.mode == Car.Mode.TRAFFIC:
+			moving_reset += 1
 	var spawns_ok := fresh_tourists.is_empty() \
-			and main_game.car_spawner.living_cars().is_empty() \
+			and not reused and moving_reset == main_game.car_spawner.target_moving \
 			and main_game.bread_spawner.living_crumbs().size() == main_game.bread_spawner.target_count
 	_check("restart_resets_run", state_ok and city_ok and respawn_ok and spawns_ok,
-			"state=%s city=%s respawn=%s spawns=%s (tourists %d, crumbs %d, cars %d)" % [
+			"state=%s city=%s respawn=%s spawns=%s (tourists %d, crumbs %d, cars %d, moving %d)" % [
 					state_ok, city_ok, respawn_ok, spawns_ok,
 					fresh_tourists.size(), main_game.bread_spawner.living_crumbs().size(),
-					main_game.car_spawner.living_cars().size()])
+					fresh_cars_reset.size(), moving_reset])
 	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
 	Game.reset_run()
 	main_game.free()
@@ -7475,17 +8124,25 @@ func _scenario_restart_same_seed_skips_rebuild() -> void:
 		reused = reused or old_tourist_ids.has(tourist.get_instance_id())
 	for car in fresh_cars:
 		reused = reused or old_car_ids.has(car.get_instance_id())
-	## (T-177 re-pin) The Ames fleet: zero citizens re-seeded (never stuck
-	## pre-restart ones), the bread service re-seeded to target.
-	var spawns_ok := fresh_tourists.is_empty() and fresh_cars.is_empty() \
+	## (T-178 re-pin) The Ames fleet: the traffic graph re-seeds a FRESH
+	## moving fleet over the real streets (never stuck pre-restart cars —
+	## no reused instance ids), the tourist fleet stays inert until
+	## R2·pedestrians, the bread service re-seeds to target.
+	var moving_fresh := 0
+	for car in fresh_cars:
+		if car.mode == Car.Mode.TRAFFIC:
+			moving_fresh += 1
+	var spawns_ok := fresh_tourists.is_empty() \
+			and moving_fresh == main_game.car_spawner.target_moving \
 			and main_game.bread_spawner.living_crumbs().size() == main_game.bread_spawner.target_count \
 			and not reused
 	var regen_ok := _regen_relay == 1
 	_check("restart_same_seed_skips_rebuild",
 			city_ok and respawn_ok and spawns_ok and regen_ok,
-			"city=%s respawn=%s spawns=%s regen=%d (tourists %d, cars %d, build_count %d)" % [
+			"city=%s respawn=%s spawns=%s regen=%d (tourists %d, cars %d, moving %d, build_count %d)" % [
 					city_ok, respawn_ok, spawns_ok, _regen_relay,
-					fresh_tourists.size(), fresh_cars.size(), city.build_count])
+					fresh_tourists.size(), fresh_cars.size(), moving_fresh,
+					city.build_count])
 	Game.hunger.player = null ## The autoload's clock outlives this scene instance.
 	Game.reset_run()
 	main_game.free()
@@ -9695,11 +10352,15 @@ func _scenario_density_cpu_budget() -> void:
 	windows.sort()
 	var median_ms: float = windows[1]
 	## The gate must measure what it claims: a half-seeded world would pass a
-	## budget it does not deserve. (T-177 re-pin) The Ames fleet arms: the
-	## citizen spawners must be INERT on the cutover world.
+	## budget it does not deserve. (T-178 re-pin) The Ames fleet arms: the
+	## traffic graph carries a LIVE 26-car fleet on the real streets now (the
+	## median below already runs with it driving), the tourist spawner stays
+	## inert until R2·pedestrians.
 	var tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
 	var cars: Array[Car] = main_game.car_spawner.living_cars()
-	var density_ok := tourists.is_empty() and cars.is_empty() \
+	var density_ok := tourists.is_empty() \
+			and cars.size() == main_game.car_spawner.target_moving \
+					+ main_game.car_spawner.target_parked \
 			and int(main_game.city.render_metrics().get("chunk_count", 0)) > 0
 	var nodes := Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
 	var phys_active := Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)

@@ -173,6 +173,15 @@ var bread_spot_kinds: Array[int] = []
 ## wherever the class quotas put them, exactly like any other crumb.
 var boot_bread_spots: Array[int] = []
 
+## (T-178) The resident world's traffic graph — the route system the car
+## fleet drives on the real Ames streets (welded junctions, right-hand lane
+## polylines, speed classes, rail-crossing facts). Null on the base class:
+## the Windrow grid route seam above stays the fallback for bare rigs, and
+## the CarSpawner branches on this being set (the Ames population/recycle/
+## dev-spawn paths). Built by the world's build (AmesWorld's finish slice),
+## pure data, no RNG.
+var traffic_graph: AmesTrafficGraph = null
+
 ## Seated spots (city-local) for the park elders (T-020): one transform per
 ## plaza-ring bench — position on the seat line, yaw = the bench's own. Purely
 ## derived from the layout — no RNG of its own — so it is deterministic per

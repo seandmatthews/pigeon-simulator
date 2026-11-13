@@ -38,8 +38,9 @@ var simultaneous_window: float = 0.75
 ## band rectangles against these positions.
 var watched: Array[Node3D] = []
 
-## Waiting arrivals per node key (Vector2i) — registered at the stop line,
-## released on commit/patience-break/teardown.
+## Waiting arrivals per node key (int — the route system's node id: a grid
+## encoding on the Windrow seam, an AmesTrafficGraph node on Ames) —
+## registered at the stop line, released on commit/patience-break/teardown.
 var _waiting: Dictionary = {}
 ## Committed movements per node key — a car drives its box only after its
 ## movement is here, and frees the slot on exit.
@@ -48,11 +49,14 @@ var _committed: Dictionary = {}
 
 ## One registered movement at one node: who, from which approach, making which
 ## turn, and the (game-time) stop instant the ladder orders by. The car is held
-## by instance id so a freed car can never dangle.
+## by instance id so a freed car can never dangle. (T-178) The approach is the
+## FLAT UNIT TRAVEL AXIS (global) — the ROUTE_DIRS compass index was the
+## axis-aligned grid's encoding of the same fact, and the Ames street graph's
+## approaches run at arbitrary angles.
 class Movement:
 	var car_id: int
-	var node: Vector2i
-	var approach: int ## Travel direction index at arrival (the ROUTE_DIRS compass).
+	var node: int
+	var approach: Vector3 ## Flat unit travel axis at arrival.
 	var turn: int ## −1 left / 0 straight / +1 right — doubles as the blinker side.
 	var arrival: float ## Game-time the full stop happened (Engine.get_physics_frames clock).
 
@@ -66,7 +70,7 @@ static func now() -> float:
 
 ## A car at its stop line: registers (node, approach, turn, arrival time) and
 ## holds until `request_go` says otherwise. Idempotent per car.
-func register_arrival(car: Car, node: Vector2i, approach: int, turn: int) -> void:
+func register_arrival(car: Car, node: int, approach: Vector3, turn: int) -> void:
 	if find_waiting(car) != null:
 		return
 	var movement := Movement.new()
@@ -105,7 +109,7 @@ func request_go(car: Car) -> bool:
 				other.approach, other.turn):
 			return false
 	## 3+4. Near-simultaneous set: yield to the right; still tied, straight
-	## and right beat our left — for CONFLICTING pairs only.
+		## and right beat our left — for CONFLICTING pairs only.
 	for other: Movement in _waiting[movement.node]:
 		if other.car_id == movement.car_id:
 			continue
@@ -114,9 +118,12 @@ func request_go(car: Car) -> bool:
 		if not movements_conflict(movement.approach, movement.turn,
 				other.approach, other.turn):
 			continue
-		## On my right = waiting on the branch my right turn would face:
-		## their approach direction is (mine + 3) % 4.
-		if other.approach == (movement.approach + 3) % 4:
+		## On my right = waiting on the branch my left turn would face: their
+		## approach axis is mine rotated 90° LEFT (they sit behind that
+		## heading, physically on my right). The compass read was
+		## `other.approach == (movement.approach + 3) % 4` — the same fact.
+		if other.approach.dot(Vector3(movement.approach.z, 0.0,
+				-movement.approach.x)) > 0.866:
 			return false
 		if movement.turn == City.ROUTE_TURN_LEFT:
 			return false
@@ -139,7 +146,7 @@ func commit(car: Car) -> void:
 ## clock honks once and commits THROUGH — the liveness guarantee that no
 ## ladder cycle (three mutual right-yields) can deadlock the city. Whatever it
 ## displaced re-resolves against the new committed movement like any other.
-func force_commit(car: Car, node: Vector2i, approach: int, turn: int) -> void:
+func force_commit(car: Car, node: int, approach: Vector3, turn: int) -> void:
 	release(car) ## Drop any stale committed slot first.
 	var movement := find_waiting(car)
 	if movement == null:
@@ -158,11 +165,11 @@ func force_commit(car: Car, node: Vector2i, approach: int, turn: int) -> void:
 ## The car left the box: its committed movement frees the node.
 func release(car: Car) -> void:
 	var car_id := car.get_instance_id()
-	for key: Vector2i in _committed:
+	for key: int in _committed:
 		for movement: Movement in _committed[key]:
 			if movement.car_id == car_id:
 				_committed[key].erase(movement)
-	for key: Vector2i in _waiting:
+	for key: int in _waiting:
 		for movement: Movement in _waiting[key]:
 			if movement.car_id == car_id:
 				_waiting[key].erase(movement)
@@ -171,7 +178,7 @@ func release(car: Car) -> void:
 ## The car's waiting entry, or null.
 func find_waiting(car: Car) -> Movement:
 	var car_id := car.get_instance_id()
-	for key: Vector2i in _waiting:
+	for key: int in _waiting:
 		for movement: Movement in _waiting[key]:
 			if movement.car_id == car_id:
 				return movement
@@ -181,7 +188,7 @@ func find_waiting(car: Car) -> Movement:
 ## The car's committed entry, or null (harness observability).
 func find_committed(car: Car) -> Movement:
 	var car_id := car.get_instance_id()
-	for key: Vector2i in _committed:
+	for key: int in _committed:
 		for movement: Movement in _committed[key]:
 			if movement.car_id == car_id:
 				return movement
@@ -189,12 +196,12 @@ func find_committed(car: Car) -> Movement:
 
 
 ## Waiting arrivals at `node` — the staged scenarios read the queue.
-func waiting_at(node: Vector2i) -> Array:
+func waiting_at(node: int) -> Array:
 	return _waiting.get(node, [])
 
 
 ## Committed movements at `node`.
-func committed_at(node: Vector2i) -> Array:
+func committed_at(node: int) -> Array:
 	return _committed.get(node, [])
 
 
@@ -210,9 +217,19 @@ func committed_at(node: Vector2i) -> Array:
 ## PERPENDICULAR pair and every opposing mixed-turn pair conflicts. The
 ## no-overlap floor (pairwise gaps > 2.0 m) requires it. Deviations recorded
 ## in T-134.
-static func movements_conflict(approach_a: int, turn_a: int,
-		approach_b: int, turn_b: int) -> bool:
-	var k := (approach_b - approach_a + 4) % 4
-	if k == 0:
+##
+## (T-178) Approaches are FLAT UNIT AXES now — the compass-index form was the
+## axis-aligned grid's encoding of the same table, and this dot-product form
+## reduces to it exactly there: dot 1 (same) → compatible, dot −1 (opposing)
+## same-turn → compatible, everything else (dot 0 perpendicular, mixed-turn
+## opposing) → conflict. At 45°-ish Ames approaches the ±30° cone keeps
+## near-parallel pairs compatible and everything wider conflicts — the
+## conservative reading of the same table.
+static func movements_conflict(approach_a: Vector3, turn_a: int,
+		approach_b: Vector3, turn_b: int) -> bool:
+	var dot := approach_a.dot(approach_b)
+	if dot > 0.866:
 		return false ## A same-approach queue is the follow gap's job.
-	return not (k == 2 and turn_a == turn_b)
+	if dot < -0.866 and turn_a == turn_b:
+		return false ## Opposing, same turn: right-side to right-side.
+	return true

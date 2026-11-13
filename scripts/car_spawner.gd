@@ -121,12 +121,23 @@ func _ready() -> void:
 
 func _init() -> void:
 	# Beyond this flat distance (m) a car recycles to the player's area. Must
-	# clear the WORST legitimate route leg distance — a car seeded at
-	# spawn_max_dist drives legs ~32 m toward or away — or traffic gets yanked
-	# mid-route and dropped on top of other cars. (A GDScript subclass cannot
-	# redeclare the inherited export, so the tourist-default 80.0 becomes an
-	# `_init` override — T-054.)
-	recycle_radius = 100.0
+	# clear the spawn band's own reach (a car staged at spawn_max_dist must not
+	# recycle on its first scan) and stay wide enough that a leg's drive-away
+	# doesn't yank mid-route constantly. (A GDScript subclass cannot redeclare
+	# the inherited export, so the tourist-default 80.0 becomes an `_init`
+	# override — T-054; T-178 round 1 raises it for the Ames street reality:
+	# the band below reaches 140 m, and the old 100 m radius would thrash it.)
+	recycle_radius = 160.0
+	# (T-178 round 1) The spawn band over REAL streets: the shipped [30, 70] m
+	# was tuned for the Windrow block grid (a block every 32 m) — the resident
+	# Ames corridor has NO street within 70 m of the spawn (nearest run:
+	# Union Drive at 94.8 m, the band-probe measurement), so the weighted band
+	# draw never engaged near the pigeon and every placement rode the
+	# nearest-runs fallback. [60, 140] catches the corridor's Union Drive /
+	# Morrill Road / Wallace Road fabric while staying inside the raised
+	# recycle radius; far-from-traffic anchors still fall back to nearest runs.
+	spawn_min_dist = 60.0
+	spawn_max_dist = 140.0
 
 
 ## Living cars — tests and the autoplay pilot read these.
@@ -163,6 +174,8 @@ func _physics_process(delta: float) -> void:
 func dev_spawn_car() -> Car:
 	if city == null or player == null:
 		return null
+	if city.traffic_graph != null:
+		return _dev_spawn_car_graph()
 	var anchor := _anchor_flat()
 	var ordered := _nearest_blocks(anchor, 8)
 	for block in ordered:
@@ -189,6 +202,9 @@ func _populate() -> void:
 	if city == null or player == null:
 		return
 	_rng.seed = city.seed_value
+	if city.traffic_graph != null:
+		_populate_graph() ## (T-178) The Ames branch — routes over the real streets.
+		return
 	var anchor := _anchor_flat()
 	if city.block_centers.is_empty():
 		return
@@ -260,6 +276,9 @@ func _recycle_far() -> void:
 			far.append(car)
 	if far.is_empty():
 		return
+	if city.traffic_graph != null:
+		_recycle_far_graph(far) ## (T-178) The Ames branch — the band over real streets.
+		return
 	var blocks := _blocks_in_band(anchor)
 	if blocks.is_empty():
 		return
@@ -284,7 +303,8 @@ func _recycle_far() -> void:
 					placement = scan.placement
 			## else: least-bad — the drawn rejoin stands (in view, documented).
 			car.start_route(placement.pos, placement.points, placement.entries,
-					city.to_global(block), _block_centers_cache, placement.end)
+					city.to_global(block), _block_centers_cache,
+					_encode_grid_node(placement.end))
 
 
 ## (T-147) Swaps one despawn-eligible far car for a FRESH splat-fresh node —
@@ -311,6 +331,8 @@ func _recycle_far() -> void:
 ## (if any) frees, the spent car stays (the fleet count never dipped), and
 ## the next 0.5 s scan retries. True when the swap landed.
 func _replace_car(spent: Car) -> bool:
+	if city.traffic_graph != null:
+		return _replace_car_graph(spent)
 	var blocks := _blocks_in_band(_anchor_flat())
 	if blocks.is_empty():
 		return false
@@ -346,7 +368,8 @@ func _replace_car(spent: Car) -> bool:
 		if not placement.is_empty():
 			add_child(fresh)
 			fresh.start_route(placement.pos, placement.points, placement.entries,
-					city.to_global(block), _block_centers_cache, placement.end)
+					city.to_global(block), _block_centers_cache,
+					_encode_grid_node(placement.end))
 			placed = true
 	if not placed:
 		fresh.free()
@@ -401,7 +424,8 @@ func _spawn_traffic(block_local: Vector3, index: int) -> void:
 		deals += 1
 	var built := _build_route(placement.nodes)
 	car.start_route(placement.pos, built.points, built.entries,
-			city.to_global(block_local), _block_centers_cache, built.end)
+			city.to_global(block_local), _block_centers_cache,
+			_encode_grid_node(built.end))
 	car.route_exhausted.connect(_on_route_exhausted)
 	car.splatted.connect(_on_car_splatted)
 	_cars.append(car)
@@ -602,19 +626,38 @@ func _last_leg_dir(car: Car) -> int:
 	return car.stops[car.stops.size() - 1].dir
 
 
+## (T-178) The grid node <-> int encoding at the Windrow seam: the car's
+## `route_end_node` carries ONE int for both route systems (a graph node id on
+## Ames, the encoded Vector2i here — grid indices are ≤ 8, so 4096 per row is
+## unambiguous).
+const GRID_NODE_ROW := 4096
+
+
+static func _encode_grid_node(node: Vector2i) -> int:
+	return node.y * GRID_NODE_ROW + node.x
+
+
+static func _decode_grid_node(id: int) -> Vector2i:
+	return Vector2i(id % GRID_NODE_ROW, id / GRID_NODE_ROW)
+
+
 ## The route-exhaustion handler: deal a fresh route FROM the car's end node
 ## (its live heading pinned as the initial direction — never a U-turn) and
 ## append it through `Car.extend_route`. Continuous driving, no teleport.
 func _on_route_exhausted(car: Car) -> void:
 	if city == null or not is_instance_valid(car) or car.stops.is_empty():
 		return
+	if city.traffic_graph != null:
+		_on_route_exhausted_graph(car)
+		return
 	var last_dir := _last_leg_dir(car)
-	var nodes := _deal_nodes(car, car.route_end_node, last_dir)
+	var nodes := _deal_nodes(car, _decode_grid_node(car.route_end_node), last_dir)
 	var built := _build_route(nodes)
 	var turn_at_end := 0
 	if not built.dirs.is_empty():
 		turn_at_end = city.route_relative_turn(last_dir, built.dirs[0])
-	car.extend_route(built.tail, built.entries, turn_at_end, built.end)
+	car.extend_route(built.tail, built.entries, turn_at_end,
+			_encode_grid_node(built.end))
 
 
 ## A point at fraction (0..1) along a segment — the route-leg analogue of the
@@ -744,15 +787,46 @@ func _band_blocks_light_first(blocks: Array[Vector3]) -> Array[Vector3]:
 ## True when `probe` sits at least `mover.follow_gap` away (flat, center to
 ## center) from every traffic car assigned to the `block_global` block — the
 ## car being placed excepted: its old body teleports away with the rejoin.
+## True when `probe` sits at least `mover.follow_gap` away (flat, center to
+## center) from every OTHER living traffic car — FLEET-WIDE since the T-178
+## round-1 review: the old block-key grouping (`car.block_center ==
+## block_global`) let two cars dealt onto the same lane through different
+## first edges never see each other, and they staged exactly coincident —
+## fused bodies that the follow-gap then pins forever (each is the other's
+## front-zone blocker). A follow-gap clearance is a LANE fact, not a block
+## one; with 26 cars the flat scan is trivial. The grid seam's callers still
+## pass their block (the parameter stays for signature stability; the check
+## is a strict superset of the old one).
 func _probe_clear(probe: Vector3, block_global: Vector3, mover: Car) -> bool:
 	for car in _cars:
 		if not is_instance_valid(car) or car == mover:
 			continue
-		if car.mode != Car.Mode.TRAFFIC or car.block_center != block_global:
-			continue
-		if _flat_dist_pos(probe, car.global_position) < mover.follow_gap:
-			return false
+		if car.mode == Car.Mode.TRAFFIC:
+			## Traffic neighbours: the follow-gap clearance (a queue hold).
+			if _flat_dist_pos(probe, car.global_position) < mover.follow_gap:
+				return false
+		elif car.mode == Car.Mode.PARKED:
+			## (T-178 round 2) PARKED cars are solid too — a candidate within
+			## physical contact of a parked body can never stage (the
+			## lane/curb separation is 2.45 m; the contact floor 1.9 + 0.4
+			## margin sits just under it, so clean lane spots pass and true
+			## overlaps are refused).
+			if _flat_dist_pos(probe, car.global_position) < 2.3:
+				return false
 	return true
+
+
+## The flat distance from `probe` to the NEAREST other living traffic car
+## (INF when alone) — the placement fallback's max-clearance read.
+func _min_car_dist(probe: Vector3, mover: Car) -> float:
+	var best := INF
+	for car in _cars:
+		if not is_instance_valid(car) or car == mover:
+			continue
+		if car.mode != Car.Mode.TRAFFIC:
+			continue
+		best = minf(best, _flat_dist_pos(probe, car.global_position))
+	return best
 
 
 ## True when a living parked car already sits within a car length of `pos` —
@@ -877,3 +951,504 @@ func _offscreen_band_spot(blocks: Array[Vector3]) -> Dictionary:
 			return {"block": block, "spot": found}
 	return {}
 
+
+## --- the Ames traffic-graph branch (T-178) ---------------------------------
+##
+## The resident world's fleet machinery: everything above that walked the
+## Windrow block grid walks the `AmesTrafficGraph` here — spawn-band edges
+## instead of band blocks, dealt directed-lane routes instead of node-grid
+## walks, curb spots off the real centerlines instead of `City.parking_spots`.
+## The class quotas, the tailgate wiring, the sightline gate, the follow-gap
+## probe and the dev-verb contract are the SAME machinery (shared helpers,
+## not copies).
+
+
+## The spawn band's weighted edge draw: one `_rng.randf()` over the directed
+## edges whose centerline rides inside [spawn_min_dist, spawn_max_dist] of the
+## anchor, weighted by `edge_weight` (street class × district — the density
+## law). Band empty → the nearest runs' edges (both directions), the
+## far-from-traffic fallback the grid path mirrors with `_fallback_blocks`.
+func _draw_band_edge(anchor: Vector2) -> int:
+	var graph := city.traffic_graph
+	var lxz := _anchor_local_xz(anchor)
+	var band := graph.edges_in_band(lxz.x, lxz.y, spawn_min_dist, spawn_max_dist)
+	if band.is_empty():
+		for near: Dictionary in graph.nearest_runs(lxz.x, lxz.y,
+				maxi(target_moving, target_parked)):
+			band.append(int(near["run"]) * 2)
+			band.append(int(near["run"]) * 2 + 1)
+	var total := 0.0
+	var totals := PackedFloat64Array()
+	for e: int in band:
+		total += graph.edge_weight(e)
+		totals.append(total)
+	var roll := _rng.randf() * total
+	var pick: int = band[band.size() - 1]
+	for i in band.size():
+		if roll <= totals[i]:
+			pick = band[i]
+			break
+	return pick
+
+
+## The car's Routes exports as the graph deal's weight dictionary — the same
+## knob the grid deal reads.
+func _graph_weights(car: Car) -> Dictionary:
+	return {
+		"straight": car.straight_weight,
+		"right": car.right_weight,
+		"left": car.left_weight,
+	}
+
+
+## The anchor (player flat, global) in world-local XZ — the graph's frame.
+func _anchor_local_xz(anchor: Vector2) -> Vector2:
+	var l := city.to_local(Vector3(anchor.x, 0.0, anchor.y))
+	return Vector2(l.x, l.z)
+
+
+## The follow-gap grouping key for one directed edge: its run's midpoint
+## (global) — the Ames stand-in for the grid path's block center.
+func _edge_block_global(edge: int) -> Vector3:
+	var mid: Vector2 = city.traffic_graph.run_mid(edge / 2)
+	return city.to_global(Vector3(mid.x, 0.0, mid.y))
+
+
+## A run's midpoint as a world-local Vector3 — `_spawn_parked`'s block local.
+func _run_block_local(run_id: int) -> Vector3:
+	var mid: Vector2 = city.traffic_graph.run_mid(run_id)
+	return Vector3(mid.x, 0.0, mid.y)
+
+
+## One graph dealt route's driving data (the grid `_build_route`'s shape):
+## `points` — the open waypoint path from `leg1_next` (the placement vertex)
+## onward: the first leg's remaining lane vertices, then per junction the
+## turn corner and the next leg's lane vertices; `tail` — the same list
+## WITHOUT the first leg's lead (an extension appends from the end node
+## onward, through the corner the dealt route turns at); `entries` — one stop
+## entry per JUNCTION node still ahead (splices and corners carry no stop);
+## `end` — the route's last node. All positions global.
+func _build_route_graph(start_node: int, route: PackedInt32Array,
+		leg1_next: int, in_edge: int) -> Dictionary:
+	var graph := city.traffic_graph
+	var points := PackedVector3Array()
+	var lane0 := graph.edge_points(route[0])
+	for i in range(leg1_next, lane0.size()):
+		points.append(city.to_global(Vector3(lane0[i].x, 0.0, lane0[i].y)))
+	## The shared body: legs 2..n's lane vertices (their at-node first point
+	## skipped — the corner waypoint or the straight through-point bridges)
+	## and every real turn corner. The tail prepends the leading corner for
+	## extensions and rides leg 1 from its second vertex.
+	var body := PackedVector3Array()
+	var entries: Array[Dictionary] = []
+	for k in route.size():
+		var node: int = graph.edge_to(route[k])
+		var out_edge: int = route[k + 1] if k + 1 < route.size() else -1
+		if k > 0:
+			var lane := graph.edge_points(route[k])
+			for i in range(1, lane.size()):
+				body.append(city.to_global(Vector3(lane[i].x, 0.0, lane[i].y)))
+		if out_edge >= 0 \
+				and graph.turn_of(route[k], out_edge) != City.ROUTE_TURN_STRAIGHT:
+			body.append(city.to_global(graph.corner_local(node, route[k], out_edge)))
+		if graph.node_stops(node):
+			entries.append(_stop_entry_graph(node, route[k], out_edge))
+	points.append_array(body)
+	var tail := PackedVector3Array()
+	if in_edge >= 0 \
+			and graph.turn_of(in_edge, route[0]) != City.ROUTE_TURN_STRAIGHT:
+		tail.append(city.to_global(graph.corner_local(start_node, in_edge, route[0])))
+	for i in range(1, lane0.size()):
+		tail.append(city.to_global(Vector3(lane0[i].x, 0.0, lane0[i].y)))
+	tail.append_array(body)
+	if points.size() < 2: ## Degenerate one-point path: one lead keeps it steerable.
+		points.insert(0, city.to_global(Vector3(lane0[0].x, 0.0, lane0[0].y)))
+	return {
+		"points": points,
+		"tail": tail,
+		"entries": entries,
+		"end": graph.edge_to(route[route.size() - 1]),
+	}
+
+
+## One stop entry for the car's `stops` walk over the graph — the grid
+## `_stop_entry`'s fields, with the real approach `axis` (the protocol's
+## direction read), the leg's speed-class `cruise` and the arriving directed
+## `edge` (the extension deal's continuity), and EMPTY crosswalk bands (the
+## grid rects are Windrow paint; the yield stays inert until R2 fills real
+## crosswalks). All in GLOBAL coords.
+func _stop_entry_graph(node: int, in_edge: int, out_edge: int) -> Dictionary:
+	var graph := city.traffic_graph
+	var axis := graph.edge_axis(in_edge)
+	var axis_global: Vector3 = city.global_transform.basis * axis
+	var turn := 0
+	if out_edge >= 0:
+		turn = graph.turn_of(in_edge, out_edge)
+	var line_local := graph.stop_line_local(node, in_edge, City.STOP_LINE_OUTSET)
+	var corner_local := graph.through_local(node, in_edge) if turn == 0 \
+			else graph.corner_local(node, in_edge, out_edge)
+	return {
+		"node": node,
+		"pos": city.to_global(graph.node_pos(node)),
+		"axis": axis_global,
+		"turn": turn,
+		"line": city.to_global(line_local),
+		"corner": city.to_global(corner_local),
+		"bands": [] as Array[Rect2],
+		"registered": false,
+		"committed": false,
+		"center": city.to_global(line_local) - axis_global * Car.HALF_LENGTH,
+		"cruise": graph.edge_cruise(in_edge),
+		"edge": in_edge,
+	}
+
+
+## One dealt route's placement walk (the grid `_route_placement` over real
+## geometry): per leg in order, the lane polyline's vertices and the midpoints
+## before them — the first candidate that passes the sightline gate (with
+## `gate`) AND the follow-gap clearance wins, and the route REBASES to that
+## leg ({pos, leg, next} — the dropped lead legs leave behind exactly the
+## entries and waypoints the car starts past). Every probe failed → the
+## spread-nearest vertex of leg 1 stands — the documented least-bad fallback
+## that keeps the fleet COUNT contract from ever starving. Deterministic,
+## RNG-free (the spread fraction carries the caller's draw).
+func _route_placement_graph(route: PackedInt32Array, block_global: Vector3,
+		mover: Car, gate: bool, spread: float) -> Dictionary:
+	var graph := city.traffic_graph
+	var anchor := _anchor_flat()
+	## (T-178 round 1) The placement ladder, built so NO rung can stage two
+	## cars on one point. Two passes: pass 1 keeps the recycle-radius guard
+	## (a car staged beyond it would be re-recycled on the first scan), pass
+	## 2 re-walks WITHOUT it — the guard can COLLAPSE the candidate space (a
+	## deal whose every in-radius candidate already holds a car used to fall
+	## through to a single-point fallback and stage EXACTLY coincident: the
+	## fused-pile review's 5-car pile), and staging beyond the band is the
+	## honest overflow the 0.5 s recycle scan re-bands. Every fallback rung
+	## requires the follow-gap clearance (`_probe_clear`) — a candidate a car
+	## already occupies can never win — except the last-resort saturation
+	## rung, which takes the globally largest clearance instead (only
+	## reachable when cars cover every candidate; never an exact coincidence
+	## in practice, and strictly better than the old unconditioned lane0[0]).
+	## Ties break earliest candidate; zero RNG of their own (the caller's
+	## spread draw keeps feeding the stream).
+	var sat_best := {}
+	var sat_best_d := -INF
+	## (T-178 round 2) A candidate inside the subset route's FIRST stop-line
+	## window (within this distance of the first node along the lane) may
+	## never stage a car: the car would land at or past its own stop line,
+	## where the four-way-stop brake cap reads 0 and the [−3, +1] m
+	## registration window can never fire — the car holds forever,
+	## unregistered, and the queue behind it dies (the round-2 review's
+	## corridor lock). Line 8.8 + nose 2.2 + 1.0 m margin.
+	const STAGE_LINE_CLEAR := City.STOP_LINE_OUTSET + Car.HALF_LENGTH + 1.0
+	for radius_guarded in [true, false]:
+		var spread_clear := {}
+		var spread_clear_d := INF
+		var clearest := {}
+		var clearest_d := -INF
+		for k in route.size():
+			var lane := graph.edge_points(route[k])
+			## Arc distance from each lane vertex to the leg's end (the first
+			## node of this subset) — the stop-line window test below.
+			var to_end := PackedFloat64Array()
+			to_end.resize(lane.size())
+			var acc := 0.0
+			for vi in range(lane.size() - 1, -1, -1):
+				if vi < lane.size() - 1:
+					acc += lane[vi].distance_to(lane[vi + 1])
+				to_end[vi] = acc
+			for i in range(1, lane.size()):
+				for ci in 2: ## The midpoint before vertex i, then vertex i itself.
+					var t := 0.5 if ci == 0 else 1.0
+					var cand := lane[i - 1].lerp(lane[i], t)
+					var next_idx: int = i if ci == 0 else i + 1
+					## The candidate's own arc distance to the leg end.
+					var cand_to_end: float = lerpf(to_end[i - 1], to_end[i], t)
+					if cand_to_end < STAGE_LINE_CLEAR:
+						continue
+					var gp := city.to_global(Vector3(cand.x, 0.0, cand.y))
+					if radius_guarded and player != null \
+							and _flat_dist(gp, anchor) > recycle_radius:
+						continue
+					var clear := _probe_clear(gp, block_global, mover)
+					var clearance := _min_car_dist(gp, mover)
+					if clearance > sat_best_d:
+						sat_best_d = clearance
+						sat_best = {"pos": gp, "leg": k, "next": next_idx}
+					if not clear:
+						continue
+					if (not gate or _sightline_ok(gp)):
+						return {"pos": gp, "leg": k, "next": next_idx}
+					if k == 0:
+						var d := absf(float(i - 1) + t
+								- spread * float(lane.size() - 1))
+						if d < spread_clear_d:
+							spread_clear_d = d
+							spread_clear = {"pos": gp, "leg": 0, "next": next_idx}
+					if clearance > clearest_d:
+						clearest_d = clearance
+						clearest = {"pos": gp, "leg": k, "next": next_idx}
+		if not spread_clear.is_empty():
+			return spread_clear
+		if not clearest.is_empty():
+			return clearest
+	if not sat_best.is_empty():
+		return sat_best
+	var lane0 := graph.edge_points(route[0])
+	return {"pos": city.to_global(Vector3(lane0[0].x, 0.0, lane0[0].y)),
+			"leg": 0, "next": 1}
+
+
+## A fresh dealt route's rejoin for one traffic car over the graph: one
+## weighted band-edge draw, `legs` legs dealt off it, then the gate/clear
+## placement walk. The fallback roll (one `_rng` draw) fires only when every
+## probed vertex fails — the T-089 documented least-bad fallback.
+func _route_rejoin_edge(first_edge: int, mover: Car, gate: bool,
+		spread: float) -> Dictionary:
+	var graph := city.traffic_graph
+	var legs := _rng.randi_range(mover.route_legs_min, mover.route_legs_max)
+	var route := PackedInt32Array([first_edge])
+	if legs > 1:
+		route.append_array(graph.deal_route(graph.edge_to(first_edge), first_edge,
+				legs - 1, _rng, _graph_weights(mover)))
+	var block := _edge_block_global(first_edge)
+	var placement := _route_placement_graph(route, block, mover, gate, spread)
+	var start_node: int = graph.edge_from(route[int(placement["leg"])])
+	var built := _build_route_graph(start_node, route.slice(int(placement["leg"])),
+			int(placement["next"]), -1)
+	return {"pos": placement["pos"], "points": built["points"],
+			"entries": built["entries"], "end": built["end"], "block": block}
+
+
+## A recycled traffic car's gate-passing rejoin over the graph: the band
+## edges in density order (weight descending, id ascending — the T-089
+## light-first preference's weighted analogue) for the first whose rejoin
+## lands off-screen. Empty when none does (the caller keeps the drawn
+## rejoin — the documented least-bad fallback).
+func _offscreen_rejoin_graph(anchor: Vector2, mover: Car) -> Dictionary:
+	var graph := city.traffic_graph
+	var lxz := _anchor_local_xz(anchor)
+	var band := graph.edges_in_band(lxz.x, lxz.y, spawn_min_dist, spawn_max_dist)
+	var ordered := Array(band)
+	ordered.sort_custom(func(a: int, b: int) -> bool:
+		if graph.edge_weight(a) != graph.edge_weight(b):
+			return graph.edge_weight(a) > graph.edge_weight(b)
+		return a < b)
+	band = PackedInt32Array(ordered)
+	for edge: int in band:
+		var placement := _route_rejoin_edge(edge, mover, true, 0.0)
+		if _sightline_ok(placement["pos"]):
+			return placement
+	return {}
+
+
+## The Ames populate: the moving fleet dealt off weighted band edges, the
+## parked fleet at the real curbs, the same class quotas, sightline gate and
+## least-bad fill ladders as the grid loop.
+func _populate_graph() -> void:
+	_refresh_watched()
+	var anchor := _anchor_flat()
+	var made_moving := 0
+	_begin_class_quota(target_moving)
+	while made_moving < target_moving:
+		_spawn_traffic_graph(made_moving)
+		made_moving += 1
+	var made_parked := 0
+	var attempts := 0
+	_begin_class_quota(target_parked)
+	while made_parked < target_parked and attempts < target_parked * 8:
+		attempts += 1
+		if _try_place_parked_graph(anchor, made_parked, sightline_gate_enabled):
+			made_parked += 1
+	## (T-128) The least-bad fill: a band whose every curb spot sits inside
+	## the avoided cone must not starve the fleet COUNT contract.
+	while made_parked < target_parked and attempts < target_parked * 16:
+		attempts += 1
+		if _try_place_parked_graph(anchor, made_parked, false):
+			made_parked += 1
+	_dress_tailgates.call_deferred()
+
+
+## One traffic car staged onto a dealt route (the grid `_spawn_traffic`'s
+## shape): the class draw, the tailgate cooler, the pace roll, then the
+## weighted edge draw + gate walk + rebase, dealt and staged off the
+## spawner's own `_rng` stream.
+func _spawn_traffic_graph(index: int) -> void:
+	var car: Car = car_scene.instantiate()
+	_assign_class(car)
+	if car.citizen_class == CitizenClass.Kind.CIVILIAN:
+		car.body_color = Car.BODY_PALETTE[index % Car.BODY_PALETTE.size()]
+	_assign_tailgate(car)
+	car.pace = _rng.randf_range(0.9, 1.15)
+	car.traffic = traffic_ctrl ## Null when the protocol hatch is off.
+	car.player = player ## (T-166) The patience-honk gate, before _ready.
+	add_child(car)
+	var edge := _draw_band_edge(_anchor_flat())
+	var placement := _route_rejoin_edge(edge, car, sightline_gate_enabled,
+			fmod(index * 0.37, 1.0))
+	car.start_route(placement["pos"], placement["points"], placement["entries"],
+			placement["block"], _block_centers_cache, placement["end"])
+	car.route_exhausted.connect(_on_route_exhausted)
+	car.splatted.connect(_on_car_splatted)
+	car.stuck.connect(_on_car_stuck)
+	_cars.append(car)
+
+
+## One parked placement attempt over the graph: the nearest runs' curb spots
+## (deterministic nearest-first walk), the taken-skip and the gate exactly as
+## the grid draw's. False when nothing placeable came of the attempt.
+func _try_place_parked_graph(anchor: Vector2, index: int, gate: bool) -> bool:
+	var graph := city.traffic_graph
+	var lxz := _anchor_local_xz(anchor)
+	for near: Dictionary in graph.nearest_runs(lxz.x, lxz.y, 12):
+		var run_id: int = int(near["run"])
+		for spot: Dictionary in graph.run_curb_spots(run_id):
+			var global_spot := city.to_global(
+					Vector3(spot["pos"].x, 0.0, spot["pos"].y))
+			if _spot_taken(global_spot):
+				continue
+			if gate and not _sightline_ok(global_spot):
+				continue
+			_spawn_parked(_run_block_local(run_id), global_spot,
+					float(spot["yaw"]), index)
+			return true
+	return false
+
+
+## The graph recycle scan's far-fleet action: spent cars churn through
+## `_replace_car`, live cars rejoin a fresh weighted band edge (the drawn
+## rejoin first, then the density-ordered off-screen scan — the grid
+## `_offscreen_route_rejoin`'s shape). No teleport for spendables; the same
+## node teleports onto the fresh route for the rest.
+func _recycle_far_graph(far: Array[Car]) -> void:
+	var anchor := _anchor_flat()
+	for car in far.duplicate():
+		if not is_instance_valid(car):
+			continue
+		if car.splatted_once:
+			_replace_car(car)
+			continue
+		var edge := _draw_band_edge(anchor)
+		var placement := _route_rejoin_edge(edge, car, false, _rng.randf())
+		if not _sightline_ok(placement["pos"]):
+			var scan := _offscreen_rejoin_graph(anchor, car)
+			if not scan.is_empty():
+				placement = scan
+		## else: least-bad — the drawn rejoin stands (in view, documented).
+		car.start_route(placement["pos"], placement["points"], placement["entries"],
+				placement["block"], _block_centers_cache, placement["end"])
+
+
+## The graph branch of the spent-car swap (like-for-like identity, zero RNG —
+## the grid `_replace_car`'s contract): strict-gate placement, NO least-bad
+## fallback — a replacement that finds no gate-passing curb spot or rejoin
+## this scan keeps the spent car (the next 0.5 s scan retries).
+func _replace_car_graph(spent: Car) -> bool:
+	var anchor := _anchor_flat()
+	var fresh: Car = car_scene.instantiate()
+	fresh.citizen_class = spent.citizen_class
+	fresh.body_color = spent.body_color
+	fresh.pace = spent.pace
+	_assign_tailgate(fresh)
+	fresh.traffic = traffic_ctrl
+	fresh.player = player
+	var placed := false
+	if spent.mode == Car.Mode.PARKED:
+		var lxz := _anchor_local_xz(anchor)
+		for near: Dictionary in city.traffic_graph.nearest_runs(lxz.x, lxz.y, 12):
+			var run_id: int = int(near["run"])
+			for spot: Dictionary in city.traffic_graph.run_curb_spots(run_id):
+				var global_spot := city.to_global(
+						Vector3(spot["pos"].x, 0.0, spot["pos"].y))
+				if _spot_taken(global_spot) or not _sightline_ok(global_spot):
+					continue
+				add_child(fresh) ## Before park_at — the crumb drop needs the tree.
+				fresh.park_at(global_spot, float(spot["yaw"]), _run_block_local(run_id))
+				placed = true
+				break
+			if placed:
+				break
+	else:
+		var edge := _draw_band_edge(anchor)
+		var placement := _route_rejoin_edge(edge, fresh, true, _rng.randf())
+		if not _sightline_ok(placement["pos"]):
+			placement = _offscreen_rejoin_graph(anchor, fresh) ## {} = keep spent.
+		if not placement.is_empty():
+			add_child(fresh)
+			fresh.start_route(placement["pos"], placement["points"],
+					placement["entries"], placement["block"],
+					_block_centers_cache, placement["end"])
+			placed = true
+	if not placed:
+		fresh.free()
+		return false
+	## The fresh node stands — wire the relays and land the swap.
+	fresh.route_exhausted.connect(_on_route_exhausted)
+	fresh.splatted.connect(_on_car_splatted)
+	fresh.stuck.connect(_on_car_stuck)
+	_cars.erase(spent)
+	_cars.append(fresh)
+	spent.release_tailgate()
+	spent.queue_free()
+	return true
+
+
+## (T-178 round 2) The wedged-car escape: after `_stuck_breaks` patience
+## cycles against car blockers with no pass possible (cars are SOLID — the
+## round-2 review's junction tangles pin cars with no logic escape, and the
+## only working recovery was the player-anchored recycle), the car asks for
+## this and the spawner gives it the reviewer-proven answer: a fresh route
+## from a weighted band edge through the SAME gate/probe machinery as the
+## recycle scan — a teleport onto a clear lane point, off-screen when the
+## sightline gate can find one. The queue behind the wedge drains as soon
+## as the head teleports away.
+func _on_car_stuck(car: Car) -> void:
+	if city == null or city.traffic_graph == null or not is_instance_valid(car):
+		return
+	var edge := _draw_band_edge(_anchor_flat())
+	var placement := _route_rejoin_edge(edge, car, sightline_gate_enabled,
+			_rng.randf())
+	car.start_route(placement["pos"], placement["points"], placement["entries"],
+			placement["block"], _block_centers_cache, placement["end"])
+
+
+## The graph extension deal: a fresh route dealt FROM the car's end node, its
+## live leg pinned as the incoming edge (never a U-turn), appended through
+## `Car.extend_route` — continuous driving, no teleport.
+func _on_route_exhausted_graph(car: Car) -> void:
+	var graph := city.traffic_graph
+	var last_edge: int = int(car.stops[car.stops.size() - 1].get("edge", -1))
+	var legs := _rng.randi_range(car.route_legs_min, car.route_legs_max)
+	var ext := graph.deal_route(car.route_end_node, last_edge, legs, _rng,
+			_graph_weights(car))
+	if ext.is_empty():
+		return
+	var built := _build_route_graph(car.route_end_node, ext, 0, last_edge)
+	var turn_at_end := graph.turn_of(last_edge, ext[0])
+	car.extend_route(built["tail"], built["entries"], turn_at_end, built["end"])
+
+
+## The `spawn_car` dev verb's Ames branch: the same one-car-near-the-pigeon
+## contract through the populate loop's own parked path — the nearest runs'
+## curb spots, nearest FREE spot overall, no sightline gate, no spawn band
+## (a dev spawn is meant to be seen). Returns the new car, or null when none
+## of the nearest runs has a free curb spot (the verb logs the refusal).
+func _dev_spawn_car_graph() -> Car:
+	var anchor := _anchor_flat()
+	var lxz := _anchor_local_xz(anchor)
+	for near: Dictionary in city.traffic_graph.nearest_runs(lxz.x, lxz.y, 8):
+		var run_id: int = int(near["run"])
+		var spots: Array = city.traffic_graph.run_curb_spots(run_id).duplicate()
+		spots.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			var ga := city.to_global(Vector3(a["pos"].x, 0.0, a["pos"].y))
+			var gb := city.to_global(Vector3(b["pos"].x, 0.0, b["pos"].y))
+			return _flat_dist(ga, anchor) < _flat_dist(gb, anchor))
+		for spot: Dictionary in spots:
+			var global_spot := city.to_global(
+					Vector3(spot["pos"].x, 0.0, spot["pos"].y))
+			if _spot_taken(global_spot):
+				continue
+			_begin_class_quota(1)
+			return _spawn_parked(_run_block_local(run_id), global_spot,
+					float(spot["yaw"]), living_cars().size())
+	return null

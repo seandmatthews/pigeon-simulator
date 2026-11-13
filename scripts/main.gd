@@ -283,14 +283,19 @@ func _swap_to_ames_world() -> void:
 	windrow.queue_free()
 
 
-## (T-129) The synchronous boot — the rig path, byte-as-today: the whole
-## `city.generate()` burst and every spawner populate land inside _ready
-## (scene child order, cars ahead of bread — the tailgate-crumb handover),
-## exactly where City._ready and every spawner _ready performed them before
-## T-129 held them. The one `BOOT` line keeps the trace contract on this path.
+## (T-129) The synchronous boot — the rig path: the whole `city.generate()`
+## burst and every spawner populate land inside _ready (scene child order,
+## cars ahead of bread — the tailgate-crumb handover), exactly where
+## City._ready and every spawner _ready performed them before T-129 held
+## them. (T-178 round 2) The pigeon is placed on the corridor BEFORE the
+## spawners populate — the same ordering rule the stepped path follows — so
+## every band spawner anchors on the pigeon on BOTH boot paths (the round-1
+## fix's claim, now true here too). The one `BOOT` line keeps the trace
+## contract on this path.
 func _boot_sync() -> void:
 	var t0 := Time.get_ticks_msec()
 	city.generate()
+	_place_pigeon_on_corridor()
 	_populate_staged_spawners()
 	var ms := Time.get_ticks_msec() - t0
 	boot_trace.append({"name": "sync_boot", "ms": ms})
@@ -314,6 +319,7 @@ func _boot_stepped() -> void:
 	await _boot_paint()
 	_boot_run_phase("city_visuals", city.generate_step_finish)
 	await _boot_paint()
+	_place_pigeon_on_corridor() ## (T-178 round 1) The bands anchor on the pigeon, not the scene default.
 	## Spawner batches — cars first (their populate anchors the tailgate crumbs
 	## the bread batch's survivor pass must find — the load-bearing order from
 	## bread_spawner.gd's T-114 note), then tourists, bread, elders, cafes.
@@ -364,9 +370,16 @@ func _populate_staged_spawners() -> void:
 	cafe_spawner.populate()
 
 
-## The city-dependent tail every boot path ends with — the spawn-corridor wiring
-## from _ready's last lines, byte-as-today (T-042/T-023's never-stale notes).
-func _finish_boot() -> void:
+## (T-178 round 1) The pigeon stands on the spawn corridor BEFORE the citizen
+## spawners populate: every band spawner anchors its placement on the pigeon's
+## position, and a populate against the scene-default transform staged the
+## whole car fleet around the world origin — 26 cars 2–91 m from the origin,
+## 99–382 m (median ~305 m) from the pigeon the boot was about to place —
+## leaving ~30 s of recycle scans to pull it in. Runs on both boot paths
+## ahead of `_populate_staged_spawners()` / the spawn phases, and idempotently
+## from `_finish_boot` (a re-reset on the already-placed pigeon is a no-op:
+## same corridor, zeroed velocity).
+func _place_pigeon_on_corridor() -> void:
 	player.respawn_point = city.to_local(city.spawn_point)
 	## (T-023) The edge nudge's home: the span is symmetric about the City
 	## origin and the apron (the ground collider is exactly `city_span +
@@ -377,6 +390,12 @@ func _finish_boot() -> void:
 	player.home_center = city.home_center() ## (T-173) world-owned guard circle: the bake bounds center on ames.
 	player.home_radius = city.home_radius()
 	player.reset_flight(player.respawn_point)
+
+
+## The city-dependent tail every boot path ends with — the spawn-corridor wiring
+## from _ready's last lines, byte-as-today (T-042/T-023's never-stale notes).
+func _finish_boot() -> void:
+	_place_pigeon_on_corridor()
 	_on_hunger_changed(Game.hunger.value, Game.hunger.max_value)
 
 
