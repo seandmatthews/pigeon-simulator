@@ -400,3 +400,4 @@ LaVerne → campanile → campus → rail); R4 serial after T-197; R5 parallel
 after T-203. Within-ring parallelism rides the per-ticket worktree lanes;
 cross-ring is serial by design. Pipeline runs use `deploy:false` while the
 hosted box is dead.
+| T-212 | [The testing deploy target: the Ames branch at /pigeon-simulator/testing](T-212-testing-deploy-target.md) | tooling | 3 | 1 | done |

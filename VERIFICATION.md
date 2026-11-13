@@ -516,6 +516,21 @@ python3 -I tests/tools/pilot.py stop  --session <id>
 
 ## Gate 3 — Manual playtest (run the full list before closing any ticket)
 
+**The testing deploy target (T-212):** the Ames campaign branch publishes to
+**https://games.matthews.mx/pigeon-simulator/testing/** — same box, same
+Caddy site block (headers/TLS inherit; no reload needed), just a second
+untracked env file. From the ames/campaign checkout:
+
+```bash
+DEPLOY_ENV_FILE="$PWD/.env.deploy.testing" bash tools/deploy-web.sh
+```
+
+PROD stays main-only (`bash tools/deploy-web.sh` from the
+`../pigeon-sim-wt/main-deploy` worktree). The two builds are visually
+self-identifying (Windrow vs the Ames world).
+
+## Gate 3 — Manual playtest (run the full list before closing any ticket)
+
 **Bulk closure (owner call, 2026-10-13):** the owner reviewed the ledger after the
 2026-10-12 hands-on run ("playtesting is in a fairly good spot currently") and crossed
 off every line EXCEPT T-115's and T-116's, which stay open for a targeted double-check
