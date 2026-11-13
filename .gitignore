@@ -37,7 +37,7 @@ addons/godot_mcp/
 # Deploy credentials for the basement-box web host (owner-filled .env.deploy) —
 # SSH host/user/password must never be committed. Also guarded locally by
 # .git/info/exclude, so a revert of this line still leaves the file untracked.
-.env.deploy
+.env.deploy*
 
 # Python bytecode (pilot helper imports)
 __pycache__/
