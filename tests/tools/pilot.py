@@ -353,9 +353,12 @@ def cmd_wait(a):
 def take_shot(sid: str, out: str) -> tuple:
     """One OS window grab: Windows through window-shot.ps1 (PrintWindow needs
     no focus, so an off-screen hidden session captures fine — T-170); POSIX
-    through xdotool + ImageMagick import (T-211 — the Linux gate box; no WM
-    required, the recorder's window title is WM_NAME, and the unanchored
-    prefix match rides out the engine's title re-stamping). Returns
+    through xdotool (find the window by title — the recorder's title is
+    WM_NAME, the unanchored prefix match rides out the engine's re-stamping)
+    piped xwd → ImageMagick convert (T-211 — the Linux gate box). X11's
+    X_GetImage cannot read a drawable that sits outside the root, so unlike
+    PrintWindow an off-screen hidden window is NOT grabbable — sessions that
+    need `shot` run --shown (under Xvfb that disturbs nothing). Returns
     (returncode, printed text)."""
     if os.name != "nt":
         title = f"Pigeon pilot {sid}"
@@ -363,16 +366,27 @@ def take_shot(sid: str, out: str) -> tuple:
             find = subprocess.run(["xdotool", "search", "--name", f"^{re.escape(title)}"],
                                   capture_output=True, text=True)
         except FileNotFoundError:
-            return 1, "pilot: shot on Linux needs xdotool + imagemagick (apt install both)"
+            return 1, "pilot: shot on Linux needs xdotool + x11-apps (xwd) + imagemagick"
         wids = [w for w in find.stdout.split() if w.strip()]
         if find.returncode != 0 or not wids:
             return 1, f"pilot: no window matching '{title}' (is the session up?)"
         try:
-            r = subprocess.run(["import", "-window", wids[0], out],
-                               capture_output=True, text=True)
+            xwd = subprocess.run(["xwd", "-id", wids[0], "-silent"], capture_output=True)
         except FileNotFoundError:
-            return 1, "pilot: shot on Linux needs xdotool + imagemagick (apt install both)"
-        return r.returncode, ((r.stderr or "").strip() or f"shot window {wids[0]} -> {out}")
+            return 1, "pilot: shot on Linux needs xdotool + x11-apps (xwd) + imagemagick"
+        if xwd.returncode != 0 or not xwd.stdout:
+            return 1, (f"pilot: xwd failed on window {wids[0]} (rc {xwd.returncode}) — "
+                       "an off-screen hidden window is ungrabbable over X11; start "
+                       "the session with --shown")
+        try:
+            conv = subprocess.run(["convert", "xwd:-", out], input=xwd.stdout,
+                                  capture_output=True)
+        except FileNotFoundError:
+            return 1, "pilot: shot on Linux needs xdotool + x11-apps (xwd) + imagemagick"
+        if conv.returncode != 0:
+            msg = (conv.stderr or b"").decode(errors="replace").strip()
+            return 1, msg or f"convert failed on window {wids[0]}"
+        return 0, f"shot window {wids[0]} -> {out}"
     r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                         "-File", str(TOOLS / "window-shot.ps1"), "-TitlePattern",
                         f"Pigeon pilot {sid}", "-OutPath", str(out)],

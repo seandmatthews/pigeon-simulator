@@ -459,7 +459,7 @@ so the T-170 focus-steal defect class does not exist there.
 **One-time setup** (per machine / fresh checkout):
 
 ```bash
-sudo apt install python3 xvfb xdotool imagemagick
+sudo apt install python3 xvfb xdotool x11-apps imagemagick
 # the 4.7.2 Linux editor binary at ~/bin/Godot_v4.7.2-stable_linux.x86_64
 #   (pilot.py finds it there; or export PIGEON_BIN=<path>)
 # fresh checkouts only: copy the untracked per-machine addon in
@@ -490,10 +490,17 @@ display, NOT `xvfb-run` per command:
 ```bash
 Xvfb :99 -screen 0 1280x720x24 &      # once, when the box boots
 export DISPLAY=:99
-python3 -I tests/tools/pilot.py start --session <id> --gl
-python3 -I tests/tools/pilot.py shot  --session <id>   # xdotool + imagemagick
+python3 -I tests/tools/pilot.py start --session <id> --shown --gl
+python3 -I tests/tools/pilot.py shot  --session <id>   # xdotool + xwd + convert
 python3 -I tests/tools/pilot.py stop  --session <id>
 ```
+
+- `shot` needs a `--shown` session: X11's X_GetImage cannot read a window
+  that sits outside the root, so the default hidden (off-screen) launch is
+  ungrabbable — the X11 twin of PrintWindow's works-off-screen property does
+  not exist. Under Xvfb, `--shown` disturbs nothing. (`shot` pipes
+  `xwd -id` through ImageMagick convert; the box's IM 7.1.2 `import -window
+  <id|name>` is broken — root grabs only — hence xwd.)
 
 - `--headless` sessions need no X at all (channel/state/events/stop work;
   the frame stream and `shot` are the only casualties — the recorder's OS
