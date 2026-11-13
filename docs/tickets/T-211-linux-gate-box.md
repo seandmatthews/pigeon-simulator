@@ -1,6 +1,7 @@
 # T-211 — Linux gate box · the pilot harness runs on POSIX
 
-- **Status:** done (box Gate 3 pending SSH access) · **Category:**
+- **Status:** done (box Gate 3 landed same day; the autoplay DONE-pass
+  still running on the box's slow llvmpipe wall-clock) · **Category:**
   dev-tooling · **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** nothing (pure tooling)
 - **Refs:** T-014 (pilot harness) · T-167..T-169 (dev verbs) · T-170
@@ -64,13 +65,26 @@ gates ever come.
       run reaches Main → graceful stop; PLUS bonus fix: a reused id's
       stale `started.json` poisoned the next boot's claim-wait (the
       run-2 lesson) — boot now sweeps it like the T-018 command sweep
-- [ ] **Gate 3 (box, pending access)**: an Xvfb-rendered session with a
-      `shot`, then the full Gate 1/1b/2 on the box itself — needs the
-      box's SSH facts (address, user, auth). WSL2 could not stand in
-      for the rendered legs: `shot` deps (xdotool/imagemagick) are not
-      installed there, and WSLg's RAIL kills a window moved fully
-      off-screen (run 1) — moot under `--headless` and absent on a
-      native Xvfb box
+- [ ] **Gate 3 (box)**: an Xvfb-rendered session with a `shot`, then
+      the full Gate 1/1b/2 on the box itself — **laned 2026-11-13 on
+      sean@192.168.1.247 (the Ubuntu Server OptiPlex)**: Gate 1 boot
+      clean + Gate 1b **0 failures** (density_cpu_budget median
+      **120.8 ms** vs 750 — 6× headroom on the i7-6700); the rendered
+      session + `shot` proven through the CLI (`--shown` session; the
+      title screen AND a mid-flight Ames frame pulled back and
+      eyeballed — llvmpipe handles the world: streets, fleet cars with
+      blinkers lit, HUD, the reticle). The box run FORCED two follow-up
+      fixes (13dd6bd): the `shot` backend is `xwd -id | convert` (the
+      box's IM 7.1.2 `import -window <id|name>` grabs only root) and
+      sessions needing `shot` run `--shown` (X11 X_GetImage cannot read
+      a window outside the root — the T-170 hide position is
+      ungrabbable; under Xvfb `--shown` disturbs nothing). Gate 2
+      autoplay left RUNNING on the box (llvmpipe ≈ 0.04× wall — its
+      ~180 game-s done condition needs ~80 wall-min; hunger holding
+      ~80, it eats) — when `/tmp/autoplay.log` shows `AUTOPLAY DONE
+      ok=true`, tick this box. The hosting half of the box move landed
+      the same day (main 26c50bd): see the deploy-verify SIGPIPE fix +
+      the compose-caddy facts in [[web-hosting-cloudflare-plan]].
 
 ## Verification (landed 2026-11-13)
 
