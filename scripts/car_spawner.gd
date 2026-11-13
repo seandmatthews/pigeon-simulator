@@ -1079,8 +1079,14 @@ func _build_route_graph(start_node: int, route: PackedInt32Array,
 ## the asphalt clamp derive their lane-local bounds from it, the `cruise`
 ## stamp precedent) and the junction's box radius (`box_radius` — the
 ## force-commit occupancy check's half-diagonal over the node's widest
-## arm), and EMPTY crosswalk bands (the grid rects are Windrow paint; the
-## yield stays inert until R2 fills real crosswalks). All in GLOBAL coords.
+## arm). (T-180) The stop line rides the ADAPTED outset (`stop_outset_for_
+## edge` — lane_off + 7.3, the T-134 law at the measured width, the same
+## derivation the world's painted bar runs), so the nose halts ON the paint;
+## at a PINNED corner the entry carries the node's REAL oriented crosswalk
+## bands (`{center, axis, half_along, half_across}` in global XZ — the yield
+## reads them, the paint renders exactly that rect) and, at a SIGNAL corner,
+## its `signal_group` (the two-phase cycle `TrafficControl` runs). Unpinned
+## corners keep empty bands. All in GLOBAL coords.
 func _stop_entry_graph(node: int, in_edge: int, out_edge: int) -> Dictionary:
 	var graph := city.traffic_graph
 	var axis := graph.edge_axis(in_edge)
@@ -1088,17 +1094,32 @@ func _stop_entry_graph(node: int, in_edge: int, out_edge: int) -> Dictionary:
 	var turn := 0
 	if out_edge >= 0:
 		turn = graph.turn_of(in_edge, out_edge)
-	var line_local := graph.stop_line_local(node, in_edge, City.STOP_LINE_OUTSET)
+	var line_local := graph.stop_line_local(node, in_edge,
+			graph.stop_outset_for_edge(in_edge))
 	var corner_local := graph.through_local(node, in_edge) if turn == 0 \
 			else graph.corner_local(node, in_edge, out_edge)
-	return {
+	var bands: Array = []
+	if graph.node_is_pinned(node):
+		var geo := graph.approach_geometry(node, in_edge)
+		var band: Dictionary = geo["band"]
+		var band_center_local := Vector3(band["center"].x, 0.0, band["center"].y)
+		var band_center_global := city.to_global(band_center_local)
+		var band_axis_local := Vector3(band["axis"].x, 0.0, band["axis"].y)
+		var band_axis_global := city.global_transform.basis * band_axis_local
+		bands.append({
+			"center": Vector2(band_center_global.x, band_center_global.z),
+			"axis": Vector2(band_axis_global.x, band_axis_global.z).normalized(),
+			"half_along": float(band["half_along"]),
+			"half_across": float(band["half_across"]),
+		})
+	var entry := {
 		"node": node,
 		"pos": city.to_global(graph.node_pos(node)),
 		"axis": axis_global,
 		"turn": turn,
 		"line": city.to_global(line_local),
 		"corner": city.to_global(corner_local),
-		"bands": [] as Array[Rect2],
+		"bands": bands,
 		"registered": false,
 		"committed": false,
 		"center": city.to_global(line_local) - axis_global * Car.HALF_LENGTH,
@@ -1108,6 +1129,10 @@ func _stop_entry_graph(node: int, in_edge: int, out_edge: int) -> Dictionary:
 		"half_width": graph.edge_half_width(in_edge),
 		"box_radius": graph.node_extent(node) * sqrt(2.0),
 	}
+	if graph.node_is_pinned(node) and graph.intersection_is_signal(
+			graph.node_intersection(node)):
+		entry["signal_group"] = graph.approach_signal_group(node, in_edge)
+	return entry
 
 
 ## One dealt route's placement walk (the grid `_route_placement` over real
@@ -1146,8 +1171,10 @@ func _route_placement_graph(route: PackedInt32Array, block_global: Vector3,
 	## where the four-way-stop brake cap reads 0 and the [−3, +1] m
 	## registration window can never fire — the car holds forever,
 	## unregistered, and the queue behind it dies (the round-2 review's
-	## corridor lock). Line 8.8 + nose 2.2 + 1.0 m margin.
-	const STAGE_LINE_CLEAR := City.STOP_LINE_OUTSET + Car.HALF_LENGTH + 1.0
+	## corridor lock). (T-180) The window rides the leg's ADAPTED stop outset
+	## (lane_off + 7.3, the T-134 law at the measured width) + nose 2.2 +
+	## 1.0 m margin — 12.5 m on a residential street, 19.5 m on Lincoln Way.
+	const STAGE_LINE_MARGIN := Car.HALF_LENGTH + 1.0
 	for radius_guarded in [true, false]:
 		var spread_clear := {}
 		var spread_clear_d := INF
@@ -1169,9 +1196,11 @@ func _route_placement_graph(route: PackedInt32Array, block_global: Vector3,
 					var t := 0.5 if ci == 0 else 1.0
 					var cand := lane[i - 1].lerp(lane[i], t)
 					var next_idx: int = i if ci == 0 else i + 1
-					## The candidate's own arc distance to the leg end.
+					## The candidate's own arc distance to the leg end, against
+					## the leg's own stop-line window (the adapted outset).
 					var cand_to_end: float = lerpf(to_end[i - 1], to_end[i], t)
-					if cand_to_end < STAGE_LINE_CLEAR:
+					if cand_to_end < graph.stop_outset_for_edge(route[k]) \
+							+ STAGE_LINE_MARGIN:
 						continue
 					var gp := city.to_global(Vector3(cand.x, 0.0, cand.y))
 					if radius_guarded and player != null \

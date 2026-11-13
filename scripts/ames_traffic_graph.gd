@@ -46,8 +46,15 @@ extends RefCounted
 ## spawner builds stop entries from `stop_line_local` / `corner_local` /
 ## `turn_of` exactly as the grid seam did from its closed forms, and
 ## `TrafficControl` orders movements by approach AXIS (the grid compass was
-## its special case). The crosswalk-band rects stay grid-only paint: the
-## graph's entries carry empty bands until R2 fills real crosswalks.
+## its special case). (T-180) The graph also classifies the REAL corners:
+## junction nodes merge into intersection anchors (a divided arterial's
+## carriageway pair is one corner), anchors pin from the census §4 windows
+## + the arterial corridors, signal-classify by the arterial × collector
+## grade rule, and each pinned approach derives its corner paint geometry
+## (zebra band, stop line, sign stand) from the adapted T-134 consts at the
+## measured street width — the world renders that paint and the spawner
+## stamps the entries' `bands` / `signal_group` from the same derivation, so
+## paint and cars can never disagree.
 
 ## --- feel constants (recorded in T-178; changing one is a ticket event) ----
 
@@ -115,6 +122,100 @@ const WELD_QUANT := 100.0
 ## this multiple of the base lane offset (near-reversal spikes clamp).
 const MITER_LIMIT := 3.0
 
+## --- T-180 intersection classification constants ---------------------------
+## Every value below is placement data law over the committed pack, pinned by
+## `ames_intersections_present` the way the T-178 route constants are pinned
+## by `ames_traffic_routes`. Changing one is a ticket event.
+
+## Junction nodes this close together are ONE real intersection: divided
+## arterials weld two carriageway junctions ~12 m apart, street jogs ~17 m.
+## Probed from the pack (tools/probe_intersections.gd, 2026-11-13).
+const INTERSECTION_MERGE_RADIUS := 20.0
+
+## The census §4 district windows (census/scripts/ames_census.py:820-821,
+## W/S/E/N lon-lat — the exact bboxes the recorded 20/13 counts came from).
+const DOWNTOWN_WINDOW: Array = [-93.6225, 42.0230, -93.6100, 42.0275]
+const CAMPUSTOWN_WINDOW: Array = [-93.6600, 42.0180, -93.6460, 42.0230]
+
+## The downtown start set's streets (census §7.1): the Main/5th/6th E-W band
+## × the measured cross-street centerlines. A downtown pin = an anchor
+## touching ≥ 1 band street AND ≥ 1 cross street inside the downtown window.
+## Landed set: exactly the census's 20 corners.
+const DOWNTOWN_BANDS: Array[String] = ["Main Street", "5th Street", "6th Street"]
+const DOWNTOWN_CROSS_KEYS: Array[String] = [
+	"Northwestern", "Grand", "Pearle", "Clark", "Burnett", "Kellogg",
+	"Douglas", "Duff",
+]
+
+## The Campustown start set's streets (census §7.2): the strip's E-W band
+## streets (Lincoln Way plus the Hunt/Chamberlain row) × the avenues. Landed
+## set: 11 of the census's 13 (the pack's named-street weld carries no
+## junction at L/W × State and one Hunt-grade T — the recorded delta).
+const CAMPUS_BANDS: Array[String] = ["Lincoln Way", "Hunt Street", "Chamberlain Street"]
+const CAMPUS_CROSS_KEYS: Array[String] = [
+	"State", "Hyland", "Sheldon", "Hayward", "Welch", "Stanton",
+]
+
+## The arterial stop set's corridors (the ticket's list) — anchors touching
+## one of these names inside the pack's core window, beyond the district pins.
+const ART_NAME_KEYS: Array[String] = ["Lincoln Way", "Duff", "Grand"]
+
+## The signal rule's grade sets (the ticket's "arterial × collector corners;
+## the count comes from the data and is pinned"). A corner signals when an
+## ARTERIAL meets a COLLECTOR from a different street, or two distinct
+## arterials cross. Arterial grade: a primary/secondary class or an
+## arterial-name street (Main Street rides the baker's dash list). Collector
+## grade: a tertiary class — or one of the census §4 Campustown signal set's
+## avenues ("the L/W × State/Sheldon/Hayward/Welch/Stanton set"), which the
+## pack classes residential but the census records as the signalized strip.
+const SIGNAL_ART_CLASSES: Array[String] = ["primary", "secondary"]
+const SIGNAL_ART_NAME_KEYS: Array[String] = [
+	"Lincoln Way", "Duff", "Grand", "Main Street",
+]
+const SIGNAL_COLLECTOR_CLASSES: Array[String] = ["secondary", "tertiary"]
+const SIGNAL_COLLECTOR_NAME_KEYS: Array[String] = [
+	"State", "Hyland", "Sheldon", "Hayward", "Welch", "Stanton",
+]
+
+## --- T-180 corner paint geometry -------------------------------------------
+## The T-134/T-069 consts re-derived per approach at the MEASURED street
+## width (the ticket: "setbacks and band widths adapt the T-134 consts to
+## measured street widths"). For an approach of half-width W and lane offset
+## L (`lane_off`): the zebra band's inner edge clears the corner sweep at the
+## lane line by the T-134 margin 3.5, the stop line sits BAND_STOP_GAP past
+## the band's outer edge (MUTCD ≥ 1.2 m before the crosswalk plus half the
+## bar width), and the sign stands on the approach's right just past the road
+## edge. band_inner = L + 3.5 · band_center = L + 4.7 · band_outer = L + 5.9
+## · stop_outset = L + 7.3. The retired Windrow street (W 5.0, L 1.5)
+## reproduces the landed T-134/T-069 constants exactly (band 5.0–7.4, stop
+## line 8.8) through the same law.
+
+const CROSSWALK_BAND_DEPTH := 2.4 ## Zebra band depth along the road (T-069).
+const CROSSWALK_BAR_WIDTH := 0.4 ## Bar width across the road (T-102 zebra).
+const CROSSWALK_BAR_PITCH := 0.5 ## Bar pitch on centers across the road.
+const BAND_INNER_MARGIN := 3.5 ## Band inner edge past the corner-sweep line.
+const BAND_STOP_GAP := 1.2 ## Stop line beyond the band's outer edge (MUTCD).
+const STOP_LINE_WIDTH := 0.4 ## Stop bar depth along travel (T-134).
+const STOP_LINE_SPAN := 2.8 ## Stop bar span across the lane (T-134 landed).
+const SIGN_EDGE_OFFSET := 0.2 ## Sign post past the road edge (m).
+const SIGN_OUTSET_GAP := 0.5 ## Sign post beyond the stop line (m).
+## The stop outset's width-independent tail (m past the lane line): band inner
+## margin + band depth + the MUTCD gap + half the bar width — `stop_outset =
+## lane_off + _STOP_OUTSET_TAIL` (7.3 at the defaults).
+const _STOP_OUTSET_TAIL := BAND_INNER_MARGIN + CROSSWALK_BAND_DEPTH \
+		+ BAND_STOP_GAP + STOP_LINE_WIDTH * 0.5
+## Paint rides its own stack level: boxes PAINT_THICKNESS thick centered on
+## PAINT_CENTER_Y — tops at 0.12, ABOVE the arterial dash top (0.11) the
+## bands overlap on arterials, BELOW the rail tie top (0.13), and equal to no
+## baked layer top (the T-143 near-coplanar lesson: relief offsets survive
+## the port; the paint never interleaves a baked family's own level).
+const PAINT_CENTER_Y := 0.11
+const PAINT_THICKNESS := 0.02
+## The T-143 relief law, ported verbatim: the red face's core stands this
+## proud of the border on both faces (thickness 0.086 vs border 0.03).
+const STOP_SIGN_THICKNESS := 0.086
+const STOP_SIGN_BORDER_THICKNESS := 0.03
+
 ## One undirected street run between two graph nodes.
 class Run:
 	extends RefCounted
@@ -137,6 +238,31 @@ class Run:
 	var reverse_edge: int = -1 ## The b→a directed edge id, -1 when none.
 	var curb_spots: Array = [] ## [{pos: Vector2, yaw: float}] built lazily, local.
 
+## One real Ames intersection (T-180): the junction nodes welded within
+## INTERSECTION_MERGE_RADIUS of each other — a divided arterial's carriageway
+## pair (~12 m apart) or a street jog (~17 m) is ONE corner, its stop/sign/
+## signal control one decision. Pure data, built once with the graph.
+class Intersection:
+	extends RefCounted
+	var head: int = -1 ## Representative node (the lowest member id).
+	var members: Array[int] = [] ## The merged junction nodes, ascending.
+	var streets: Array[String] = [] ## Distinct street names over the members' runs.
+	var classes: Dictionary = {} ## Street name → best (lowest-rank) class.
+	var max_width: float = 0.0 ## Widest street half-width touching the anchor (m).
+	var group_node: int = -1 ## The member node the signal group arm rides.
+	var group_half_width: float = 0.0 ## The group arm's street half-width (m).
+	var group_lane_off: float = 0.0 ## The group arm's lane offset (m).
+	var pin: int = 0 ## PIN_NONE / PIN_DISTRICT / PIN_ARTERIAL.
+	## Which census window pinned a district corner ("downtown"/"campustown",
+	## "" otherwise) — the per-district corner counts the gate pins.
+	var district: String = ""
+	var is_signal: bool = false ## Signal-controlled (the arterial × collector rule).
+	var group_axis := Vector3.ZERO ## Signal phase group axis (widest arterial arm).
+
+## The T-180 pin kinds: unpinned (no furniture yet — expandable), a district
+## start-set corner (the census windows' stock), or an arterial-stop corner.
+enum { PIN_NONE, PIN_DISTRICT, PIN_ARTERIAL }
+
 ## Node kinds: SPLICE = a continuation/dead-end weld (traffic flows through,
 ## no stop, no turn waypoint), CORNER = a 2-cluster angled shared point (a
 ## turn waypoint, no stop), JUNCTION = ≥ 3 street arms (the four-way stops).
@@ -155,6 +281,10 @@ var _context: Dictionary = {} ## The baker district-rule context, built once.
 ## chains splice across their continuation points (a run's ends are always
 ## welded keys).
 var _weld_nodes: Dictionary = {}
+## (T-180) The real intersections: merged junction anchors, in head-id order;
+## `_node_intersection` maps every junction node onto its anchor (−1 none).
+var _intersections: Array[Intersection] = []
+var _node_intersection: PackedInt32Array = PackedInt32Array()
 
 
 ## The welded junction count.
@@ -219,6 +349,307 @@ func rail_nodes() -> Array[int]:
 		if _node_rail[i]:
 			out.append(i)
 	return out
+
+
+## --- intersections (T-180) --------------------------------------------------
+## The real corners: junction nodes merged into anchors, pinned from the
+## census windows + the arterial corridors, signal-classified by the
+## arterial × collector grade rule. All pure data over the pack (zero RNG).
+
+
+## The merged intersection anchor count.
+func intersection_count() -> int:
+	return _intersections.size()
+
+
+## The anchor index a junction node belongs to (−1 when none).
+func node_intersection(node: int) -> int:
+	if node < 0 or node >= _node_intersection.size():
+		return -1
+	return _node_intersection[node]
+
+
+## The anchor's representative node.
+func intersection_head(anchor: int) -> int:
+	return _intersections[anchor].head
+
+
+## The anchor's member nodes (the merged carriageway junctions, ascending).
+func intersection_members(anchor: int) -> Array[int]:
+	return _intersections[anchor].members
+
+
+## The anchor's distinct street names.
+func intersection_streets(anchor: int) -> Array[String]:
+	return _intersections[anchor].streets
+
+
+## The anchor's pin kind (PIN_NONE / PIN_DISTRICT / PIN_ARTERIAL).
+func intersection_pin(anchor: int) -> int:
+	return _intersections[anchor].pin
+
+
+## True when the anchor carries the signal control (the arterial × collector
+## grade rule); all-way-stop corners are pinned anchors without it.
+func intersection_is_signal(anchor: int) -> bool:
+	return _intersections[anchor].is_signal
+
+
+## Which census window pinned a district corner ("downtown" / "campustown"),
+## "" for everything else — the per-district corner counts the gate pins.
+func intersection_district(anchor: int) -> String:
+	return _intersections[anchor].district
+
+
+## The signal anchor's phase group axis (the widest arterial arm's flat unit
+## axis): approaches near-parallel to it (|dot| ≥ 0.5) are group 0, the cross
+## street group 1 — the two-phase cycle `TrafficControl` runs.
+func intersection_signal_axis(anchor: int) -> Vector3:
+	return _intersections[anchor].group_axis
+
+
+## The member node the signal group arm rides (the mast stands there).
+func intersection_signal_node(anchor: int) -> int:
+	return _intersections[anchor].group_node
+
+
+## The group arm's street half-width (m) — the mast geometry's width read.
+func intersection_signal_half_width(anchor: int) -> float:
+	return _intersections[anchor].group_half_width
+
+
+## The group arm's lane offset (m) — the heads sit over its two lane lines.
+func intersection_signal_lane_off(anchor: int) -> float:
+	return _intersections[anchor].group_lane_off
+
+
+## True when `node` belongs to a pinned anchor (furniture lives there).
+func node_is_pinned(node: int) -> bool:
+	var anchor := node_intersection(node)
+	return anchor >= 0 and _intersections[anchor].pin != PIN_NONE
+
+
+## The signal phase group one arriving approach belongs to at its node: 0 when
+## the approach axis rides near-parallel to the anchor's group axis (the
+## arterial's two directions), 1 on the cross street. 0 when not signalized
+## (the group is then never read).
+func approach_signal_group(node: int, in_edge: int) -> int:
+	var anchor := node_intersection(node)
+	if anchor < 0 or not _intersections[anchor].is_signal:
+		return 0
+	var axis := edge_axis(in_edge)
+	return 0 if absf(axis.dot(_intersections[anchor].group_axis)) >= 0.5 else 1
+
+
+## The directed approaches arriving at `node` (the reverse edges of its
+## out-edges — every run touching the node files one in-edge here).
+func node_in_edges(node: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	if node < 0 or node >= _out_edges.size():
+		return out
+	for e in _out_edges[node]:
+		out.append(edge_reverse(e))
+	return out
+
+
+## The stop-line outset for one arriving approach (m off the node along its
+## axis): the adapted T-134 law — lane_off + band outer + BAND_STOP_GAP + half
+## the bar width. The spawner's stop entries and the painted bar share this
+## value, so the nose halts ON the paint.
+func stop_outset_for_edge(edge: int) -> float:
+	return edge_lane_off(edge) + _STOP_OUTSET_TAIL
+
+
+## One arriving approach's corner geometry (the furniture builder's and the
+## spawner's shared derivation, pack-local): the adapted T-134 consts at the
+## approach's measured width. `fits` false marks an approach whose furniture
+## would cross the run's far junction (a stub run) — the paint skips it, the
+## stop protocol never does.
+func approach_geometry(node: int, in_edge: int) -> Dictionary:
+	var axis := edge_axis(in_edge)
+	var lane := edge_lane_off(in_edge)
+	var half := edge_half_width(in_edge)
+	var band_inner := lane + BAND_INNER_MARGIN
+	var band_outer := band_inner + CROSSWALK_BAND_DEPTH
+	var stop_outset := band_outer + BAND_STOP_GAP + STOP_LINE_WIDTH * 0.5
+	var bars := maxi(roundi(half * 2.0 / CROSSWALK_BAR_PITCH), 1)
+	var center := Vector2(_nodes[node].x, _nodes[node].z) - Vector2(axis.x, axis.z) \
+			* (band_inner + CROSSWALK_BAND_DEPTH * 0.5)
+	var run_length := edge_length(in_edge)
+	return {
+		"axis": axis,
+		"lane_off": lane,
+		"half_width": half,
+		"band_inner": band_inner,
+		"band_outer": band_outer,
+		"stop_outset": stop_outset,
+		"bars": bars,
+		"band": {
+			"center": center,
+			"axis": Vector2(axis.x, axis.z),
+			"half_along": CROSSWALK_BAND_DEPTH * 0.5 + 0.5,
+			"half_across": half + 0.5,
+		},
+		"run_length": run_length,
+		"fits": run_length >= stop_outset + 2.0,
+	}
+
+
+## The classification pass (built once with the graph): merge junction nodes
+## into anchors, read each anchor's street grade, pin from the census windows
+## + the arterial corridors, and signal-classify by the arterial × collector
+## rule. Deterministic: nodes in id order, members ascending, ties to the
+## lowest edge id.
+func _classify_intersections() -> void:
+	_node_intersection.resize(_node_kind.size())
+	_node_intersection.fill(-1)
+	_intersections.clear()
+	for n in _node_kind.size():
+		if _node_kind[n] != KIND_JUNCTION:
+			continue
+		var home := -1
+		for a in _intersections.size():
+			for member in _intersections[a].members:
+				if _nodes[member].distance_to(_nodes[n]) <= INTERSECTION_MERGE_RADIUS:
+					home = a
+					break
+			if home >= 0:
+				break
+		if home < 0:
+			var anchor := Intersection.new()
+			anchor.head = n
+			anchor.members.append(n)
+			_intersections.append(anchor)
+			_node_intersection[n] = _intersections.size() - 1
+		else:
+			_intersections[home].members.append(n)
+			_node_intersection[n] = home
+	## Per-anchor street stock: names, best class per name, widest arm.
+	var class_rank := {
+		"primary": 0, "secondary": 1, "tertiary": 2, "residential": 3,
+		"unclassified": 4, "living_street": 5, "service": 6,
+	}
+	for a in _intersections.size():
+		var anchor := _intersections[a]
+		for member in anchor.members:
+			for e in _out_edges[member]:
+				var nm := _runs[_edge_run[e]].sname
+				var cls := _runs[_edge_run[e]].cls
+				anchor.max_width = maxf(anchor.max_width, _runs[_edge_run[e]].width_m * 0.5)
+				if nm.is_empty():
+					continue
+				if not anchor.streets.has(nm):
+					anchor.streets.append(nm)
+				var rank := int(class_rank.get(cls, 9))
+				if not anchor.classes.has(nm) \
+						or rank < int(class_rank.get(str(anchor.classes[nm]), 9)):
+					anchor.classes[nm] = cls
+		_pin_anchor(a)
+		_signal_anchor(a)
+		_group_anchor(a)
+
+
+## The census windows in pack-local metres (x0, x1, z0, z1 — z grows south).
+static func _window_local(bbox: Array) -> Array:
+	var west := AmesDataPack.wgs84_to_local(float(bbox[0]), float(bbox[3])).x
+	var east := AmesDataPack.wgs84_to_local(float(bbox[2]), float(bbox[3])).x
+	var north := AmesDataPack.wgs84_to_local(float(bbox[2]), float(bbox[3])).z
+	var south := AmesDataPack.wgs84_to_local(float(bbox[2]), float(bbox[1])).z
+	return [west, east, north, south]
+
+
+static func _name_hits(name: String, keys: Array[String]) -> bool:
+	for key in keys:
+		if name.contains(key):
+			return true
+	return false
+
+
+## The district pins: an anchor inside a census window touching ≥ 1 band
+## street AND ≥ 1 cross street pins as a district corner (the recorded start
+## set: downtown exactly 20, Campustown 11 of the census's 13).
+func _pin_anchor(anchor: int) -> void:
+	var a := _intersections[anchor]
+	var pos := _nodes[a.head]
+	for window_def: Array in [
+		[DOWNTOWN_WINDOW, DOWNTOWN_BANDS, DOWNTOWN_CROSS_KEYS],
+		[CAMPUSTOWN_WINDOW, CAMPUS_BANDS, CAMPUS_CROSS_KEYS],
+	]:
+		var win := _window_local(window_def[0])
+		if pos.x < float(win[0]) or pos.x > float(win[1]) \
+				or pos.z < float(win[2]) or pos.z > float(win[3]):
+			continue
+		var band_hit := false
+		var cross_hit := false
+		for nm in a.streets:
+			if not band_hit and (window_def[1] as Array[String]).has(nm):
+				band_hit = true
+			if not cross_hit and _name_hits(nm, window_def[2] as Array[String]):
+				cross_hit = true
+		if band_hit and cross_hit:
+			a.pin = PIN_DISTRICT
+			a.district = "downtown" if window_def[0] == DOWNTOWN_WINDOW else "campustown"
+			return
+	## The arterial stops: a named-corridor crossing in the pack's core.
+	var meta := AmesDataPack.meta()
+	var bbox: Array = meta.get("core_bbox_wsen", [])
+	if bbox.size() >= 4:
+		var core := _window_local(bbox)
+		var in_core := pos.x >= float(core[0]) and pos.x <= float(core[1]) \
+				and pos.z >= float(core[2]) and pos.z <= float(core[3])
+		if in_core and a.streets.size() >= 2:
+			for nm in a.streets:
+				if _name_hits(nm, ART_NAME_KEYS):
+					a.pin = PIN_ARTERIAL
+					return
+
+
+## The signal rule: an anchor signals when an arterial-grade street meets a
+## collector-grade street (different names), or two distinct arterials cross.
+func _signal_anchor(anchor: int) -> void:
+	var a := _intersections[anchor]
+	if a.pin == PIN_NONE:
+		return ## Furniture (and its control) lives only at pinned corners.
+	var art := 0
+	var collectors := 0
+	for nm in a.streets:
+		var cls := str(a.classes.get(nm, ""))
+		var is_art := (SIGNAL_ART_CLASSES.has(cls)
+				or _name_hits(nm, SIGNAL_ART_NAME_KEYS))
+		if is_art:
+			art += 1
+		elif SIGNAL_COLLECTOR_CLASSES.has(cls) \
+				or _name_hits(nm, SIGNAL_COLLECTOR_NAME_KEYS):
+			collectors += 1
+	a.is_signal = (art >= 1 and collectors >= 1) or art >= 2
+
+
+## The signal anchor's phase group axis: the widest arterial-grade arm over
+## the members' out-edges (ties to the lowest edge id).
+func _group_anchor(anchor: int) -> void:
+	var a := _intersections[anchor]
+	if not a.is_signal:
+		return
+	var best_w := -1.0
+	var best_e := -1
+	var best_node := -1
+	for member in a.members:
+		for e in _out_edges[member]:
+			var cls := _runs[_edge_run[e]].cls
+			var nm := _runs[_edge_run[e]].sname
+			if not SIGNAL_ART_CLASSES.has(cls) \
+					and not _name_hits(nm, SIGNAL_ART_NAME_KEYS):
+				continue
+			var w := _runs[_edge_run[e]].width_m
+			if w > best_w:
+				best_w = w
+				best_e = e
+				best_node = member
+	if best_e >= 0:
+		a.group_axis = edge_axis(best_e)
+		a.group_node = best_node
+		a.group_half_width = _runs[_edge_run[best_e]].width_m * 0.5
+		a.group_lane_off = _runs[_edge_run[best_e]].lane_off
 
 
 ## Total centerline km across all runs (the census §4 drivable stock).
@@ -635,6 +1066,7 @@ func _init() -> void:
 	_weld_and_classify(streets)
 	_extract_runs(streets)
 	_flag_rail()
+	_classify_intersections() ## (T-180) The real corners: merge, pin, signal.
 
 
 ## The weld key of a pack-local vertex.

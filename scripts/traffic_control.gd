@@ -68,6 +68,34 @@ static func now() -> float:
 	return float(Engine.get_physics_frames()) / 60.0
 
 
+## --- signals (T-180) --------------------------------------------------------
+## At a signalized corner (`AmesTrafficGraph.intersection_is_signal` — the
+## arterial × collector grade rule) the phase gate FRONTS the same ladder:
+## the car still brakes to its line, registers, and holds — it just reads the
+## light instead of the all-way priority rules while red. One city-wide
+## synchronized two-phase cycle on the fixed physics clock (the T-134
+## deterministic-time discipline): group 0 (approaches near-parallel to the
+## corner's group axis — the arterial's two directions) green in phase 0,
+## group 1 (the cross street) green in phase 1. The mast-head lamps
+## (`ames_world.gd`'s furniture) read the SAME clock, so the paint can never
+## disagree with the cars' gate. A red hold deliberately does NOT feed the
+## patience clock (the car's `_drive` skips the accumulation while red): the
+## light guarantees progress, and a force-commit break would run the red.
+
+## Green seconds per phase group — worst red ≈ one other-group green.
+const SIGNAL_GREEN_SECONDS := 10.0
+
+
+## The current phase group (0 or 1) whose approaches have green.
+static func signal_phase() -> int:
+	return int(now() / SIGNAL_GREEN_SECONDS) % 2
+
+
+## True when `group`'s approaches face red right now.
+static func signal_red_for_group(group: int) -> bool:
+	return group != signal_phase()
+
+
 ## A car at its stop line: registers (node, approach, turn, arrival time) and
 ## holds until `request_go` says otherwise. Idempotent per car.
 func register_arrival(car: Car, node: int, approach: Vector3, turn: int) -> void:
