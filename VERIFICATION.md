@@ -449,6 +449,64 @@ traverse bit) — the publish leg pins 755/644 explicitly so the `caddy` user
 can traverse and read. Desktop-browser and iPhone passes live in the Gate 3
 checklist below.
 
+## The Linux gate box (Ubuntu Server — T-211)
+
+The games box is a Dell OptiPlex running **Ubuntu Server** (2026-11-13: it
+replaced the dead NixOS box for hosting AND testing). Nothing it runs touches
+a desktop — gates are headless, rendered sessions live on a persistent Xvfb —
+so the T-170 focus-steal defect class does not exist there.
+
+**One-time setup** (per machine / fresh checkout):
+
+```bash
+sudo apt install python3 xvfb xdotool imagemagick
+# the 4.7.2 Linux editor binary at ~/bin/Godot_v4.7.2-stable_linux.x86_64
+#   (pilot.py finds it there; or export PIGEON_BIN=<path>)
+# fresh checkouts only: copy the untracked per-machine addon in
+#   cp -r addons/godot_mcp <checkout>/addons/   (same precondition as Windows)
+```
+
+**Gates on the box** (`godot` here means the Linux binary):
+
+```bash
+# Gate 1 + 1b — the Windows commands byte-for-byte (headless needs no X):
+godot --headless --path . --import
+godot --headless --path . --quit-after 120
+godot --headless --path . --check-only --script res://scripts/player.gd
+godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn
+# Gate 2 autoplay — needs pixels: one-shot Xvfb is fine for a single command:
+xvfb-run -a godot --path . --rendering-method gl_compatibility \
+    --rendering-driver opengl3 --audio-driver Dummy res://tests/autoplay.tscn
+```
+
+`--rendering-method gl_compatibility` is load-bearing on the box: the desktop
+default is forward_plus/Vulkan and software Vulkan (lavapipe) is the fragile
+path under Mesa.
+
+**Pilot sessions on the box** — the Xvfb server must OUTLIVE each CLI
+invocation (start/send/shot/stop are separate processes), so a persistent
+display, NOT `xvfb-run` per command:
+
+```bash
+Xvfb :99 -screen 0 1280x720x24 &      # once, when the box boots
+export DISPLAY=:99
+python3 -I tests/tools/pilot.py start --session <id> --gl
+python3 -I tests/tools/pilot.py shot  --session <id>   # xdotool + imagemagick
+python3 -I tests/tools/pilot.py stop  --session <id>
+```
+
+- `--headless` sessions need no X at all (channel/state/events/stop work;
+  the frame stream and `shot` are the only casualties — the recorder's OS
+  legs guard-skip, proven headless by the dev_call_verb Gate 1b scenario).
+- POSIX non-sound launches pass `--audio-driver Dummy` automatically.
+- `focuscheck` self-skips on non-Windows: the T-170 hidden-launch contract is
+  a Win32 one, and a server has nothing to steal.
+- **Watch-item:** `density_cpu_budget` pins a wall-clock value measured on
+  the Windows dev machine — a slower box CPU can go red without a code
+  fault. Re-derive the budget on the box before treating it as a regression.
+
+
+
 ## Gate 3 — Manual playtest (run the full list before closing any ticket)
 
 **Bulk closure (owner call, 2026-10-13):** the owner reviewed the ledger after the

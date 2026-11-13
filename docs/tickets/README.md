@@ -152,6 +152,7 @@ exit criteria: [`../ROADMAP.md`](../ROADMAP.md).
 | T-168 | [Dev tool 2: the starter verb pack — spawn a car, blink its lights, teleport the pigeon, freeze traffic](T-168-dev-verb-pack.md) | tooling | 4 | 2 | done |
 | T-169 | [Dev tool 3: the call verb — one-hop method invocation on the running world from a JSONL line](T-169-dev-call-verb.md) | tooling | 3 | 3 | done |
 | T-170 | [Pilot sessions never steal the desktop: hidden-from-focus launch by default, a `--shown` opt-out](T-170-pilot-hidden-launch.md) | code-optimization | 4 | 2 | done |
+| T-211 | [Linux gate box: the pilot harness runs on POSIX (the Ubuntu testing box)](T-211-linux-gate-box.md) | tooling | 4 | 3 | done |
 
 **Backlog quality audit (2026-09-30):** all 38 proposed tickets were audited —
 22 solid, 15 need fixes, 1 stale (T-084). All 16 flagged tickets have since

@@ -12,7 +12,7 @@ never wrecks the real record or the ears of the person at the keyboard.
 Usage:
   pilot.py start  --session <id> [--scene res://scenes/menu.tscn]
                   [--images 0.2|off] [--sound] [--persist] [--pos X,Y] [--size WxH]
-                  [--time-scale 0.1] [--shown]
+                  [--time-scale 0.1] [--shown] [--gl] [--headless]
   pilot.py send   --session <id> '{"action":"flap","frames":7}'
   pilot.py state  --session <id> [--tail 1]
   pilot.py events --session <id> [--tail 20]
@@ -22,6 +22,11 @@ Usage:
   pilot.py focuscheck                                 (T-170: prove the hidden launch)
   pilot.py list
   pilot.py clean
+
+Linux gate box (T-211): set PIGEON_BIN to the Linux editor binary; deps are
+python3 + xvfb (rendered sessions), xdotool + imagemagick (`shot`). `--gl`
+forces the GL compatibility renderer for llvmpipe; `--headless` needs no X
+at all. focuscheck is Windows-only by design. See VERIFICATION.md.
 
 Pilot commands (one JSON object per line):
   {"action": "flap", "frames": 7}   hold an input action N physics frames
@@ -42,7 +47,9 @@ import ctypes
 import json
 import os
 import random
+import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -72,6 +79,14 @@ def godot_bin() -> Path:
         home / "bin" / "Godot_v4.7.2-stable_win64_console.exe",
         home / "bin" / "Godot_v4.7.2-stable_win64.exe",
     ]
+    if os.name != "nt":  # T-211: the Linux gate box — PIGEON_BIN wins, then the usual spots
+        candidates += [
+            home / "bin" / "Godot_v4.7.2-stable_linux.x86_64",
+            home / ".local" / "bin" / "godot",
+        ]
+        on_path = shutil.which("godot")
+        if on_path:
+            candidates.append(Path(on_path))
     for c in candidates:
         if c.is_file():
             return c
@@ -81,9 +96,13 @@ def godot_bin() -> Path:
 def pid_info(pid: int):
     """(alive, image_name) for a pid, or None if it can't be queried."""
     if os.name != "nt":
+        # T-211: the name must be REAL — godot_alive's image-name check is the
+        # pid-reuse absorb on both platforms, and a "?" here made every POSIX
+        # session read dead. /proc/<pid>/comm holds the executable's name
+        # (15-char truncated, which both "Godot_v4.7.2-st…" and "godot" survive).
         try:
-            os.kill(pid, 0)
-            return (True, "?")
+            comm = Path(f"/proc/{pid}/comm").read_text(encoding="utf-8").strip()
+            return (True, comm)
         except OSError:
             return (False, "?")
     k32 = ctypes.windll.kernel32
@@ -168,7 +187,8 @@ def cascade_pos() -> tuple:
 def boot_session(sid: str, shown: bool, scene: str = "res://scenes/menu.tscn",
                  images: str = "0.2", sound: bool = False, persist: bool = False,
                  pos: str = "", size: str = "", time_scale=None,
-                 announce: bool = True) -> tuple:
+                 announce: bool = True, gl: bool = False,
+                 headless: bool = False) -> tuple:
     """The ONE launch path (T-170) — cmd_start and focuscheck both boot
     through here, so the checker exercises the real default. Returns
     (proc, session_dir, pos). Unless `shown`, the launch is hidden-from-focus:
@@ -192,6 +212,13 @@ def boot_session(sid: str, shown: bool, scene: str = "res://scenes/menu.tscn",
     # claiming it.
     for stale in d.glob("pilot_cmd_*.jsonl"):
         stale.unlink()
+    # Same poison class (observed live, T-211): a predecessor's started.json
+    # from a dead session with a REUSED id gets read by the claim-wait loop
+    # below before this boot's claim lands — the stale pid wins and every
+    # later check (list, stop) watches a corpse. Drop it so the wait can only
+    # succeed on THIS boot's claim. (The recorder overwrites the claim itself
+    # but only warns; a fresh claim from a SLOW boot can lose that race too.)
+    (d / "started.json").unlink(missing_ok=True)
 
     godot = godot_bin()
     # First launch on a fresh checkout: imports must exist before any game
@@ -215,6 +242,14 @@ def boot_session(sid: str, shown: bool, scene: str = "res://scenes/menu.tscn",
     argv = [str(godot), "--path", str(ROOT), "--position", f"{pos[0]},{pos[1]}"]
     if size:
         argv += ["--resolution", size]
+    if headless:  # T-211: no window at all — the recorder's OS legs guard-skip
+        argv += ["--headless"]
+    if gl:  # T-211: software-rendered servers — GL compatibility beats lavapipe
+        argv += ["--rendering-method", "gl_compatibility",
+                 "--rendering-driver", "opengl3"]
+    if os.name != "nt" and not sound:  # T-211: a server has no audio device
+        argv += ["--audio-driver", "Dummy"]
+    # Engine flags go BEFORE the scene arg; everything after `--` is user args.
     argv += [scene, "--", f"--pilot-session={sid}"]
     if time_scale is not None:  # T-132: agent slow-mo — the game clamps to [0.01, 1.0]
         argv += [f"--time-scale={time_scale}"]
@@ -257,7 +292,8 @@ def boot_session(sid: str, shown: bool, scene: str = "res://scenes/menu.tscn",
 def cmd_start(a):
     sid = a.session
     proc, d, _pos = boot_session(sid, a.shown, a.scene, a.images, a.sound,
-                                 a.persist, a.pos, a.size, a.time_scale)
+                                 a.persist, a.pos, a.size, a.time_scale,
+                                 gl=a.gl, headless=a.headless)
     print(f"pilot: session '{sid}' READY"
           + ("" if a.shown else " (window hidden off-screen — --shown for eyes-on)"))
     print(f"  dir     {d}")
@@ -315,9 +351,28 @@ def cmd_wait(a):
 
 
 def take_shot(sid: str, out: str) -> tuple:
-    """One OS window grab through window-shot.ps1 (PrintWindow needs no focus,
-    so an off-screen hidden session captures fine — T-170). Returns
+    """One OS window grab: Windows through window-shot.ps1 (PrintWindow needs
+    no focus, so an off-screen hidden session captures fine — T-170); POSIX
+    through xdotool + ImageMagick import (T-211 — the Linux gate box; no WM
+    required, the recorder's window title is WM_NAME, and the unanchored
+    prefix match rides out the engine's title re-stamping). Returns
     (returncode, printed text)."""
+    if os.name != "nt":
+        title = f"Pigeon pilot {sid}"
+        try:
+            find = subprocess.run(["xdotool", "search", "--name", f"^{re.escape(title)}"],
+                                  capture_output=True, text=True)
+        except FileNotFoundError:
+            return 1, "pilot: shot on Linux needs xdotool + imagemagick (apt install both)"
+        wids = [w for w in find.stdout.split() if w.strip()]
+        if find.returncode != 0 or not wids:
+            return 1, f"pilot: no window matching '{title}' (is the session up?)"
+        try:
+            r = subprocess.run(["import", "-window", wids[0], out],
+                               capture_output=True, text=True)
+        except FileNotFoundError:
+            return 1, "pilot: shot on Linux needs xdotool + imagemagick (apt install both)"
+        return r.returncode, ((r.stderr or "").strip() or f"shot window {wids[0]} -> {out}")
     r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                         "-File", str(TOOLS / "window-shot.ps1"), "-TitlePattern",
                         f"Pigeon pilot {sid}", "-OutPath", str(out)],
@@ -348,8 +403,7 @@ def stop_session(sid: str, force: bool = False) -> None:
             time.sleep(0.25)
     if godot_alive(pid):
         print(f"pilot: quit not acknowledged, killing pid {pid}")
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
-                       capture_output=True)
+        stop_force(pid)
         time.sleep(0.5)
     print(f"pilot: session '{sid}' stopped"
           + (" (graceful)" if not godot_alive(pid) and not force else " (killed)"))
@@ -363,8 +417,19 @@ def stop_force(pid: int):
     if os.name == "nt":
         subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
     else:
+        # T-211: SIGTERM with a short grace, then SIGKILL — the Windows path is
+        # /F (forceful), but a TERM first lets the engine flush .captures.
         try:
-            os.kill(pid, 9)
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            return
+        for _ in range(20):  # ~2 s
+            info = pid_info(pid)
+            if not (info and info[0]):
+                return
+            time.sleep(0.1)
+        try:
+            os.kill(pid, signal.SIGKILL)
         except OSError:
             pass
 
@@ -654,6 +719,14 @@ def main():
                    help="launch visible + focusable at the cascade position (T-170: "
                         "the default launch is hidden off-screen and no-activate so "
                         "agent batches never steal the desktop)")
+    s.add_argument("--gl", action="store_true",
+                   help="T-211: force the GL compatibility renderer (software-"
+                        "rendered Linux boxes: llvmpipe/Xvfb; the desktop default "
+                        "is forward_plus/Vulkan)")
+    s.add_argument("--headless", action="store_true",
+                   help="T-211: no window at all — box/CI runs; the recorder's OS "
+                        "legs guard-skip, the frame stream is off, shot finds no "
+                        "window; channel/state/events/stop all work")
     s.set_defaults(fn=cmd_start)
 
     s = sub.add_parser("send", help="queue a pilot command")
