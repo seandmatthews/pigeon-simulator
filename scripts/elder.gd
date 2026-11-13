@@ -320,6 +320,10 @@ func zone_seat(xf: Transform3D) -> void:
 ## waits included, though no zone route crosses a road yet) and WRAP at the
 ## end — zone locals stroll closed loops, the walk never arrives (there is
 ## no reserved bench to settle onto; the seated locals are placed seated).
+## `cross_flags` MUST ride the route's waypoint-indexed convention (size ==
+## route.size(), `_route_cross[i]` = the leg arriving at waypoint i — the
+## zone spawner converts the zone data's leg-indexed flags; the rv2 review
+## froze every zone walker on the unconverted feed).
 func zone_walk(route: PackedVector3Array, cross_flags: Array[bool]) -> void:
 	if route.size() < 2:
 		return
@@ -559,12 +563,17 @@ func _rising_tick(delta: float) -> void:
 
 
 ## WALKING: follow the route legs at `walk_speed`; before each crossing leg
-## the CURB_WAIT gate holds until the road is clear.
+## the CURB_WAIT gate holds until the road is clear. The crossing read is
+## bounds-guarded (T-181 round 2): `_route_cross` is waypoint-indexed and
+## correctly sized for both feeders (the migration route and the zone
+## walk's converted flags), but a malformed feeder must degrade to "no
+## crossing leg" — never abort the tick, which would freeze the walker
+## forever short of its route end.
 func _walking_tick(delta: float) -> void:
 	if _wp >= _route.size():
 		_route_end()
 		return
-	if _route_cross[_wp] and not _cross_committed:
+	if _wp < _route_cross.size() and _route_cross[_wp] and not _cross_committed:
 		if _road_blocked():
 			_state = State.CURB_WAIT
 			return

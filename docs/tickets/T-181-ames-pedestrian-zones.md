@@ -1,6 +1,6 @@
 # T-181 — Ames R2 · pedestrian zones: people where Ames actually has people
 
-- **Status:** doing · **Category:** worldbuilding · **Ring:** R2 The Life ·
+- **Status:** done · **Category:** worldbuilding · **Ring:** R2 The Life ·
   **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-177, T-180 (crossings to cross at)
 - **Refs:** `census/BUILD-CENSUS.md` §5 (191.8 km footway — the reason
@@ -50,8 +50,30 @@ without crowds fails the owner's alum test more than a missing sign would.
 Gate 1 · Gate 1b + one row · Gate 2 · Gate 3 folded into T-184 (the
 owner walks Welch at eye level).
 
-## Landed record (implementer, 2026-11-13 — status stays doing until the
-## reviewer signs off; the flip to done rides the sign-off commit)
+## Final tuned values (all placement data law, pinned by `ames_ped_zones`)
+
+- Zone caps: Welch strip **12** (the strict maximum) · downtown Main
+  **8** · MU corner **4** · Central Campus **6** · LaVerne shore **4**
+  — 24 tourists + 10 elder locals.
+- Sidewalk walk edge **1.6 m** beyond the road half-width; campus path
+  inset **15 m** inside the park polygon; shore path offset **6 m** off
+  the lake polygon (the T-176 shore-ring law); waypoint densification
+  **8 m**.
+- Benches: seat line **0.60 m** over the ground (the `elder_spots`
+  convention), furniture at the retired Windrow dims (seat slab 1.8 ×
+  0.08 × 0.5, top 0.54 — the T-163 law's wood top), side offset
+  **1.3 m** off the walk line; stock 2/2/1/3/2 = 10.
+- Gait: unchanged T-165 pins (stroll 1.3 × pace 0.85–1.2, shuffle 0.8,
+  `WALK_STRIDE` 1.3239 / `WALK_SECONDS` 1.3333) — nothing re-tuned, by
+  design.
+- Crossing: the tourist curb gate `curb_car_radius` **15.0** (the elder's
+  T-137 pin, carried); one zone crossing exists (the MU corner's Lincoln
+  Way leg through the L/W × Welch east bands).
+- Budget re-measured with the citizen load: median **292.5 ms** per 100
+  physics frames vs the kept 750 bar.
+
+## Landed record (implementer, 2026-11-13 — reviewer signed off the same
+## day; the round-2 lap-end fix landed and re-gated before the flip)
 
 ### What landed
 
@@ -179,6 +201,41 @@ owner walks Welch at eye level).
   block faces and the fence holds with zero crossings; the MU corner
   carries the zone system's one real crossing, at the pinned bands, with
   the cars' yield watching the walkers.
+
+### Round 2 (reviewer findings, fixed 2026-11-13)
+
+The reviewer's live session (rv2) caught every walking zone elder frozen
+permanently at its route's last waypoint with a per-tick SCRIPT ERROR —
+`Elder._walking_tick` read `_route_cross[_wp]` unguarded (waypoint-indexed,
+the migration convention) while the zone feeder (`ElderSpawner._populate_
+zones`) passed the zone data's LEG-count flags (route.size()−1): at the
+last waypoint the read went out of bounds (`index 195/213` on the
+196-point campus route, `213/213` on the 214-point shore route), the error
+aborted the tick before `_wp` advanced or `_route_end()` wrapped, and the
+walk stopped forever — 39,425 + 7,103 occurrences by t≈1233 s, all five
+walkers frozen (3 campus at exactly (437.08,−312.29), 2 shore at exactly
+(283.96,−25.75)), contradicting the ticket's own walking promise. Invisible
+to the first gates because their live samples (8 s / 103 s) never reach a
+lap end. Fixed on two layers:
+
+1. **The feeder** (`elder_spawner.gd`, `_populate_zones`): the zone's
+   leg-indexed flags now CONVERT to the route's waypoint-indexed
+   convention (waypoint 0 has no arriving leg; leg i arrives at i+1) —
+   size == route.size().
+2. **The read** (`elder.gd`, `_walking_tick`): bounds-guarded — a
+   malformed feeder degrades to "no crossing leg" and can never abort a
+   tick again.
+
+**The pin that bites**: the `ames_ped_zones` scenario gained the LAP-END
+leg — one walking zone elder teleported onto its route's last waypoint,
+the flags sizing pinned (`_route_cross.size() == _route.size()`), and the
+walk must wrap through `_route_end` back to `_wp == 0` still WALKING.
+Red-before recorded on this tree pre-fix: `SIM FAIL ames_ped_zones: …
+lap=false flags=false …` with `SCRIPT ERROR: Out of bounds get index
+'195' (on base: 'Array[bool]')` (10 occurrences in the leg's 10-frame
+window — the same class as the reviewer's 39k). Post-fix: 136 SIM PASS /
+0 SIM FAIL, `lap=true`, and ZERO `SCRIPT ERROR` lines in the whole suite
+log.
 
 ### Gate 3
 

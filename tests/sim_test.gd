@@ -4282,22 +4282,53 @@ func _scenario_ames_ped_zones() -> void:
 			var p := _city.to_local(elder.global_position)
 			if _ped_road_contact(graph, Vector2(p.x, p.z)):
 				live_road_walkers += 1
+	## (g2) The LAP-END leg (round 2): a zone loop's LAST waypoint is where
+	## the route wrap happens — the walking elder must read its crossing
+	## flags in the route's waypoint-indexed convention (size == route.size())
+	## and wrap through `_route_end` instead of erroring and freezing there
+	## (the rv2 review's live evidence: every zone walker froze at its last
+	## waypoint with `_route_cross` out of bounds, tens of thousands of
+	## script errors by t≈20 min — invisible to the 8 s sample above, which
+	## never reaches a lap end). Teleport one walker onto its route's last
+	## waypoint and step the live sim: the flags must be waypoint-sized and
+	## the walk must wrap (`_wp` back to 0, still WALKING).
+	var lap_ok := false
+	var flags_sized := false
+	var lap_elder: Elder = null
+	for elder: Elder in elders.living_elders():
+		if elder.zone_id != "" and elder._state == Elder.State.WALKING:
+			lap_elder = elder
+			break
+	if lap_elder != null:
+		flags_sized = lap_elder._route_cross.size() == lap_elder._route.size() \
+				and lap_elder._route_cross.size() > 0
+		var last := lap_elder._route.size() - 1
+		lap_elder.global_position = lap_elder._route[last]
+		lap_elder._wp = last
+		lap_elder._cross_committed = false
+		lap_elder.velocity = Vector3.ZERO
+		for _i in 10: ## The walk tick reaches the waypoint and wraps.
+			await _wait_frames(1)
+			if lap_elder._wp == 0 and lap_elder._state == Elder.State.WALKING:
+				lap_ok = true
+				break
 	tourists.free()
 	elders.free()
 	await _wait_frames(2)
-	print("SIM DATA %s: zones=%d caps=%s live_counts=%s elder_counts=%s road_vertices=%d band_vertices=%d strip300=%s live=%d elders=%d seated=%d benches=%d samples=%d live_road_walkers=%d det=%s" % [
+	print("SIM DATA %s: zones=%d caps=%s live_counts=%s elder_counts=%s road_vertices=%d band_vertices=%d strip300=%s live=%d elders=%d seated=%d benches=%d samples=%d live_road_walkers=%d lap=%s det=%s" % [
 			S, zones.zones.size(), str(want_counts), str(live_counts),
 			str(elder_counts), road_vertices, band_vertices, strip_ok,
 			living.size(), elder_total, seated_seen, benches_seen, samples,
-			live_road_walkers, det_ok])
+			live_road_walkers, lap_ok, det_ok])
 	var ok := table_ok and density_ok and road_vertices == 0 and strip_ok \
 			and caps_ok and gait_ok and elder_gait_ok and live_rate_ok \
 			and elder_rate_ok and sit_ok and bench_ok \
-			and live_road_walkers == 0 and det_ok
-	_check(S, ok, "table=%s density=%s fence=%s strip300=%s caps=%s gait=%s elder_gait=%s rates=%s/%s walk=%s sit=%s benches=%s live_sample=%s det=%s" % [
+			and live_road_walkers == 0 and lap_ok and flags_sized and det_ok
+	_check(S, ok, "table=%s density=%s fence=%s strip300=%s caps=%s gait=%s elder_gait=%s rates=%s/%s walk=%s sit=%s benches=%s live_sample=%s lap=%s flags=%s det=%s" % [
 			table_ok, density_ok, road_vertices == 0, strip_ok, caps_ok,
 			gait_ok, elder_gait_ok, live_rate_ok, elder_rate_ok, saw_walker,
-			sit_ok, bench_ok, live_road_walkers == 0, det_ok])
+			sit_ok, bench_ok, live_road_walkers == 0, lap_ok, flags_sized,
+			det_ok])
 
 
 ## The gate's own band containment (the T-181 fence read): a pack-local point

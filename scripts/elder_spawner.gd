@@ -156,6 +156,16 @@ func _populate_zones() -> void:
 		for p: Vector2 in path:
 			route.append(city.to_global(Vector3(p.x, 0.0, p.y)))
 		var cross_flags: Array[bool] = []
+		## (T-181 round 2) The elder's `_route_cross` is WAYPOINT-indexed —
+		## `_route_cross[i]` marks the leg ARRIVING at waypoint i (the
+		## migration route's own convention, size == route.size()). The zone
+		## data's flags are LEG-indexed (leg i joins waypoints i and i+1,
+		## size route.size()−1), so leg i maps onto waypoint i+1 and waypoint
+		## 0 has no arriving leg. Feeding the leg array unconverted left the
+		## last waypoint's read out of bounds — the tick errored, the wrap
+		## never ran and every zone walker froze at its route's end (the rv2
+		## review's live evidence).
+		cross_flags.append(false)
 		var crosses: Array = zone.crosses[0] if zone.crosses.size() > 0 else []
 		for flag: Variant in crosses:
 			cross_flags.append(bool(flag))
