@@ -353,7 +353,10 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	_corner_lamp_xfs = []
 	_bench_seat_xfs = [] ## (T-181) The zone-bench queues rebuild with the world.
 	_bench_leg_xfs = []
+	_lot_body_xfs = [] ## (T-182) The lot-dressing queues rebuild with the world.
+	_lot_cabin_xfs = []
 	ped_zones = null
+	parking = null
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
 	_manifest = AmesBaker.read_manifest(CHUNKS_DIR)
 	if _manifest.is_empty():
@@ -387,6 +390,7 @@ func generate_step_finish() -> void:
 	_build_traffic_graph()
 	_build_intersection_furniture() ## (T-180) The pinned corners' paint/signs/signals.
 	_build_ped_zones() ## (T-181) The pedestrian zones + their bench furniture.
+	_build_parking() ## (T-182) The parking system + the big-lot dressing rows.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -414,6 +418,9 @@ func generate_step_finish() -> void:
 		"intersections_signals": signalized,
 		"ped_zones": ped_zones.zones.size() if ped_zones != null else 0,
 		"ped_benches": _bench_seat_xfs.size(),
+		"parking_lots": parking.lot_count() if parking != null else 0,
+		"parking_curb_runs": parking.curb_run_count() if parking != null else 0,
+		"parking_dressed": parking.dressed_car_count() if parking != null else 0,
 	}
 	## Deterministic identity: the bake manifest's total hash — a re-bake that
 	## moves a byte moves the fingerprint, exactly the layout-fingerprint
@@ -505,6 +512,13 @@ var _corner_lamp_xfs: Array[Transform3D] = []
 ## the count the spawners seat against. World-local coordinates.
 var _bench_seat_xfs: Array[Transform3D] = []
 var _bench_leg_xfs: Array[Transform3D] = []
+
+## (T-182) The lot-dressing transform queues (the same retention law): one
+## body and one cabin transform per dressed stall, pack-local converted to
+## WORLD-LOCAL (the stalls are pack-local; the world node IS the pack frame,
+## so the conversion is identity here — retained for the gate's read anyway).
+var _lot_body_xfs: Array[Transform3D] = []
+var _lot_cabin_xfs: Array[Transform3D] = []
 
 
 func _process(_delta: float) -> void:
@@ -799,6 +813,74 @@ func _build_ped_zones() -> void:
 		shape.transform = ground * Transform3D(
 				Basis.IDENTITY, Vector3(0.0, 0.275, 0.0))
 		body.add_child(shape)
+
+
+## --- T-182 parking ----------------------------------------------------------
+
+
+## Builds the parking system (after the graph and the zones — the curb
+## marking walks its runs, the dressing guards use the ground query) and
+## spawns the big-lot dressing rows: one body + one cabin box per kept
+## stall, palette-cycled like the real fleet's civilians, under `Parking/`.
+## Visual-only dressing (the T-180 corner-dress pattern): zero colliders,
+## zero RNG of any stream — a rebuild reproduces every transform
+## byte-identically. The splat/favor stock stays the CarSpawner's T-147
+## fleet; the dressing is the "tailgate stock reads full-ish year-round"
+## scenery (events are R5/T-208's business).
+func _build_parking() -> void:
+	if traffic_graph == null:
+		return
+	parking = AmesParking.new(self, traffic_graph)
+	var bodies: Array[Transform3D] = []
+	var cabins: Array[Transform3D] = []
+	for lot: AmesParking.Lot in parking.lots:
+		for xf: Transform3D in lot.stalls:
+			bodies.append(xf * Transform3D(
+					Basis.from_scale(AmesParking.DRESS_BODY_SIZE),
+					Vector3(0.0, AmesParking.DRESS_BODY_CY, 0.0)))
+			cabins.append(xf * Transform3D(
+					Basis.from_scale(AmesParking.DRESS_CABIN_SIZE),
+					Vector3(0.0, AmesParking.DRESS_CABIN_CY, 0.0)))
+	_lot_body_xfs = bodies
+	_lot_cabin_xfs = cabins
+	if bodies.is_empty():
+		return
+	var root := Node3D.new()
+	root.name = "Parking"
+	add_child(root)
+	var body_aabb := _queue_aabb(bodies)
+	var cabin_aabb := _queue_aabb(cabins)
+	_spawn_lot_family(root, "LotBodies", bodies, body_aabb)
+	_spawn_lot_family(root, "LotCabins", cabins, cabin_aabb)
+
+
+## One colored dressing family: a MultiMeshInstance3D of the given
+## transforms, each instance palette-cycled off the civilian body palette
+## (deterministic by stall index), with the queue's AABB as the custom bound.
+func _spawn_lot_family(root: Node3D, node_name: String,
+		xfs: Array[Transform3D], aabb: AABB) -> void:
+	var mm := _new_multimesh(xfs.size())
+	var palette := Car.BODY_PALETTE
+	for i in xfs.size():
+		mm.set_instance_transform(i, xfs[i])
+		mm.set_instance_color(i, palette[i % palette.size()])
+	var node := MultiMeshInstance3D.new()
+	node.name = node_name
+	node.multimesh = mm
+	mm.custom_aabb = aabb
+	root.add_child(node)
+
+
+## The world-local AABB covering every transform origin in the queue (the
+## dressing boxes are small against the lots — the origins' bounds plus a
+## 3 m pad bound them).
+func _queue_aabb(xfs: Array[Transform3D]) -> AABB:
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for xf: Transform3D in xfs:
+		lo = lo.min(xf.origin)
+		hi = hi.max(xf.origin)
+	return AABB(lo - Vector3.ONE * 3.0, (hi - lo) + Vector3.ONE * 6.0)
 
 
 ## --- T-176 survival re-base ------------------------------------------------

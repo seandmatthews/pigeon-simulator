@@ -38,6 +38,7 @@ static var _buildings: Array[Dictionary] = []
 static var _pois: Array[Dictionary] = []
 static var _water: Array[Dictionary] = []
 static var _parks: Array[Dictionary] = []
+static var _parking: Array[Dictionary] = []
 static var _trees: PackedVector2Array = PackedVector2Array()
 static var _rail: Dictionary = {}
 
@@ -73,6 +74,9 @@ static func load_pack() -> Dictionary:
 	_parks.clear()
 	for e: Dictionary in _pack.get("parks", []):
 		_parks.append(e)
+	_parking.clear()
+	for e: Dictionary in _pack.get("parking", []):
+		_parking.append(e)
 	_rail = _pack.get("rail", {})
 	_trees = PackedVector2Array()
 	for p: Array in _pack.get("trees", []):
@@ -157,6 +161,14 @@ static func rail() -> Dictionary:
 static func parks() -> Array[Dictionary]:
 	load_pack()
 	return _parks
+
+
+## The amenity=parking stock (T-182) — the census §3 layer, distilled verbatim
+## (480 areas / 73.6 ha; 19 tailgate-zone lots; the `kind` field carries the
+## OSM `parking` subtype — `street_side` / `lane` are the curb bay stock).
+static func parking() -> Array[Dictionary]:
+	load_pack()
+	return _parking
 
 
 ## Tree scatter seeds (x, z local meters) — 5,637 mapped `natural=tree` nodes

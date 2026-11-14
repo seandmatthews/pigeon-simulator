@@ -1285,6 +1285,32 @@ func _offscreen_rejoin_graph(anchor: Vector2, mover: Car) -> Dictionary:
 	return {}
 
 
+## (T-182) The parked-placement candidate order over the graph: the nearest
+## runs re-partitioned census-curb-runs-FIRST (stable partition — nearest
+## first within each group). The census curb marking (`city.parking`,
+## built by the world's finish slice) says where Ames parks at the curb:
+## downtown/Campustown by district, the mapped bay stock by adjacency.
+## Unmarked runs stay eligible behind them — the fleet-count contract never
+## starves away from the marked districts. The dev staging verb is NOT
+## re-targeted (its own nearest-FREE-spot contract stands).
+func _ordered_parked_runs(lxz: Vector2, count: int) -> Array[Dictionary]:
+	var near := city.traffic_graph.nearest_runs(lxz.x, lxz.y, count)
+	var parking: AmesParking = city.parking
+	if parking == null:
+		return near
+	var curb: Array[Dictionary] = []
+	var plain: Array[Dictionary] = []
+	for near_d: Dictionary in near:
+		if parking.run_is_curb(int(near_d["run"])):
+			curb.append(near_d)
+		else:
+			plain.append(near_d)
+	var out: Array[Dictionary] = []
+	out.append_array(curb)
+	out.append_array(plain)
+	return out
+
+
 ## The Ames populate: the moving fleet dealt off weighted band edges, the
 ## parked fleet at the real curbs, the same class quotas, sightline gate and
 ## least-bad fill ladders as the grid loop.
@@ -1337,13 +1363,29 @@ func _spawn_traffic_graph(index: int) -> void:
 	_cars.append(car)
 
 
-## One parked placement attempt over the graph: the nearest runs' curb spots
-## (deterministic nearest-first walk), the taken-skip and the gate exactly as
-## the grid draw's. False when nothing placeable came of the attempt.
+## One parked placement attempt over the graph: the dressed lots' gap
+## stalls first (when the pigeon stands near one — the splat stock sits
+## where the parking visibly is, T-182), then the census-curb-ordered
+## nearest runs' curb spots (deterministic nearest-first walk), the
+## taken-skip and the gate exactly as the grid draw's. False when nothing
+## placeable came of the attempt.
 func _try_place_parked_graph(anchor: Vector2, index: int, gate: bool) -> bool:
 	var graph := city.traffic_graph
 	var lxz := _anchor_local_xz(anchor)
-	for near: Dictionary in graph.nearest_runs(lxz.x, lxz.y, 12):
+	var parking: AmesParking = city.parking
+	if parking != null:
+		for spot: Dictionary in parking.park_spots_near(lxz,
+				AmesParking.LOT_PARK_RADIUS):
+			var global_spot := city.to_global(
+					Vector3(spot["pos"].x, spot["pos"].y, spot["pos"].z))
+			if _spot_taken(global_spot):
+				continue
+			if gate and not _sightline_ok(global_spot):
+				continue
+			_spawn_parked(spot["block"], global_spot, float(spot["yaw"]),
+					index)
+			return true
+	for near: Dictionary in _ordered_parked_runs(lxz, 12):
 		var run_id: int = int(near["run"])
 		for spot: Dictionary in graph.run_curb_spots(run_id):
 			var global_spot := city.to_global(
@@ -1398,19 +1440,34 @@ func _replace_car_graph(spent: Car) -> bool:
 	var placed := false
 	if spent.mode == Car.Mode.PARKED:
 		var lxz := _anchor_local_xz(anchor)
-		for near: Dictionary in city.traffic_graph.nearest_runs(lxz.x, lxz.y, 12):
-			var run_id: int = int(near["run"])
-			for spot: Dictionary in city.traffic_graph.run_curb_spots(run_id):
+		var parking: AmesParking = city.parking
+		if parking != null:
+			for spot: Dictionary in parking.park_spots_near(lxz,
+					AmesParking.LOT_PARK_RADIUS):
 				var global_spot := city.to_global(
-						Vector3(spot["pos"].x, 0.0, spot["pos"].y))
+						Vector3(spot["pos"].x, spot["pos"].y, spot["pos"].z))
 				if _spot_taken(global_spot) or not _sightline_ok(global_spot):
 					continue
 				add_child(fresh) ## Before park_at — the crumb drop needs the tree.
-				fresh.park_at(global_spot, float(spot["yaw"]), _run_block_local(run_id))
+				fresh.park_at(global_spot, float(spot["yaw"]),
+						spot["block"])
 				placed = true
 				break
-			if placed:
-				break
+		if not placed:
+			for near: Dictionary in _ordered_parked_runs(lxz, 12):
+				var run_id: int = int(near["run"])
+				for spot: Dictionary in city.traffic_graph.run_curb_spots(run_id):
+					var global_spot := city.to_global(
+							Vector3(spot["pos"].x, 0.0, spot["pos"].y))
+					if _spot_taken(global_spot) or not _sightline_ok(global_spot):
+						continue
+					add_child(fresh) ## Before park_at — the crumb drop needs the tree.
+					fresh.park_at(global_spot, float(spot["yaw"]),
+							_run_block_local(run_id))
+					placed = true
+					break
+				if placed:
+					break
 	else:
 		var edge := _draw_band_edge(anchor)
 		var placement := _route_rejoin_edge(edge, fresh, true, _rng.randf())

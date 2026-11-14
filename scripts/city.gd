@@ -191,6 +191,13 @@ var traffic_graph: AmesTrafficGraph = null
 ## spawners fall back to their retired block-grid machinery when unset.
 var ped_zones: AmesPedZones = null
 
+## The parking system (T-182) — the census curb marking the car fleet's
+## parked placement re-targets to, plus the dressed big-lot stall grids the
+## world renders as dressing rows (the tailgate stock reads full-ish; the
+## splat/favor fleet itself stays the T-147 contract). Built by the world's
+## finish slice after the pedestrian zones, pure data, no RNG of any stream.
+var parking: AmesParking = null
+
 ## Seated spots (city-local) for the park elders (T-020): one transform per
 ## plaza-ring bench — position on the seat line, yaw = the bench's own. Purely
 ## derived from the layout — no RNG of its own — so it is deterministic per

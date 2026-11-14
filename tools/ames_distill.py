@@ -552,6 +552,76 @@ def build_trees(tagged):
     return pts
 
 
+# --- parking lots (T-182): the census §3 amenity=parking stock, verbatim ----
+#
+# Census rule (ames_census.py mode "campus", the parking census block): every
+# amenity=parking WAY with a bbox center in core (polygon areas by shoelace;
+# non-closed ways area 0) PLUS every cached tagged NODE with amenity=parking
+# in core (area 0 — unmapped-position lot). That exact rule reproduces the
+# census §3 record: 480 areas / 73.6 ha, 19 lots / 8.9 ha in the Iowa State
+# Center tailgate zone (lat < 42.0225, lon −93.6445…−93.6260 — the game's
+# tailgate stock). The `kind` field carries the OSM `parking` subtype —
+# `street_side` / `lane` are the CURB bay stock the T-182 curb re-target
+# marks the graph runs from; `surface` / `multi-storey` are the lot stock.
+
+TAILGATE_LON_W = -93.6445  # census §3 tailgate window (lon W..E, lat < N)
+TAILGATE_LON_E = -93.6260
+TAILGATE_LAT_N = 42.0225
+
+
+def build_parking(nodes, ways, tagged):
+    entries = []
+    for wid in sorted(ways):
+        w = ways[wid]
+        t = w.get("tags") or {}
+        if t.get("amenity") != "parking":
+            continue
+        pts = way_pts(w, nodes)
+        if len(pts) < 3:
+            continue
+        c = bbox_center(pts)
+        if not in_core(c):
+            continue
+        area = shoelace_m2(ring_of(pts)) if is_closed(pts) else 0.0
+        cx, cz = to_local(*c)
+        entries.append({
+            "id": "way/" + str(wid),
+            "kind": (t.get("parking") or "").strip() or None,
+            "name": (t.get("name") or "").strip() or None,
+            "polygon": poly_local(ring_of(pts)) if is_closed(pts) else [],
+            "area_m2": round(area),
+            "center": [cx, cz],
+            "wgs84": [round(c[0], 6), round(c[1], 6)],
+        })
+    node_entries = []
+    for nid in sorted(tagged):
+        lon, lat, t = tagged[nid]
+        if not isinstance(t, dict) or t.get("amenity") != "parking":
+            continue
+        if not in_core((lon, lat)):
+            continue
+        x, z = to_local(lon, lat)
+        node_entries.append({
+            "id": "node/" + str(nid),
+            "kind": (t.get("parking") or "").strip() or None,
+            "name": (t.get("name") or "").strip() or None,
+            "polygon": [],
+            "area_m2": 0,
+            "center": [x, z],
+            "wgs84": [round(lon, 6), round(lat, 6)],
+        })
+    entries.sort(key=lambda e: (-e["area_m2"], e["id"]))
+    entries.extend(node_entries)
+    return entries
+
+
+def parking_tailgate(lots):
+    """The census §3 tailgate-zone slice (the game's tailgate stock)."""
+    return [e for e in lots
+            if e["wgs84"][1] < TAILGATE_LAT_N
+            and TAILGATE_LON_W < e["wgs84"][0] < TAILGATE_LON_E]
+
+
 # --- POIs: the 48 venues (VENUES.md) + the landmark list (LANDMARKS §5) ----
 #
 # Anchors resolve at distill time from the COMMITTED data:
@@ -891,6 +961,10 @@ CENSUS_PINNED = {
     "venues": 48,               # VENUES.md (14 + 17 + 17)
     "venue_tiers": {1: 14, 2: 17, 3: 17},
     "landmarks": 15,            # LANDMARKS §5 top-15
+    "parking_lots": 480,        # §3 (amenity=parking, bbox center in core)
+    "parking_ha": 73.6,         # §3 total (7.0 % of the core box)
+    "parking_tailgate_lots": 19,    # §3 Iowa State Center tailgate zone
+    "parking_tailgate_ha": 8.9,     # §3 tailgate total (the game's stock)
 }
 
 
@@ -932,6 +1006,7 @@ def main():
     rail = build_rail(nodes, ways)
     parks = build_parks(nodes, ways)
     trees = build_trees(tagged)
+    parking = build_parking(nodes, ways, tagged)
     pois = build_pois(nodes, ways, rels, tagged, rail, streets)
 
     # --- pinned-count guards (the pack IS the census, made load-bearing) ---
@@ -948,6 +1023,17 @@ def main():
         raise SystemExit(f"at-grade vehicular crossings {len(at_grade)} != "
                          f"census {CENSUS_PINNED['rail_at_grade_vehicular']}: "
                          + str([c['road_name'] or c['road_class'] for c in at_grade]))
+    tailgate = parking_tailgate(parking)
+    if len(parking) != CENSUS_PINNED["parking_lots"]:
+        raise SystemExit(f"parking areas {len(parking)} != census "
+                         f"{CENSUS_PINNED['parking_lots']}")
+    if len(tailgate) != CENSUS_PINNED["parking_tailgate_lots"]:
+        raise SystemExit(f"tailgate lots {len(tailgate)} != census "
+                         f"{CENSUS_PINNED['parking_tailgate_lots']}")
+    parking_ha = sum(e["area_m2"] for e in parking) / 10000.0
+    if abs(parking_ha - CENSUS_PINNED["parking_ha"]) > 0.05:
+        raise SystemExit(f"parking total {parking_ha:.2f} ha != census "
+                         f"{CENSUS_PINNED['parking_ha']} ha")
     venues = [p for p in pois if p["kind"] == "venue"]
     landmarks = [p for p in pois if p["kind"] == "landmark"]
     if len(venues) != CENSUS_PINNED["venues"]:
@@ -1005,6 +1091,13 @@ def main():
                 "rail_crossings_vehicular": len(rail["crossings"]),
                 "rail_crossings_at_grade": len(at_grade),
                 "parks": len(parks),
+                "parking_lots": len(parking),
+                "parking_ha": round(parking_ha, 1),
+                "parking_tailgate_lots": len(tailgate),
+                "parking_tailgate_ha": round(
+                    sum(e["area_m2"] for e in tailgate) / 10000.0, 1),
+                "parking_bays": sum(1 for e in parking
+                                    if e["kind"] in ("street_side", "lane")),
             },
             "street_km": {
                 "named_drivable_in_core": street_km_stored,
@@ -1037,6 +1130,7 @@ def main():
         "water": water,
         "rail": rail,
         "parks": parks,
+        "parking": parking,
         "trees": trees,
     }
 

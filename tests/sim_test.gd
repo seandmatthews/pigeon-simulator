@@ -184,6 +184,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_traffic_calm() ## T-179 — the T-166 calm etiquette re-derived on the real graph: staged honk gates, the pass on real lanes, the live fleet's hold/blinker/honk reads.
 	await _scenario_ames_intersections() ## T-180 — the pinned corner set: census counts, adapted T-134 paint at measured widths, the T-143 relief, the signal phase, traffic obeys.
 	await _scenario_ames_ped_zones() ## T-181 — the pedestrian zones: pinned caps, the crossing fence, the live crowd at its caps, the T-165 gait pins, the bench sitters, 0 mid-block road walkers.
+	await _scenario_ames_parking_census() ## T-182 — the parking census: the lot stock matches the data, the curb re-target, the dressing at its caps, the fleet's lot staging, the blinker reach, the T-147 probe.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -4329,6 +4330,357 @@ func _scenario_ames_ped_zones() -> void:
 			gait_ok, elder_gait_ok, live_rate_ok, elder_rate_ok, saw_walker,
 			sit_ok, bench_ok, live_road_walkers == 0, lap_ok, flags_sized,
 			det_ok])
+
+
+## --- scenario (T-182 Ames parking census) ------------------------------------
+
+
+## The parking census: the pack's parking layer IS the census §3 record (480
+## areas / 73.6 ha; 19 tailgate lots / 8.9 ha; 31 mapped curb bays), the curb
+## marking re-targets the parked fleet to real curbs (downtown/Campustown by
+## district, the bays by adjacency), the big-lot dressing lands at its pinned
+## module inside the polygons and off the guards, the live fleet stages into
+## the dressed lots' gap stalls when the pigeon stands there (splat stock
+## where parking visibly is) and onto the census curbs downtown — the fleet
+## count never leaving the T-147 band (14 moving + 12 parked) — and the
+## T-147 exploit probes re-run on the new stock (the T-140 script pattern:
+## repeat splats pay once, the spent car churns at the radius, the nearest-
+## car blinker verb reaches parked cars).
+func _scenario_ames_parking_census() -> void:
+	const S := "ames_parking_census"
+	var graph := _city.traffic_graph
+	var parking: AmesParking = _city.parking
+	if parking == null or graph == null:
+		_check(S, false, "no parking system on the resident world")
+		return
+	## (a) The data leg: the pack layer vs the census §3 record, recomputed
+	## here from the entries (never through the meta's own counts alone).
+	var stock := AmesDataPack.parking()
+	var ha := 0.0
+	for e: Dictionary in stock:
+		ha += float(e.get("area_m2", 0))
+	ha /= 10000.0
+	var tail := 0
+	var tail_ha := 0.0
+	var bays := 0
+	for e: Dictionary in stock:
+		var wgs: Array = e.get("wgs84", [])
+		if wgs.size() >= 2 and float(wgs[1]) < AmesParking.TAILGATE_LAT_N \
+				and float(wgs[0]) > AmesParking.TAILGATE_LON_W \
+				and float(wgs[0]) < AmesParking.TAILGATE_LON_E:
+			tail += 1
+			tail_ha += float(e.get("area_m2", 0)) / 10000.0
+		if AmesParking.CURB_BAY_KINDS.has(str(e.get("kind", ""))):
+			bays += 1
+	var counts: Dictionary = AmesDataPack.meta().get("counts", {})
+	var data_ok := stock.size() == 480 and absf(ha - 73.6) < 0.05 \
+			and tail == 19 and absf(tail_ha - 8.9) < 0.05 and bays == 31 \
+			and int(counts.get("parking_lots", 0)) == stock.size() \
+			and int(counts.get("parking_tailgate_lots", 0)) == 19 \
+			and int(counts.get("parking_bays", 0)) == 31
+	## (b) The curb marking leg: the census-curb set pinned (downtown +
+	## Campustown districts fully marked, the bay stock's six named-campus
+	## runs), recomputed per run against the graph's own districts.
+	var district_counts := {"downtown": 0, "campustown": 0, "campus": 0}
+	var district_law := true
+	var bay_names := {}
+	for r in graph.run_count():
+		var d := graph.run_district(r)
+		if parking.run_is_curb(r):
+			if d == "downtown" or d == "campustown":
+				district_counts[d] += 1
+			else:
+				## The bay-adjacency stock outside the two districts (the
+				## campus lanes the mapped bays ride — all six this pack).
+				bay_names[graph.run_name(r)] = int(bay_names.get(
+						graph.run_name(r), 0)) + 1
+		elif d == "downtown" or d == "campustown":
+			district_law = false ## A district curb street the law missed.
+	var bay_total := 0
+	for nm: String in bay_names:
+		bay_total += int(bay_names[nm])
+	var curb_ok := district_law \
+			and parking.curb_run_count() == 94 \
+			and int(district_counts["downtown"]) == 64 \
+			and int(district_counts["campustown"]) == 24 \
+			and bay_total == 6 \
+			and int(bay_names.get("Morrill Road", 0)) == 2 \
+			and int(bay_names.get("Pammel Drive", 0)) == 2 \
+			and int(bay_names.get("WOI Road", 0)) == 1 \
+			and int(bay_names.get("Sheldon Avenue Extension", 0)) == 1
+	## (c) The dressing leg: the dressed set recomputed from the pack (the
+	## pinned rule — tailgate ∪ Campustown window ∪ the census big-lot cut),
+	## every kept stall inside its own lot polygon and ground/rail/street
+	## guard-clean (the full ground walk; the street/rail walk sampled plus
+	## the whole biggest lot), the population counts pinned, the world's
+	## dressing MultiMeshes equal to the retained queues.
+	var cw: Array = AmesTrafficGraph.CAMPUSTOWN_WINDOW
+	var want_dressed := 0
+	for e: Dictionary in stock:
+		if (e.get("polygon", []) as Array).size() < 3:
+			continue
+		var wgs: Array = e.get("wgs84", [])
+		var big := float(e.get("area_m2", 0)) >= AmesParking.LOT_BIG_AREA
+		if wgs.size() >= 2 \
+				and ((float(wgs[1]) < AmesParking.TAILGATE_LAT_N
+					and float(wgs[0]) > AmesParking.TAILGATE_LON_W
+					and float(wgs[0]) < AmesParking.TAILGATE_LON_E)
+					or (float(wgs[0]) >= float(cw[0])
+						and float(wgs[0]) <= float(cw[2])
+						and float(wgs[1]) >= float(cw[1])
+						and float(wgs[1]) <= float(cw[3]))
+					or big):
+			want_dressed += 1
+	var dress_ok := parking.lot_count() == want_dressed and want_dressed > 0
+	var raw_total := 0
+	var kept_total := 0
+	var gap_total := 0
+	var poly_ok := true
+	var ground_ok := true
+	var street_ok := true
+	var rail_ok := true
+	var largest: AmesParking.Lot = null
+	for lot: AmesParking.Lot in parking.lots:
+		raw_total += lot.stalls_raw
+		kept_total += lot.stalls.size()
+		gap_total += lot.gaps.size()
+		if largest == null or lot.area_m2 > largest.area_m2:
+			largest = lot
+		for xf: Transform3D in lot.stalls:
+			if not _parking_in_polygon(xf.origin.x, xf.origin.z, lot.polygon):
+				poly_ok = false
+			if _city.ground_height(_city.to_global(Vector3(xf.origin.x, 0.0,
+					xf.origin.z))) > AmesParking.GROUND_COVER_MAX:
+				ground_ok = false
+	var street_samples := 0
+	var rail_samples := 0
+	for lot: AmesParking.Lot in parking.lots:
+		var full := lot == largest
+		var i := 0
+		for xf: Transform3D in lot.stalls:
+			i += 1
+			if not (full or i % 20 == 0):
+				continue
+			street_samples += 1
+			rail_samples += 1
+			var hit := graph.nearest_run(xf.origin.x, xf.origin.z)
+			if not hit.is_empty() and float(hit["dist"]) \
+					<= graph.run_half_width(int(hit["run"])) + 0.4:
+				street_ok = false
+			if _parking_near_rail(xf.origin.x, xf.origin.z):
+				rail_ok = false
+	dress_ok = dress_ok and poly_ok and ground_ok \
+			and int(parking.dressed_car_count()) == kept_total \
+			and kept_total == 5873 and int(parking.dressed_tailgate()) == 2437 \
+			and gap_total > 0 and gap_total < kept_total
+	var body_mm := _city.get_node_or_null("Parking/LotBodies") as MultiMeshInstance3D
+	var cabin_mm := _city.get_node_or_null("Parking/LotCabins") as MultiMeshInstance3D
+	dress_ok = dress_ok and body_mm != null and cabin_mm != null \
+			and body_mm.multimesh.instance_count == kept_total \
+			and cabin_mm.multimesh.instance_count == kept_total
+	## (d1) The downtown leg: the live fleet on the census curbs — the pigeon
+	## parked over Main Street, the spawner re-targets the parked fleet onto
+	## curb-marked runs ONLY (no dressed lot is within the staging reach) and
+	## every car sits within tolerance of its curb spot.
+	await _set_up(true, _city.to_global(Vector3(2870.0, 22.0, -252.0)),
+			Vector3.ZERO)
+	var spawner := CarSpawner.new()
+	spawner.city = _city
+	spawner.player = _player
+	spawner.name = "CarSpawner_parking"
+	add_child(spawner)
+	await _wait_frames(4)
+	var fleet := spawner.living_cars()
+	var band_ok: bool = fleet.size() == spawner.target_moving \
+			+ spawner.target_parked ## The T-147 splat-stock band, exact.
+	var moving := 0
+	var parked_cars: Array[Car] = []
+	for car: Car in fleet:
+		if car.mode == Car.Mode.TRAFFIC:
+			moving += 1
+		else:
+			parked_cars.append(car)
+	var curb_park_ok: bool = moving == spawner.target_moving \
+			and parked_cars.size() == spawner.target_parked
+	var worst_spot := 0.0
+	for car: Car in parked_cars:
+		var l := _city.to_local(car.global_position)
+		var hit := graph.nearest_run(l.x, l.z)
+		curb_park_ok = curb_park_ok and not hit.is_empty() \
+				and parking.run_is_curb(int(hit["run"]))
+		var best := INF
+		if not hit.is_empty():
+			for spot: Dictionary in graph.run_curb_spots(int(hit["run"])):
+				best = minf(best, Vector2(spot["pos"].x - l.x,
+						spot["pos"].y - l.z).length())
+		worst_spot = maxf(worst_spot, best)
+		curb_park_ok = curb_park_ok and best <= 1.0 ## ON its curb spot.
+	## (d2) The tailgate lot leg: the pigeon over the biggest tailgate lot —
+	## the parked fleet stages INTO the dressing's gap slots (splat stock
+	## where the parking visibly is), still inside the band.
+	await _set_up(true, _city.to_global(Vector3(1047.0, 22.0, -153.0)),
+			Vector3.ZERO)
+	spawner.populate()
+	await _wait_frames(4)
+	fleet = spawner.living_cars()
+	band_ok = band_ok and fleet.size() == spawner.target_moving \
+			+ spawner.target_parked
+	parked_cars.clear()
+	moving = 0
+	for car: Car in fleet:
+		if car.mode == Car.Mode.TRAFFIC:
+			moving += 1
+		else:
+			parked_cars.append(car)
+	var biggest: AmesParking.Lot = parking.lots[0]
+	var lot_staged := 0
+	var lot_spot_ok := true
+	for car: Car in parked_cars:
+		var l := _city.to_local(car.global_position)
+		var on_lot := false
+		if not biggest.stalls.is_empty() \
+				and _parking_in_polygon(l.x, l.z, biggest.polygon):
+			on_lot = true
+			lot_staged += 1
+			var best := INF
+			for xf: Transform3D in biggest.gaps:
+				best = minf(best, xf.origin.distance_to(Vector3(l.x,
+						xf.origin.y, l.z)))
+			lot_spot_ok = lot_spot_ok and best <= 1.0 ## ON a gap slot.
+		else:
+			## A curb-staged car: on its own spot exactly as downtown.
+			var hit := graph.nearest_run(l.x, l.z)
+			var best := INF
+			if not hit.is_empty():
+				for spot: Dictionary in graph.run_curb_spots(int(hit["run"])):
+					best = minf(best, Vector2(spot["pos"].x - l.x,
+							spot["pos"].y - l.z).length())
+			lot_spot_ok = lot_spot_ok and best <= 1.0
+	var lot_ok := moving == spawner.target_moving and lot_staged >= 4 \
+			and lot_spot_ok
+	## (d3) The blinker reach (the T-168 contract extended to parked): the
+	## verb's nearest-car walk targets the PARKED fleet car nearest the
+	## pigeon — forced and released through _execute_dev.
+	var saved_session := OS.get_environment("PIGEON_PILOT_SESSION")
+	var saved_images := OS.get_environment("PIGEON_IMAGE_INTERVAL")
+	OS.set_environment("PIGEON_PILOT_SESSION", "simtest_parking")
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", "0")
+	var recorder: Node = RECORDER_SCRIPT.new()
+	add_child(recorder)
+	await _wait_frames(3)
+	var nearest: Car = null
+	var nearest_d := INF
+	for car: Car in spawner.living_cars():
+		var d := _flat_dist3(car.global_position, _player.global_position)
+		if d < nearest_d:
+			nearest_d = d
+			nearest = car
+	var walk_ok: bool = nearest != null \
+			and recorder._dev_nearest_car(_player) == nearest
+	var blink_on: bool = recorder._execute_dev(
+			{"dev": "car_blinker", "side": "left", "on": true})
+	var forced_ok: bool = blink_on and nearest != null \
+			and nearest.blinker_forced == City.ROUTE_TURN_LEFT \
+			and nearest.blinker == City.ROUTE_TURN_LEFT
+	var blink_off: bool = recorder._execute_dev(
+			{"dev": "car_blinker", "side": "left", "on": false})
+	var released_ok: bool = blink_off and nearest != null \
+			and nearest.blinker_forced == 0 and nearest.blinker == 0
+	## (d4) The T-147 exploit probe, re-run on the NEW stock (the T-140
+	## script pattern): repeat splats of the parked car pay ONCE per target
+	## (the flag), and the spent car churns out at the recycle radius with
+	## the fleet count constant.
+	var honks_before: int = spawner.honk_count
+	var probe: Car = nearest
+	probe.on_splatted(Vector3.ZERO)
+	var once_ok: bool = probe.splatted_once
+	probe.on_splatted(Vector3.ZERO)
+	once_ok = once_ok and probe.splatted_once \
+			and spawner.honk_count == honks_before + 2
+	await _set_up(true, _city.to_global(Vector3(1047.0, 22.0, 47.0)),
+			Vector3.ZERO) ## ~200 m south: beyond the recycle radius.
+	spawner._recycle_far()
+	await _wait_frames(4)
+	if is_instance_valid(probe): ## The strict-gate replacement retry (the
+		spawner._recycle_far() ## next 0.5 s scan — the T-147 contract).
+		await _wait_frames(4)
+	var churned_ok: bool = not is_instance_valid(probe)
+	fleet = spawner.living_cars()
+	churned_ok = churned_ok and fleet.size() == spawner.target_moving \
+			+ spawner.target_parked ## The band held through the churn.
+	## (e) The rebuild determinism: a fresh AmesParking reproduces the
+	## dressing byte-for-byte (pure data — zero RNG of any stream).
+	var twin := AmesParking.new(_city as AmesWorld, graph)
+	var det_ok := twin.lot_count() == parking.lot_count() \
+			and twin.dressed_car_count() == parking.dressed_car_count()
+	if det_ok:
+		for i in parking.lots.size():
+			var a: AmesParking.Lot = parking.lots[i]
+			var b: AmesParking.Lot = twin.lots[i]
+			det_ok = det_ok and a.id == b.id \
+					and a.stalls.size() == b.stalls.size() \
+					and a.gaps.size() == b.gaps.size()
+			if not det_ok or a.stalls.is_empty():
+				break
+			det_ok = det_ok and a.stalls[0].origin.is_equal_approx(
+					b.stalls[0].origin)
+	## Restore: rig, session env.
+	recorder.queue_free()
+	OS.set_environment("PIGEON_PILOT_SESSION", saved_session)
+	OS.set_environment("PIGEON_IMAGE_INTERVAL", saved_images)
+	spawner.free()
+	await _wait_frames(2)
+	print("SIM DATA %s: stock=%d ha=%.2f tail=%d/%.2f bays=%d curb_runs=%d districts=%s bay_names=%s lots=%d/%d raw=%d kept=%d gaps=%d tailgate_kept=%d street_samples=%d poly=%s ground=%s street=%s rail=%s downtown_worst_spot=%.2f lot_staged=%d det=%s" % [
+			S, stock.size(), ha, tail, tail_ha, bays,
+			parking.curb_run_count(), str(district_counts), str(bay_names),
+			parking.lot_count(), want_dressed, raw_total, kept_total,
+			gap_total, parking.dressed_tailgate(), street_samples, poly_ok,
+			ground_ok, street_ok, rail_ok, worst_spot, lot_staged, det_ok])
+	var ok := data_ok and curb_ok and dress_ok and band_ok and curb_park_ok \
+			and lot_ok and walk_ok and forced_ok and released_ok \
+			and once_ok and churned_ok and det_ok
+	_check(S, ok, "data=%s curb=%s dress=%s band=%s curb_park=%s lot=%s walk=%s blink=%s/%s once=%s churn=%s det=%s" % [
+			data_ok, curb_ok, dress_ok, band_ok, curb_park_ok, lot_ok,
+			walk_ok, forced_ok, released_ok, once_ok, churned_ok, det_ok])
+
+
+## The scenario's own point-in-polygon (independent of AmesParking's).
+func _parking_in_polygon(x: float, z: float, poly: PackedVector2Array) -> bool:
+	var inside := false
+	var j := poly.size() - 1
+	for i in poly.size():
+		var xi := poly[i].x
+		var zi := poly[i].y
+		var xj := poly[j].x
+		var zj := poly[j].y
+		if (zi > z) != (zj > z) \
+				and x < (xj - xi) * (z - zi) / (zj - zi) + xi:
+			inside = not inside
+		j = i
+	return inside
+
+
+## The scenario's own rail-contact read over the pack's centerlines.
+func _parking_near_rail(x: float, z: float) -> bool:
+	var segs: Array = AmesDataPack.rail().get("centerlines", [])
+	for line: Variant in segs:
+		var pts: Array = line
+		for i in pts.size() - 1:
+			var a := Vector2(float((pts[i] as Array)[0]),
+					float((pts[i] as Array)[1]))
+			var b := Vector2(float((pts[i + 1] as Array)[0]),
+					float((pts[i + 1] as Array)[1]))
+			var dx := b.x - a.x
+			var dz := b.y - a.y
+			var l2 := dx * dx + dz * dz
+			var t := 0.0
+			if l2 > 1e-12:
+				t = clampf(((x - a.x) * dx + (z - a.y) * dz) / l2, 0.0, 1.0)
+			var px := a.x + t * dx
+			var pz := a.y + t * dz
+			if Vector2(x - px, z - pz).length() <= AmesParking.RAIL_CLEAR:
+				return true
+	return false
 
 
 ## The gate's own band containment (the T-181 fence read): a pack-local point
