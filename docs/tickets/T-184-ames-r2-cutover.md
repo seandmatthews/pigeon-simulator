@@ -35,8 +35,11 @@ per ring is the campaign's core discipline; R2's lives here.
       deltas justified)
 - [ ] Gate 2 autoplay green (world-scoped Ames autoplay if needed)
 - [ ] VERIFICATION.md + AGENTS.md updated in the same change-set
-- [ ] **Gate 3 (human)**: owner's two-part pass — calm at a real
+- [ ] **Gate 3 (human)**: owner's pass — calm at a real
       intersection; Welch eye-level crowd — sign-offs recorded
+      **(T-183 folding, owner ruling round 3): this owner pass is now
+      combined with T-183's deferred 2b — one line: "R2 owner pass:
+      flyover + a full favor run to 100"**
 
 ## Verification (proposed)
 

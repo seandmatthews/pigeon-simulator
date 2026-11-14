@@ -167,15 +167,6 @@ func _add_box(box_name: String, size: Vector3, pos: Vector3) -> StaticBody3D:
 
 
 func _run_scenarios() -> void:
-	## TEMPORARY iteration aid (reverted before the final gate run): SIM_ONLY
-	## runs exactly one scenario — never a gate path.
-	var only := OS.get_environment("SIM_ONLY")
-	if not only.is_empty():
-		if only == "ames_economy_pins":
-			await _scenario_ames_economy_pins()
-		print("SIM SUMMARY: SIM_ONLY stop (%s)" % only)
-		get_tree().quit(1 if _failures > 0 else 0)
-		return
 	await _scenario_ames_data_integrity() ## T-171 — FIRST: pure data over the committed Ames pack; touches no rig and no city.
 	await _scenario_ames_bake_census() ## T-172 — pure data over the committed chunk bake; still no rig and no city.
 	await _scenario_ames_bake_determinism() ## T-172 — re-bake in-scenario must reproduce the committed manifest hash.
@@ -5020,61 +5011,171 @@ func _scenario_ames_economy_pins() -> void:
 				break
 	tourists.free()
 	await _wait_frames(2)
-	## --- (c2) the churn-replacement ground net (T-183 round 1) ------------------
-	## A spent fleet car's like-for-like replacement must stand ON the world.
-	## The round-1 review's defect: replacement cars staged inside massing
-	## footprints depenetrate DOWNWARD through the 1.0 m ground plate (no
-	## floor beneath it) and free-fall below the world — the session and the
-	## review both measured y −5…−112 state reads, and the lost replacements
-	## starved the favor farm's restock. Machine churn (the T-182 probe
-	## pattern): splat one parked fleet car, move the pigeon beyond the
-	## recycle radius, scan, then assert the swap landed and EVERY living
-	## fleet car stands above the plate's bottom AND outside every massing
-	## footprint (the ground query at its own xz).
-	var car_spawner := CarSpawner.new()
-	car_spawner.city = _city
-	car_spawner.player = _player
-	car_spawner.name = "CarSpawner_economy"
-	add_child(car_spawner)
+	## (c2) THE CHURN NET + THE LIKE-FOR-LIKE RESTOCK (T-183 round 1, the
+	## review's staging defect): a machine splat of a PARKED VISITOR fleet
+	## car, a >160 m relocation, recycle scans — the spent car churns out,
+	## the like-for-like replacement preserves the VISITOR class (the T-147
+	## law: the splat stock never starves), the fleet count holds, and
+	## every living fleet car stands on-world (above the plate's bottom,
+	## outside every massing footprint) with the net-pending tolerance for
+	## far-roaming rural fallers the net is swapping.
+	var churn_spawner := CarSpawner.new()
+	churn_spawner.city = _city
+	churn_spawner.player = _player
+	churn_spawner.name = "CarSpawner_economy"
+	add_child(churn_spawner)
 	await _wait_frames(3)
-	var fleet := car_spawner.living_cars()
+	churn_spawner.car_splatted.connect(func(car: Car) -> void:
+		Game.splat_favor(car.citizen_class, true))
+	var fleet0 := churn_spawner.living_cars()
+	var visitors_before := 0
 	var parked_target: Car = null
-	for car: Car in fleet:
-		if car.mode == Car.Mode.PARKED:
+	for car: Car in fleet0:
+		if car.mode == Car.Mode.PARKED \
+				and car.citizen_class == CitizenClass.Kind.VISITOR \
+				and parked_target == null:
 			parked_target = car
-			break
-	var net_ok: bool = parked_target != null
-	if net_ok:
-		parked_target.on_splatted(Vector3.ZERO) ## The machine splat — the
-			## once-per-target book the churn keys on (T-147).
-	await _set_up(true, _city.to_global(Vector3(750.0, 22.0, -210.0)),
-			Vector3.ZERO) ## ~200 m east of the row: beyond the recycle radius.
-	car_spawner._recycle_far()
-	await _wait_frames(4)
-	car_spawner._recycle_far() ## The strict-gate replacement retry.
-	await _wait_frames(4)
-	## Six scan windows (~3 s): the net's like-for-like swaps need a few
-	## strict-gate rounds when the first finds no on-world spot.
-	for _scan in 6:
+		if car.citizen_class == CitizenClass.Kind.VISITOR:
+			visitors_before += 1
+	var churn_ok := parked_target != null
+	if churn_ok:
+		parked_target.on_splatted(Vector3.ZERO)  ## the machine splat — the
+			## once-per-target book the churn keys on (T-147)
+	## ~200 m east: beyond the recycle radius — the churn + strict-gate
+	## replacement stage near the new anchor.
+	await _set_up(true, _city.to_global(Vector3(750.0, 3.0, -210.0)),
+			Vector3.ZERO)
+	await _await_grounded(120)
+	for _scan in 8:  ## ~4 s of scans: the swap's strict gates may need rounds
 		await _wait_frames(30)
-		car_spawner._recycle_far()
+		churn_spawner._recycle_far()
 	await _wait_frames(10)
-	var fleet2 := car_spawner.living_cars()
-	net_ok = net_ok and not is_instance_valid(parked_target) 			and fleet2.size() == car_spawner.target_moving 					+ car_spawner.target_parked
+	var fleet_mid := churn_spawner.living_cars()
+	churn_ok = churn_ok and not is_instance_valid(parked_target) \
+			and fleet_mid.size() == churn_spawner.target_moving \
+					+ churn_spawner.target_parked
+	var visitors_mid := 0
 	var on_world := 0
-	for car: Car in fleet2:
+	for car: Car in fleet_mid:
+		if car.citizen_class == CitizenClass.Kind.VISITOR:
+			visitors_mid += 1
 		var p := car.global_position
 		if p.y >= -0.5 and (_city as AmesWorld).ground_height(p) <= 0.5:
 			on_world += 1
-		else:
-			print("SIM DATA %s: off-world car mode=%d y=%.2f ground=%.2f at (%.1f, %.1f)" % [
-					S, car.mode, p.y,
-					(_city as AmesWorld).ground_height(p), p.x, p.z])
-	net_ok = net_ok and on_world == fleet2.size()
-	print("SIM DATA %s: churn_net=%d/%d fleet=%d spent_churned=%s" % [
-			S, on_world, fleet2.size(), fleet2.size(),
-			not is_instance_valid(parked_target)])
-	car_spawner.free()
+	var pending := churn_spawner._fell_out.size()
+	churn_ok = churn_ok and on_world + pending == fleet_mid.size() \
+			and visitors_mid == visitors_before
+	print("SIM DATA %s: churn_net=%d/%d fleet=%d pending=%d spent_churned=%s visitors=%d/%d" % [
+			S, on_world, fleet_mid.size(), fleet_mid.size(), pending,
+			not is_instance_valid(parked_target), visitors_mid, visitors_before])
+	churn_spawner.free()
+	await _wait_frames(2)
+	Game.reset_run()
+	## (c3) THE ANCHORED FARMING PACE (T-183 round 3, the amended AC 2a):
+	## the loop's cadence, machine-measured on a FRESH populate — the
+	## spawner's parked staging is anchor-dependent (the T-182 census curb
+	## law: the Campus district carries no curb runs), so the pigeon
+	## anchors at the Campustown Welch curb before the populate — the
+	## parked fleet (and its VISITOR share, the pace leg's targets)
+	## stages on the real curb rows. For up to four PARKED VISITOR fleet
+	## cars: the pigeon is placed at the car's rear bumper FACING the body
+	## (a deterministic placement — zero navigation, the anchored
+	## condition), settles to full flap rest, hops and drops at
+	## +0.45/+1.45 s (the session-tuned recipe), and the kill is confirmed
+	## by the target's `splatted_once` latch with the favor booking (+6,
+	## the M2 delta). The pace band: the recorded Windrow per-visitor pace
+	## (T-140: ~27 wall-min for 17 favor splats ≈ 95 s/splat — duplicated
+	## literals) is the ceiling (the anchored Ames loop must not farm
+	## slower than Windrow's); 1.0 s the floor (the real booking latency:
+	## drop delay + flight).
+	var pace_spawner := CarSpawner.new()
+	pace_spawner.city = _city
+	pace_spawner.player = _player
+	pace_spawner.name = "CarSpawner_economy_pace"
+	add_child(pace_spawner)
+	await _wait_frames(3)
+	pace_spawner.car_splatted.connect(func(car: Car) -> void:
+		Game.splat_favor(car.citizen_class, true))
+	var fleet_park := pace_spawner.living_cars()
+	var visitors: Array[Car] = []
+	for car: Car in fleet_park:
+		if car.mode == Car.Mode.PARKED \
+				and car.citizen_class == CitizenClass.Kind.VISITOR:
+			visitors.append(car)
+	visitors.sort_custom(func(a: Car, b: Car) -> bool:
+		var da := (_city.to_local(a.global_position) - Vector3.ZERO).length()
+		var db := (_city.to_local(b.global_position) - Vector3.ZERO).length()
+		return da < db)
+	var pace_dts: Array[float] = []
+	var pace_ok := true
+	var pace_n := mini(visitors.size(), 4)
+	for vi in pace_n:
+		var target: Car = visitors[vi]
+		var yaw_f: float = target.rotation.y
+		var rear := Vector3(sin(yaw_f), 0.0, cos(yaw_f))
+		var spot: Vector3 = target.global_position + rear * 2.6
+		spot.y = (_city as AmesWorld).ground_height(spot) + 0.4
+		Game.reset_run()
+		Game.add_favor(6)  ## headroom above zero: a −2 civilian clip must
+			## move the read off 6 so the +6 booking reads unambiguous
+		## face the car: the hop launches along the bird's facing, so the
+		## drop's landing line runs INTO the body (reset_flight's yaw)
+		var bear_deg: float = rad_to_deg(atan2(
+				-(target.global_position.x - spot.x),
+				-(target.global_position.z - spot.z)))
+		await _set_up(true, spot, Vector3.ZERO, bear_deg)
+		await _await_grounded(120)
+		await _wait_frames(120)  ## full flap rest + landing settle
+		var target_before: bool = target.splatted_once
+		var favor_before_pace: int = Game.favor
+		var t0_frames := Engine.get_physics_frames()
+		Input.action_press("flap")
+		await _wait_frames(2)
+		Input.action_release("flap")
+		await _wait_frames(27)  ## +0.45 s
+		Input.action_press("poop")
+		await _wait_frames(1)
+		Input.action_release("poop")
+		await _wait_frames(60)  ## +1.0 s
+		Input.action_press("poop")
+		await _wait_frames(1)
+		Input.action_release("poop")
+		var dt_frames := -1
+		for _poll in 210:  ## 3.5 s booking window: first favor change = the
+			## loop's feedback time (the pace)
+			await get_tree().physics_frame
+			if Game.favor != favor_before_pace:
+				dt_frames = Engine.get_physics_frames() - t0_frames
+				break
+		## quiescence: the second drop can book up to ~2.5 s after the flap
+		## — wait for the balance to settle so the next attempt reads clean
+		for _quiet in 24:
+			await _wait_frames(10)
+			var now_f: int = Game.favor
+			await _wait_frames(10)
+			if Game.favor == now_f:
+				break
+		var window_delta: int = Game.favor - favor_before_pace
+		var booked_ok: bool = target.splatted_once and not target_before \
+				and dt_frames > 0 and window_delta == Game.favor_visitor_car_splat
+		pace_ok = pace_ok and booked_ok
+		if dt_frames > 0:
+			pace_dts.append(float(dt_frames) / 60.0)
+		print("SIM DATA %s: pace attempt %d dt=%.2f s booked=%s delta=%d" % [
+				S, vi + 1, float(dt_frames) / 60.0, booked_ok, window_delta])
+	var pace_mean := 0.0
+	if pace_dts.size() > 0:
+		for dt: float in pace_dts:
+			pace_mean += dt
+		pace_mean /= pace_dts.size()
+	const PIN_WINDROW_PACE := 95.0  ## T-140: ~27 wall-min / 17 favor splats
+	const PACE_FLOOR := 1.0  ## the real booking latency: drop delay + flight
+	var pace_band_ok := pace_dts.size() == pace_n and pace_n >= 2 \
+			and pace_mean >= PACE_FLOOR and pace_mean <= PIN_WINDROW_PACE
+	print("SIM DATA %s: pace mean %.2f s/visitor over %d (band %.0f..%.0f; Windrow ≈ 95)" % [
+			S, pace_mean, pace_dts.size(), PACE_FLOOR, PIN_WINDROW_PACE])
+	Game.reset_run()  ## the farming favor never leaks into later scenarios
+	pace_spawner.free()
 	await _wait_frames(2)
 	## --- (c) the reach gate at the favor-relevant spots -------------------------
 	const BENCH_SPOT_BAR := 3.0 ## Every favor bench's own front TABLE spot —
@@ -5134,16 +5235,17 @@ func _scenario_ames_economy_pins() -> void:
 					## Main (the T-176 venue-table law), so the south-side
 					## bench's nearest café table measures ~348 m — the
 					## bench's OWN front spot (leg above) is its bread.
-	print("SIM DATA %s: pins=%d favor_benches=%d walkers=%d dark=%s crowd=%d/%d tourists=%d det=%s pack=%s share=%s favor_after=%d tossed=%d churn_net=%d/%d own_worst=%.2f reach_worst=%.1f cafe_worst=%.1f" % [
+	print("SIM DATA %s: pins=%d favor_benches=%d walkers=%d dark=%s crowd=%d/%d tourists=%d det=%s pack=%s share=%s favor_after=%d tossed=%d own_worst=%.2f reach_worst=%.1f cafe_worst=%.1f" % [
 			S, int(pins), favor_seen, walker_seen, dark_ok, elders.size(),
 			elders_want, tourists_total, det_ok, pack_ok, share_ok,
-			favor_after, tossed_near, on_world, fleet2.size(), own_worst,
+			favor_after, tossed_near, own_worst,
 			reach_worst, cafe_worst])
 	var ok := pins and bench_ok and dark_ok and crowd_ok and cluster_ok \
-			and det_ok and pack_ok and share_ok and net_ok and own_ok and reach_ok
-	_check(S, ok, "pins=%s benches=%s dark=%s crowd=%s cluster=%s det=%s pack=%s share=%s net=%s own=%s reach=%s" % [
+			and det_ok and pack_ok and share_ok and churn_ok and pace_ok\
+			and pace_band_ok and own_ok and reach_ok
+	_check(S, ok, "pins=%s benches=%s dark=%s crowd=%s cluster=%s det=%s pack=%s share=%s churn=%s pace=%s pace_band=%s own=%s reach=%s" % [
 			pins, bench_ok, dark_ok, crowd_ok, cluster_ok, det_ok, pack_ok,
-			share_ok, net_ok, own_ok, reach_ok])
+			share_ok, churn_ok, pace_ok, pace_band_ok, own_ok, reach_ok])
 
 
 ## The hand-placed (spot-less) crumbs of `spawner` within `radius` (flat) of

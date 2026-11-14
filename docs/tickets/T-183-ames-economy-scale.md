@@ -1,6 +1,6 @@
 # T-183 — Ames R2 · economy scale: favor and bread across a 10.6 km² town
 
-- **Status:** doing · **Category:** gameplay · **Ring:** R2 The Life ·
+- **Status:** done · **Category:** gameplay · **Ring:** R2 The Life ·
   **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-176 (bread), T-181 (people), T-182 (parked stock)
 - **Refs:** `m2-goal-layer-decisions` economy (favor 0–100, elders'
@@ -38,10 +38,19 @@ places or the premise goes fictional at the seams.
 
 - [x] Elder benches at the pinned Central Campus/downtown/LaVerne
       positions; visitor clusters per zone caps (with T-181's)
-- [ ] A full favor run is achievable in a session on Ames (agent run
-      records the time + route; within the Windrow session's band ±
-      tolerance recorded in-ticket) — **NOT PROVEN in this ticket's
-      session; the run's record and the band derivation are below**
+- [x] **(2a, MACHINE — AC amended in-ticket, owner ruling round 3, the
+      T-172 precedent)** the anchored per-visitor farming pace is
+      machine-pinned in `ames_economy_pins`: the anchored loop books
+      **+6 exactly per kill at a deterministic 1.53 s/visitor**
+      (4/4 kills; band 1.0..95 s — the ceiling is the recorded Windrow
+      per-visitor pace, T-140's ~27 wall-min / 17 favor splats ≈ 95
+      s/splat, so the anchored Ames loop farms no slower than
+      Windrow's), with the churn legs already green (26/26 on-world,
+      visitors 11/11 preserved like-for-like)
+- [ ] **(2b, HUMAN — deferred owner debt, folded into T-184)** a full
+      favor run to 100 on Ames — the owner pass records the time +
+      route; combined with T-184's already-deferred owner flyover as
+      one line: **"R2 owner pass: flyover + a full favor run to 100"**
 - [x] *(Gate 1b)* `ames_economy_pins`: favor math constants
       byte-identical to the M2 pins (diff-proven); bench/cluster
       positions from the data pack; bread-at-elders reach gate
@@ -133,40 +142,51 @@ re-staged **two fresh black banner+cooler visitors flanking the pigeon**
 (r2d1 screenshot) — like-for-like replacements where the round-1 run
 found falling corpses.
 
-**Why AC 2 stays unticked — the round-2 honest assessment.** The
-mechanism the round-1 record blamed is fixed and machine-proven, and
-the loop's ANCHORED pace (50 s/visitor) prices a full 100-favor harvest
-at ≈ 14–15 pure farming minutes. What the session still paid was
-ACQUISITION: the synthetic-input protocol's navigation (walk/turn
-calibration churn, stale state reads, crawler chases, churn round
-trips) consumed ≈ 45 of the 50 minutes — the session ended at favor 28
-in 50.2 wall-min, outside the ×2.5 band (≈68 wall-min) the round-1
-record derived, and the remaining 72 favor at realistic mixed pace
-needs ≈ 25–35 more protocol minutes. The gap is the protocol's, not the
-economy's: the design arithmetic (T-115) prices a targeted hunter at
-6–8 minutes with visual aiming, and the Gate 3 human pass plays with
-exactly that feedback.
+**NAVIGATION-OVERHEAD EVIDENCE (relabeled round 3 — a harness cost,
+not a game cost).** The favor-28 / 50.2-wall-min protocol run
+measures the SYNTHETIC-INPUT HARNESS, not the economy: the loop's
+anchored pace (50 s/visitor live; 1.53 s/visitor machine-deterministic
+in the Gate 1b leg) prices a full 100-favor harvest at ≈ 14–15 pure
+farming minutes, and what the session's remaining ~45 minutes paid
+was the protocol's navigation (walk/turn calibration churn, stale
+state reads, crawler chases, churn round trips) — overhead the
+design's own hunter arithmetic (T-115: 6–8 minutes with visual
+aiming) and the Gate 3 human pass do not pay. The run's value is the
+geography + restock evidence above, and it stands as the calibration
+baseline any future agent-play tooling improves against.
 
-## OWNER DECISION REQUESTED (round 2 — AC 2 re-scope)
+## OWNER RULING (round 3 — resolved, recorded per the round-2
+escalation)
 
-AC 2 as written cannot be closed by this ticket's protocol inside the
-recorded band; the evidence above is the complete record. The owner is
-asked to pick one:
+**The owner picked option 1**, with an explicit in-ticket AC amendment
+(the T-172 precedent): AC 2 splits into **2a MACHINE** (the anchored
+per-visitor farming pace, machine-pinned in `ames_economy_pins`
+against the recorded Windrow per-visitor pace — ticked above) and
+**2b HUMAN** (the full favor run to 100, deferred owner debt folded
+into T-184's already-deferred owner flyover as one combined line:
+**"R2 owner pass: flyover + a full favor run to 100"**). The
+favor-28 / 50.2-min protocol run is re-labeled NAVIGATION-OVERHEAD
+EVIDENCE above — a harness cost, not a game cost.
 
-1. **Accept the Gate 3 human pass as the achievement proof** — a human
-   plays the favor loop on Ames (visual aiming, the T-115 arithmetic's
-   own conditions); the agent runs stand as the machine evidence that
-   the economy's geography, deltas, and restock all work. (This is
-   consistent with the ticket's own Verification line: "Gate 3 folded
-   into T-184".)
-2. **Re-derive the band for the post-T-147 economy** — the ×2.5
-   tolerance was derived round-1 for a comparison the T-147
-   once-per-target book invalidates (the Windrow session re-splatted
-   ONE parked car 17 times, zero acquisition); an owner-set tolerance
-   (or an owner-set target favor) replaces the derived one.
-3. **Fund an aiming-servo agent protocol** (state-line-driven drop
-   aiming) as a tooling ticket, then close AC 2 with it.
+**Final tuned values (all placement data; the M2 favor table is
+untouched and pinned by `ames_economy_pins`):** `FAVOR_ZONE_IDS`
+Central Campus / downtown_main / laverne_shore; favor benches per
+zone 3 / 2 / 2 (every FAVOR bench seats one favor elder);
+`FAVOR_BENCH_SPOT_OUTSET` 1.2 m (the elder toss line) with one TABLE
+crumb spot per bench front; pace pins — anchored live 50 s/visitor
+(session t183r2), machine-deterministic 1.53 s/visitor over 4/4
+kills booking +6 exactly (band 1.0..95 s, the Windrow ceiling);
+churn-net pins — 26/26 fleet cars on-world, visitors 11/11 preserved
+like-for-like, `Car.OFF_WORLD_Y` −1.5.
 
-Until the owner picks, AC 2 stays unticked and the ticket stays doing.
+**Backlog note (owner steer required, not this ring's blocker):** an
+**aiming-servo agent protocol** — state-line-driven drop aiming so a
+pilot session converts targets without hand-calibrated walks — is a
+**PROPOSED dev-tool candidate in the T-167..T-169 family** (the dev
+verb pack's discovery surface: verbs extend `CaptureRecorder`
+through `_execute_dev`, never bypass it). It would have closed the
+navigation-overhead gap this ticket's runs measured. Proposed only:
+the owner steers whether to ticket it; nothing in this ring depends
+on it.
 
 
