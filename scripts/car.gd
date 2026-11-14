@@ -49,6 +49,17 @@ signal splatted(car: Car)
 ## automated).
 signal stuck(car: Car)
 
+## (T-183 round 1) Fired once when the car's origin drops below the ground
+## plate's bottom — the off-world net the player's T-042 guard has and the
+## fleet lacked: the plate is a 1.0 m box with nothing beneath it, so a car
+## staged inside a massing footprint (the churn-replacement defect the T-183
+## review session and the round-1 review both measured live) is depenetrated
+## DOWNWARD through the plate and free-falls below the world — unreachable,
+## and for PARKED cars frozen mid-fall (the physics tick early-returns before
+## gravity ever runs). The spawner answers with the like-for-like swap, so
+## the fleet count and the favor farm's restock stay intact.
+signal fell_out(car: Car)
+
 ## PARKED sits at the curb · TRAFFIC drives its route.
 enum Mode { PARKED, TRAFFIC }
 
@@ -253,6 +264,20 @@ var blinker_forced: int = 0
 ## one; set only by the `freeze_traffic` pilot verb (and the suite's restore).
 static var traffic_frozen: bool = false
 
+## (T-183 round 1) The off-world net's line: any car origin below this is out
+## of the world. The plate's bottom sits at y −1.0 (the bake's stacked flats
+## end at its y-0 top face) and nothing legitimate lives beneath it — a car
+## that slips below the plate settles into a drive-under-the-world
+## equilibrium ≈ −2.8 (the route steer pulls up toward the y-0 waypoints, the
+## glue vy pulls down), so the net line must sit ABOVE that equilibrium: 0.5 m
+## under the plate's bottom face. The player's own T-042 guard uses −5.0
+## below "any floor"; the fleet's floor is THE plate.
+const OFF_WORLD_Y := -1.5
+
+## (T-183 round 1) The `fell_out` latch — the signal fires once per car; the
+## spawner's like-for-like swap is the only handler and must never double-book.
+var _fell_out_emitted: bool = false
+
 ## (T-162) Corner seeds for `_seat_blinkers`, car-local, in the BlinkFL/FR/RL/
 ## RR order — hovering above the hood/deck top at each corner station (front is
 ## −z), so the closest paint triangle is the surface the lens seats on. Tuning
@@ -387,6 +412,13 @@ func _physics_process(delta: float) -> void:
 	if traffic_frozen:
 		return ## (T-168) The dev freeze: route progress, honk clocks and the
 			## blinker state machine all hold; transforms stay put for staging.
+	## (T-183 round 1) The off-world net, BEFORE the parked early-return — a
+	## fallen PARKED car freezes mid-fall otherwise (no gravity ever runs for
+	## it), so the lost-car tell must ride the tick every mode reads.
+	if not _fell_out_emitted and global_position.y < OFF_WORLD_Y:
+		_fell_out_emitted = true
+		fell_out.emit(self)
+		return
 	if mode == Mode.PARKED:
 		return ## Parked cars just sit at the curb.
 	_drive(delta)

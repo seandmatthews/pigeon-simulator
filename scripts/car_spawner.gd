@@ -86,6 +86,12 @@ var tourist_spawner: TouristSpawner
 
 var _cars: Array[Car] = []
 
+## (T-183 round 1) Fell-out cars awaiting their like-for-like swap — the
+## `Car.fell_out` handler queues them here and the 0.5 s recycle scan retries
+## the strict-gate placement until it lands (the T-147 place-then-free rule:
+## the fleet count never dips while the swap is pending).
+var _fell_out: Array[Car] = []
+
 ## (T-128) The chase camera rig the sightline cone reads — resolved once off
 ## the player's typed children (the rig is a direct `top_level` child in
 ## player.tscn, so its basis is world-frame); null falls the view direction
@@ -262,6 +268,47 @@ func _refresh_watched() -> void:
 				traffic_ctrl.watched.append(tourist)
 
 
+## (T-183 round 1) The staging seam's ground guard: a candidate stage point
+## must stand ON the world — its xz may not sit inside a massing footprint
+## (the world's own `GROUND_COVER_MAX` law, the same read the pedestrian
+## zones, the bread spots and the parking dressing already enforce). The
+## round-1 review's defect: the churn replacement's curb spots carried NO
+## building guard, so a spot inside a building's box depenetrated the car
+## DOWNWARD through the 1.0 m ground plate (no floor beneath it) and the
+## like-for-like replacement free-fell out of the world — the favor farm's
+## restock starved. The sightline gate cannot catch this (it is a view-cone
+## test, not an occlusion read); this guard is the structural fix, and
+## `Car.fell_out` is the net behind it.
+func _stage_ok(global_pos: Vector3) -> bool:
+	if city == null or not city.has_method("ground_height"):
+		return true ## No ground query (the retired block-grid seam) — no guard.
+	return (city as AmesWorld).ground_height(global_pos) \
+			<= AmesWorld.GROUND_COVER_MAX
+
+
+## (T-183 round 1) The `Car.fell_out` answer: swap the lost car like a spent
+## one — like-for-like, the fleet count constant. A placement the strict
+## gates refuse parks the request in `_fell_out` for the next 0.5 s scan.
+func _on_car_fell_out(car: Car) -> void:
+	if city == null or not is_instance_valid(car):
+		return
+	if not _fell_out.has(car):
+		_fell_out.append(car)
+	_swap_fell_out()
+
+
+## The pending fell-out swaps, retried scan-side (the strict-gate placement
+## may need a few 0.5 s rounds to find a spot that passes every gate).
+func _swap_fell_out() -> void:
+	var pending := _fell_out.duplicate()
+	_fell_out.clear()
+	for car: Car in pending:
+		if not is_instance_valid(car):
+			continue
+		if not _replace_car(car):
+			_fell_out.append(car)
+
+
 ## Puts a car that drifted beyond the recycle radius back into the spawn band
 ## — the same node teleports onto a fresh dealt route (the recycle acceptance
 ## contract, as for tourists T-007). Since T-089 the block draw prefers light
@@ -274,8 +321,10 @@ func _refresh_watched() -> void:
 ## a car carrying `splatted_once` is despawn-eligible — it churns out of the
 ## fleet through `_replace_car` instead of teleporting back to a curb to be
 ## farmed again — while every never-splatted far car takes the teleport arms
-## below byte-identical.
+## below byte-identical. (T-183 round 1) The scan also services the fell-out
+## swaps' strict-gate retries.
 func _recycle_far() -> void:
+	_swap_fell_out()
 	var anchor := _anchor_flat()
 	var far: Array[Car] = []
 	for car in _cars:
@@ -435,6 +484,7 @@ func _spawn_traffic(block_local: Vector3, index: int) -> void:
 			_encode_grid_node(built.end))
 	car.route_exhausted.connect(_on_route_exhausted)
 	car.splatted.connect(_on_car_splatted)
+	car.fell_out.connect(_on_car_fell_out)
 	_cars.append(car)
 
 
@@ -448,6 +498,7 @@ func _spawn_parked(block_local: Vector3, pos: Vector3, yaw: float, index: int) -
 	add_child(car)
 	car.park_at(pos, yaw, city.to_global(block_local))
 	car.splatted.connect(_on_car_splatted)
+	car.fell_out.connect(_on_car_fell_out)
 	_cars.append(car)
 	return car ## (T-168) Handed back so the dev verb can ack the spawned node.
 
@@ -1355,11 +1406,19 @@ func _spawn_traffic_graph(index: int) -> void:
 	var edge := _draw_band_edge(_anchor_flat())
 	var placement := _route_rejoin_edge(edge, car, sightline_gate_enabled,
 			fmod(index * 0.37, 1.0))
+	## (T-183 round 1) The populate's own ground guard — same law as every
+	## other staging seam (an in-massing rejoin depenetrates through the
+	## plate; the net behind this guard is `Car.fell_out`).
+	if not _stage_ok(placement["pos"]):
+		var scan := _offscreen_rejoin_graph(_anchor_flat(), car)
+		if not scan.is_empty() and _stage_ok(scan["pos"]):
+			placement = scan
 	car.start_route(placement["pos"], placement["points"], placement["entries"],
 			placement["block"], _block_centers_cache, placement["end"])
 	car.route_exhausted.connect(_on_route_exhausted)
 	car.splatted.connect(_on_car_splatted)
 	car.stuck.connect(_on_car_stuck)
+	car.fell_out.connect(_on_car_fell_out)
 	_cars.append(car)
 
 
@@ -1415,10 +1474,12 @@ func _recycle_far_graph(far: Array[Car]) -> void:
 			continue
 		var edge := _draw_band_edge(anchor)
 		var placement := _route_rejoin_edge(edge, car, false, _rng.randf())
-		if not _sightline_ok(placement["pos"]):
+		if not _sightline_ok(placement["pos"]) or not _stage_ok(placement["pos"]):
 			var scan := _offscreen_rejoin_graph(anchor, car)
-			if not scan.is_empty():
+			if not scan.is_empty() and _stage_ok(scan["pos"]):
 				placement = scan
+			else:
+				continue ## No on-world rejoin this scan — the car stays far and retries.
 		## else: least-bad — the drawn rejoin stands (in view, documented).
 		car.start_route(placement["pos"], placement["points"], placement["entries"],
 				placement["block"], _block_centers_cache, placement["end"])
@@ -1446,7 +1507,8 @@ func _replace_car_graph(spent: Car) -> bool:
 					AmesParking.LOT_PARK_RADIUS):
 				var global_spot := city.to_global(
 						Vector3(spot["pos"].x, spot["pos"].y, spot["pos"].z))
-				if _spot_taken(global_spot) or not _sightline_ok(global_spot):
+				if _spot_taken(global_spot) or not _sightline_ok(global_spot) \
+						or not _stage_ok(global_spot):
 					continue
 				add_child(fresh) ## Before park_at — the crumb drop needs the tree.
 				fresh.park_at(global_spot, float(spot["yaw"]),
@@ -1459,7 +1521,11 @@ func _replace_car_graph(spent: Car) -> bool:
 				for spot: Dictionary in city.traffic_graph.run_curb_spots(run_id):
 					var global_spot := city.to_global(
 							Vector3(spot["pos"].x, 0.0, spot["pos"].y))
-					if _spot_taken(global_spot) or not _sightline_ok(global_spot):
+					## (T-183 round 1) The building guard: a curb spot inside a
+					## massing footprint depenetrates the car through the plate
+					## — the defect this ticket's review measured live.
+					if _spot_taken(global_spot) or not _sightline_ok(global_spot) \
+							or not _stage_ok(global_spot):
 						continue
 					add_child(fresh) ## Before park_at — the crumb drop needs the tree.
 					fresh.park_at(global_spot, float(spot["yaw"]),
@@ -1471,8 +1537,10 @@ func _replace_car_graph(spent: Car) -> bool:
 	else:
 		var edge := _draw_band_edge(anchor)
 		var placement := _route_rejoin_edge(edge, fresh, true, _rng.randf())
-		if not _sightline_ok(placement["pos"]):
+		if not _sightline_ok(placement["pos"]) or not _stage_ok(placement["pos"]):
 			placement = _offscreen_rejoin_graph(anchor, fresh) ## {} = keep spent.
+		if not placement.is_empty() and not _stage_ok(placement["pos"]):
+			placement = {} ## The off-screen scan also came back inside massing — keep spent.
 		if not placement.is_empty():
 			add_child(fresh)
 			fresh.start_route(placement["pos"], placement["points"],
@@ -1486,6 +1554,7 @@ func _replace_car_graph(spent: Car) -> bool:
 	fresh.route_exhausted.connect(_on_route_exhausted)
 	fresh.splatted.connect(_on_car_splatted)
 	fresh.stuck.connect(_on_car_stuck)
+	fresh.fell_out.connect(_on_car_fell_out)
 	_cars.erase(spent)
 	_cars.append(fresh)
 	spent.release_tailgate()
@@ -1508,6 +1577,12 @@ func _on_car_stuck(car: Car) -> void:
 	var edge := _draw_band_edge(_anchor_flat())
 	var placement := _route_rejoin_edge(edge, car, sightline_gate_enabled,
 			_rng.randf())
+	## (T-183 round 1) The wedge escape's teleport carries the same ground
+	## guard: an off-screen rejoin stands in only when it stands ON the world.
+	if not _stage_ok(placement["pos"]):
+		var scan := _offscreen_rejoin_graph(_anchor_flat(), car)
+		if not scan.is_empty() and _stage_ok(scan["pos"]):
+			placement = scan
 	car.start_route(placement["pos"], placement["points"], placement["entries"],
 			placement["block"], _block_centers_cache, placement["end"])
 
