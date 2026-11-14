@@ -1,6 +1,6 @@
 # T-183 — Ames R2 · economy scale: favor and bread across a 10.6 km² town
 
-- **Status:** proposed · **Category:** gameplay · **Ring:** R2 The Life ·
+- **Status:** doing · **Category:** gameplay · **Ring:** R2 The Life ·
   **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-176 (bread), T-181 (people), T-182 (parked stock)
 - **Refs:** `m2-goal-layer-decisions` economy (favor 0–100, elders'

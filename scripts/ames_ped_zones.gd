@@ -60,9 +60,11 @@ const GUARD_LADDER: Array[float] = [1.0, 2.0, 3.5, 5.0, 7.0]
 ## The pinned zone table. Caps: Welch carries the densest crowd (the Reddit
 ## lane's whole point — "everyone just knew to gather on Welch"); downtown
 ## the visitor premise's second cluster; the MU corner the campus-side
-## frontage walk; the locals (elder class) hold Central Campus + LaVerne —
-## the favor economy's elder benches move onto them with T-183, this ticket
-## is placement + walking.
+## frontage walk; the locals (elder class) hold Central Campus + LaVerne.
+## (T-183) The favor economy's elder benches sit ON these zones — the
+## ElderSpawner's FAVOR_ZONE_IDS law (campus + downtown + shore) seats one
+## favor elder per bench, the T-114 loop live; the caps themselves are
+## untouched placement law.
 const ZONE_CAPS: Dictionary = {
 	"welch_strip": 12,
 	"downtown_main": 8,
@@ -80,8 +82,9 @@ const ZONE_CLASS: Dictionary = {
 	"laverne_shore": "elder",
 }
 ## Bench/sit targets per zone (occupancy is the population's to give: the
-## elder zones seat their locals; the visitor zones' benches stand until
-## T-183 re-homes the favor benches).
+## elder zones seat their locals; since T-183 the FAVOR_ZONE_IDS zones'
+## benches seat favor elders — the T-114 economy re-homed onto this set —
+## while the other zones' benches stand as furniture).
 const ZONE_BENCHES: Dictionary = {
 	"welch_strip": 2,
 	"downtown_main": 2,

@@ -30,6 +30,17 @@ signal elder_relocated(elder: Elder, from_seat: int, to_seat: int)
 @export var elder_scene: PackedScene = preload("res://scenes/elder.tscn")
 @export var elder_count: int = 4 ## Elders seated per run (every 2nd bench of the 8-bench ring).
 
+## (T-183) The zones whose benches joined the favor economy — the elder
+## benches at their pinned geography (the ticket's AC 1): the Central Campus
+## lawn, downtown Main Street and the Lake LaVerne shore. Every bench of
+## these zones seats a favor elder (the T-114 trust/share loop live — spend
+## targets where the elders sit); the other zones' benches stay furniture and
+## the zone walkers stay favor-dark. On the elder-klass zones the cap law
+## seats benches-first exactly as T-181 shipped it; on a tourist-klass favor
+## zone (downtown — the visitors' second cluster keeps its full cap) the
+## bench elders are ADDITIVE population beside the crowd.
+const FAVOR_ZONE_IDS: Array[String] = ["central_campus", "downtown_main", "laverne_shore"]
+
 @export_group("Wiring")
 @export var city_path: NodePath
 @export var player_path: NodePath
@@ -88,12 +99,16 @@ func living_elders() -> Array[Elder]:
 
 ## Wipes and re-seats the whole population (first boot, city regeneration,
 ## restart). (T-181) On the Ames world (`city.ped_zones` set, no seat ring)
-## the locals populate the elder zones: the first of each zone's cap sit its
-## benches (the T-141 sit composite via `Elder.zone_seat` — the favor
-## machinery stays seat-owned and dark until T-183), the rest walk the
-## zone's closed paths at deterministic start fractions (no RNG of any
-## stream — the zone law is a pure function). On a seat ring (the retired
-## Windrow seam) the plaza law below stands unchanged.
+## the locals populate the zones; (T-183) the benches of `FAVOR_ZONE_IDS`
+## carry the favor economy — each seats one favor elder (the T-141 sit
+## composite via `Elder.zone_seat`, `zone_bench` set, the `shared` relay
+## wired so the T-114 loop books and the `bread_spawner` assigned so the
+## share tosses), the elder-klass zones fill the rest of their cap walking
+## the zone's closed paths at deterministic start fractions, and a
+## tourist-klass favor zone (downtown) gains its bench elders ADDITIVELY
+## beside its full T-181 visitor cap. No RNG of any stream — the zone law is
+## a pure function. On a seat ring (the retired Windrow seam) the plaza law
+## below stands unchanged.
 func _populate() -> void:
 	for elder in _elders:
 		if is_instance_valid(elder):
@@ -126,29 +141,45 @@ func _populate() -> void:
 		seated += 1
 
 
-## The zone locals (T-181): per elder zone, benches first (seated at the
-## zone's sit targets, in bench order), the remainder walking the closed
-## path with even start fractions. Zero RNG — deterministic per build.
+## The zone locals (T-181, re-homed T-183): per zone, the FAVOR benches
+## first — one favor elder per bench of every `FAVOR_ZONE_IDS` zone (the
+## T-114 loop live: `zone_bench` set, the `shared` relay wired, the
+## `bread_spawner` assigned; a tourist-klass favor zone's bench elders ride
+## ADDITIVELY beside its full visitor cap) — then the elder-klass zones fill
+## the remainder of their cap walking the closed path with even start
+## fractions. Zero RNG — deterministic per build.
 func _populate_zones() -> void:
 	var index := 0
 	for zone: AmesPedZones.Zone in city.ped_zones.zones:
-		if zone.klass != "elder":
-			continue
-		var seated := 0
-		for bench_i in mini(zone.benches.size(), zone.cap):
+		var favor: bool = zone.id in FAVOR_ZONE_IDS
+		var sitters := 0
+		if favor:
+			sitters = zone.benches.size()
+		elif zone.klass == "elder":
+			sitters = mini(zone.benches.size(), zone.cap)
+		for bench_i in sitters:
 			var elder: Elder = elder_scene.instantiate()
 			elder.cardigan_color = Elder.CARDIGAN_PALETTE[index % Elder.CARDIGAN_PALETTE.size()]
 			elder.city = city
 			elder.zone_id = zone.id
 			add_child(elder)
 			_elders.append(elder)
+			if favor:
+				## (T-183) The favor bench: the T-114 loop runs on this seat —
+				## trust/share live, the share's toss wired, the relay feeding
+				## the spawner's bookkeeping (the migration pool refuses a
+				## ring-seatless elder, so `shared` never moves a zone elder).
+				elder.zone_bench = bench_i
+				elder.bread_spawner = bread_spawner
+				elder.shared.connect(_on_elder_shared)
 			## Seat at the zone's sit target: the T-141 composite via the
-			## seat-line transform (no share/migration wiring — the zone
-			## crowd's favor machinery stays dark until T-183 re-homes it).
+			## seat-line transform (the retired plaza ring's exact law).
 			elder.zone_seat(city.global_transform * zone.benches[bench_i])
 			index += 1
-			seated += 1
-		var walkers := zone.cap - seated
+		## (T-183) Walkers are the ELDER zones' cap remainder — a tourist-klass
+		## favor zone's cap belongs to its visitor crowd, so its bench elders
+		## stand alone (no walkers drawn off the tourist cap).
+		var walkers := (zone.cap - sitters) if zone.klass == "elder" else 0
 		if walkers <= 0 or zone.paths.is_empty():
 			continue
 		var path := zone.paths[0]
