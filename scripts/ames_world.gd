@@ -390,6 +390,7 @@ func generate_step_finish() -> void:
 	_build_traffic_graph()
 	_build_intersection_furniture() ## (T-180) The pinned corners' paint/signs/signals.
 	_build_ped_zones() ## (T-181) The pedestrian zones + their bench furniture.
+	_add_favor_bench_spots() ## (T-183) The elders' bread spots at their benches.
 	_build_parking() ## (T-182) The parking system + the big-lot dressing rows.
 	var pinned := 0
 	var signalized := 0
@@ -813,6 +814,44 @@ func _build_ped_zones() -> void:
 		shape.transform = ground * Transform3D(
 				Basis.IDENTITY, Vector3(0.0, 0.275, 0.0))
 		body.add_child(shape)
+
+
+## --- T-183 the favor-bench bread spots ---------------------------------------
+
+
+## The bench-front spot outset off the seat line (m) — the elder toss line
+## itself (`Elder.toss_distance` 1.2): the seeded spot is where the elders'
+## shared loaves land, so the spend target sits ON its bread supply.
+const FAVOR_BENCH_SPOT_OUTSET := 1.2
+
+
+## (T-183) The elders' bread spots (the ticket's bread economy — "the
+## elders' bread spots at the real cafés/benches"): one TABLE crumb spot at
+## every `ElderSpawner.FAVOR_ZONE_IDS` bench front, on the toss line, so
+## the favor loop's spend target (the seated elder) sits beside its bread —
+## stealing the locals' own bench bread books the T-114 `favor_steal_table`
+## exactly like a café tabletop crumb. The café TABLE spots themselves are
+## T-176's untouched layer. Runs after the ped zones build (the benches
+## derive there), before the spawners populate. Zero RNG.
+func _add_favor_bench_spots() -> void:
+	if ped_zones == null:
+		return
+	for zone: AmesPedZones.Zone in ped_zones.zones:
+		if not zone.id in ElderSpawner.FAVOR_ZONE_IDS:
+			continue
+		for bench: Transform3D in zone.benches:
+			var facing := -bench.basis.z ## The bench's facing (the toss
+				## direction — the elder seats onto this exact transform).
+			facing.y = 0.0
+			facing = facing.normalized()
+			var xz := Vector2(bench.origin.x, bench.origin.z) \
+					+ Vector2(facing.x, facing.z) * FAVOR_BENCH_SPOT_OUTSET
+			var top := ground_height(to_global(Vector3(xz.x, 0.0, xz.y)))
+			if top > GROUND_COVER_MAX:
+				continue ## A guarded-over bench front stays spot-less (never
+					## with the shipped derivation — the toss lands there).
+			bread_spots.append(Vector3(xz.x, top + SPOT_LIFT, xz.y))
+			bread_spot_kinds.append(BreadKind.TABLE)
 
 
 ## --- T-182 parking ----------------------------------------------------------

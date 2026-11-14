@@ -122,9 +122,17 @@ var bread_spawner: BreadSpawner
 var city: City
 ## (T-137) The seat this elder occupies — an index into `City.elder_spots`.
 ## −1 = seatless (a bare rig elder never migrates). (T-181) The zone locals
-## stay seatless — the favor/trust machinery is SEAT-owned, so a zone elder
-## neither accrues nor shares; the zone benches join the economy with T-183.
+## stay seatless on the RING law (no block grid to migrate across on Ames);
+## (T-183) their favor seat is `zone_bench` below — the trust/share machinery
+## keys on `_has_favor_seat()`, so the Windrow shuffle stays ring-owned while
+## the zone benches carry the economy.
 var current_seat: int = -1
+## (T-183) The favor bench this elder holds within its `zone_id` zone — the
+## index into `Zone.benches` the ElderSpawner seated it at. −1 = no favor
+## seat: the zone walkers and every bench outside the spawner's
+## `FAVOR_ZONE_IDS` law stay favor-dark (trust accrues and shares only while
+## SEATED on a favor seat — ring or zone, the same T-114 loop).
+var zone_bench: int = -1
 ## (T-137) The seat this elder departed from on its current migration — the
 ## `elder_relocated` event's `from` half.
 var departed_seat: int = -1
@@ -196,10 +204,12 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
 	var present := _pigeon_present()
-	## (T-181) Trust accrues ONLY on a SEAT (the favor machinery is the seat
-	## system's — the zone locals stand seatless on the T-181 paths, so their
-	## benches hold no economy until T-183 re-homes it).
-	if _state == State.SEATED and current_seat >= 0:
+	## (T-181, T-183) Trust accrues ONLY on a favor SEAT — the ring seat (the
+	## T-137 machinery) or a zone bench that joined the economy (the T-183
+	## re-home). The zone walkers stay favor-dark; the benches of the
+	## ElderSpawner's FAVOR_ZONE_IDS run the T-114 loop exactly as the retired
+	## plaza ring did.
+	if _state == State.SEATED and _has_favor_seat():
 		## (T-137) Trust accrues ONLY while seated — the walk pauses accrual
 		## and decay alike (the existing bank/decay rules cover walk-aways).
 		if present:
@@ -303,12 +313,23 @@ func begin_migration(dest_seat: int) -> void:
 ## --- the zone stroll (T-181) ------------------------------------------------
 
 
+## True when this elder holds a seat the favor economy runs on: a Windrow
+## ring seat (`current_seat`, the T-137 migration machinery) or a zone bench
+## that joined the economy (`zone_bench` — the T-183 re-home). The gate the
+## trust/share tick reads; walkers and non-favor benches hold neither and
+## stay dark.
+func _has_favor_seat() -> bool:
+	return current_seat >= 0 or zone_bench >= 0
+
+
 ## (T-181) Zone mode, seated: byte-exact placement onto a zone bench's seat
 ## line (`zone.benches`, the `elder_spots` transform convention — the spawner
 ## passes the GLOBAL transform), straight into SEATED. The sink/slide ease in
 ## through `_animate` — the T-141 sit composite with the T-163 contact law,
 ## on the new benches exactly as on the retired plaza ring. `current_seat`
-## stays −1: the trust/share machinery is seat-owned and stays dark here.
+## stays −1 (no ring seat, no migration); (T-183) when the spawner has set
+## `zone_bench` the bench runs the T-114 trust/share loop in place — shares
+## toss from the bench, never migrate (the shuffle stays ring-owned).
 func zone_seat(xf: Transform3D) -> void:
 	global_transform = xf
 	velocity = Vector3.ZERO

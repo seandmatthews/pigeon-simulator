@@ -19,6 +19,7 @@ const TOUCH_SCENE: PackedScene = preload("res://scenes/touch_controls.tscn") ## 
 const CAR_SCENE: PackedScene = preload("res://scenes/car.tscn") ## (T-134) Hand-staged stop-protocol cars.
 const RECORDER_SCRIPT := preload("res://tests/capture_recorder.gd") ## (T-140) Driven in session mode for the frame-step scenario.
 const CALL_PROBE_SCRIPT := preload("res://tests/call_probe.gd") ## (T-169) The call verb's typed-method probe.
+const ELDER_SCENE: PackedScene = preload("res://scenes/elder.tscn") ## (T-183) Fresh-elder pin reads.
 
 ## (T-119) The shipped non-builtin InputMap set. The touch layer must add
 ## NOTHING — `touch_layer_desktop_inert` reads the live InputMap against this
@@ -185,6 +186,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_intersections() ## T-180 — the pinned corner set: census counts, adapted T-134 paint at measured widths, the T-143 relief, the signal phase, traffic obeys.
 	await _scenario_ames_ped_zones() ## T-181 — the pedestrian zones: pinned caps, the crossing fence, the live crowd at its caps, the T-165 gait pins, the bench sitters, 0 mid-block road walkers.
 	await _scenario_ames_parking_census() ## T-182 — the parking census: the lot stock matches the data, the curb re-target, the dressing at its caps, the fleet's lot staging, the blinker reach, the T-147 probe.
+	await _scenario_ames_economy_pins() ## T-183 — the economy scale: the M2 favor pins diff-proven across the build, the favor benches live at their pack-derived positions with the share loop closing, the reach gate at the spend targets.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -359,6 +361,33 @@ func _await_grounded(max_frames: int) -> void:
 func _flat_yaw() -> float:
 	var fwd := -_player.transform.basis.z
 	return atan2(-fwd.x, -fwd.z)
+
+
+## (T-181, T-183 re-pin) The zone-crowd population law, the harness's one
+## read: TOURISTS = the tourist-klass zones' caps (the T-181 pinned visitor
+## clusters — Welch the densest — unchanged by the economy scale); ELDERS =
+## the elder-klass zones' caps (the campus/shore locals, benches first +
+## walkers) PLUS one favor elder per bench of every other
+## `ElderSpawner.FAVOR_ZONE_IDS` zone (downtown Main's two bench sitters —
+## additive population beside its full visitor cap). Every zone-crowd
+## assert in this file reads through these two, so a law change re-pins
+## in exactly one place per read.
+func _want_zone_tourists(city: City) -> int:
+	var want := 0
+	for zone: AmesPedZones.Zone in city.ped_zones.zones:
+		if zone.klass == "tourist":
+			want += zone.cap
+	return want
+
+
+func _want_zone_elders(city: City) -> int:
+	var want := 0
+	for zone: AmesPedZones.Zone in city.ped_zones.zones:
+		if zone.klass == "elder":
+			want += zone.cap
+		elif zone.id in ElderSpawner.FAVOR_ZONE_IDS:
+			want += zone.benches.size()
+	return want
 
 
 func _dbg(msg: String) -> void:
@@ -4161,15 +4190,17 @@ func _scenario_ames_ped_zones() -> void:
 	tourists.process_mode = Node.PROCESS_MODE_INHERIT
 	elders.process_mode = Node.PROCESS_MODE_INHERIT
 	await _wait_frames(4)
+	## (T-183 re-pin) The caps law grew the favor benches: every
+	## FAVOR_ZONE_IDS zone seats one favor elder per bench — the elder-klass
+	## zones inside their cap (benches first), downtown_main ADDITIVELY
+	## beside its full tourist cap (the invasion premise reads — the visitor
+	## cluster keeps all 8). The want counts read through the harness's one
+	## law (`_want_zone_tourists` / `_want_zone_elders`).
 	var want_counts := {}
-	var want_tourists := 0
-	var want_elders := 0
 	for zone: AmesPedZones.Zone in zones.zones:
 		want_counts[zone.id] = zone.cap
-		if zone.klass == "tourist":
-			want_tourists += zone.cap
-		else:
-			want_elders += zone.cap
+	var want_tourists := _want_zone_tourists(_city)
+	var want_elders := _want_zone_elders(_city)
 	var live_counts := {}
 	var living := tourists.living_tourists()
 	for tourist: Tourist in living:
@@ -4182,8 +4213,12 @@ func _scenario_ames_ped_zones() -> void:
 	var caps_ok: bool = living.size() == want_tourists and elder_total == want_elders
 	for zone: AmesPedZones.Zone in zones.zones:
 		if zone.klass == "tourist":
-			caps_ok = caps_ok and int(live_counts.get(zone.id, 0)) == zone.cap \
-					and int(elder_counts.get(zone.id, 0)) == 0
+			caps_ok = caps_ok and int(live_counts.get(zone.id, 0)) == zone.cap
+			if zone.id in ElderSpawner.FAVOR_ZONE_IDS: ## (T-183) downtown's favor benches.
+				caps_ok = caps_ok and int(elder_counts.get(zone.id, 0)) \
+						== zone.benches.size()
+			else:
+				caps_ok = caps_ok and int(elder_counts.get(zone.id, 0)) == 0
 		else:
 			caps_ok = caps_ok and int(elder_counts.get(zone.id, 0)) == zone.cap \
 					and int(live_counts.get(zone.id, 0)) == 0
@@ -4227,7 +4262,9 @@ func _scenario_ames_ped_zones() -> void:
 	var benches_seen := 0
 	for zone: AmesPedZones.Zone in zones.zones:
 		benches_seen += zone.benches.size()
-		if zone.klass != "elder":
+		## (T-183 re-pin) The sit-occupancy law covers the FAVOR benches too:
+		## downtown_main's benches seat favor elders beside the tourist crowd.
+		if zone.klass != "elder" and not zone.id in ElderSpawner.FAVOR_ZONE_IDS:
 			continue
 		var occupied := 0
 		for bench: Transform3D in zone.benches:
@@ -4642,6 +4679,601 @@ func _scenario_ames_parking_census() -> void:
 	_check(S, ok, "data=%s curb=%s dress=%s band=%s curb_park=%s lot=%s walk=%s blink=%s/%s once=%s churn=%s det=%s" % [
 			data_ok, curb_ok, dress_ok, band_ok, curb_park_ok, lot_ok,
 			walk_ok, forced_ok, released_ok, once_ok, churned_ok, det_ok])
+
+
+## --- scenario (T-183 Ames economy scale) --------------------------------------
+
+
+## (T-183) The favor economy's geography, machine-checked in three blocks:
+## (a) THE M2 PINS, diff-proven (the ames_hunger_pins pattern): the T-114/
+##     T-115 favor table — the ceiling, the five splat deltas, the two
+##     steals, the loaf cost — and the elder trust machinery as deliberately
+##     duplicated literals, read off the LIVE autoload exports and a FRESH
+##     elder, then re-read across a full ames world build+fill; the economy
+##     scale's placement path provably never touches the math.
+## (b) THE BENCHES: the real spawners on the harness world — every
+##     `ElderSpawner.FAVOR_ZONE_IDS` bench seats one favor elder
+##     (`zone_bench` set, the bread service wired, SEATED at the byte-exact
+##     seat line), the campus/shore walkers and every other zone's benches
+##     stay favor-dark, the bench positions derive from the committed DATA
+##     PACK (campus benches inside the pack's Central Campus polygon, shore
+##     benches on the lake's outset band, downtown benches on Main Street's
+##     walk edge), and the T-114 loop CLOSES at a bench: a grounded pigeon
+##     with favor staged shares exactly the loaf cost out, tossing the
+##     share's crumbs in front of the bench.
+## (c) THE CLUSTERS + THE REACH: the visitor clusters hold the T-181 caps
+##     (Welch the strict maximum, downtown's full 8 beside its favor
+##     benches), and the T-176 density gates extend to the favor-relevant
+##     spots — from every favor bench the nearest GROUND-or-TABLE bread spot
+##     within the pinned bar, downtown's benches within the café-table bar
+##     (the spend targets sit at the real cafés).
+func _scenario_ames_economy_pins() -> void:
+	const S := "ames_economy_pins"
+	## --- (a) the M2 favor pins, diff-proven ------------------------------------
+	const PIN_FAVOR_MAX := 100
+	const PIN_VISITOR := 3
+	const PIN_VISITOR_CAR := 6
+	const PIN_CIVILIAN := -1
+	const PIN_CIVILIAN_CAR := -2
+	const PIN_SUPERFAN := -8
+	const PIN_STEAL_TABLE := -1
+	const PIN_STEAL_VISITOR := 1
+	const PIN_LOAF_COST := 2
+	const PIN_PROXIMITY := 3.0
+	const PIN_FILL := 1.0
+	const PIN_DECAY := 2.0
+	const PIN_NEEDED := 4.0
+	const PIN_CRUMBS := 2
+	const PIN_TOSS := 1.2
+	const PIN_SPREAD := 0.4
+	const PIN_COOLDOWN := 25.0
+	var bad: PackedStringArray = PackedStringArray()
+	if Game.favor_max != PIN_FAVOR_MAX:
+		bad.append("favor_max %d != %d" % [Game.favor_max, PIN_FAVOR_MAX])
+	if Game.favor_visitor_splat != PIN_VISITOR \
+			or Game.favor_visitor_car_splat != PIN_VISITOR_CAR \
+			or Game.favor_civilian_splat != PIN_CIVILIAN \
+			or Game.favor_civilian_car_splat != PIN_CIVILIAN_CAR \
+			or Game.favor_superfan_splat != PIN_SUPERFAN:
+		bad.append("splat table moved: %d/%d/%d/%d/%d" % [
+				Game.favor_visitor_splat, Game.favor_visitor_car_splat,
+				Game.favor_civilian_splat, Game.favor_civilian_car_splat,
+				Game.favor_superfan_splat])
+	if Game.favor_steal_table != PIN_STEAL_TABLE \
+			or Game.favor_steal_visitor != PIN_STEAL_VISITOR \
+			or Game.elder_loaf_cost != PIN_LOAF_COST:
+		bad.append("steal/loaf moved: %d/%d/%d" % [
+				Game.favor_steal_table, Game.favor_steal_visitor,
+				Game.elder_loaf_cost])
+	## The pure table half reads exactly what splat_favor books (the
+	## one-table law — a drifted duplicate lookup fails here).
+	if Game.splat_favor_delta(CitizenClass.Kind.VISITOR, false) != PIN_VISITOR \
+			or Game.splat_favor_delta(CitizenClass.Kind.VISITOR, true) != PIN_VISITOR_CAR \
+			or Game.splat_favor_delta(CitizenClass.Kind.CIVILIAN, false) != PIN_CIVILIAN \
+			or Game.splat_favor_delta(CitizenClass.Kind.CIVILIAN, true) != PIN_CIVILIAN_CAR \
+			or Game.splat_favor_delta(CitizenClass.Kind.SUPERFAN, true) != PIN_SUPERFAN:
+		bad.append("splat_favor_delta table drifted off the exports")
+	var fresh: Elder = ELDER_SCENE.instantiate() as Elder
+	if fresh.proximity_radius != PIN_PROXIMITY \
+			or fresh.trust_fill_rate != PIN_FILL \
+			or fresh.trust_decay != PIN_DECAY \
+			or fresh.trust_needed != PIN_NEEDED \
+			or fresh.crumbs_per_share != PIN_CRUMBS \
+			or fresh.toss_distance != PIN_TOSS \
+			or fresh.toss_spread != PIN_SPREAD \
+			or fresh.share_cooldown != PIN_COOLDOWN:
+		bad.append("trust machinery moved: fill %s decay %s needed %s crumbs %d toss %s spread %s cooldown %s" % [
+				fresh.trust_fill_rate, fresh.trust_decay, fresh.trust_needed,
+				fresh.crumbs_per_share, fresh.toss_distance,
+				fresh.toss_spread, fresh.share_cooldown])
+	fresh.free()
+	## The build diff: a FULL ames world build+fill between the reads — the
+	## placement-only contract (the re-home moves benches, never math).
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var built_spots := world.bread_spots.size()
+	world.queue_free()
+	if built_spots <= 0:
+		bad.append("ames world built no crumb spots — the build arm is vacuous")
+	if Game.favor_max != PIN_FAVOR_MAX \
+			or Game.favor_visitor_splat != PIN_VISITOR \
+			or Game.favor_visitor_car_splat != PIN_VISITOR_CAR \
+			or Game.favor_civilian_splat != PIN_CIVILIAN \
+			or Game.favor_civilian_car_splat != PIN_CIVILIAN_CAR \
+			or Game.favor_superfan_splat != PIN_SUPERFAN \
+			or Game.favor_steal_table != PIN_STEAL_TABLE \
+			or Game.favor_steal_visitor != PIN_STEAL_VISITOR \
+			or Game.elder_loaf_cost != PIN_LOAF_COST:
+		bad.append("favor table moved across the ames build")
+	var pins := bad.is_empty()
+	## --- (b) the favor benches, live on the harness world ----------------------
+	var zones: AmesPedZones = _city.ped_zones
+	if zones == null:
+		_check(S, false, "no pedestrian zones on the resident world")
+		return
+	var bread := BreadSpawner.new()
+	bread.city = _city
+	bread.name = "BreadSpawner_economy"
+	add_child(bread)
+	await _wait_frames(2)
+	var spawner := ElderSpawner.new()
+	spawner.city = _city
+	spawner.bread_spawner = bread
+	spawner.name = "ElderSpawner_economy"
+	add_child(spawner)
+	await _wait_frames(2)
+	var elders := spawner.living_elders()
+	## The determinism snapshot (the ped_zones pattern): the crowd frozen at
+	## its fresh populate positions, compared byte-equal across the
+	## regenerated re-seed at the end of the scenario.
+	var before_crowd := PackedVector3Array()
+	for elder: Elder in elders:
+		before_crowd.append(elder.global_position)
+	## Every FAVOR_ZONE_IDS bench seats one favor elder, byte-exact on its
+	## seat line, the toss service wired.
+	var bench_ok := true
+	var favor_seen := 0
+	for zone: AmesPedZones.Zone in zones.zones:
+		if not zone.id in ElderSpawner.FAVOR_ZONE_IDS:
+			## The non-favor benches stand unoccupied (furniture only).
+			for bench: Transform3D in zone.benches:
+				var seat_global: Vector3 = _city.global_transform * bench.origin
+				for elder: Elder in elders:
+					if elder.global_position.distance_to(seat_global) < 1.0:
+						bench_ok = false
+			continue
+		bench_ok = bench_ok and zone.benches.size() > 0
+		for bench_i in zone.benches.size():
+			var bench: Transform3D = zone.benches[bench_i]
+			var seat_global: Vector3 = _city.global_transform * bench.origin
+			var seated: Elder = null
+			for elder: Elder in elders:
+				if elder.zone_id == zone.id and elder.zone_bench == bench_i \
+						and elder._state == Elder.State.SEATED \
+						and elder.global_position.distance_to(seat_global) <= 0.05:
+					seated = elder
+					break
+			if seated == null:
+				bench_ok = false
+				continue
+			favor_seen += 1
+			bench_ok = bench_ok and seated.bread_spawner == bread \
+					and seated.current_seat < 0
+	## The walkers and every unseated local stay favor-dark; the totals read
+	## the ONE harness law.
+	var dark_ok := true
+	var walker_seen := 0
+	for elder: Elder in elders:
+		if elder.zone_bench >= 0:
+			continue
+		dark_ok = dark_ok and elder.current_seat < 0 \
+				and elder.bread_spawner == null
+		if elder._state == Elder.State.WALKING:
+			walker_seen += 1
+	## The crowd totals read the re-pinned law: elders = the elder caps +
+	## downtown's two favor benches (12), tourists = the visitor caps (24 —
+	## the economy scale moved nobody's cap; the per-zone reads live in the
+	## re-pinned `ames_ped_zones` row and the cluster leg below).
+	var elders_want := 0
+	var tourists_want := 0
+	for zone: AmesPedZones.Zone in zones.zones:
+		if zone.klass == "elder":
+			elders_want += zone.cap
+		else:
+			tourists_want += zone.cap
+			if zone.id in ElderSpawner.FAVOR_ZONE_IDS:
+				elders_want += zone.benches.size()
+	var crowd_ok := elders.size() == elders_want \
+			and _want_zone_elders(_city) == elders_want \
+			and _want_zone_tourists(_city) == tourists_want
+	## The bench positions derive from the committed pack (never invented):
+	## campus benches inside the pack's Central Campus polygon, shore benches
+	## outside the lake polygon within the outset band, downtown benches on
+	## Main Street's walk edge (off the asphalt, on the graph's own run).
+	var campus_poly := PackedVector2Array()
+	var lake_poly := PackedVector2Array()
+	for park: Dictionary in AmesDataPack.parks():
+		if str(park.get("name", "")) == "Central Campus":
+			for q: Variant in park.get("polygon", []):
+				campus_poly.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	for water: Dictionary in AmesDataPack.water():
+		if str(water.get("name", "")) == "Lake LaVerne":
+			for q: Variant in water.get("polygon", []):
+				lake_poly.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	var pack_ok: bool = campus_poly.size() >= 3 and lake_poly.size() >= 3
+	var graph: AmesTrafficGraph = _city.traffic_graph
+	for zone: AmesPedZones.Zone in zones.zones:
+		for bench: Transform3D in zone.benches:
+			var p := Vector2(bench.origin.x, bench.origin.z) ## Pack-local xz
+				## (the origin's y carries the seat line 0.60 — the xz IS the
+				## pack frame).
+			match zone.id:
+				"central_campus":
+					var in_poly := _parking_in_polygon(p.x, p.y, campus_poly)
+					pack_ok = pack_ok and in_poly
+					print("SIM DATA %s: campus bench (%.1f, %.1f) in_poly=%s" % [
+							S, p.x, p.y, in_poly])
+				"laverne_shore":
+					var edge_d := _poly_edge_dist(p, lake_poly)
+					var in_lake := _parking_in_polygon(p.x, p.y, lake_poly)
+					pack_ok = pack_ok and not in_lake \
+							and edge_d <= AmesPedZones.SHORE_OFFSET \
+									+ AmesPedZones.BENCH_SIDE_OFFSET + 2.0
+					print("SIM DATA %s: shore bench (%.1f, %.1f) in_lake=%s edge=%.1f" % [
+							S, p.x, p.y, in_lake, edge_d])
+				"downtown_main":
+					var nearest := INF
+					var nearest_half := 0.0
+					for r in graph.run_count():
+						if graph.run_name(r) != "Main Street":
+							continue
+						var d := _poly_edge_dist(p, graph.run_points(r))
+						if d < nearest:
+							nearest = d
+							nearest_half = graph.run_half_width(r)
+					var off := nearest - nearest_half
+					pack_ok = pack_ok and off > 0.0 \
+							and off <= AmesPedZones.WALK_EDGE \
+									+ AmesPedZones.BENCH_SIDE_OFFSET + 2.0
+					print("SIM DATA %s: downtown bench (%.1f, %.1f) main_off=%.1f (bar 0<off<=4.9)" % [
+							S, p.x, p.y, off])
+				_:
+					pass ## The MU/welch benches are furniture — no favor law.
+	## The T-114 loop CLOSES at a bench: favor staged, a grounded pigeon
+	## present at the campus bench 0 — the elder shares exactly the loaf
+	## cost out, tossing the crumbs in front of the seat.
+	Game.reset_run()
+	Game.add_favor(10) ## Above the 4-favor loaf price, below the ceiling.
+	var campus: AmesPedZones.Zone = zones.zone("central_campus")
+	var share_ok := false
+	var share_elder: Elder = null
+	var favor_after := 0
+	var tossed_near := 0
+	if campus != null and campus.benches.size() > 0:
+		var bench_xf: Transform3D = _city.global_transform * campus.benches[0]
+		var facing := -bench_xf.basis.z
+		facing.y = 0.0
+		facing = facing.normalized()
+		var drop := bench_xf.origin - facing * 2.5 ## Behind the bench, on the
+			## walk side: inside the 3 m PresenceZone, clear of the toss line.
+		drop.y += 1.5
+		await _set_up(true, drop, Vector3.ZERO)
+		await _await_grounded(150)
+		var pre_eaten: int = bread.eaten_count
+		var pre_hand := _hand_crumbs_near(bread, bench_xf.origin, 2.5)
+		for f in 480: ## 4 s of trust fill + the share + margin.
+			await get_tree().physics_frame
+			if spawner.share_count >= 1:
+				break
+		for elder: Elder in elders:
+			if elder.zone_id == campus.id and elder.zone_bench == 0 \
+					and elder.share_count >= 1:
+				share_elder = elder
+				break
+		share_ok = share_elder != null and spawner.share_count >= 1 \
+				and Game.favor == 10 - PIN_LOAF_COST * PIN_CRUMBS
+		favor_after = Game.favor
+		tossed_near = _hand_crumbs_near(bread, bench_xf.origin, 2.5) - pre_hand \
+				+ (bread.eaten_count - pre_eaten) ## Tossed = living near the
+				## bench + any the stationary pigeon already ate.
+		share_ok = share_ok and tossed_near == PIN_CRUMBS
+	Game.reset_run() ## The staged balance never leaks into later scenarios.
+	var tourists := TouristSpawner.new()
+	tourists.city = _city
+	tourists.player = _player
+	tourists.name = "TouristSpawner_economy"
+	add_child(tourists)
+	tourists.process_mode = Node.PROCESS_MODE_DISABLED
+	_city.regenerated.emit()
+	await _wait_frames(4)
+	## The visitor clusters hold T-181's caps exactly (the economy scale
+	## moved no cap): Welch 12 the strict maximum, downtown 8 BESIDE its two
+	## favor elders, the MU frontage 4; the elder zones keep their locals.
+	var tourist_counts := {}
+	var tourists_total := 0
+	var elder_counts := {}
+	for tourist: Tourist in tourists.living_tourists():
+		tourist_counts[tourist.zone_id] = int(tourist_counts.get(tourist.zone_id, 0)) + 1
+		tourists_total += 1
+	for elder: Elder in spawner.living_elders():
+		elder_counts[elder.zone_id] = int(elder_counts.get(elder.zone_id, 0)) + 1
+	var cluster_ok := tourists_total == tourists_want
+	for zone: AmesPedZones.Zone in zones.zones:
+		if zone.klass == "tourist":
+			cluster_ok = cluster_ok \
+					and int(tourist_counts.get(zone.id, 0)) == zone.cap \
+					and int(elder_counts.get(zone.id, 0)) \
+							== (zone.benches.size() \
+									if zone.id in ElderSpawner.FAVOR_ZONE_IDS else 0)
+		else:
+			cluster_ok = cluster_ok and int(elder_counts.get(zone.id, 0)) == zone.cap \
+					and int(tourist_counts.get(zone.id, 0)) == 0
+	## And the re-populate is deterministic: byte-equal elder seats across
+	## the regenerated (the favor benches are a pure function of the pack).
+	## The re-populate determinism: the crowd re-derives to its populate
+	## placements across the regenerated — the walkers within the 0.05 m
+	## placement band (their resting y settles with the physics timing, the
+	## placement law is the XZ fraction), the seated favor elders to the
+	## same band (the byte-exact seat read is the bench leg's ≤ 0.05).
+	var det_ok: bool = before_crowd.size() == spawner.living_elders().size()
+	if det_ok:
+		var after_elders := spawner.living_elders()
+		for i in before_crowd.size():
+			if before_crowd[i].distance_to(after_elders[i].global_position) > 0.05:
+				det_ok = false
+				print("SIM DATA %s: det mismatch %d before=%s after=%s delta=%.3f zone=%s state=%d bench=%d" % [
+						S, i, before_crowd[i], after_elders[i].global_position,
+						before_crowd[i].distance_to(after_elders[i].global_position),
+						after_elders[i].zone_id, after_elders[i]._state,
+						after_elders[i].zone_bench])
+				break
+	tourists.free()
+	await _wait_frames(2)
+	## (c2) THE CHURN NET + THE LIKE-FOR-LIKE RESTOCK (T-183 round 1, the
+	## review's staging defect): a machine splat of a PARKED VISITOR fleet
+	## car, a >160 m relocation, recycle scans — the spent car churns out,
+	## the like-for-like replacement preserves the VISITOR class (the T-147
+	## law: the splat stock never starves), the fleet count holds, and
+	## every living fleet car stands on-world (above the plate's bottom,
+	## outside every massing footprint) with the net-pending tolerance for
+	## far-roaming rural fallers the net is swapping.
+	var churn_spawner := CarSpawner.new()
+	churn_spawner.city = _city
+	churn_spawner.player = _player
+	churn_spawner.name = "CarSpawner_economy"
+	add_child(churn_spawner)
+	await _wait_frames(3)
+	churn_spawner.car_splatted.connect(func(car: Car) -> void:
+		Game.splat_favor(car.citizen_class, true))
+	var fleet0 := churn_spawner.living_cars()
+	var visitors_before := 0
+	var parked_target: Car = null
+	for car: Car in fleet0:
+		if car.mode == Car.Mode.PARKED \
+				and car.citizen_class == CitizenClass.Kind.VISITOR \
+				and parked_target == null:
+			parked_target = car
+		if car.citizen_class == CitizenClass.Kind.VISITOR:
+			visitors_before += 1
+	var churn_ok := parked_target != null
+	if churn_ok:
+		parked_target.on_splatted(Vector3.ZERO)  ## the machine splat — the
+			## once-per-target book the churn keys on (T-147)
+	## ~200 m east: beyond the recycle radius — the churn + strict-gate
+	## replacement stage near the new anchor.
+	await _set_up(true, _city.to_global(Vector3(750.0, 3.0, -210.0)),
+			Vector3.ZERO)
+	await _await_grounded(120)
+	for _scan in 8:  ## ~4 s of scans: the swap's strict gates may need rounds
+		await _wait_frames(30)
+		churn_spawner._recycle_far()
+	await _wait_frames(10)
+	var fleet_mid := churn_spawner.living_cars()
+	churn_ok = churn_ok and not is_instance_valid(parked_target) \
+			and fleet_mid.size() == churn_spawner.target_moving \
+					+ churn_spawner.target_parked
+	var visitors_mid := 0
+	var on_world := 0
+	for car: Car in fleet_mid:
+		if car.citizen_class == CitizenClass.Kind.VISITOR:
+			visitors_mid += 1
+		var p := car.global_position
+		if p.y >= -0.5 and (_city as AmesWorld).ground_height(p) <= 0.5:
+			on_world += 1
+	var pending := churn_spawner._fell_out.size()
+	churn_ok = churn_ok and on_world + pending == fleet_mid.size() \
+			and visitors_mid == visitors_before
+	print("SIM DATA %s: churn_net=%d/%d fleet=%d pending=%d spent_churned=%s visitors=%d/%d" % [
+			S, on_world, fleet_mid.size(), fleet_mid.size(), pending,
+			not is_instance_valid(parked_target), visitors_mid, visitors_before])
+	churn_spawner.free()
+	await _wait_frames(2)
+	Game.reset_run()
+	## (c3) THE ANCHORED FARMING PACE (T-183 round 3, the amended AC 2a):
+	## the loop's cadence, machine-measured on a FRESH populate — the
+	## spawner's parked staging is anchor-dependent (the T-182 census curb
+	## law: the Campus district carries no curb runs), so the pigeon
+	## anchors at the Campustown Welch curb before the populate — the
+	## parked fleet (and its VISITOR share, the pace leg's targets)
+	## stages on the real curb rows. For up to four PARKED VISITOR fleet
+	## cars: the pigeon is placed at the car's rear bumper FACING the body
+	## (a deterministic placement — zero navigation, the anchored
+	## condition), settles to full flap rest, hops and drops at
+	## +0.45/+1.45 s (the session-tuned recipe), and the kill is confirmed
+	## by the target's `splatted_once` latch with the favor booking (+6,
+	## the M2 delta). The pace band: the recorded Windrow per-visitor pace
+	## (T-140: ~27 wall-min for 17 favor splats ≈ 95 s/splat — duplicated
+	## literals) is the ceiling (the anchored Ames loop must not farm
+	## slower than Windrow's); 1.0 s the floor (the real booking latency:
+	## drop delay + flight).
+	var pace_spawner := CarSpawner.new()
+	pace_spawner.city = _city
+	pace_spawner.player = _player
+	pace_spawner.name = "CarSpawner_economy_pace"
+	add_child(pace_spawner)
+	await _wait_frames(3)
+	pace_spawner.car_splatted.connect(func(car: Car) -> void:
+		Game.splat_favor(car.citizen_class, true))
+	var fleet_park := pace_spawner.living_cars()
+	var visitors: Array[Car] = []
+	for car: Car in fleet_park:
+		if car.mode == Car.Mode.PARKED \
+				and car.citizen_class == CitizenClass.Kind.VISITOR:
+			visitors.append(car)
+	visitors.sort_custom(func(a: Car, b: Car) -> bool:
+		var da := (_city.to_local(a.global_position) - Vector3.ZERO).length()
+		var db := (_city.to_local(b.global_position) - Vector3.ZERO).length()
+		return da < db)
+	var pace_dts: Array[float] = []
+	var pace_ok := true
+	var pace_n := mini(visitors.size(), 4)
+	for vi in pace_n:
+		var target: Car = visitors[vi]
+		var yaw_f: float = target.rotation.y
+		var rear := Vector3(sin(yaw_f), 0.0, cos(yaw_f))
+		var spot: Vector3 = target.global_position + rear * 2.6
+		spot.y = (_city as AmesWorld).ground_height(spot) + 0.4
+		Game.reset_run()
+		Game.add_favor(6)  ## headroom above zero: a −2 civilian clip must
+			## move the read off 6 so the +6 booking reads unambiguous
+		## face the car: the hop launches along the bird's facing, so the
+		## drop's landing line runs INTO the body (reset_flight's yaw)
+		var bear_deg: float = rad_to_deg(atan2(
+				-(target.global_position.x - spot.x),
+				-(target.global_position.z - spot.z)))
+		await _set_up(true, spot, Vector3.ZERO, bear_deg)
+		await _await_grounded(120)
+		await _wait_frames(120)  ## full flap rest + landing settle
+		var target_before: bool = target.splatted_once
+		var favor_before_pace: int = Game.favor
+		var t0_frames := Engine.get_physics_frames()
+		Input.action_press("flap")
+		await _wait_frames(2)
+		Input.action_release("flap")
+		await _wait_frames(27)  ## +0.45 s
+		Input.action_press("poop")
+		await _wait_frames(1)
+		Input.action_release("poop")
+		await _wait_frames(60)  ## +1.0 s
+		Input.action_press("poop")
+		await _wait_frames(1)
+		Input.action_release("poop")
+		var dt_frames := -1
+		for _poll in 210:  ## 3.5 s booking window: first favor change = the
+			## loop's feedback time (the pace)
+			await get_tree().physics_frame
+			if Game.favor != favor_before_pace:
+				dt_frames = Engine.get_physics_frames() - t0_frames
+				break
+		## quiescence: the second drop can book up to ~2.5 s after the flap
+		## — wait for the balance to settle so the next attempt reads clean
+		for _quiet in 24:
+			await _wait_frames(10)
+			var now_f: int = Game.favor
+			await _wait_frames(10)
+			if Game.favor == now_f:
+				break
+		var window_delta: int = Game.favor - favor_before_pace
+		var booked_ok: bool = target.splatted_once and not target_before \
+				and dt_frames > 0 and window_delta == Game.favor_visitor_car_splat
+		pace_ok = pace_ok and booked_ok
+		if dt_frames > 0:
+			pace_dts.append(float(dt_frames) / 60.0)
+		print("SIM DATA %s: pace attempt %d dt=%.2f s booked=%s delta=%d" % [
+				S, vi + 1, float(dt_frames) / 60.0, booked_ok, window_delta])
+	var pace_mean := 0.0
+	if pace_dts.size() > 0:
+		for dt: float in pace_dts:
+			pace_mean += dt
+		pace_mean /= pace_dts.size()
+	const PIN_WINDROW_PACE := 95.0  ## T-140: ~27 wall-min / 17 favor splats
+	const PACE_FLOOR := 1.0  ## the real booking latency: drop delay + flight
+	var pace_band_ok := pace_dts.size() == pace_n and pace_n >= 2 \
+			and pace_mean >= PACE_FLOOR and pace_mean <= PIN_WINDROW_PACE
+	print("SIM DATA %s: pace mean %.2f s/visitor over %d (band %.0f..%.0f; Windrow ≈ 95)" % [
+			S, pace_mean, pace_dts.size(), PACE_FLOOR, PIN_WINDROW_PACE])
+	Game.reset_run()  ## the farming favor never leaks into later scenarios
+	pace_spawner.free()
+	await _wait_frames(2)
+	## --- (c) the reach gate at the favor-relevant spots -------------------------
+	const BENCH_SPOT_BAR := 3.0 ## Every favor bench's own front TABLE spot —
+		## the elders' bread AT the spend target (the `_add_favor_bench_spots`
+		## law, measured worst 2.40).
+	const REACH_EXCL_BAR := 100.0 ## The nearest GROUND-or-TABLE spot from any
+		## favor bench EXCLUDING the bench fronts themselves (the T-176 gates
+		## extend past the benches — a bench is not an island; measured
+		## worst 38.0 — the campus lawn grid's half-diagonal; bar >2×
+		## headroom).
+	var reach_worst := 0.0
+	var reach_ok := true
+	var own_worst := 0.0
+	var own_ok := true
+	var cafe_worst := 0.0
+	var bench_pts: Array[Vector2] = []
+	for zone: AmesPedZones.Zone in zones.zones:
+		if zone.id in ElderSpawner.FAVOR_ZONE_IDS:
+			for bench: Transform3D in zone.benches:
+				bench_pts.append(Vector2(bench.origin.x, bench.origin.z))
+	for zone: AmesPedZones.Zone in zones.zones:
+		if not zone.id in ElderSpawner.FAVOR_ZONE_IDS:
+			continue
+		for bench: Transform3D in zone.benches:
+			var p := Vector2(bench.origin.x, bench.origin.z) ## Pack-local xz.
+			var best := INF
+			var best_own := INF
+			var best_cafe := INF
+			for i: int in _city.bread_spots.size():
+				var kind: int = _city.bread_spot_kinds[i]
+				if kind != City.BreadKind.GROUND and kind != City.BreadKind.TABLE:
+					continue
+				var spot := _city.bread_spots[i]
+				var sp := Vector2(spot.x, spot.z)
+				var d := Vector2(sp.x - p.x, sp.y - p.y).length()
+				var at_bench := false
+				for bp: Vector2 in bench_pts:
+					if Vector2(sp.x - bp.x, sp.y - bp.y).length() <= BENCH_SPOT_BAR:
+						at_bench = true
+						break
+				if not at_bench and d < best:
+					best = d
+				if at_bench and d < best_own:
+					best_own = d
+				if kind == City.BreadKind.TABLE and not at_bench \
+						and zone.id == "downtown_main" and d < best_cafe:
+					best_cafe = d
+			reach_worst = maxf(reach_worst, best)
+			if best > REACH_EXCL_BAR:
+				reach_ok = false
+			own_worst = maxf(own_worst, best_own)
+			if best_own > BENCH_SPOT_BAR:
+				own_ok = false
+			if zone.id == "downtown_main":
+				cafe_worst = maxf(cafe_worst, best_cafe) ## Recorded data, not
+					## a bar: the downtown café tables all sit north-side of
+					## Main (the T-176 venue-table law), so the south-side
+					## bench's nearest café table measures ~348 m — the
+					## bench's OWN front spot (leg above) is its bread.
+	print("SIM DATA %s: pins=%d favor_benches=%d walkers=%d dark=%s crowd=%d/%d tourists=%d det=%s pack=%s share=%s favor_after=%d tossed=%d own_worst=%.2f reach_worst=%.1f cafe_worst=%.1f" % [
+			S, int(pins), favor_seen, walker_seen, dark_ok, elders.size(),
+			elders_want, tourists_total, det_ok, pack_ok, share_ok,
+			favor_after, tossed_near, own_worst,
+			reach_worst, cafe_worst])
+	var ok := pins and bench_ok and dark_ok and crowd_ok and cluster_ok \
+			and det_ok and pack_ok and share_ok and churn_ok and pace_ok\
+			and pace_band_ok and own_ok and reach_ok
+	_check(S, ok, "pins=%s benches=%s dark=%s crowd=%s cluster=%s det=%s pack=%s share=%s churn=%s pace=%s pace_band=%s own=%s reach=%s" % [
+			pins, bench_ok, dark_ok, crowd_ok, cluster_ok, det_ok, pack_ok,
+			share_ok, churn_ok, pace_ok, pace_band_ok, own_ok, reach_ok])
+
+
+## The hand-placed (spot-less) crumbs of `spawner` within `radius` (flat) of
+## `pos` — the share-toss count the economy scenario reads.
+func _hand_crumbs_near(spawner: BreadSpawner, pos: Vector3, radius: float) -> int:
+	var n := 0
+	for crumb in spawner.living_crumbs():
+		if crumb.spot_index >= 0 or crumb.is_queued_for_deletion():
+			continue
+		var flat := Vector2(crumb.global_position.x - pos.x,
+				crumb.global_position.z - pos.z)
+		if flat.length() <= radius:
+			n += 1
+	return n
+
+
+## The distance from `p` to the nearest EDGE of the closed polygon `poly` —
+## the pack-derivation legs' boundary read (independently recomputed, never
+## through the zone builder's own helpers).
+func _poly_edge_dist(p: Vector2, poly: PackedVector2Array) -> float:
+	var best := INF
+	for i in poly.size():
+		var a := poly[i]
+		var b := poly[(i + 1) % poly.size()]
+		var ab := b - a
+		var t := clampf((p - a).dot(ab) / maxf(ab.length_squared(), 0.0001), 0.0, 1.0)
+		best = minf(best, p.distance_to(a + ab * t))
+	return best
 
 
 ## The scenario's own point-in-polygon (independent of AmesParking's).
@@ -7991,15 +8623,14 @@ func _scenario_stepped_boot_pins() -> void:
 			names_ok = names_ok and String(entry.name) == want_phases[i] \
 					and int(entry.ms) >= 0
 			trace += "%s=%d " % [entry.name, entry.ms]
-	var want_zone_citizens := 0
-	var want_zone_elders := 0
-	for zone: AmesPedZones.Zone in stepped.city.ped_zones.zones:
-		want_zone_citizens += zone.cap
-		if zone.klass == "elder":
-			want_zone_elders += zone.cap
+	## (T-183 re-pin) The zone-crowd wants read through the harness's ONE law:
+	## tourists = the tourist-klass caps (T-181's clusters, unchanged), elders
+	## = the elder caps plus the FAVOR benches (downtown's two — additive).
+	var want_zone_tourists := _want_zone_tourists(stepped.city)
+	var want_zone_elders := _want_zone_elders(stepped.city)
 	var stepped_city_ok: bool = booted and stepped.city.fingerprint == _city.fingerprint \
-			and stepped.tourist_spawner.living_tourists().size() \
-					== want_zone_citizens - want_zone_elders \
+		and stepped.tourist_spawner.living_tourists().size() \
+				== want_zone_tourists \
 			and stepped.elder_spawner.living_elders().size() == want_zone_elders \
 			and stepped.bread_spawner.living_crumbs().size() \
 					== stepped.bread_spawner.target_count \
@@ -8018,8 +8649,8 @@ func _scenario_stepped_boot_pins() -> void:
 	stepped.city.generate(424242, true) ## Foreign seed, forced — a real rebuild.
 	await _wait_frames(2)
 	var reseed_ok: bool = stepped.city.fingerprint == _city.fingerprint \
-			and stepped.tourist_spawner.living_tourists().size() \
-					== want_zone_citizens - want_zone_elders \
+		and stepped.tourist_spawner.living_tourists().size() \
+				== want_zone_tourists \
 			and stepped.elder_spawner.living_elders().size() == want_zone_elders \
 			and stepped.bread_spawner.living_crumbs().size() \
 					== stepped.bread_spawner.target_count \
@@ -8051,8 +8682,8 @@ func _scenario_stepped_boot_pins() -> void:
 			and int(rig.boot_trace[0].ms) >= 0 \
 			and rig.city.fingerprint == _city.fingerprint \
 			and rig.tourist_spawner.living_tourists().size() \
-					== want_zone_citizens - want_zone_elders \
-			and rig.elder_spawner.living_elders().size() == want_zone_elders
+					== _want_zone_tourists(rig.city) \
+			and rig.elder_spawner.living_elders().size() == _want_zone_elders(rig.city)
 	rig.free()
 	Game.hunger.player = null
 	Game.reset_run()
@@ -9856,12 +10487,9 @@ func _scenario_restart_resets() -> void:
 	## a stuck pre-restart citizen or car (a reused instance id) or a missing
 	## moving fleet fails here — while the bread service still holds its
 	## target.
-	var want_zone_citizens := 0
-	var want_zone_elders := 0
-	for zone: AmesPedZones.Zone in city.ped_zones.zones:
-		want_zone_citizens += zone.cap
-		if zone.klass == "elder":
-			want_zone_elders += zone.cap
+	## (T-183 re-pin) The zone-crowd wants read the ONE harness law — the
+	## elders now include the downtown favor benches (additive sitters).
+	var want_zone_elders := _want_zone_elders(city)
 	var fresh_tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
 	var fresh_cars_reset: Array[Car] = main_game.car_spawner.living_cars()
 	var reused := false
@@ -9872,7 +10500,7 @@ func _scenario_restart_resets() -> void:
 		reused = reused or old_car_ids.has(car.get_instance_id())
 		if car.mode == Car.Mode.TRAFFIC:
 			moving_reset += 1
-	var spawns_ok := fresh_tourists.size() == want_zone_citizens - want_zone_elders \
+	var spawns_ok := fresh_tourists.size() == _want_zone_tourists(city) \
 			and main_game.elder_spawner.living_elders().size() == want_zone_elders \
 			and not reused and moving_reset == main_game.car_spawner.target_moving \
 			and main_game.bread_spawner.living_crumbs().size() == main_game.bread_spawner.target_count
@@ -9940,18 +10568,14 @@ func _scenario_restart_same_seed_skips_rebuild() -> void:
 	## cars — no reused instance ids), the ZONE CROWD re-seeds to its pinned
 	## caps (the tourists on the visitor zones, the elders on campus/shore),
 	## the bread service re-seeds to target.
-	var want_zone_citizens := 0
-	var want_zone_elders := 0
-	for zone: AmesPedZones.Zone in main_game.city.ped_zones.zones:
-		want_zone_citizens += zone.cap
-		if zone.klass == "elder":
-			want_zone_elders += zone.cap
+	## (T-183 re-pin) The re-seed wants read the ONE harness law (favor
+	## benches included in the elder total).
 	var moving_fresh := 0
 	for car in fresh_cars:
 		if car.mode == Car.Mode.TRAFFIC:
 			moving_fresh += 1
-	var spawns_ok := fresh_tourists.size() == want_zone_citizens - want_zone_elders \
-			and main_game.elder_spawner.living_elders().size() == want_zone_elders \
+	var spawns_ok := fresh_tourists.size() == _want_zone_tourists(main_game.city) \
+			and main_game.elder_spawner.living_elders().size() == _want_zone_elders(main_game.city) \
 			and moving_fresh == main_game.car_spawner.target_moving \
 			and main_game.bread_spawner.living_crumbs().size() == main_game.bread_spawner.target_count \
 			and not reused
@@ -12174,16 +12798,12 @@ func _scenario_density_cpu_budget() -> void:
 	## arms: the traffic graph carries a LIVE 26-car fleet on the real streets
 	## and the R2·pedestrians ZONE CROWD walks its pinned caps — the median
 	## below already runs with both alive.
-	var want_zone_citizens := 0
-	var want_zone_elders := 0
-	for zone: AmesPedZones.Zone in main_game.city.ped_zones.zones:
-		want_zone_citizens += zone.cap
-		if zone.klass == "elder":
-			want_zone_elders += zone.cap
+	## (T-183 re-pin) The fleet arms read the ONE harness law — the zone
+	## crowd carries the downtown favor benches since the economy scale.
 	var tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
 	var cars: Array[Car] = main_game.car_spawner.living_cars()
-	var density_ok := tourists.size() == want_zone_citizens - want_zone_elders \
-			and main_game.elder_spawner.living_elders().size() == want_zone_elders \
+	var density_ok := tourists.size() == _want_zone_tourists(main_game.city) \
+			and main_game.elder_spawner.living_elders().size() == _want_zone_elders(main_game.city) \
 			and cars.size() == main_game.car_spawner.target_moving \
 					+ main_game.car_spawner.target_parked \
 			and int(main_game.city.render_metrics().get("chunk_count", 0)) > 0
