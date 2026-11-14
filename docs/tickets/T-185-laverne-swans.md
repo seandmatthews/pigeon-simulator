@@ -1,6 +1,6 @@
 # T-185 — Ames R3 · Lake LaVerne + the swans: Lancelot and Elaine, restored
 
-- **Status:** doing · **Category:** visual-design · **Ring:** R3 The Landmarks ·
+- **Status:** done · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 5 · **Risk (1-5):** 3
 - **Depends on:** T-177 (placeholder slot), T-174 (water v1)
 - **Refs:** `MODELING-SPECS.md` §1 lake-laverne cluster ·
@@ -33,10 +33,12 @@ campaign's heart note.
 
 ## Acceptance criteria
 
-- [ ] Shore read verified at 60 m and 200 m; composition shot (lake →
+- [x] Shore read verified at 60 m and 200 m; composition shot (lake →
       MU → campanile) matches the reference photo angle — agent pass
       recorded (see the round notes: `.captures/session_t185shore{,2}/`),
-      the OWNER judgement stays T-196's postcard flight
+      ACCEPTED by reviewer sign-off on the landed tree 2026-11-14 (the
+      owner still sees the swans in T-196's postcard flight per the
+      ticket's Verification line — that ride is booked, not owed here)
 - [x] Swans: exactly 2, circuiting ≤ 122 m span, T-165-independent
       (bird rig, not the people rig); never leave the water; collide
       with nothing (they yield) — `laverne_swans_present` (Gate 1b,
@@ -107,3 +109,6 @@ character would be a new owner-picked ticket.
   `.captures/session_t185shore{,2}/`, pixel-A/B'd against a parent-commit
   capture (`.captures/session_t185ab/laverne_200m_ab.png`) to prove the
   polish ADDED the shore read and moved nothing else.
+- **DONE on reviewer sign-off, 2026-11-14** — the ticket flipped done on
+  the signed-off landed tree; the owner's T-196 postcard flight remains
+  the booked owner-eye ride for the swans.
