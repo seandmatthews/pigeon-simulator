@@ -243,6 +243,13 @@ func _populate() -> void:
 
 ## (T-134) The crosswalk yield's senses: the pigeon plus the whole living
 ## tourist fleet. Re-read on every populate — a re-seeded fleet is new nodes.
+## (T-181) Public so Main can re-read it after the zone tourists populate
+## (the cars populate first by design — the tailgate-crumb handover — so the
+## first refresh ran against an empty tourist list).
+func refresh_watched() -> void:
+	_refresh_watched()
+
+
 func _refresh_watched() -> void:
 	if traffic_ctrl == null:
 		return

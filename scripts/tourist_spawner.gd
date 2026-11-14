@@ -44,6 +44,11 @@ func living_tourists() -> Array[Tourist]:
 
 
 ## Wipes and re-seeds the whole population (first boot, city regeneration).
+## (T-181) On the Ames world (`city.ped_zones` set by the build) the
+## population IS the zone crowd: the visitor zones' caps (the Welch strip the
+## densest) seeded along their sidewalk polylines in loose seeded groups —
+## the class quota law unchanged, the share draws rolling the same seeded
+## stream. The block-loop seeding below is the retired Windrow seam.
 func _populate() -> void:
 	for tourist in _tourists:
 		if is_instance_valid(tourist):
@@ -52,6 +57,9 @@ func _populate() -> void:
 	if city == null or player == null:
 		return
 	_rng.seed = city.seed_value
+	if city.ped_zones != null:
+		_populate_zones()
+		return
 	_begin_class_quota(target_count)
 	var anchor := _anchor_flat()
 	if city.block_centers.is_empty():
@@ -63,6 +71,88 @@ func _populate() -> void:
 		for _g in group:
 			_spawn_on_block(block, index)
 			index += 1
+
+
+## The zone seeding (T-181): every visitor zone's cap exactly, walkers
+## spread along the zone's sidewalk polylines (round-robin across the paths,
+## seeded stagger), open paths bounce. The class quotas open over the zone
+## total so the T-113 share law lands exactly at the zone crowd's size.
+func _populate_zones() -> void:
+	var total := 0
+	for zone: AmesPedZones.Zone in city.ped_zones.zones:
+		if zone.klass == "tourist":
+			total += zone.cap
+	if total <= 0:
+		return
+	_begin_class_quota(total)
+	var index := 0
+	for zone: AmesPedZones.Zone in city.ped_zones.zones:
+		if zone.klass != "tourist":
+			continue
+		for i in zone.cap:
+			_spawn_zone_tourist(zone, i, index)
+			index += 1
+
+
+## One zone tourist (T-181): path = the zone's sidewalk polyline (global,
+## densified waypoints), bounce on open paths, crossing flags carried, start
+## fraction staggered on the seeded stream, class drawn off the same stream.
+func _spawn_zone_tourist(zone: AmesPedZones.Zone, i: int, index: int) -> void:
+	var path_i := i % zone.paths.size()
+	var pts := zone.paths[path_i]
+	var path := PackedVector3Array()
+	for p: Vector2 in pts:
+		path.append(city.to_global(Vector3(p.x, 0.0, p.y)))
+	var closed := zone.closed[path_i] if path_i < zone.closed.size() else false
+	var cross_flags: Array[bool] = []
+	var crosses: Array = zone.crosses[path_i] if path_i < zone.crosses.size() else []
+	for flag: Variant in crosses:
+		cross_flags.append(bool(flag))
+	var tourist: Tourist = tourist_scene.instantiate()
+	_assign_class(tourist)
+	if tourist.citizen_class == CitizenClass.Kind.CIVILIAN:
+		tourist.shirt_color = Tourist.SHIRT_PALETTE[index % Tourist.SHIRT_PALETTE.size()]
+	tourist.pace = _rng.randf_range(0.85, 1.2)
+	tourist.path = path
+	tourist.path_cross = cross_flags
+	tourist.path_bounce = not closed
+	tourist.zone_id = zone.id
+	var mid := _zone_mid(zone)
+	tourist.block_center = city.to_global(Vector3(mid.x, 0.0, mid.y))
+	add_child(tourist)
+	## Seeded stagger: walker i of the zone's cap spreads around the path.
+	var frac := fposmod(float(i) / float(maxi(zone.cap, 1)) + _rng.randf() * 0.5
+			/ float(maxi(zone.cap, 1)), 1.0)
+	tourist.global_position = _point_on_path(path, frac)
+	tourist._retarget_nearest_waypoint()
+	tourist.splatted.connect(_on_tourist_splatted)
+	_tourists.append(tourist)
+
+
+## A point at arc fraction `frac` of a global polyline.
+func _point_on_path(path: PackedVector3Array, frac: float) -> Vector3:
+	var total := 0.0
+	for i in path.size() - 1:
+		total += path[i].distance_to(path[i + 1])
+	var want := clampf(frac, 0.0, 1.0) * total
+	var walked := 0.0
+	for i in path.size() - 1:
+		var seg := path[i].distance_to(path[i + 1])
+		if walked + seg >= want and seg > 0.0001:
+			return path[i].lerp(path[i + 1], (want - walked) / seg)
+		walked += seg
+	return path[path.size() - 1]
+
+
+## The zone's centroid (global) — the `block_center` grouping key stand-in.
+func _zone_mid(zone: AmesPedZones.Zone) -> Vector2:
+	var acc := Vector2.ZERO
+	var n := 0
+	for path: PackedVector2Array in zone.paths:
+		for p: Vector2 in path:
+			acc += p
+			n += 1
+	return acc / maxf(float(n), 1.0)
 
 
 ## Puts a tourist that drifted beyond the recycle radius back into the spawn

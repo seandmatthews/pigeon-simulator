@@ -332,6 +332,10 @@ func _boot_stepped() -> void:
 	_boot_run_phase("spawn_elders", elder_spawner.populate)
 	await _boot_paint()
 	_boot_run_phase("spawn_cafes", cafe_spawner.populate)
+	## (T-181) The crosswalk yield's senses re-read AFTER the zone crowd
+	## exists — the tourists populate after the cars, and the T-180 band
+	## yield must watch them (the MU corner's Lincoln Way crossing).
+	car_spawner.refresh_watched()
 	await _boot_paint() ## The first warm frame: a fully built world on screen.
 	_finish_boot()
 	player.process_mode = Node.PROCESS_MODE_INHERIT ## The world stands under it — the pigeon flies.
@@ -361,13 +365,15 @@ func _boot_paint() -> void:
 ## (T-129) The staged spawners' first populate, in main.tscn child order on the
 ## sync path (cars ahead of bread — the tailgate-crumb handover). Each first
 ## populate wires its `regenerated` listener, so restarts re-seed exactly as
-## always.
+## always. (T-181) The tail re-reads the crosswalk yield's senses — the zone
+## crowd exists by then and the T-180 band yield must watch it.
 func _populate_staged_spawners() -> void:
 	car_spawner.populate()
 	bread_spawner.populate()
 	tourist_spawner.populate()
 	elder_spawner.populate()
 	cafe_spawner.populate()
+	car_spawner.refresh_watched()
 
 
 ## (T-178 round 1) The pigeon stands on the spawn corridor BEFORE the citizen

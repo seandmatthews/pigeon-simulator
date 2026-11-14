@@ -351,6 +351,9 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	_corner_mast_xfs = []
 	_corner_head_xfs = []
 	_corner_lamp_xfs = []
+	_bench_seat_xfs = [] ## (T-181) The zone-bench queues rebuild with the world.
+	_bench_leg_xfs = []
+	ped_zones = null
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
 	_manifest = AmesBaker.read_manifest(CHUNKS_DIR)
 	if _manifest.is_empty():
@@ -383,6 +386,7 @@ func generate_step_finish() -> void:
 	_build_survival()
 	_build_traffic_graph()
 	_build_intersection_furniture() ## (T-180) The pinned corners' paint/signs/signals.
+	_build_ped_zones() ## (T-181) The pedestrian zones + their bench furniture.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -408,6 +412,8 @@ func generate_step_finish() -> void:
 		"traffic_km": snappedf(traffic_graph.total_km(), 0.01) if traffic_graph != null else 0.0,
 		"intersections_pinned": pinned,
 		"intersections_signals": signalized,
+		"ped_zones": ped_zones.zones.size() if ped_zones != null else 0,
+		"ped_benches": _bench_seat_xfs.size(),
 	}
 	## Deterministic identity: the bake manifest's total hash — a re-bake that
 	## moves a byte moves the fingerprint, exactly the layout-fingerprint
@@ -493,6 +499,12 @@ var _corner_plaque_xfs: Array[Transform3D] = []
 var _corner_mast_xfs: Array[Transform3D] = []
 var _corner_head_xfs: Array[Transform3D] = []
 var _corner_lamp_xfs: Array[Transform3D] = []
+
+## (T-181) The zone-bench transform queues (the same retention law as the
+## corner dress): one seat-slab and one leg-pair transform per bench, plus
+## the count the spawners seat against. World-local coordinates.
+var _bench_seat_xfs: Array[Transform3D] = []
+var _bench_leg_xfs: Array[Transform3D] = []
 
 
 func _process(_delta: float) -> void:
@@ -726,6 +738,67 @@ func _spawn_corner_family(root: Node3D, node_name: String,
 	node.name = node_name
 	node.multimesh = mm
 	root.add_child(node)
+
+
+## --- T-181 pedestrian zones -------------------------------------------------
+
+
+## Builds the zone set (after the traffic graph — the crossing legs derive
+## from its pinned bands) and spawns the zones' bench furniture: the retired
+## Windrow `_add_bench` recipe verbatim (seat slab 1.8 × 0.08 × 0.5, top 0.54
+## — the T-163 law's wood top — over two legs; collider 1.8 × 0.55 × 0.5), so
+## the T-141 sit system and the T-163 seat-contact law carry over unchanged
+## onto the new benches. One MultiMesh per family under `PedZones/` plus one
+## merged layer-1 StaticBody (the T-093 one-body-per-group pattern), the
+## seat/leg queues retained for the gate. Zero RNG of any stream.
+func _build_ped_zones() -> void:
+	if traffic_graph == null:
+		return
+	ped_zones = AmesPedZones.new(self, traffic_graph)
+	var seats: Array[Transform3D] = []
+	var legs: Array[Transform3D] = []
+	var grounds: Array[Transform3D] = []
+	for zone: AmesPedZones.Zone in ped_zones.zones:
+		for bench: Transform3D in zone.benches:
+			## The bench record rides the SEAT LINE (ground + 0.60, the
+			## `elder_spots` convention) in world-local coordinates — the
+			## furniture derives its ground origin 0.60 under it.
+			var xf := Transform3D(Basis(Vector3.UP, bench.basis.get_euler().y),
+					bench.origin - Vector3(0.0, AmesPedZones.BENCH_SEAT_LINE, 0.0))
+			grounds.append(xf)
+			seats.append(xf * Transform3D(
+					Basis.from_scale(Vector3(1.8, 0.08, 0.5)),
+					Vector3(0.0, 0.5, 0.0)))
+			legs.append(xf * Transform3D(
+					Basis.from_scale(Vector3(0.1, 0.5, 0.44)),
+					Vector3(-0.75, 0.25, 0.0)))
+			legs.append(xf * Transform3D(
+					Basis.from_scale(Vector3(0.1, 0.5, 0.44)),
+					Vector3(0.75, 0.25, 0.0)))
+	_bench_seat_xfs = seats
+	_bench_leg_xfs = legs
+	if seats.is_empty():
+		return
+	var root := Node3D.new()
+	root.name = "PedZones"
+	add_child(root)
+	_spawn_corner_family(root, "BenchSeats", seats, AmesPedZones.BENCH_WOOD)
+	_spawn_corner_family(root, "BenchLegs", legs, AmesPedZones.BENCH_METAL)
+	## One merged world body: every bench's box, one shape per bench (the
+	## retired bench collider recipe), on layer 1 `world`.
+	var body := StaticBody3D.new()
+	body.name = "BenchProps"
+	body.collision_layer = 1
+	body.collision_mask = 0
+	root.add_child(body)
+	for ground: Transform3D in grounds:
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(1.8, 0.55, 0.5)
+		shape.shape = box
+		shape.transform = ground * Transform3D(
+				Basis.IDENTITY, Vector3(0.0, 0.275, 0.0))
+		body.add_child(shape)
 
 
 ## --- T-176 survival re-base ------------------------------------------------

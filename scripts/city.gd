@@ -182,6 +182,15 @@ var boot_bread_spots: Array[int] = []
 ## pure data, no RNG.
 var traffic_graph: AmesTrafficGraph = null
 
+## The pedestrian zones (T-181) — the pinned activity streets the citizens
+## populate (the Welch strip, downtown Main, Central Campus, the LaVerne
+## shore, the MU corner), each with sidewalk polylines, a population cap and
+## bench/sit targets. Built by the world's finish slice right after the
+## traffic graph (the zone crossing legs derive from its pinned bands), pure
+## data, no RNG of any stream. Null until a world builds it; the citizen
+## spawners fall back to their retired block-grid machinery when unset.
+var ped_zones: AmesPedZones = null
+
 ## Seated spots (city-local) for the park elders (T-020): one transform per
 ## plaza-ring bench — position on the seat line, yaw = the bench's own. Purely
 ## derived from the layout — no RNG of its own — so it is deterministic per

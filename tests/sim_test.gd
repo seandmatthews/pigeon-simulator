@@ -183,6 +183,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_traffic_density() ## T-178 — the density law value-locked + the fleet's class mix at the cruise camera and low-hover positions, stable across seeds.
 	await _scenario_ames_traffic_calm() ## T-179 — the T-166 calm etiquette re-derived on the real graph: staged honk gates, the pass on real lanes, the live fleet's hold/blinker/honk reads.
 	await _scenario_ames_intersections() ## T-180 — the pinned corner set: census counts, adapted T-134 paint at measured widths, the T-143 relief, the signal phase, traffic obeys.
+	await _scenario_ames_ped_zones() ## T-181 — the pedestrian zones: pinned caps, the crossing fence, the live crowd at its caps, the T-165 gait pins, the bench sitters, 0 mid-block road walkers.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -4063,6 +4064,305 @@ func _scenario_ames_intersections() -> void:
 	await _set_up(true, _city.to_global(Vector3(60.0, 30.0, 0.0)), Vector3.ZERO)
 
 
+## The T-181 pedestrian zones: the pinned zone table (ids, caps, classes —
+## Welch the strict maximum), the CROSSING FENCE over every zone path vertex
+## recomputed against the graph's own road runs and pinned bands (off the
+## asphalt, or inside a band — the zones' pad-split law keeps the sample at
+## zero mid-block vertices), the strip reaching the 300 block, the LIVE zone
+## crowd at its caps (tourists on Welch/downtown/MU, the elder locals on
+## campus/shore), the T-165 gait pins carried unchanged (stroll 1.3, shuffle
+## 0.8, the stride law constants, the live clip rates), the sit targets
+## occupied at the new benches with the T-163 contact law re-probed (hips
+## bone band, feet above the slab), the bench furniture's queues and
+## colliders, a live road-contact sample over 8 s of walking (0 mid-block
+## road walkers), and the seeded repopulate determinism.
+func _scenario_ames_ped_zones() -> void:
+	const S := "ames_ped_zones"
+	var graph: AmesTrafficGraph = _city.traffic_graph
+	var zones: AmesPedZones = _city.ped_zones
+	if zones == null or graph == null:
+		_check(S, false, "no pedestrian zones on the resident world")
+		return
+	## (a) The zone table: five zones, the pinned caps/classes, every zone
+	## carrying paths and benches — and Welch's cap the strict maximum.
+	var table_ok: bool = zones.zones.size() == 5
+	var welch_cap := 0
+	for zone: AmesPedZones.Zone in zones.zones:
+		table_ok = table_ok \
+				and int(AmesPedZones.ZONE_CAPS.get(zone.id, -1)) == zone.cap \
+				and str(AmesPedZones.ZONE_CLASS.get(zone.id, "")) == zone.klass \
+				and zone.paths.size() > 0 and zone.benches.size() > 0
+		if zone.id == "welch_strip":
+			welch_cap = zone.cap
+	for id: String in ["welch_strip", "downtown_main", "mu_corner",
+			"central_campus", "laverne_shore"]:
+		table_ok = table_ok and zones.zone(id) != null
+	var density_ok: bool = welch_cap > 0
+	for zone: AmesPedZones.Zone in zones.zones:
+		if zone.id != "welch_strip":
+			density_ok = density_ok and zone.cap < welch_cap
+	## (b) The crossing fence, recomputed here from the graph's own road runs
+	## and pinned bands (never through the zone builder's private reads): a
+	## path vertex stands off the asphalt, or inside a pinned band.
+	var road_vertices := 0
+	var band_vertices := 0
+	for zone: AmesPedZones.Zone in zones.zones:
+		for path: PackedVector2Array in zone.paths:
+			for p: Vector2 in path:
+				var hit := graph.nearest_run(p.x, p.y)
+				if hit.is_empty():
+					continue
+				if float(hit["dist"]) >= graph.run_half_width(int(hit["run"])) + 0.5:
+					continue
+				if _ped_in_band(graph, p):
+					band_vertices += 1
+				else:
+					road_vertices += 1
+	## The strip reaches the 300 block (z ≥ 380 pack-local) and holds south of
+	## Lincoln Way.
+	var strip_ok := false
+	var welch: AmesPedZones.Zone = zones.zone("welch_strip")
+	for path: PackedVector2Array in welch.paths:
+		for p: Vector2 in path:
+			if p.y >= 380.0:
+				strip_ok = true
+	## (c) The live crowd: the two citizen spawners on the harness world. The
+	## determinism leg runs FIRST (the crowd frozen at its populate positions
+	## — a live crowd never stands still), then the spawners unfreeze for the
+	## live legs.
+	var tourists := TouristSpawner.new()
+	tourists.city = _city
+	tourists.player = _player
+	tourists.name = "TouristSpawner_ped_zones"
+	add_child(tourists)
+	tourists.process_mode = Node.PROCESS_MODE_DISABLED
+	var elders := ElderSpawner.new()
+	elders.city = _city
+	elders.name = "ElderSpawner_ped_zones"
+	add_child(elders)
+	elders.process_mode = Node.PROCESS_MODE_DISABLED
+	var before := PackedVector3Array()
+	for tourist: Tourist in tourists.living_tourists():
+		before.append(tourist.global_position)
+	before.append(Vector3(elders.living_elders().size(), 0, 0))
+	_city.regenerated.emit()
+	await _wait_frames(4)
+	var after := PackedVector3Array()
+	for tourist: Tourist in tourists.living_tourists():
+		after.append(tourist.global_position)
+	after.append(Vector3(elders.living_elders().size(), 0, 0))
+	var det_ok: bool = before.size() == after.size()
+	if det_ok:
+		for i in before.size():
+			if not before[i].is_equal_approx(after[i]):
+				det_ok = false
+				break
+	tourists.process_mode = Node.PROCESS_MODE_INHERIT
+	elders.process_mode = Node.PROCESS_MODE_INHERIT
+	await _wait_frames(4)
+	var want_counts := {}
+	var want_tourists := 0
+	var want_elders := 0
+	for zone: AmesPedZones.Zone in zones.zones:
+		want_counts[zone.id] = zone.cap
+		if zone.klass == "tourist":
+			want_tourists += zone.cap
+		else:
+			want_elders += zone.cap
+	var live_counts := {}
+	var living := tourists.living_tourists()
+	for tourist: Tourist in living:
+		live_counts[tourist.zone_id] = int(live_counts.get(tourist.zone_id, 0)) + 1
+	var elder_counts := {}
+	var elder_total := 0
+	for elder: Elder in elders.living_elders():
+		elder_counts[elder.zone_id] = int(elder_counts.get(elder.zone_id, 0)) + 1
+		elder_total += 1
+	var caps_ok: bool = living.size() == want_tourists and elder_total == want_elders
+	for zone: AmesPedZones.Zone in zones.zones:
+		if zone.klass == "tourist":
+			caps_ok = caps_ok and int(live_counts.get(zone.id, 0)) == zone.cap \
+					and int(elder_counts.get(zone.id, 0)) == 0
+		else:
+			caps_ok = caps_ok and int(elder_counts.get(zone.id, 0)) == zone.cap \
+					and int(live_counts.get(zone.id, 0)) == 0
+	## (d) The T-165 gait pins, carried unchanged onto the zone walkers: the
+	## stride law constants byte-identical, the stroll and the shuffle at
+	## their measured speeds, every pace inside the T-007 band, and the LIVE
+	## walk clip rate on one walker of each class.
+	var gait_ok: bool = is_equal_approx(PeopleRig.WALK_STRIDE, 1.3239) \
+			and is_equal_approx(PeopleRig.WALK_SECONDS, 1.3333)
+	var tourists_ok := true
+	for tourist: Tourist in living:
+		tourists_ok = tourists_ok \
+				and is_equal_approx(tourist.walk_speed, 1.3) \
+				and tourist.pace >= 0.85 and tourist.pace <= 1.2
+	gait_ok = gait_ok and tourists_ok
+	var elder_gait_ok := true
+	var saw_walker := false
+	for elder: Elder in elders.living_elders():
+		if elder.zone_id == "":
+			continue
+		elder_gait_ok = elder_gait_ok and is_equal_approx(elder.walk_speed, 0.8)
+	var live_rate_ok := true
+	if living.size() > 0:
+		var t0: Tourist = living[0]
+		var rig: PeopleRig = t0.get_node("Visual")
+		live_rate_ok = absf(rig.anim.speed_scale
+				- PeopleRig.walk_rate(t0.walk_speed * t0.pace)) < 0.02
+	var elder_rate_ok := true
+	for elder: Elder in elders.living_elders():
+		var rig: PeopleRig = elder.get_node("Visual")
+		if elder._state == Elder.State.WALKING:
+			saw_walker = true
+			elder_rate_ok = elder_rate_ok and absf(rig.anim.speed_scale
+					- PeopleRig.walk_rate(elder.walk_speed)) < 0.02
+	## (e) The sit targets occupied: the campus/shore benches seat their
+	## locals (the elder zones' bench quota), each seated elder ON its bench
+	## at the seat line with the T-163 contact composite settled.
+	await _wait_frames(90) ## The seated sink eases to full in ~0.5 s of physics.
+	var sit_ok := true
+	var seated_seen := 0
+	var benches_seen := 0
+	for zone: AmesPedZones.Zone in zones.zones:
+		benches_seen += zone.benches.size()
+		if zone.klass != "elder":
+			continue
+		var occupied := 0
+		for bench: Transform3D in zone.benches:
+			var seat_global: Vector3 = _city.global_transform * bench.origin
+			for elder: Elder in elders.living_elders():
+				if elder.zone_id != zone.id or elder._state != Elder.State.SEATED:
+					continue
+				if elder.global_position.distance_to(seat_global) > 0.05:
+					continue
+				occupied += 1
+				var rig: PeopleRig = elder.get_node("Visual")
+				var skel := rig.find_child("Skeleton3D", true, false) as Skeleton3D
+				if skel == null:
+					sit_ok = false
+					continue
+				var bone_y := func(bone_name: String) -> float:
+					var idx := skel.find_bone(bone_name)
+					return (skel.global_transform
+							* skel.get_bone_global_pose(idx)).origin.y
+				var hips: float = bone_y.call("DEF-hips") - elder.global_position.y
+				var feet: float = minf(bone_y.call("DEF-foot.L"),
+						bone_y.call("DEF-foot.R")) - elder.global_position.y
+				## The T-163 law on the NEW benches: the hips bone in its
+				## 0.00..0.08 band over the seat line, the feet above the
+				## slab (root − 0.60), the eased sink at the lock.
+				sit_ok = sit_ok and hips > 0.0 and hips < 0.08 \
+						and feet + AmesPedZones.BENCH_SEAT_LINE >= -0.01 \
+						and absf(rig.position.y - Elder.SEAT_SINK) < 0.01
+		sit_ok = sit_ok and occupied == mini(zone.benches.size(), zone.cap)
+		seated_seen += occupied
+	## (f) The bench furniture: the world's retained queues feed one instance
+	## per slab/leg, and one collider per bench rides layer 1.
+	var bench_props := _city.get_node_or_null("PedZones/BenchProps") as StaticBody3D
+	var seat_mm := _city.get_node_or_null("PedZones/BenchSeats") as MultiMeshInstance3D
+	var bench_ok: bool = bench_props != null and seat_mm != null \
+			and seat_mm.multimesh.instance_count == benches_seen \
+			and bench_props.collision_layer == 1 \
+			and bench_props.get_child_count() == benches_seen
+	## (g) The live road-contact sample: 8 s of walking, every walker sampled
+	## every 10 frames — 0 mid-block road walkers (band contact is legal).
+	var samples := 0
+	var live_road_walkers := 0
+	for f in 480:
+		await _wait_frames(1)
+		if f % 10 != 0:
+			continue
+		samples += 1
+		for tourist: Tourist in tourists.living_tourists():
+			var p := _city.to_local(tourist.global_position)
+			if _ped_road_contact(graph, Vector2(p.x, p.z)):
+				live_road_walkers += 1
+		for elder: Elder in elders.living_elders():
+			var p := _city.to_local(elder.global_position)
+			if _ped_road_contact(graph, Vector2(p.x, p.z)):
+				live_road_walkers += 1
+	## (g2) The LAP-END leg (round 2): a zone loop's LAST waypoint is where
+	## the route wrap happens — the walking elder must read its crossing
+	## flags in the route's waypoint-indexed convention (size == route.size())
+	## and wrap through `_route_end` instead of erroring and freezing there
+	## (the rv2 review's live evidence: every zone walker froze at its last
+	## waypoint with `_route_cross` out of bounds, tens of thousands of
+	## script errors by t≈20 min — invisible to the 8 s sample above, which
+	## never reaches a lap end). Teleport one walker onto its route's last
+	## waypoint and step the live sim: the flags must be waypoint-sized and
+	## the walk must wrap (`_wp` back to 0, still WALKING).
+	var lap_ok := false
+	var flags_sized := false
+	var lap_elder: Elder = null
+	for elder: Elder in elders.living_elders():
+		if elder.zone_id != "" and elder._state == Elder.State.WALKING:
+			lap_elder = elder
+			break
+	if lap_elder != null:
+		flags_sized = lap_elder._route_cross.size() == lap_elder._route.size() \
+				and lap_elder._route_cross.size() > 0
+		var last := lap_elder._route.size() - 1
+		lap_elder.global_position = lap_elder._route[last]
+		lap_elder._wp = last
+		lap_elder._cross_committed = false
+		lap_elder.velocity = Vector3.ZERO
+		for _i in 10: ## The walk tick reaches the waypoint and wraps.
+			await _wait_frames(1)
+			if lap_elder._wp == 0 and lap_elder._state == Elder.State.WALKING:
+				lap_ok = true
+				break
+	tourists.free()
+	elders.free()
+	await _wait_frames(2)
+	print("SIM DATA %s: zones=%d caps=%s live_counts=%s elder_counts=%s road_vertices=%d band_vertices=%d strip300=%s live=%d elders=%d seated=%d benches=%d samples=%d live_road_walkers=%d lap=%s det=%s" % [
+			S, zones.zones.size(), str(want_counts), str(live_counts),
+			str(elder_counts), road_vertices, band_vertices, strip_ok,
+			living.size(), elder_total, seated_seen, benches_seen, samples,
+			live_road_walkers, lap_ok, det_ok])
+	var ok := table_ok and density_ok and road_vertices == 0 and strip_ok \
+			and caps_ok and gait_ok and elder_gait_ok and live_rate_ok \
+			and elder_rate_ok and sit_ok and bench_ok \
+			and live_road_walkers == 0 and lap_ok and flags_sized and det_ok
+	_check(S, ok, "table=%s density=%s fence=%s strip300=%s caps=%s gait=%s elder_gait=%s rates=%s/%s walk=%s sit=%s benches=%s live_sample=%s lap=%s flags=%s det=%s" % [
+			table_ok, density_ok, road_vertices == 0, strip_ok, caps_ok,
+			gait_ok, elder_gait_ok, live_rate_ok, elder_rate_ok, saw_walker,
+			sit_ok, bench_ok, live_road_walkers == 0, lap_ok, flags_sized,
+			det_ok])
+
+
+## The gate's own band containment (the T-181 fence read): a pack-local point
+## inside any pinned anchor's crosswalk band, recomputed from the graph.
+func _ped_in_band(graph: AmesTrafficGraph, p: Vector2) -> bool:
+	for a in graph.intersection_count():
+		if graph.intersection_pin(a) == AmesTrafficGraph.PIN_NONE:
+			continue
+		for member in graph.intersection_members(a):
+			for edge in graph.node_in_edges(member):
+				var geo := graph.approach_geometry(member, edge)
+				if not bool(geo["fits"]):
+					continue
+				var band: Dictionary = geo["band"]
+				var rel := p - (band["center"] as Vector2)
+				var axis := band["axis"] as Vector2
+				if absf(rel.dot(axis)) <= float(band["half_along"]) \
+						and absf(rel.dot(Vector2(-axis.y, axis.x))) \
+								<= float(band["half_across"]):
+					return true
+	return false
+
+
+## The live road-contact read for one flat pack-local position: true when the
+## point stands within a road's half-width + 0.5 m OUTSIDE every pinned band.
+func _ped_road_contact(graph: AmesTrafficGraph, p: Vector2) -> bool:
+	var hit := graph.nearest_run(p.x, p.y)
+	if hit.is_empty():
+		return false
+	if float(hit["dist"]) >= graph.run_half_width(int(hit["run"])) + 0.5:
+		return false
+	return not _ped_in_band(graph, p)
+
+
 ## The nearest pinned anchor to a pack-local XZ point (−1 when none within
 ## 10 m) — the named-corner reads.
 func _nearest_pinned_anchor(graph: AmesTrafficGraph, xz: Vector2) -> int:
@@ -7339,8 +7639,16 @@ func _scenario_stepped_boot_pins() -> void:
 			names_ok = names_ok and String(entry.name) == want_phases[i] \
 					and int(entry.ms) >= 0
 			trace += "%s=%d " % [entry.name, entry.ms]
+	var want_zone_citizens := 0
+	var want_zone_elders := 0
+	for zone: AmesPedZones.Zone in stepped.city.ped_zones.zones:
+		want_zone_citizens += zone.cap
+		if zone.klass == "elder":
+			want_zone_elders += zone.cap
 	var stepped_city_ok: bool = booted and stepped.city.fingerprint == _city.fingerprint \
-			and stepped.tourist_spawner.living_tourists().is_empty() \
+			and stepped.tourist_spawner.living_tourists().size() \
+					== want_zone_citizens - want_zone_elders \
+			and stepped.elder_spawner.living_elders().size() == want_zone_elders \
 			and stepped.bread_spawner.living_crumbs().size() \
 					== stepped.bread_spawner.target_count \
 			and stepped.car_spawner.living_cars().size() \
@@ -7358,7 +7666,9 @@ func _scenario_stepped_boot_pins() -> void:
 	stepped.city.generate(424242, true) ## Foreign seed, forced — a real rebuild.
 	await _wait_frames(2)
 	var reseed_ok: bool = stepped.city.fingerprint == _city.fingerprint \
-			and stepped.tourist_spawner.living_tourists().is_empty() \
+			and stepped.tourist_spawner.living_tourists().size() \
+					== want_zone_citizens - want_zone_elders \
+			and stepped.elder_spawner.living_elders().size() == want_zone_elders \
 			and stepped.bread_spawner.living_crumbs().size() \
 					== stepped.bread_spawner.target_count \
 			and stepped.car_spawner.living_cars().size() \
@@ -7388,7 +7698,9 @@ func _scenario_stepped_boot_pins() -> void:
 			and String(rig.boot_trace[0].name) == "sync_boot" \
 			and int(rig.boot_trace[0].ms) >= 0 \
 			and rig.city.fingerprint == _city.fingerprint \
-			and rig.tourist_spawner.living_tourists().is_empty()
+			and rig.tourist_spawner.living_tourists().size() \
+					== want_zone_citizens - want_zone_elders \
+			and rig.elder_spawner.living_elders().size() == want_zone_elders
 	rig.free()
 	Game.hunger.player = null
 	Game.reset_run()
@@ -9185,11 +9497,19 @@ func _scenario_restart_resets() -> void:
 	await _wait_frames(3) ## Let the queue_free'd old spawns flush out.
 	var city_ok := city.fingerprint == fp_before ## (T-177) The bake identity — comparable scores.
 	var respawn_ok := pigeon.global_position.distance_to(city.spawn_point) < 1.0
-	## (T-178 re-pin) The fleet arms read the AMES reality: the tourist fleet
-	## stays INERT (R2·pedestrians owns its re-base), but the traffic graph
-	## (T-178) re-seeds a FRESH car fleet on the real streets — a stuck
-	## pre-restart car (a reused instance id) or a missing moving fleet fails
-	## here — while the bread service still holds its target.
+	## (T-178 re-pin, T-181 re-pin) The fleet arms read the AMES reality: the
+	## ZONE CROWD (R2·pedestrians) re-seeds to its pinned caps — the tourists
+	## on the visitor zones, the elder locals on campus/shore — and the
+	## traffic graph (T-178) re-seeds a FRESH car fleet on the real streets —
+	## a stuck pre-restart citizen or car (a reused instance id) or a missing
+	## moving fleet fails here — while the bread service still holds its
+	## target.
+	var want_zone_citizens := 0
+	var want_zone_elders := 0
+	for zone: AmesPedZones.Zone in city.ped_zones.zones:
+		want_zone_citizens += zone.cap
+		if zone.klass == "elder":
+			want_zone_elders += zone.cap
 	var fresh_tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
 	var fresh_cars_reset: Array[Car] = main_game.car_spawner.living_cars()
 	var reused := false
@@ -9200,7 +9520,8 @@ func _scenario_restart_resets() -> void:
 		reused = reused or old_car_ids.has(car.get_instance_id())
 		if car.mode == Car.Mode.TRAFFIC:
 			moving_reset += 1
-	var spawns_ok := fresh_tourists.is_empty() \
+	var spawns_ok := fresh_tourists.size() == want_zone_citizens - want_zone_elders \
+			and main_game.elder_spawner.living_elders().size() == want_zone_elders \
 			and not reused and moving_reset == main_game.car_spawner.target_moving \
 			and main_game.bread_spawner.living_crumbs().size() == main_game.bread_spawner.target_count
 	_check("restart_resets_run", state_ok and city_ok and respawn_ok and spawns_ok,
@@ -9262,15 +9583,23 @@ func _scenario_restart_same_seed_skips_rebuild() -> void:
 		reused = reused or old_tourist_ids.has(tourist.get_instance_id())
 	for car in fresh_cars:
 		reused = reused or old_car_ids.has(car.get_instance_id())
-	## (T-178 re-pin) The Ames fleet: the traffic graph re-seeds a FRESH
-	## moving fleet over the real streets (never stuck pre-restart cars —
-	## no reused instance ids), the tourist fleet stays inert until
-	## R2·pedestrians, the bread service re-seeds to target.
+	## (T-178 re-pin, T-181 re-pin) The Ames fleet: the traffic graph re-seeds
+	## a FRESH moving fleet over the real streets (never stuck pre-restart
+	## cars — no reused instance ids), the ZONE CROWD re-seeds to its pinned
+	## caps (the tourists on the visitor zones, the elders on campus/shore),
+	## the bread service re-seeds to target.
+	var want_zone_citizens := 0
+	var want_zone_elders := 0
+	for zone: AmesPedZones.Zone in main_game.city.ped_zones.zones:
+		want_zone_citizens += zone.cap
+		if zone.klass == "elder":
+			want_zone_elders += zone.cap
 	var moving_fresh := 0
 	for car in fresh_cars:
 		if car.mode == Car.Mode.TRAFFIC:
 			moving_fresh += 1
-	var spawns_ok := fresh_tourists.is_empty() \
+	var spawns_ok := fresh_tourists.size() == want_zone_citizens - want_zone_elders \
+			and main_game.elder_spawner.living_elders().size() == want_zone_elders \
 			and moving_fresh == main_game.car_spawner.target_moving \
 			and main_game.bread_spawner.living_crumbs().size() == main_game.bread_spawner.target_count \
 			and not reused
@@ -10720,12 +11049,12 @@ func _find_hit_marker_on(body: Node) -> OneShotBurst:
 ## _scenario_hud_hunger_tiers, which frees its instance: unpaused tree, no live
 ## Main — with the same cleanup tail (free() → Game.hunger.player = null →
 ## Game.reset_run()). The splat relays are EMITTED, not simulated: real
-## (T-177 re-pin) the relay nodes STAGED bare — the resident Ames world's
-## fleet is empty (the spawners stay inert until R2; the retired fleet read
-## crashed this scenario on the cutover tree and leaked its Main), so ONE
-## bare tourist + ONE bare car are instanced and tourist_splatted /
-## car_splatted emitted straight with them, so the full handler → Game →
-## hit_scored chain runs with no physics. Assertions: the strip sits under the
+## (T-177 re-pin, T-181 note) the relay nodes STAGED bare — the zone crowd
+## lives now (R2·pedestrians), but the chain reads the EMITTED NODE, never
+## the fleet, so ONE bare tourist + ONE bare car are instanced and
+## tourist_splatted / car_splatted emitted straight with them — the full
+## handler → Game → hit_scored chain runs with no physics, independent of
+## where the zone walkers happen to be. Assertions: the strip sits under the
 ## pointer block with the T-019 outline treatment and starts empty; a tourist
 ## splat reads "<Class> +100",
 ## the chained second one "<Class> +200 ×2", and a car splat after a landing
@@ -10757,13 +11086,12 @@ func _scenario_combo_strip_reports_last_hit() -> void:
 			and strip.get_theme_color("font_color").is_equal_approx(Color(1.0, 1.0, 1.0, 0.75))
 	var placed_ok: bool = strip.offset_top >= main_game.bread_pointer.offset_bottom
 	var empty_at_rest: bool = strip.text == ""
-	## (T-177 re-pin) The relay staging is BARE now: the resident Ames world's
-	## citizen fleet is EMPTY (the spawners stay inert until R2 — the retired
-	## fleet read crashed this scenario on the cutover tree and leaked its
-	## Main), so the T-151 chain stages ONE bare tourist + ONE bare car — the
-	## nodes the relays name — and emits the spawners' splatted signals with
-	## them. The readout chain (class word, marker parent, points) reads the
-	## NODE, never the fleet.
+	## (T-177 re-pin, T-181 note) The relay staging is BARE by design: the
+	## zone crowd lives now (R2·pedestrians walked its caps since T-181), but
+	## the T-151 chain stages ONE bare tourist + ONE bare car — the nodes the
+	## relays name — and emits the spawners' splatted signals with them. The
+	## readout chain (class word, marker parent, points) reads the NODE, never
+	## the fleet.
 	var tourist_a: Tourist = (load("res://scenes/tourist.tscn") as PackedScene) \
 			.instantiate() as Tourist
 	var tourist_b: Tourist = (load("res://scenes/tourist.tscn") as PackedScene) \
@@ -11490,13 +11818,20 @@ func _scenario_density_cpu_budget() -> void:
 	windows.sort()
 	var median_ms: float = windows[1]
 	## The gate must measure what it claims: a half-seeded world would pass a
-	## budget it does not deserve. (T-178 re-pin) The Ames fleet arms: the
-	## traffic graph carries a LIVE 26-car fleet on the real streets now (the
-	## median below already runs with it driving), the tourist spawner stays
-	## inert until R2·pedestrians.
+	## budget it does not deserve. (T-178 re-pin, T-181 re-pin) The Ames fleet
+	## arms: the traffic graph carries a LIVE 26-car fleet on the real streets
+	## and the R2·pedestrians ZONE CROWD walks its pinned caps — the median
+	## below already runs with both alive.
+	var want_zone_citizens := 0
+	var want_zone_elders := 0
+	for zone: AmesPedZones.Zone in main_game.city.ped_zones.zones:
+		want_zone_citizens += zone.cap
+		if zone.klass == "elder":
+			want_zone_elders += zone.cap
 	var tourists: Array[Tourist] = main_game.tourist_spawner.living_tourists()
 	var cars: Array[Car] = main_game.car_spawner.living_cars()
-	var density_ok := tourists.is_empty() \
+	var density_ok := tourists.size() == want_zone_citizens - want_zone_elders \
+			and main_game.elder_spawner.living_elders().size() == want_zone_elders \
 			and cars.size() == main_game.car_spawner.target_moving \
 					+ main_game.car_spawner.target_parked \
 			and int(main_game.city.render_metrics().get("chunk_count", 0)) > 0

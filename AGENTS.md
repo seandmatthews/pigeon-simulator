@@ -21,8 +21,11 @@ as the staged node `main.tscn` swaps away at `_ready` and as the base-class seam
 (`AmesWorld extends City`) the citizen systems read — since T-178 the TRAFFIC
 system drives the real street graph (`scripts/ames_traffic_graph.gd`: a live
 14-moving + 12-parked car fleet with right-hand lanes, speed classes and the
-rail-crossing facts), while the tourists and elders stay INERT until their R2
-re-base tickets fill real data.
+rail-crossing facts), and since T-181 the PEDESTRIAN ZONES put the people where
+Ames actually has them (`scripts/ames_ped_zones.gd`: the Welch strip, downtown
+Main, Central Campus, the LaVerne shore and the MU corner — pinned caps, T-165
+gait constants, benches at the T-163 sit law, the crossing fence at T-180's
+bands; the favor machinery on the zone benches waits for R2·economy-scale).
 
 ## Stack & tooling
 

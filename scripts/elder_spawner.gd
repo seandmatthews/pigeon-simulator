@@ -87,10 +87,13 @@ func living_elders() -> Array[Elder]:
 
 
 ## Wipes and re-seats the whole population (first boot, city regeneration,
-## restart). Seats one elder on every SECOND bench of the plaza ring
-## (spots 0, 2, 4, …), so the four elders spread around the circle
-## deterministically at every seed — the boot path T-137 leaves UNCHANGED
-## (the four park seats at spots 8-11 are migration destinations only).
+## restart). (T-181) On the Ames world (`city.ped_zones` set, no seat ring)
+## the locals populate the elder zones: the first of each zone's cap sit its
+## benches (the T-141 sit composite via `Elder.zone_seat` — the favor
+## machinery stays seat-owned and dark until T-183), the rest walk the
+## zone's closed paths at deterministic start fractions (no RNG of any
+## stream — the zone law is a pure function). On a seat ring (the retired
+## Windrow seam) the plaza law below stands unchanged.
 func _populate() -> void:
 	for elder in _elders:
 		if is_instance_valid(elder):
@@ -99,6 +102,9 @@ func _populate() -> void:
 	_reserved.clear()
 	relocation_count = 0
 	if city == null:
+		return
+	if city.ped_zones != null and city.elder_spots.is_empty():
+		_populate_zones()
 		return
 	var seated := 0
 	for spot_i in city.elder_spots.size():
@@ -118,6 +124,77 @@ func _populate() -> void:
 		elder.arrived.connect(_on_elder_arrived)
 		_elders.append(elder)
 		seated += 1
+
+
+## The zone locals (T-181): per elder zone, benches first (seated at the
+## zone's sit targets, in bench order), the remainder walking the closed
+## path with even start fractions. Zero RNG — deterministic per build.
+func _populate_zones() -> void:
+	var index := 0
+	for zone: AmesPedZones.Zone in city.ped_zones.zones:
+		if zone.klass != "elder":
+			continue
+		var seated := 0
+		for bench_i in mini(zone.benches.size(), zone.cap):
+			var elder: Elder = elder_scene.instantiate()
+			elder.cardigan_color = Elder.CARDIGAN_PALETTE[index % Elder.CARDIGAN_PALETTE.size()]
+			elder.city = city
+			elder.zone_id = zone.id
+			add_child(elder)
+			_elders.append(elder)
+			## Seat at the zone's sit target: the T-141 composite via the
+			## seat-line transform (no share/migration wiring — the zone
+			## crowd's favor machinery stays dark until T-183 re-homes it).
+			elder.zone_seat(city.global_transform * zone.benches[bench_i])
+			index += 1
+			seated += 1
+		var walkers := zone.cap - seated
+		if walkers <= 0 or zone.paths.is_empty():
+			continue
+		var path := zone.paths[0]
+		var route := PackedVector3Array()
+		for p: Vector2 in path:
+			route.append(city.to_global(Vector3(p.x, 0.0, p.y)))
+		var cross_flags: Array[bool] = []
+		## (T-181 round 2) The elder's `_route_cross` is WAYPOINT-indexed —
+		## `_route_cross[i]` marks the leg ARRIVING at waypoint i (the
+		## migration route's own convention, size == route.size()). The zone
+		## data's flags are LEG-indexed (leg i joins waypoints i and i+1,
+		## size route.size()−1), so leg i maps onto waypoint i+1 and waypoint
+		## 0 has no arriving leg. Feeding the leg array unconverted left the
+		## last waypoint's read out of bounds — the tick errored, the wrap
+		## never ran and every zone walker froze at its route's end (the rv2
+		## review's live evidence).
+		cross_flags.append(false)
+		var crosses: Array = zone.crosses[0] if zone.crosses.size() > 0 else []
+		for flag: Variant in crosses:
+			cross_flags.append(bool(flag))
+		for w in walkers:
+			var elder: Elder = elder_scene.instantiate()
+			elder.cardigan_color = Elder.CARDIGAN_PALETTE[index % Elder.CARDIGAN_PALETTE.size()]
+			elder.city = city
+			elder.zone_id = zone.id
+			add_child(elder)
+			var frac := float(w) / float(walkers)
+			elder.global_position = _point_on_path(route, frac)
+			_elders.append(elder)
+			elder.zone_walk(route, cross_flags)
+			index += 1
+
+
+## A point at arc fraction `frac` of a global polyline.
+func _point_on_path(path: PackedVector3Array, frac: float) -> Vector3:
+	var total := 0.0
+	for i in path.size() - 1:
+		total += path[i].distance_to(path[i + 1])
+	var want := clampf(frac, 0.0, 1.0) * total
+	var walked := 0.0
+	for i in path.size() - 1:
+		var seg := path[i].distance_to(path[i + 1])
+		if walked + seg >= want and seg > 0.0001:
+			return path[i].lerp(path[i + 1], (want - walked) / seg)
+		walked += seg
+	return path[path.size() - 1]
 
 
 func _on_elder_shared(elder: Elder, crumbs: int) -> void:
