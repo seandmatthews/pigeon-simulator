@@ -1031,6 +1031,8 @@ func _snapshot() -> Dictionary:
 		out["hunger"] = snappedf(hunger_node.get("value"), 0.01)
 	if game != null:
 		out["score"] = game.get("score")
+		out["favor"] = game.get("favor") ## (T-182) The exploit-probe read: the
+			## live splat grind's favor movement, state-line-visible.
 		out["streak"] = game.get("_streak")
 	var buzz: Array = []
 	out["tourists"] = _collect_tourists(_spawner("TouristSpawner"), buzz)

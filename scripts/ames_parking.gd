@@ -289,8 +289,6 @@ func _dress_lots() -> void:
 		dress.district = _world.district_at(_world.to_global(Vector3(
 				float(center[0]), 0.0, float(center[1]))))
 		_stalls_for(dress)
-		if dress.stalls.is_empty():
-			continue
 		lots.append(dress)
 		_dressed_total += dress.stalls.size()
 		_dressed_by_district[dress.district] = int(
