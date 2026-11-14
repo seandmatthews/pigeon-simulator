@@ -18,14 +18,21 @@ cutover; the pilot's `PIGEON_WORLD`/`AMES_AUTOPLAY` switches are accepted aliase
 The old procedural **Windrow city was retired at the cutover** (owner fork
 2026-11-09, master plan §11.2 — no debug toggle): `city.tscn`/`city.gd` survive only
 as the staged node `main.tscn` swaps away at `_ready` and as the base-class seam
-(`AmesWorld extends City`) the citizen systems read — since T-178 the TRAFFIC
-system drives the real street graph (`scripts/ames_traffic_graph.gd`: a live
-14-moving + 12-parked car fleet with right-hand lanes, speed classes and the
-rail-crossing facts), and since T-181 the PEDESTRIAN ZONES put the people where
-Ames actually has them (`scripts/ames_ped_zones.gd`: the Welch strip, downtown
+(`AmesWorld extends City`) the citizen systems read — and since the **T-184 R2
+cutover the town is ALIVE at every boot, nothing flag-gated**: since T-178 the
+TRAFFIC system drives the real street graph (`scripts/ames_traffic_graph.gd`: a
+live 14-moving + 12-parked car fleet with right-hand lanes, speed classes and the
+rail-crossing facts), T-179 ported the T-166 calm etiquette onto those graph
+routes, T-180 painted the real corners (crosswalks, stop bars, signals the
+fleet obeys), since T-181 the PEDESTRIAN ZONES put the people where Ames
+actually has them (`scripts/ames_ped_zones.gd`: the Welch strip, downtown
 Main, Central Campus, the LaVerne shore and the MU corner — pinned caps, T-165
 gait constants, benches at the T-163 sit law, the crossing fence at T-180's
-bands; the favor machinery on the zone benches waits for R2·economy-scale).
+bands), T-182 staged the PARKING stock on the census curbs and lots
+(`scripts/ames_parking.gd`), and T-183 put the FAVOR economy on the real
+gathering places (the zone benches seat the favor elders — campus 3 + downtown
+2 + shore 2, each with its bread spot at the toss line; the trust/share loop
+runs there).
 
 ## Stack & tooling
 
