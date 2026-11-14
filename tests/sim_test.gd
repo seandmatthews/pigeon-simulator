@@ -20,6 +20,7 @@ const CAR_SCENE: PackedScene = preload("res://scenes/car.tscn") ## (T-134) Hand-
 const RECORDER_SCRIPT := preload("res://tests/capture_recorder.gd") ## (T-140) Driven in session mode for the frame-step scenario.
 const CALL_PROBE_SCRIPT := preload("res://tests/call_probe.gd") ## (T-169) The call verb's typed-method probe.
 const ELDER_SCENE: PackedScene = preload("res://scenes/elder.tscn") ## (T-183) Fresh-elder pin reads.
+const SWAN_SCRIPT: GDScript = preload("res://scripts/swan.gd") ## (T-185) The bird-rig identity read.
 
 ## (T-119) The shipped non-builtin InputMap set. The touch layer must add
 ## NOTHING — `touch_layer_desktop_inert` reads the live InputMap against this
@@ -187,6 +188,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_ped_zones() ## T-181 — the pedestrian zones: pinned caps, the crossing fence, the live crowd at its caps, the T-165 gait pins, the bench sitters, 0 mid-block road walkers.
 	await _scenario_ames_parking_census() ## T-182 — the parking census: the lot stock matches the data, the curb re-target, the dressing at its caps, the fleet's lot staging, the blinker reach, the T-147 probe.
 	await _scenario_ames_economy_pins() ## T-183 — the economy scale: the M2 favor pins diff-proven across the build, the favor benches live at their pack-derived positions with the share loop closing, the reach gate at the spend targets.
+	await _scenario_laverne_swans() ## T-185 — the LaVerne shore read + the two ambient swans: exactly 2, always in the water, the yield law, the shore polish, the dims re-pin.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -5542,6 +5544,235 @@ func _next_phase_frame(group: int, want_green: bool, drive_s: float,
 			return frame
 		frame += window - (frame % window)
 	return start_frame
+
+
+## --- scenarios (T-185 Lake LaVerne + the swans) ----------------------------
+
+
+## (T-185) The lake cluster's R3 ticket, machine-checked on the resident Ames
+## world. Arms, every expectation re-derived from the COMMITTED PACK (the
+## no-self-test rule — never through the world's own constants):
+## 1. THE SWANS: exactly TWO (`Lancelot`, `Elaine`), each the bird rig
+##    (`swan.gd`/`swan.tscn` — NOT the T-138 people rig: no PeopleRig, no
+##    AnimationPlayer, no citizen class) and structurally yield-ing: no
+##    PhysicsBody3D and no Area3D anywhere in the bird, no splat/eat hooks —
+##    not perchable, not splat-able, not bread-able (the owner scope guard).
+## 2. THE CIRCUIT: the world's closed loop is IN-POLYGON at every point
+##    (in the water, Swan Island excluded) with a ≥ 2.0 m shore clearance,
+##    and its span ≤ 122 m (the AC bar; the probe-measured 54 m pins the
+##    sanity band [50, 70] — a degenerate dot or a shore-hugging ring fails),
+##    and it ACTUALLY carries the birds: each swan advances ≥ 3 m along it
+##    over the live window.
+## 3. NEVER LEAVE THE WATER: 600 live frames (10 s — one full tuck period)
+##    sampling BOTH swans every frame: every world-local XZ position
+##    in-polygon (own ring walk + even-odd), y riding the water top + the
+##    wake bob (|y| ≤ 0.15), total travel ≥ 3 m, and the idle proved live —
+##    the y bob oscillates (> 0.005 m range) and a wing pivot moves its
+##    fold (rotation range > 0.05 rad) within the window.
+## 4. DIMS RE-PIN: the pack's LaVerne rings measure 236×122 m (±2, the
+##    survey ground truth ames_placeholder_dims pins on the bake) and the
+##    shore read the ticket owns is PRESENT: every ring-split edge carries a
+##    pale waterline fringe quad hugging the ring (center ≤ width + 0.5 m
+##    off it) at the pinned stack level (origin y 0.02 → top 0.03, above the
+##    shore band's 0.018 and the water's 0.02), plus ≥ 1 reed clump standing
+##    IN the water (origin in-polygon) within 1.6 m of the waterline.
+## The T-163 sit law needs no arm here: this ticket ships no bench, seat or
+## sit code — the sit rows (`elder_seats_on_the_bench`,
+## `sitters_clear_their_seats`) run unchanged in this same suite and are the
+## untouched proof.
+func _scenario_laverne_swans() -> void:
+	const S := "laverne_swans_present"
+	var bad: PackedStringArray = PackedStringArray()
+	var city: AmesWorld = _city as AmesWorld
+	if city == null:
+		_check(S, false, "the harness world is not the Ames world")
+		return
+
+	# --- 1. exactly two, the bird rig, yields to everything ----------------
+	var swans: Array[Swan] = city.swans
+	if swans.size() != 2:
+		bad.append("swans=%d != exactly 2" % swans.size())
+	var names := {}
+	for swan: Swan in swans:
+		names[swan.name] = true
+		if swan.get_script() != SWAN_SCRIPT:
+			bad.append("%s is not the swan.gd bird rig" % swan.name)
+		if swan.circuit.size() < 3:
+			bad.append("%s swims no circuit" % swan.name)
+		var stack: Array[Node] = [swan]
+		while not stack.is_empty():
+			var child: Node = stack.pop_back()
+			if child is PhysicsBody3D or child is Area3D:
+				bad.append("%s carries a physics node (%s) — must yield" % [
+						swan.name, child.get_class()])
+				break
+			if child is AnimationPlayer:
+				bad.append("%s carries an AnimationPlayer — the bird rig is not the people rig" % swan.name)
+				break
+			stack.append_array(child.get_children())
+		if swan.has_method("on_splatted") or swan.has_method("eat"):
+			bad.append("%s carries a splat/eat hook — ambient only" % swan.name)
+	for want: String in ["Lancelot", "Elaine"]:
+		if not names.has(want):
+			bad.append("swan %s missing" % want)
+	if not bad.is_empty():
+		_check(S, false, "; ".join(bad))
+		return
+
+	# --- 2. the circuit: in-polygon, clearance, span, real ----------------
+	var rings: Array[PackedVector2Array] = _pack_split_rings(
+			AmesDataPack.water()[0].get("polygon", []))
+	var basin := PackedVector2Array()
+	var island := PackedVector2Array()
+	for ring: PackedVector2Array in rings:
+		if ring.size() > basin.size():
+			island = basin
+			basin = ring
+		else:
+			island = ring
+	if basin.size() < 3:
+		bad.append("no LaVerne basin ring in the pack")
+	var circuit: PackedVector3Array = city.swan_circuit
+	if circuit.size() < 16:
+		bad.append("swan_circuit has %d points — not a real loop" % circuit.size())
+	else:
+		var lo := Vector2(INF, INF)
+		var hi := Vector2(-INF, -INF)
+		var worst_edge := INF
+		for pv: Vector3 in circuit:
+			var p := Vector2(pv.x, pv.z)
+			lo = lo.min(p)
+			hi = hi.max(p)
+			if not _point_in_ring(p, basin) or _point_in_ring(p, island):
+				bad.append("circuit point (%.1f, %.1f) outside the water" % [p.x, p.y])
+				break
+			worst_edge = minf(worst_edge, _poly_edge_dist(p, basin))
+		var span := hi - lo
+		if span.x > 122.0 or span.y > 122.0:
+			bad.append("circuit span %.1fx%.1f exceeds the 122 m bar" % [span.x, span.y])
+		if span.x < 50.0 or span.y < 50.0:
+			bad.append("circuit span %.1fx%.1f below the pinned sanity band (probe 54x54)" % [span.x, span.y])
+		if worst_edge < 2.0:
+			bad.append("circuit hugs the shore (%.2f m clearance, pinned >= 2.0)" % worst_edge)
+
+	# --- 3 + 4 pack dims: the water at its survey ground truth ------------
+	var wlo := Vector2(INF, INF)
+	var whi := Vector2(-INF, -INF)
+	for ring2: PackedVector2Array in rings:
+		for q: Vector2 in ring2:
+			wlo = wlo.min(q)
+			whi = whi.max(q)
+	var water_span := whi - wlo
+	if absf(water_span.x - 236.0) > 2.0 or absf(water_span.y - 122.0) > 2.0:
+		bad.append("pack lake %.1fx%.1f != survey 236x122 (+-2)" % [water_span.x, water_span.y])
+
+	# --- 5. the shore read the ticket owns: pale fringe + reeds -----------
+	var pale: Array[Transform3D] = city._pale_edge_xfs
+	var reeds: Array[Transform3D] = city._reed_xfs
+	if pale.is_empty():
+		bad.append("no pale waterline fringe queued — the shore read is missing")
+	## Nearest-ring edge distance (the island's own shoreline carries its
+	## fringe/reeds too — they hug THAT ring, not the basin's).
+	var ring_edge_dist := func(p: Vector2) -> float:
+		var best := INF
+		for ring3: PackedVector2Array in rings:
+			best = minf(best, _poly_edge_dist(p, ring3))
+		return best
+	var pale_hug := 0.0
+	for xf: Transform3D in pale:
+		if absf(xf.origin.y - 0.02) > 1e-6:
+			bad.append("pale fringe origin y %.3f != the pinned 0.02 (top 0.03)" % xf.origin.y)
+			break
+		pale_hug = maxf(pale_hug, ring_edge_dist.call(Vector2(xf.origin.x, xf.origin.z)))
+	## The stock recount from the pack (the skeleton-palette ring walk): one
+	## fringe quad per non-degenerate ring-split edge; one reed clump on the
+	## hash-picked ≥ 6 m edges, three slivers each.
+	var want_pale := 0
+	var want_clumps := 0
+	var counter := 0
+	for ring4: PackedVector2Array in rings:
+		for i4: int in ring4.size():
+			var a4 := ring4[i4]
+			var b4 := ring4[(i4 + 1) % ring4.size()]
+			var edge4 := b4 - a4
+			if edge4.length_squared() < 1e-10:
+				continue
+			want_pale += 1
+			var h4 := hash(str(counter))
+			counter += 1
+			if h4 % 3 == 0 and edge4.length() >= 6.0:
+				want_clumps += 1
+	if pale.size() != want_pale:
+		bad.append("pale quads %d != ring-split edge recount %d" % [pale.size(), want_pale])
+	if want_clumps == 0:
+		bad.append("the reed hash picked no clumps — the hint is empty")
+	elif reeds.size() != want_clumps * 3:
+		bad.append("reed slivers %d != clump recount %d x3" % [reeds.size(), want_clumps])
+	if pale_hug > 1.7: ## PALE_EDGE_WIDTH 1.2 + slack — the fringe hugs the ring.
+		bad.append("pale fringe strays %.2f m off the lake ring" % pale_hug)
+	if reeds.is_empty():
+		bad.append("no reed clumps queued — the reed hint is missing")
+	var worst_reed := 0.0
+	for xf2: Transform3D in reeds:
+		var p2 := Vector2(xf2.origin.x, xf2.origin.z)
+		if not _point_in_ring(p2, basin) or _point_in_ring(p2, island):
+			bad.append("reed sliver at (%.1f, %.1f) not standing in the water" % [p2.x, p2.y])
+			break
+		if xf2.origin.y < 0.29 or xf2.origin.y > 0.55:
+			bad.append("reed sliver height %.2f out of the pinned 0.6..1.1 band" % (xf2.origin.y * 2.0))
+			break
+		worst_reed = maxf(worst_reed, ring_edge_dist.call(p2))
+	if worst_reed > 1.6: ## REED_INSET 1.0 + stand-offset slack.
+		bad.append("reed sliver strays %.2f m off the waterline" % worst_reed)
+
+	if not bad.is_empty():
+		_check(S, false, "; ".join(bad))
+		return
+
+	# --- 3. the live birds: 600 frames, in-polygon ALWAYS -----------------
+	var y_min := INF
+	var y_max := -INF
+	var wing_lo := INF
+	var wing_hi := -INF
+	var travel := 0.0
+	var prev := PackedVector3Array()
+	for swan2: Swan in swans:
+		prev.append(swan2.global_position)
+	var out_count := 0
+	var first_out := ""
+	for f: int in 600:
+		await _wait_frames(1)
+		for k: int in swans.size():
+			var swan3: Swan = swans[k]
+			var g := swan3.global_position
+			var local := city.to_local(g)
+			var pxz := Vector2(local.x, local.z)
+			if not _point_in_ring(pxz, basin) or _point_in_ring(pxz, island):
+				out_count += 1
+				if first_out.is_empty():
+					first_out = "%s at (%.1f, %.1f) frame %d" % [swan3.name, pxz.x, pxz.y, f]
+			if absf(local.y) > 0.15:
+				bad.append("%s rides y %.3f off the water top" % [swan3.name, local.y])
+			y_min = minf(y_min, local.y)
+			y_max = maxf(y_max, local.y)
+			var wl: Node3D = swan3.wing_l
+			wing_lo = minf(wing_lo, wl.rotation.z)
+			wing_hi = maxf(wing_hi, wl.rotation.z)
+			var d := g.distance_to(prev[k])
+			if d < 0.2:
+				travel += d
+			prev[k] = g
+	if out_count > 0:
+		bad.append("swans left the water %d frames (first: %s)" % [out_count, first_out])
+	if travel < 3.0:
+		bad.append("swans traveled %.1f m over 10 s — not circuiting" % travel)
+	if y_max - y_min <= 0.005:
+		bad.append("no wake bob (y range %.4f)" % (y_max - y_min))
+	if wing_hi - wing_lo <= 0.05:
+		bad.append("no wing-tuck idle (pivot range %.4f rad)" % (wing_hi - wing_lo))
+	_check(S, bad.is_empty(), "pale=%d reeds=%d travel=%.1f bob=%.3f tuck=%.3f; %s"
+			% [pale.size(), reeds.size(), travel, y_max - y_min,
+			wing_hi - wing_lo, "; ".join(bad)])
 
 
 ## --- scenarios (T-001 flight model) --------------------------------------
