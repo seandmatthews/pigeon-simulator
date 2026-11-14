@@ -51,7 +51,7 @@ places or the premise goes fictional at the seams.
 
 Gate 1 · Gate 1b + one row · Gate 2 · Gate 3 folded into T-184.
 
-## Landed record (2026-11-13)
+## Landed record (2026-11-13, round 1; round 2 appended 2026-11-14)
 
 **The re-home** (`scripts/elder_spawner.gd`, `scripts/elder.gd`): every
 bench of `ElderSpawner.FAVOR_ZONE_IDS` — **Central Campus (3) + downtown
@@ -75,64 +75,98 @@ cafés/benches"); stealing the locals' bench bread books the T-114
 café layer is untouched (6 café tables; the crumb supply grows 11346 →
 11353; the density gates extend to the benches in the new row).
 
-**Gates.** Gate 1 clean (`--import` exit 0 with only the documented
-godot_mcp teardown line; `--quit-after 120` boot exit 0, no error
-lines). Gate 1b full suite **0 failures, exit 0** — including the new
-`ames_economy_pins` row and the re-pinned `ames_ped_zones`,
-`restart_resets_run`, `restart_same_seed_skips_rebuild`,
-`stepped_boot_pins`, `density_cpu_budget` (the zone-crowd wants now read
-the ONE harness law `_want_zone_tourists`/`_want_zone_elders`: 24
-tourists / 12 elders). Gate 2 clean: `AUTOPLAY DONE ok=true world=ames
-loop_ok=true restart=true` (t=103.0 s, fps 141, shares=0 — the autoplay
-pilot never banks favor near a bench; the share machinery's live proof
-is the Gate 1b share leg).
+**The staging defect the round-1 run exposed — FIXED** (commit
+`d8ddfdf`, `scripts/car.gd`, `scripts/car_spawner.gd`): the graph churn
+replacement's curb spots carried NO building guard, so a spot inside a
+massing footprint depenetrated the like-for-like replacement DOWNWARD
+through the 1.0 m ground plate (both review sessions measured y
+−5…−112 state reads) and the fallen replacements starved the favor
+farm's restock. Fix, two layers: the staging seam's ground guard
+(`CarSpawner._stage_ok` — the world's `GROUND_COVER_MAX` law at every
+graph staging seam: the churn's lot/curb/rejoin arms, the populate
+rejoin, the recycle teleports, the wedge escape) and the `Car.fell_out`
+off-world net (net line −1.5, above the measured ≈−2.8
+drive-under equilibrium; the spawner answers with the same
+like-for-like swap, fleet count constant). Regression leg added to
+`ames_economy_pins`: machine churn of a parked fleet car — the swap
+lands, the fleet holds, **26/26 living cars stand on-world**
+(`churn_net=26/26`).
 
-**The favor run** (pilot session `.captures/session_t183favor/`, hidden
-window per T-170, `--images off`, hunger frozen via the T-167
-`hunger_lock` session verb — the survival dimension is separately gated
-by T-176's reach rows and this run measures the favor economy). Route:
-spawn over Central Campus (380, −294) → the Campustown Lincoln Way curb
-rows (x 250–540, z −200..−270) → the flagged parked row at x 500–560.
-Machine record (the `car_splatted` events, t = run seconds):
+**Gates (on the fixed tree).** Gate 1 clean (`--import` exit 0 with only
+the documented godot_mcp teardown line; `--quit-after 120` boot exit 0,
+no error lines). Gate 1b full suite **0 failures, exit 0** — including
+the new `ames_economy_pins` row (with the churn-net leg) and the
+re-pinned `ames_ped_zones`, `restart_resets_run`,
+`restart_same_seed_skips_rebuild`, `stepped_boot_pins`,
+`density_cpu_budget` (the ONE harness law: 24 tourists / 12 elders).
+Gate 2 clean: `AUTOPLAY DONE ok=true world=ames loop_ok=true
+restart=true` (t=103.0 s, fps 140, shares=0 — the autoplay pilot never
+banks favor near a bench; the share machinery's live proof is the Gate
+1b share leg).
 
-| t (s) | position | outcome |
-| ----- | -------- | ------- |
-| 621 | (303.4, −202.6) | gold queue car +6 → favor 6 |
-| 781 | (294.1, −210.4) | gold queue car +6 → favor 12 |
-| 981 | (257.0, −201.4) | black civilian −2 → favor 10 |
-| 1635 | (528.2, −263.2) | flagged black visitor +6 → favor 16 |
-| 3394 | (521.7, −216.9) | civilian −2 → favor 14 |
-| 3446 | (528.1, −218.9) | flagged black visitor +6 → favor 20 |
+**The favor runs** (both: pilot harness, hidden window per T-170,
+`--images off`, hunger frozen via the T-167 `hunger_lock` session verb —
+the survival dimension is separately gated by T-176's reach rows; these
+runs measure the favor economy).
 
-**Why AC 2 is unticked — the honest run assessment.** The session
-closed the earn loop five times across the geography (queue clusters,
-flagged parked rows, tailgate coolers in reach) but reached favor 20 in
-~58 run-minutes and was stopped there. The band: the Windrow session
-recorded in T-140 is ~27 wall-min — but that run predates T-147's
-once-per-target book (its 17 favor splats were RE-splats of ONE parked
-car — zero acquisition cost), while the post-T-147 loop pays a fresh
-car per splat plus a ≥160 m churn round trip, and the design's own
-hunter arithmetic (T-115: "3 jackpots + 3 pedestrian splats a minute …
-the ceiling in roughly 6–8 minutes") prices a targeted hunter at the
-Windrow plaza's adjacency, not a 10.6 km² town's. The honest tolerance
-this ticket can defend is ×2.5 the Windrow record (≈ 68 wall-min) for
-the T-147 + geography delta — and this session's protocol landed far
-outside it, for two recorded reasons: (1) **acquisition overhead** —
-the synthetic-input protocol spent most of the window on navigation
-iterations (the pilot channel's one-command-per-file sequencing), the
-gap the design's 6–8-min hunter and the Gate 3 human pass do not pay;
-(2) **a real defect the session exposed**: churn replacement cars
-staged BELOW the ground plate (multiple `cars` state reads with y
-−8…−112, e.g. (523.0, −8.8, −259.9), (339.2, −112.6, −203.9),
-(284.1, −107.9, −211.7)) — the like-for-like replacements that renew
-the farm were unreachable, stalling the anchor's restock for long
-spans. What the run DID prove: the favor economy's geography is live —
-visitors (flag/banner tell readable from the ground) sit on the real
-curb rows, the earns book the exact M2 deltas, and the loop's anchored
-pace measured 52 s between two clean visitor splats (t 3394 → 3446) —
-~14 hits ≈ 25–30 min for the remaining 80 favor at that pace, inside
-the ×2.5 band for a clean protocol. Completing the full-100 run inside
-the band is left to the owner call: either a lot-anchored agent
-protocol (the T-182 lot staging concentrates the fleet) or the Gate 3
-human pass this ticket's verification plan already folds into T-184.
+*Round 1* (`.captures/session_t183favor/`, ~58 run-min): the defect era
+— six `car_splatted` events (favor 0→20 across the Campustown rows),
+the restock starved by the falling replacements above.
+
+*Round 2* (`.captures/session_t183r2/`, 50.2 wall-min, post-fix):
+fourteen `car_splatted` events, favor 0→28 — reconciling exactly:
+**6 confirmed visitor kills (+6 each = +36)**, **4 civilian mistakes
+(−2 each = −8)**, 3 repeat hits on already-splatted cars (+30 score,
+0 favor) — every event books the exact M2 delta. The
+machine record (t = run seconds; gaps between consecutive events):
+
+| t (s) | position | note |
+| ----- | -------- | ---- |
+| 215 | (261.5, −204.8) | first contact |
+| 282 | (252.5, −198.1) | +68 s — flagged black visitor, favor 0→6 |
+| 328 | (248.0, −194.8) | +46 s |
+| 1291–1592 | the (540–561, −191..−212) row | **6 splats in 301 s — the tuned anchored pace: 50 s/visitor** (favor 12→24 era) |
+| 2156 | (495.1, −221.7) | post-relocation |
+
+The restock fix verified LIVE: after the first churn round-trip the row
+re-staged **two fresh black banner+cooler visitors flanking the pigeon**
+(r2d1 screenshot) — like-for-like replacements where the round-1 run
+found falling corpses.
+
+**Why AC 2 stays unticked — the round-2 honest assessment.** The
+mechanism the round-1 record blamed is fixed and machine-proven, and
+the loop's ANCHORED pace (50 s/visitor) prices a full 100-favor harvest
+at ≈ 14–15 pure farming minutes. What the session still paid was
+ACQUISITION: the synthetic-input protocol's navigation (walk/turn
+calibration churn, stale state reads, crawler chases, churn round
+trips) consumed ≈ 45 of the 50 minutes — the session ended at favor 28
+in 50.2 wall-min, outside the ×2.5 band (≈68 wall-min) the round-1
+record derived, and the remaining 72 favor at realistic mixed pace
+needs ≈ 25–35 more protocol minutes. The gap is the protocol's, not the
+economy's: the design arithmetic (T-115) prices a targeted hunter at
+6–8 minutes with visual aiming, and the Gate 3 human pass plays with
+exactly that feedback.
+
+## OWNER DECISION REQUESTED (round 2 — AC 2 re-scope)
+
+AC 2 as written cannot be closed by this ticket's protocol inside the
+recorded band; the evidence above is the complete record. The owner is
+asked to pick one:
+
+1. **Accept the Gate 3 human pass as the achievement proof** — a human
+   plays the favor loop on Ames (visual aiming, the T-115 arithmetic's
+   own conditions); the agent runs stand as the machine evidence that
+   the economy's geography, deltas, and restock all work. (This is
+   consistent with the ticket's own Verification line: "Gate 3 folded
+   into T-184".)
+2. **Re-derive the band for the post-T-147 economy** — the ×2.5
+   tolerance was derived round-1 for a comparison the T-147
+   once-per-target book invalidates (the Windrow session re-splatted
+   ONE parked car 17 times, zero acquisition); an owner-set tolerance
+   (or an owner-set target favor) replaces the derived one.
+3. **Fund an aiming-servo agent protocol** (state-line-driven drop
+   aiming) as a tooling ticket, then close AC 2 with it.
+
+Until the owner picks, AC 2 stays unticked and the ticket stays doing.
+
 
