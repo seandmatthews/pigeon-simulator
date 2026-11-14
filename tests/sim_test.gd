@@ -9902,10 +9902,11 @@ func _scenario_favor_meter_names_the_ceiling() -> void:
 ## 0.75 m back, at ground + the 0.06 lift, body-surface distance inside
 ## [0.45, 1.0] m — one crumb per car, bijection enforced. A forced
 ## `_recycle_far` re-anchor keeps the law: one crumb per living parked
-## visitor after the shuffle. Zero RNG is structural (placement derives from
-## the car transforms) — the seeded class multisets stay byte-identical via
-## `citizen_classes_spawn_deterministic`, which re-runs green in every full
-## suite pass.
+## visitor after the churn (the T-184 re-pin: the staging anchor is the
+## `ames_parking_census` downtown spot and the churn rides the graph
+## recycle — far unspent parked cars convert to traffic and RELEASE their
+## crumbs, spent ones swap like-for-like re-parked at a fresh curb). Zero
+## RNG is structural (placement derives from the car transforms).
 func _scenario_bread_steal_favor_deltas() -> void:
 	Game.save_path = SIM_SAVE_PATH
 	Game.reset_run() ## Favor 0; the legs assert exact deltas against the exports.
@@ -9971,17 +9972,94 @@ func _scenario_bread_steal_favor_deltas() -> void:
 	var plain_ok: bool = not is_instance_valid(plain_crumb) \
 			and Game.favor == favor_c \
 			and _crumb_favor_events == [Game.favor_steal_table, Game.favor_steal_visitor]
-	## (T-177 re-pin) Leg D — the real tailgate surface — RETIRED with the
-	## Windrow fleet: parked VISITOR cars anchored the tailgate crumbs, and on
-	## the resident Ames bake the citizen fleet is empty until R2 re-points
-	## parking (the tailgate law re-pins beside R2·parking's economy pass).
-	## Legs A-C carry the steal surface on the Ames supply: the TABLE crumbs
-	## are real café tabletops now (the venue system T-176 shipped), the
-	## stamped drop and the GROUND control are world-independent rigs.
+	## (T-184 re-pin) Leg D — the real tailgate surface on the RESIDENT
+	## fleet: the pigeon parked over the `ames_parking_census` downtown
+	## anchor, and a CarSpawner rig through the graph populate stages the
+	## shipped 14+12 fleet on the real curbs — exactly roundi(target_parked ×
+	## visitor_share) of the parked twelve are VISITORS, each anchoring ONE
+	## stealable crumb at the documented gutter offset.
+	await _set_up(true, _city.to_global(Vector3(2870.0, 22.0, -252.0)),
+			Vector3.ZERO)
+	await _wait_frames(2)
+	var car_rig := CarSpawner.new()
+	car_rig.city = _city
+	car_rig.player = _player
+	car_rig.name = "CarSpawner_steal" ## Never "CarSpawner" — the dev verbs' name stays vacant.
+	car_rig.bread_spawner = rig ## The harness assigns directly (the elder-rig pattern).
+	add_child(car_rig)
+	await _wait_frames(6) ## Populate + the deferred tailgate dressing pass.
+	var parked_visitors := 0
+	for car in car_rig.living_cars():
+		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
+			parked_visitors += 1
+	var tailgate_crumbs: Array[BreadCrumb] = []
+	for crumb in rig.living_crumbs():
+		if crumb.favor_delta == Game.favor_steal_visitor:
+			tailgate_crumbs.append(crumb)
+	var count_ok: bool = parked_visitors == tailgate_crumbs.size() \
+			and parked_visitors == roundi(float(car_rig.target_parked) * car_rig.visitor_share)
+	var geometry_ok := count_ok
+	var claimed := {} ## car instance_id -> one crumb each — the bijection half.
+	for crumb in tailgate_crumbs:
+		var nearest: Car = null
+		var best := INF
+		for car in car_rig.living_cars():
+			if car.mode != Car.Mode.PARKED:
+				continue
+			var d := crumb.global_position.distance_to(car.global_position)
+			if d < best:
+				best = d
+				nearest = car
+		if nearest == null or nearest.citizen_class != CitizenClass.Kind.VISITOR \
+				or claimed.has(nearest.get_instance_id()):
+			geometry_ok = false
+			break
+		claimed[nearest.get_instance_id()] = true
+		## The documented gutter offset, read in the car's own frame: 0.45 m
+		## off the 0.95 m half-width body, 0.75 m back, ground + 0.06 lift.
+		## The body-surface distance lands inside [0.45, 1.0] m — off the
+		## body, never buried into the car.
+		var local := nearest.to_local(crumb.global_position)
+		var dx := maxf(absf(local.x) - 0.95, 0.0)
+		var dz := maxf(absf(local.z) - 2.2, 0.0)
+		var body_dist := sqrt(dx * dx + dz * dz)
+		geometry_ok = geometry_ok \
+				and absf(local.x) >= 1.35 and absf(local.x) <= 1.45 \
+				and absf(local.z) >= 0.65 and absf(local.z) <= 0.85 \
+				and absf(local.y) <= 0.25 \
+				and body_dist >= 0.44 and body_dist <= 1.0
+	## The recycle re-anchor keeps the law on the GRAPH branch (the T-184
+	## re-pin of the Windrow shuffle): relocate the pigeon 170 m west down
+	## Main Street — past the 160 m recycle radius, so the far half of the
+	## fleet churns (far unspent parked cars convert to traffic and RELEASE
+	## their crumbs; spent ones swap like-for-like re-parked at a fresh curb)
+	## — and one crumb per living parked visitor holds afterwards.
+	await _set_up(true, _city.to_global(Vector3(2700.0, 22.0, -256.0)),
+			Vector3.ZERO)
+	await _wait_frames(2)
+	car_rig._recycle_far()
+	await _wait_frames(6)
+	var parked_after := 0
+	for car in car_rig.living_cars():
+		if car.mode == Car.Mode.PARKED and car.citizen_class == CitizenClass.Kind.VISITOR:
+			parked_after += 1
+	var tailgates_after := 0
+	for crumb in rig.living_crumbs():
+		if crumb.favor_delta == Game.favor_steal_visitor:
+			tailgates_after += 1
+	var recycle_ok := tailgates_after == parked_after
+	print("SIM DATA bread_steal_favor_deltas: tailgates %d/%d (quota %d) geometry=%s bijection=%d recycle %d/%d" % [
+			tailgate_crumbs.size(), parked_visitors,
+			roundi(float(car_rig.target_parked) * car_rig.visitor_share),
+			geometry_ok, claimed.size(), tailgates_after, parked_after])
 	_check("bread_steal_favor_deltas",
-			table_ok and steal_ok and plain_ok,
-			"table=%s (favor %d, events %s) steal=%s plain=%s (tailgate leg retired with the Windrow fleet — T-177)" % [
-					table_ok, Game.favor, _crumb_favor_events, steal_ok, plain_ok])
+			table_ok and steal_ok and plain_ok and count_ok and geometry_ok and recycle_ok,
+			"table=%s (favor %d, events %s) steal=%s plain=%s · tailgates %d/%d (quota %d) geometry=%s bijection=%d · recycle %d/%d" % [
+					table_ok, Game.favor, _crumb_favor_events, steal_ok, plain_ok,
+					tailgate_crumbs.size(), parked_visitors,
+					roundi(float(car_rig.target_parked) * car_rig.visitor_share),
+					geometry_ok, claimed.size(), tailgates_after, parked_after])
+	car_rig.free()
 	rig.free()
 
 
