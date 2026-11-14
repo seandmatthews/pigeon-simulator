@@ -210,6 +210,16 @@ var _bounds_max := Vector3.ZERO
 ## massing is skipped). Cleared with the rest of the build state.
 var _roof_spots: Array[Vector3] = []
 var _hero_roof_tops: Dictionary = {}
+## (T-185) The lake dress + swan staging, retained after the build in the
+## corner-dress retention law (headless runs cannot read MultiMesh instances
+## back — the gate walks the queues that fed the exact nodes). The pale-edge
+## and reed transform queues are world-local; `swan_circuit` is the closed
+## loop the swans swim (world-local, == pack-local — the world node IS the
+## pack frame); `swans` holds the two live birds.
+var _pale_edge_xfs: Array[Transform3D] = []
+var _reed_xfs: Array[Transform3D] = []
+var swan_circuit: PackedVector3Array = PackedVector3Array()
+var swans: Array[Swan] = []
 
 @onready var _box_mesh: BoxMesh = _make_box_mesh()
 @onready var _tri_mesh: ArrayMesh = _make_tri_mesh()
@@ -355,6 +365,10 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	_bench_leg_xfs = []
 	_lot_body_xfs = [] ## (T-182) The lot-dressing queues rebuild with the world.
 	_lot_cabin_xfs = []
+	_pale_edge_xfs = [] ## (T-185) The lake-dress queues and swan staging rebuild.
+	_reed_xfs = []
+	swan_circuit = PackedVector3Array()
+	swans = []
 	ped_zones = null
 	parking = null
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
@@ -392,6 +406,8 @@ func generate_step_finish() -> void:
 	_build_ped_zones() ## (T-181) The pedestrian zones + their bench furniture.
 	_add_favor_bench_spots() ## (T-183) The elders' bread spots at their benches.
 	_build_parking() ## (T-182) The parking system + the big-lot dressing rows.
+	_build_lake_dress() ## (T-185) The LaVerne shore polish: pale edge + reed hint.
+	_build_swans() ## (T-185) Lancelot & Elaine on their lake circuit.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -422,6 +438,9 @@ func generate_step_finish() -> void:
 		"parking_lots": parking.lot_count() if parking != null else 0,
 		"parking_curb_runs": parking.curb_run_count() if parking != null else 0,
 		"parking_dressed": parking.dressed_car_count() if parking != null else 0,
+		"lake_pale_quads": _pale_edge_xfs.size(),
+		"lake_reeds": _reed_xfs.size(),
+		"swans": swans.size(),
 	}
 	## Deterministic identity: the bake manifest's total hash — a re-bake that
 	## moves a byte moves the fingerprint, exactly the layout-fingerprint
@@ -920,6 +939,199 @@ func _queue_aabb(xfs: Array[Transform3D]) -> AABB:
 		lo = lo.min(xf.origin)
 		hi = hi.max(xf.origin)
 	return AABB(lo - Vector3.ONE * 3.0, (hi - lo) + Vector3.ONE * 6.0)
+
+
+## --- T-185 Lake LaVerne: the shore polish + the swans -----------------------
+## The lake cluster's R3 ticket. The WATER body stays T-174's baked flat and
+## the T-175 slots stay untouched — this ticket owns the SHORE + the BIRDS,
+## both as runtime dressing over the committed bake (the T-180 corner-dress
+## pattern: pure pack-derived geometry, zero colliders, zero RNG of any
+## stream — a rebuild reproduces every transform byte-identically; the
+## transform queues are retained for the gate). "Swap discipline" here: the
+## polish replaces the T-174/T-175-era bare mown-band shore read AT the same
+## waterline slot (the pack's own lake ring — no id moves, no new bake).
+
+## The pale waterline fringe's width (m) — the proper shore read between the
+## mown band and the water, per the ticket ("pale edge"). The survey's shore
+## is lawn straight to the water with a few boulders and NO beach; a 1.2 m
+## mineral fringe is the shoreline read, not a beach.
+const PALE_EDGE_WIDTH := 1.2
+## The pale fringe's box CENTER y. The house flat stack runs cell 0.014 <
+## shore 0.018 < water 0.02 (box tops); the fringe rides ABOVE both at the
+## road-paint clearance discipline (paint sits 10–20 mm over its ground):
+## top at 0.03 — 12 mm over the shore band, 10 mm over the water top, and
+## wherever a sharp ring corner folds it over the lake it reads as exactly
+## what it is: the waterline fringe, never interior paint (bounded by
+## PALE_EDGE_WIDTH everywhere).
+const PALE_EDGE_CENTER_Y := 0.02
+const COLOR_PALE_EDGE := Color(0.78, 0.755, 0.70) ## #C7C1B3 pale mineral gray.
+
+## The reed hint: clumps of thin green slivers standing IN the water right
+## at the shore (the `20-lake-laverne-swans-wide-bw.jpg` far-shore read).
+## Placement is a stable hash of the ring edge — no RNG of any stream.
+const COLOR_REED := Color(0.33, 0.42, 0.18) ## #546B2E reed green.
+const REED_INSET := 1.0 ## m INTO the water off the ring edge (in-shore stand).
+const REED_HASH_MOD := 3 ## Every ring edge whose stable hash says so carries ONE clump.
+const REED_MIN_EDGE := 6.0 ## m — a shorter ring edge carries no clump.
+const REED_SLIVER := 0.05 ## Sliver square section (m).
+const REED_BASE_Y := 0.0 ## Sliver base (2 cm under the water top — rooted).
+
+## The swan circuit (probe-derived 2026-11-14, pinned the T-181 insets way):
+## the widest inscribed round in the lake's south basin — a 27 m circle at
+## (230, −118) pack-local whose dense ring sample stays inside the water
+## with a 2.67 m minimum shore clearance (and clear of Swan Island by
+## construction — the basin's east side). Span 54 m ≤ the AC's 122 m bar;
+## every point in-polygon is re-proved by `laverne_swans_present` from the
+## committed pack (the scenario's own ring walk), so a pack change fails the
+## same night.
+const SWAN_CIRCUIT_CENTER := Vector2(230.0, -118.0)
+const SWAN_CIRCUIT_RADIUS := 27.0
+const SWAN_CIRCUIT_POINTS := 64
+const SWAN_SPEED := 0.8 ## Paddle pace (m/s) — the slow lake circuit.
+const SWAN_PHASES: Array[float] = [0.0, 0.45] ## Lancelot leads, Elaine follows.
+const SWAN_TUCK_PHASES: Array[float] = [0.0, 0.5] ## Their idles desynced.
+
+const SWAN_SCENE: PackedScene = preload("res://scenes/swan.tscn")
+
+
+## The lake dress (the finish slice): along EVERY ring-split edge of the
+## Lake LaVerne polygon — basin and Swan Island alike — one pale waterline
+## fringe quad extruded onto the shore band, plus hash-picked reed clumps
+## standing in the water just off the shore. Reeds sit IN-water at
+## REED_INSET, which keeps them clear of the T-181 shore walk path (6.0 m
+## OUT on the band), the T-176 shore bread ring (the same 6.0) and the swan
+## circuit (≥ 1.6 m inside of the reeds).
+func _build_lake_dress() -> void:
+	var rings: Array[PackedVector2Array] = []
+	for water: Dictionary in AmesDataPack.water():
+		if str(water.get("name", "")) != "Lake LaVerne" or not water.has("polygon"):
+			continue
+		rings.append_array(AmesBaker._split_rings(AmesBaker._pack_points(
+				water.get("polygon", []))))
+	if rings.is_empty():
+		return
+	var pale: Array[Transform3D] = []
+	var reeds: Array[Transform3D] = []
+	var edge_counter := 0
+	for ring: PackedVector2Array in rings:
+		if ring.size() < 3:
+			continue
+		## The outward normal rides the ring's WINDING — the baker's own
+		## shore-band rule (`_signed_area`), not a centroid facing: the
+		## crescent's concave shores face away from any ring centroid, and
+		## the reeds need the true water side (the round-1 probe caught
+		## centroid-facing clumps standing on land in the north bay).
+		var ccw := AmesBaker._signed_area(ring) >= 0.0
+		for i: int in ring.size():
+			var a := ring[i]
+			var b := ring[(i + 1) % ring.size()]
+			var edge := b - a
+			if edge.length_squared() < 1e-10:
+				continue ## The baker's own degenerate-edge law.
+			var length := edge.length()
+			var normal := (Vector2(edge.y, -edge.x) if ccw
+					else Vector2(-edge.y, edge.x)) / length
+			_queue_pale_edge(pale, a, b, normal)
+			var h := hash(str(edge_counter))
+			edge_counter += 1
+			if h % REED_HASH_MOD != 0 or length < REED_MIN_EDGE:
+				continue
+			_queue_reed_clump(reeds, (a + b) * 0.5 - normal * REED_INSET, h)
+	_pale_edge_xfs = pale
+	_reed_xfs = reeds
+	if pale.is_empty():
+		return
+	var root := Node3D.new()
+	root.name = "Lake"
+	add_child(root)
+	var pale_aabb := _queue_aabb(pale)
+	var mm := _new_multimesh(pale.size())
+	for i: int in pale.size():
+		mm.set_instance_transform(i, pale[i])
+		mm.set_instance_color(i, COLOR_PALE_EDGE)
+	mm.custom_aabb = pale_aabb
+	var node := MultiMeshInstance3D.new()
+	node.name = "PaleEdge"
+	node.multimesh = mm
+	root.add_child(node)
+	if reeds.is_empty():
+		return
+	var reed_aabb := _queue_aabb(reeds)
+	var rmm := _new_multimesh(reeds.size())
+	var shade := COLOR_REED
+	for i: int in reeds.size():
+		rmm.set_instance_transform(i, reeds[i])
+		## A stable per-sliver shade nudge (±5 %) so a stand reads as blades,
+		## not one green box — hash-derived, still zero RNG.
+		var v := 0.95 + float(hash(str(i)) % 11) * 0.01
+		rmm.set_instance_color(i, Color(shade.r * v, shade.g * v, shade.b * v))
+	rmm.custom_aabb = reed_aabb
+	var rnode := MultiMeshInstance3D.new()
+	rnode.name = "Reeds"
+	rnode.multimesh = rmm
+	root.add_child(rnode)
+
+
+## One pale fringe quad: the ring edge extruded OUTWARD (onto the shore
+## band), rendered as a thin box at the fringe's pinned stack level.
+func _queue_pale_edge(queue: Array[Transform3D], a: Vector2, b: Vector2,
+		normal: Vector2) -> void:
+	var q0 := a + normal * PALE_EDGE_WIDTH
+	var q1 := b + normal * PALE_EDGE_WIDTH
+	var across := q1 - q0
+	var along := a - q0
+	var center := (a + b + q0 + q1) * 0.25
+	queue.append(Transform3D(
+			Basis(Vector3(across.x, 0.0, across.y), Vector3.UP * FLAT_THICKNESS,
+					Vector3(along.x, 0.0, along.y)),
+			Vector3(center.x, PALE_EDGE_CENTER_Y, center.y)))
+
+
+## One reed clump: three slivers in a loose triangle around `pos`, heights
+## and yaw derived from the edge hash `h` (deterministic, spread by design).
+func _queue_reed_clump(queue: Array[Transform3D], pos: Vector2, h: int) -> void:
+	for k: int in 3:
+		var kh := hash(str(h, ":", k))
+		var height := 0.6 + float((kh >> 4) % 5) * 0.12 ## 0.6 .. 1.08 m.
+		var yaw := float(kh % 628) * 0.01 ## 0 .. 6.28 rad.
+		var off := Vector2(
+				float((kh >> 8) % 9 - 4) * 0.055, float((kh >> 12) % 9 - 4) * 0.055)
+		var base := pos + off
+		queue.append(Transform3D(
+				Basis(Vector3.UP, yaw) * Basis.from_scale(
+						Vector3(REED_SLIVER, height, REED_SLIVER)),
+				Vector3(base.x, REED_BASE_Y + height * 0.5, base.y)))
+
+
+## The swans (the finish slice): the probe-pinned circuit polyline at the
+## water top, then exactly TWO ambient birds — Lancelot leads, Elaine
+## follows — parented under `Swans/`, each handed the circuit, the pace and
+## its own idle phase before entering the tree. No colliders, no bread
+## spots, no citizen machinery: the T-185 scope guard lives in `swan.gd`.
+func _build_swans() -> void:
+	if _lake_ring().size() < 3:
+		return ## No lake in the pack — no birds (the gate fails loudly).
+	swan_circuit = PackedVector3Array()
+	for i: int in SWAN_CIRCUIT_POINTS:
+		var t := TAU * float(i) / float(SWAN_CIRCUIT_POINTS)
+		swan_circuit.append(Vector3(
+				SWAN_CIRCUIT_CENTER.x + SWAN_CIRCUIT_RADIUS * cos(t),
+				AmesBaker.WATER_Y,
+				SWAN_CIRCUIT_CENTER.y + SWAN_CIRCUIT_RADIUS * sin(t)))
+	var root := Node3D.new()
+	root.name = "Swans"
+	add_child(root)
+	swans = []
+	var names: Array[String] = ["Lancelot", "Elaine"]
+	for b: int in names.size():
+		var swan: Swan = SWAN_SCENE.instantiate()
+		swan.name = names[b]
+		swan.circuit = swan_circuit
+		swan.speed = SWAN_SPEED
+		swan.phase = SWAN_PHASES[b]
+		swan.tuck_phase = SWAN_TUCK_PHASES[b]
+		root.add_child(swan)
+		swans.append(swan)
 
 
 ## --- T-176 survival re-base ------------------------------------------------
