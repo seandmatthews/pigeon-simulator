@@ -260,6 +260,16 @@ var campus_row_hero_parts: Array[Dictionary] = []
 ## centers so the dims and palette arms walk one record; the LIVE material
 ## arms re-prove the meshes themselves.
 var mu_parks_hero_parts: Array[Dictionary] = []
+## (T-190) The Marston Water Tower hero's part record, retained on the same
+## law: every rotated trestle box and mesh-bounding extra the build emitted —
+## `{hero, band, p, s, color, collide, mesh}` in world-local (pack)
+## coordinates, `p`/`s` the part's axis-aligned bounding box (the splayed legs
+## and the lattice turns file their boxes' world AABBs so the dims arm walks
+## one record); the tank cylinder, the cornice ring, the cone and the
+## medallion file their band and bounding `s` at their mesh centers so the
+## dims and palette arms walk one record; the LIVE material arms re-prove the
+## meshes themselves.
+var marston_hero_parts: Array[Dictionary] = []
 
 @onready var _box_mesh: BoxMesh = _make_box_mesh()
 @onready var _tri_mesh: ArrayMesh = _make_tri_mesh()
@@ -416,6 +426,7 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	fountain_parts = []
 	campus_row_hero_parts = [] ## (T-188) The row-hero record rebuilds with the world.
 	mu_parks_hero_parts = [] ## (T-189) The MU + Parks hero record rebuilds with it.
+	marston_hero_parts = [] ## (T-190) The Marston tower record rebuilds with it.
 	ped_zones = null
 	parking = null
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
@@ -500,6 +511,7 @@ func generate_step_finish() -> void:
 		"campanile_parts": campanile_hero_parts.size(), ## (T-186) The hero swap is live.
 		"campus_row_parts": campus_row_hero_parts.size(), ## (T-188) The row heroes are live.
 		"mu_parks_parts": mu_parks_hero_parts.size(), ## (T-189) The MU + Parks pair is live.
+		"marston_parts": marston_hero_parts.size(), ## (T-190) The water-tower hero is live.
 		"campus_ribbons": campus_ribbon_xfs.size(), ## (T-187) The lawn dress is live.
 		"campus_slab_tris": campus_slab_tris,
 		"campus_plaza_tris": campus_plaza_tris,
@@ -1532,9 +1544,11 @@ func _collect_roof_spots(chunk: Dictionary) -> void:
 		var hero_id := str(ph.get("id", ""))
 		if not _hero_ids.has(hero_id) or hero_id == CAMPANILE_HERO_ID \
 				or hero_id == BEARDSHEAR_HERO_ID \
-				or hero_id == MU_HERO_ID or hero_id == PARKS_HERO_ID:
-			continue ## (T-186/T-188/T-189) the campanile's cap crumb is pinned;
-			## the other heroes file their own true-top spots in their builds.
+				or hero_id == MU_HERO_ID or hero_id == PARKS_HERO_ID \
+				or hero_id == MARSTON_TOWER_HERO_ID:
+			continue ## (T-186/T-188/T-189/T-190) the campanile's cap crumb is
+			## pinned; the other heroes file their own true-top spots in their
+			## builds (Marston's byte-identical to the bake-derived cap pin).
 		var top := float(ph["p"][1]) + float(ph["s"][1]) * 0.5
 		var pos := Vector3(float(ph["p"][0]), top, float(ph["p"][2]))
 		var current: Variant = _hero_roof_tops.get(hero_id)
@@ -1654,6 +1668,7 @@ func _build_chunk(entry: Dictionary) -> void:
 	_build_campanile_hero(chunk_root, chunk, center, chunk_body) ## (T-186) the hero swap rides its own chunk.
 	_build_campus_row_heroes(chunk_root, chunk, center, chunk_body) ## (T-188) the row heroes ride theirs.
 	_build_mu_parks_heroes(chunk_root, chunk, center, chunk_body) ## (T-189) the MU + Parks pair rides theirs.
+	_build_marston_hero(chunk_root, chunk, center, chunk_body) ## (T-190) the water-tower hero rides its own chunk.
 
 
 ## One vertex-color unit-box MultiMesh from the chunk's massing entries
@@ -1873,6 +1888,12 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 			## (T-189) The MU + Parks heroes supersede their slots' placeholder
 			## parts the same 1:1 way (MU block/tower/tower_cap; Parks
 			## block/addition) — their builds file the shapes; no capture.
+			continue
+		if pid == MARSTON_TOWER_HERO_ID:
+			## (T-190) The Marston hero supersedes its slot's six placeholder
+			## parts the same 1:1 way (four legs + tank + cap) — its build
+			## files the shapes (the splayed legs as rotated boxes, the round
+			## families as convex cylinders); no capture.
 			continue
 		var p: Array = e["p"]
 		var s: Array = e["s"]
@@ -2837,14 +2858,17 @@ func _row_band_color(band: String) -> Color:
 
 
 ## (T-188) TRUE when a baked placeholder entry belongs to a hero that
-## supersedes its slot at runtime — the campanile (T-186), Beardshear (T-188)
-## and the MU + Parks pair (T-189; both ids already ride the bake manifest's
-## `heroes` list, so only their PLACEHOLDER parts need the runtime skip).
+## supersedes its slot at runtime — the campanile (T-186), Beardshear (T-188),
+## the MU + Parks pair (T-189; both ids already ride the bake manifest's
+## `heroes` list, so only their PLACEHOLDER parts need the runtime skip) and
+## the Marston Water Tower (T-190; its id rides the same bake list, and the
+## four legs + tank + cap parts are the slot the hero re-shapes).
 ## The placeholder-family passes (render, collision, ground record, roof
 ## spots) skip these ids so a hero never renders twice.
 func _row_superseded_placeholder(id: String) -> bool:
 	return id == CAMPANILE_HERO_ID or id == BEARDSHEAR_HERO_ID \
-			or id == MU_HERO_ID or id == PARKS_HERO_ID
+			or id == MU_HERO_ID or id == PARKS_HERO_ID \
+			or id == MARSTON_TOWER_HERO_ID
 
 
 ## Builds the row heroes found in this chunk (Beardshear + Morrill + Marston
@@ -3526,6 +3550,387 @@ func _parks_hero_boxes(p: Vector2) -> Array[Dictionary]:
 				Vector3(2.4, 18.0, 4.0), true, false)
 	_add_row_box(out, "limestone_shade", Vector3(wx - 1.2, 16.0, band_cz),
 			Vector3(2.4, 4.0, 18.0), true, false) ## The portal lintel.
+	return out
+
+
+## --- T-190 the Marston Water Tower hero -------------------------------------
+## The tallest object on campus (taller than the campanile) and the flight
+## beacon of the whole ring, swapping the T-175 placeholder slot 1:1 — the
+## T-186 campanile law on its own chunk. `way/861201396` already rides the
+## bake manifest's `heroes` list, so its bbox massing is skipped by every
+## massing family; the hero supersedes the slot's SIX placeholder parts (four
+## legs + tank + cap — chunk (−1,−2)'s whole gray placeholder family IS the
+## tower) through `_row_superseded_placeholder`, the T-186/T-188/T-189 law.
+##
+## The silhouette is MODELING-SPECS §1's photo read (F-03's sibling
+## correction: WHITE painted steel, NOT the dossier's dark tank —
+## `campus/09,10,11,12`): the survey's 7.3 m × 12.2 m riveted cylinder carried
+## as a real round drum, the balcony walkway ring at the tank's base plane,
+## the bowl bottom hanging under it, the wide top cornice lip and the conical
+## cap closing at the settled 51.2, and the ISU-seal medallion on the tank's
+## EAST (campus-facing — photos 10/12 read it from Marston Hall and the lawn)
+## face — the GEOMETRY HINT the ticket scopes: the seal SHAPE renders as the
+## photo's medallion silhouette (a dark ring + proud disc); any text glyph
+## defers to R4's legal pass. The trestle read (photo 11's full-height
+## proportions): six splayed legs flaring from ≈2× the tank diameter at the
+## foot to just inside the balcony ring at the top (the photo's ~70% trestle
+## fraction), dark lattice ring braces at three levels, X bracing in the two
+## lower bays, the fat riser pipe dead center and the foot pads under the
+## legs. Like every corner dress: pure pack-derived geometry, zero RNG of any
+## stream — a rebuild reproduces every transform byte-identically — and the
+## part record is retained for the gates (headless runs cannot read
+## MultiMesh instances back).
+
+const MARSTON_TOWER_HERO_ID := "way/861201396"
+
+## (T-190) The pinned palette — MODELING-SPECS §1.4's rows, verbatim: the
+## tank's painted-steel pair (white #EDEDEA / shade #D8D8D4) and the lattice
+## legs row #C9C9C4. The brace and medallion bands carry NO survey hex (the
+## photos' dark lattice channels and the seal's dark silhouette) — each is
+## held by a darkness law, the campanile `hand` / row `window` precedent.
+const MARSTON_TANK_WHITE := Color(0.929, 0.929, 0.918) ## #EDEDEA the tank's painted steel, sunlit.
+const MARSTON_TANK_SHADE := Color(0.847, 0.847, 0.831) ## #D8D8D4 the tank's shade (the bowl's curved read).
+const MARSTON_LEG_STEEL := Color(0.788, 0.788, 0.769) ## #C9C9C4 the lattice legs row.
+const MARSTON_BRACE := Color(0.35, 0.35, 0.33) ## No survey hex — the dark-lattice law (luminance ≤ 0.45).
+const MARSTON_MEDALLION := Color(0.38, 0.38, 0.36) ## No survey hex — the dark-seal law (luminance ≤ 0.45).
+
+## The band -> color table (the record and the render share this one mapping).
+const MARSTON_BANDS: Dictionary = {
+	"tank": MARSTON_TANK_WHITE,
+	"tank_shade": MARSTON_TANK_SHADE,
+	"legs": MARSTON_LEG_STEEL,
+	"brace": MARSTON_BRACE,
+	"medallion": MARSTON_MEDALLION,
+}
+
+## (T-190) The pinned heights (m) — the T-175 slot stack kept EXACTLY where
+## the survey settled it (legs 0..36, tank 36..48.2 = the LANDMARKS C2
+## 12.2 m × 7.3 m cylinder, cap closing at 51.2): the hero re-reads the same
+## span as the photo's shapes instead of gray boxes.
+const MARSTON_LEG_TOP := 36.0
+const MARSTON_TANK_BOTTOM := 36.0 ## The slot stack's own — the legs' top IS the tank's bottom.
+const MARSTON_TANK_TOP := 48.2 ## 36.0 + the survey's 12.2 m tank.
+const MARSTON_TOTAL := 51.2 ## The survey's settled total — the beacon height.
+const MARSTON_TANK_RADIUS := 3.65 ## The survey's 7.3 m diameter.
+const MARSTON_LEG_BASE_R := 6.725 ## The OSM bbox's 14.0 m base spread (± half leg).
+const MARSTON_LEG_TOP_R := 2.95 ## Just inside the balcony ring (the photo's flare).
+const MARSTON_LEG_HALF := 0.275 ## The 0.55 m leg angle section, half.
+const MARSTON_BALCONY_R := 3.95
+const MARSTON_BALCONY_TOP := 36.05 ## The walkway slab over the tank's base plane.
+const MARSTON_BOWL_BOTTOM := 33.2 ## The bowl's hang under the balcony (photo 11).
+const MARSTON_CORNICE_R := 3.95 ## The wide top lip, flush at the tank top.
+const MARSTON_CAP_BASE_R := 3.55 ## Inside the cornice lip (photo 11).
+const MARSTON_MEDALLION_Y := 42.8 ## The seal's height (the photo's upper-mid tank read).
+const MARSTON_MEDALLION_R := 1.5 ## The seal ring (the ~3 m medallion silhouette).
+const MARSTON_MEDALLION_DISC_R := 1.15 ## The proud inner disc.
+## The trestle dressing: the ring-brace levels (m); the X bracing rides the
+## two lower bay levels (0..9, 9..18 — the photos' braced half).
+const MARSTON_BRACE_LEVELS: Array[float] = [9.0, 18.0, 27.0]
+
+
+func _marston_band_color(band: String) -> Color:
+	return MARSTON_BANDS.get(band, MARSTON_TANK_WHITE)
+
+
+## Builds the hero into its chunk (chunk (−1,−2) is the only carrier). Render:
+## the lattice trestle + dressing as one rotated-box MultiMesh (the legs lean,
+## the ring chords and X braces turn — real bases on the box path) and the
+## round families as named cylinder meshes (the Beardshear dome's taper path,
+## the medallion turned to face east); collision: the hero's own shapes ride
+## the chunk's placeholder body — same slot, same layer-1 `world` class (the
+## T-175 boxes were removed from this body's feed in `_build_chunk_colliders`);
+## ground record: the walkable tops the superseded placeholders used to file
+## (the balcony ring + the tank top — the cone tip stays a point, nobody
+## stands on it); the roof crumb at the cone tip (byte-identical to the
+## bake-derived cap-top pin); the retained part record the gates walk. No-op
+## for every chunk that does not carry the tower slot.
+func _build_marston_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3,
+		chunk_body: StaticBody3D) -> void:
+	var c := Vector2.ZERO
+	var found := false
+	for ph: Dictionary in chunk.get("placeholders", []):
+		if str(ph.get("id", "")) != MARSTON_TOWER_HERO_ID \
+				or str(ph.get("part", "")) != "tank":
+			continue
+		c = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+		found = true
+		break
+	if not found:
+		return ## Not this chunk's slot (or the bake lost the tank — the dims gate fails loudly).
+	var boxes := _marston_tower_boxes(c)
+	var root := Node3D.new()
+	root.name = "HeroMarstonTower"
+	chunk_root.add_child(root)
+	## Render: every trestle box through the vertex-color unit box at its own
+	## rotated basis (scale applied in the box's local frame), chunk-local like
+	## every placeholder family member; the world AABB per box feeds both the
+	## MM's custom AABB and the record.
+	var mm := _new_multimesh(boxes.size())
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for i in boxes.size():
+		var b: Dictionary = boxes[i]
+		var basis: Basis = b["basis"]
+		var bp: Vector3 = b["p"]
+		var bs: Vector3 = b["s"]
+		mm.set_instance_transform(i, Transform3D(basis * Basis.from_scale(bs),
+				bp - center))
+		mm.set_instance_color(i, _marston_band_color(str(b["band"])))
+		var ab: Array = _marston_box_aabb(basis, bp, bs)
+		lo = (ab[0] as Vector3).min(lo)
+		hi = (ab[1] as Vector3).max(hi)
+	mm.custom_aabb = AABB(lo - center - Vector3.ONE * 2.0, (hi - lo) + Vector3.ONE * 4.0)
+	var mm_node := MultiMeshInstance3D.new()
+	mm_node.name = "Boxes"
+	mm_node.multimesh = mm
+	root.add_child(mm_node)
+	## Collision: the hero's own shapes ride the chunk's placeholder body —
+	## same slot, same layer-1 `world` class (the T-175 boxes were removed
+	## from this body's feed in `_build_chunk_colliders`).
+	var body := chunk_body
+	if body == null:
+		body = StaticBody3D.new()
+		body.name = "Placeholders"
+		body.collision_layer = 1 ## world
+		body.collision_mask = 0
+		chunk_root.add_child(body)
+	for b2: Dictionary in boxes:
+		if not b2["collide"]:
+			continue
+		var basis2: Basis = b2["basis"]
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = b2["s"]
+		shape.shape = box
+		shape.transform = Transform3D(basis2, (b2["p"] as Vector3) - center)
+		body.add_child(shape)
+	## The round families (the extras): each is `{name, mesh, pos, rot,
+	## convex, band, size}` — the mesh mounts at `pos` (chunk-local) with the
+	## optional rotation basis; a non-empty `convex` becomes one
+	## CollisionShape3D at the same spot; `band`/`size` file the record.
+	for e: Dictionary in _marston_tower_extras(c):
+		var mesh_node := MeshInstance3D.new()
+		mesh_node.name = str(e["name"])
+		mesh_node.mesh = e["mesh"]
+		var rot: Basis = e["rot"]
+		mesh_node.transform = Transform3D(rot, (e["pos"] as Vector3) - center)
+		root.add_child(mesh_node)
+		var pts: PackedVector3Array = e["convex"]
+		if not pts.is_empty():
+			var extra_shape := CollisionShape3D.new()
+			var convex := ConvexPolygonShape3D.new()
+			convex.points = pts
+			extra_shape.shape = convex
+			extra_shape.transform = Transform3D(rot, (e["pos"] as Vector3) - center)
+			body.add_child(extra_shape)
+	## Ground record: the hero files its own true tops where the superseded
+	## placeholders used to — the balcony ring (the trestle's walkable crown)
+	## and the tank top (the survey answer kept; the cone tip files nothing).
+	var tiles: Dictionary = {}
+	var bytes := 0
+	bytes += _file_ground_box(tiles, [c.x, MARSTON_BALCONY_TOP - 0.25, c.y],
+			[MARSTON_BALCONY_R * 2.0, 0.5, MARSTON_BALCONY_R * 2.0])
+	bytes += _file_ground_box(tiles, [c.x, (MARSTON_TANK_BOTTOM + MARSTON_TANK_TOP) * 0.5, c.y],
+			[MARSTON_TANK_RADIUS * 2.0, MARSTON_TANK_TOP - MARSTON_TANK_BOTTOM,
+			MARSTON_TANK_RADIUS * 2.0])
+	for key: Vector2i in tiles:
+		var record: Dictionary = _chunks.get(key, {})
+		var ground: PackedFloat32Array = record.get("ground", PackedFloat32Array())
+		ground.append_array(PackedFloat32Array(tiles[key]))
+		record["ground"] = ground
+		_chunks[key] = record
+	_buffer_bytes += bytes
+	## The roof-crumb host: one ROOF spot at the hero's true top — the cone
+	## tip, byte-identical to the bake-derived cap-part pin this swap retires.
+	_hero_roof_tops[MARSTON_TOWER_HERO_ID] = Vector3(c.x, MARSTON_TOTAL, c.y)
+	## Retain the part record (world-local AABBs, bands, colors) for the gates;
+	## `mesh` marks the named mesh extras so the gate can count the trestle
+	## schedule against the render MM separately.
+	for b3: Dictionary in boxes:
+		var ab2: Array = _marston_box_aabb(b3["basis"], b3["p"], b3["s"])
+		marston_hero_parts.append({
+			"hero": "marston_tower", "band": str(b3["band"]),
+			"p": ((ab2[0] as Vector3) + (ab2[1] as Vector3)) * 0.5,
+			"s": (ab2[1] as Vector3) - (ab2[0] as Vector3),
+			"color": _marston_band_color(str(b3["band"])),
+			"collide": b3["collide"], "mesh": false,
+		})
+	for e2: Dictionary in _marston_tower_extras(c):
+		marston_hero_parts.append({
+			"hero": "marston_tower", "band": str(e2["band"]), "p": e2["pos"],
+			"s": e2["size"], "color": _marston_band_color(str(e2["band"])),
+			"collide": false, "mesh": true,
+		})
+
+
+## The trestle's box schedule in WORLD-LOCAL coordinates (pack-local — the
+## world node IS the pack frame), one entry per rotated box:
+## `{band, basis, p, s, collide}` — `basis` the UNSCALED rotation, `s` the box
+## size applied in that rotated local frame, `p` the box center. Every height
+## rides the pinned constants; every span derives from the bake slot center.
+func _marston_tower_boxes(c: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var o := Vector3(c.x, 0.0, c.y) ## The slot center.
+	var rise := MARSTON_LEG_BASE_R - MARSTON_LEG_TOP_R
+	var leg_len: float = sqrt(MARSTON_LEG_TOP * MARSTON_LEG_TOP + rise * rise)
+	## --- the six splayed legs (the hexagonal trestle; photo 11's flare) ----
+	for k in 6:
+		var a := TAU * float(k) / 6.0
+		var radial := Vector3(cos(a), 0.0, sin(a))
+		var base := o + radial * MARSTON_LEG_BASE_R
+		var top := o + radial * MARSTON_LEG_TOP_R + Vector3.UP * MARSTON_LEG_TOP
+		var mid := (base + top) * 0.5
+		var dir := (top - base).normalized()
+		var x_axis := Vector3(-dir.z, 0.0, dir.x).normalized() ## The horizontal tangent.
+		var z_axis := x_axis.cross(dir).normalized()
+		var basis := Basis(x_axis, dir, z_axis)
+		var leg_s := Vector3(MARSTON_LEG_HALF * 2.0, leg_len, MARSTON_LEG_HALF * 2.0)
+		out.append({"band": "legs", "basis": basis, "p": mid, "s": leg_s,
+				"collide": true})
+		## The foot pad under each leg (photo 12's base pads) — centered so
+		## its outer face aligns with the leg's own: the 0.9 m footing reads
+		## proud of the 0.55 m leg without widening the base spread.
+		var pad_r := MARSTON_LEG_BASE_R - (0.45 - MARSTON_LEG_HALF)
+		out.append({"band": "legs",
+				"basis": Basis(),
+				"p": o + radial * pad_r + Vector3.UP * 0.25,
+				"s": Vector3(0.9, 0.5, 0.9), "collide": true})
+	## --- the lattice: ring braces at the three levels ------------------------
+	for level: float in MARSTON_BRACE_LEVELS:
+		var ry: float = lerpf(MARSTON_LEG_BASE_R, MARSTON_LEG_TOP_R,
+				level / MARSTON_LEG_TOP)
+		for k2 in 6:
+			var a0 := TAU * float(k2) / 6.0
+			var a1 := TAU * float(k2 + 1) / 6.0
+			var v0 := o + Vector3(cos(a0) * ry, level, sin(a0) * ry)
+			var v1 := o + Vector3(cos(a1) * ry, level, sin(a1) * ry)
+			var chord := v1 - v0
+			var x_axis2 := chord.normalized()
+			var basis2 := Basis(x_axis2, Vector3.UP, x_axis2.cross(Vector3.UP))
+			out.append({"band": "brace", "basis": basis2,
+					"p": (v0 + v1) * 0.5,
+					"s": Vector3(chord.length(), 0.28, 0.18), "collide": false})
+	## --- the X bracing in the two lower bays (the photos' braced half) -------
+	for k3 in 6:
+		for lvl: int in 2:
+			var y_lo := float(lvl) * 9.0
+			var y_hi := y_lo + 9.0
+			var a_lo := TAU * float(k3) / 6.0
+			var a_hi := TAU * float(k3 + 1) / 6.0
+			var r_lo: float = lerpf(MARSTON_LEG_BASE_R, MARSTON_LEG_TOP_R, y_lo / MARSTON_LEG_TOP)
+			var r_hi: float = lerpf(MARSTON_LEG_BASE_R, MARSTON_LEG_TOP_R, y_hi / MARSTON_LEG_TOP)
+			var p_lo := o + Vector3(cos(a_lo) * r_lo, y_lo, sin(a_lo) * r_lo)
+			var p_hi := o + Vector3(cos(a_hi) * r_hi, y_hi, sin(a_hi) * r_hi)
+			for swapped: bool in [false, true]: ## The X: both diagonals.
+				var from := p_lo if not swapped else p_hi
+				var to := p_hi if not swapped else p_lo
+				var span := to - from
+				var z_axis3 := span.normalized()
+				var x_axis3 := z_axis3.cross(Vector3.UP).normalized()
+				var y_axis3 := z_axis3.cross(x_axis3).normalized()
+				var basis3 := Basis(x_axis3, y_axis3, z_axis3)
+				out.append({"band": "brace", "basis": basis3,
+						"p": (from + to) * 0.5,
+						"s": Vector3(0.18, 0.18, span.length()), "collide": false})
+	return out
+
+
+## One rotated box's world AABB, the size through the UNSCALED basis — the
+## MM custom AABB's and the record's feed (the lean and the lattice turns
+## file their boxes' true extents).
+func _marston_box_aabb(basis: Basis, origin: Vector3, size: Vector3) -> Array:
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for sx: float in [-0.5, 0.5]:
+		for sy: float in [-0.5, 0.5]:
+			for sz: float in [-0.5, 0.5]:
+				var corner := origin + basis * Vector3(
+						sx * size.x, sy * size.y, sz * size.z)
+				lo = lo.min(corner)
+				hi = hi.max(corner)
+	return [lo, hi]
+
+
+## The round families' mesh extras (world-local): the riser pipe dead center,
+## the bowl hang, the balcony walkway ring, the tank drum, the top cornice
+## lip, the conical cap, and the ISU-seal medallion turned to face EAST (the
+## campus-facing read — photos 10/12). Visual-only medallion (empty convex —
+## the tank's own convex is the wall it relieves).
+func _marston_tower_extras(c: Vector2) -> Array[Dictionary]:
+	var face := Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(-90.0)) ## Y axis -> east.
+	var out: Array[Dictionary] = [
+		{
+			"name": "RiserPipe", "mesh": _row_taper_mesh(0.35, 0.35, MARSTON_LEG_TOP,
+					MARSTON_LEG_STEEL),
+			"pos": Vector3(c.x, MARSTON_LEG_TOP * 0.5, c.y), "rot": Basis(),
+			"convex": _row_cylinder_convex(0.35, 0.35, MARSTON_LEG_TOP, 6),
+			"band": "legs", "size": Vector3(0.7, MARSTON_LEG_TOP, 0.7),
+		},
+		{
+			"name": "TankBowl", "mesh": _row_taper_mesh(MARSTON_TANK_RADIUS, 1.5,
+					MARSTON_TANK_BOTTOM - MARSTON_BOWL_BOTTOM, MARSTON_TANK_SHADE),
+			"pos": Vector3(c.x, (MARSTON_BOWL_BOTTOM + MARSTON_TANK_BOTTOM) * 0.5, c.y),
+			"rot": Basis(),
+			"convex": _row_cylinder_convex(1.5, MARSTON_TANK_RADIUS,
+					MARSTON_TANK_BOTTOM - MARSTON_BOWL_BOTTOM, 8),
+			"band": "tank_shade",
+			"size": Vector3(MARSTON_TANK_RADIUS * 2.0,
+					MARSTON_TANK_BOTTOM - MARSTON_BOWL_BOTTOM,
+					MARSTON_TANK_RADIUS * 2.0),
+		},
+		{
+			"name": "BalconyDisc", "mesh": _row_taper_mesh(MARSTON_BALCONY_R,
+					MARSTON_BALCONY_R, 0.5, MARSTON_LEG_STEEL),
+			"pos": Vector3(c.x, MARSTON_BALCONY_TOP - 0.25, c.y), "rot": Basis(),
+			"convex": _row_cylinder_convex(MARSTON_BALCONY_R, MARSTON_BALCONY_R, 0.5, 10),
+			"band": "legs", "size": Vector3(MARSTON_BALCONY_R * 2.0, 0.5, MARSTON_BALCONY_R * 2.0),
+		},
+		{
+			"name": "TankCylinder", "mesh": _row_taper_mesh(MARSTON_TANK_RADIUS,
+					MARSTON_TANK_RADIUS, MARSTON_TANK_TOP - MARSTON_TANK_BOTTOM,
+					MARSTON_TANK_WHITE),
+			"pos": Vector3(c.x, (MARSTON_TANK_BOTTOM + MARSTON_TANK_TOP) * 0.5, c.y),
+			"rot": Basis(),
+			"convex": _row_cylinder_convex(MARSTON_TANK_RADIUS, MARSTON_TANK_RADIUS,
+					MARSTON_TANK_TOP - MARSTON_TANK_BOTTOM, 10),
+			"band": "tank",
+			"size": Vector3(MARSTON_TANK_RADIUS * 2.0,
+					MARSTON_TANK_TOP - MARSTON_TANK_BOTTOM, MARSTON_TANK_RADIUS * 2.0),
+		},
+		{
+			"name": "CorniceRing", "mesh": _row_taper_mesh(MARSTON_CORNICE_R,
+					MARSTON_CORNICE_R, 0.5, MARSTON_TANK_WHITE),
+			"pos": Vector3(c.x, MARSTON_TANK_TOP - 0.25, c.y), "rot": Basis(),
+			"convex": _row_cylinder_convex(MARSTON_CORNICE_R, MARSTON_CORNICE_R, 0.5, 10),
+			"band": "tank", "size": Vector3(MARSTON_CORNICE_R * 2.0, 0.5, MARSTON_CORNICE_R * 2.0),
+		},
+		{
+			"name": "CapCone", "mesh": _row_taper_mesh(0.22, MARSTON_CAP_BASE_R,
+					MARSTON_TOTAL - MARSTON_TANK_TOP, MARSTON_TANK_WHITE),
+			"pos": Vector3(c.x, (MARSTON_TANK_TOP + MARSTON_TOTAL) * 0.5, c.y), "rot": Basis(),
+			"convex": _row_cylinder_convex(MARSTON_CAP_BASE_R, 0.22,
+					MARSTON_TOTAL - MARSTON_TANK_TOP, 8),
+			"band": "tank",
+			"size": Vector3(MARSTON_CAP_BASE_R * 2.0, MARSTON_TOTAL - MARSTON_TANK_TOP,
+					MARSTON_CAP_BASE_R * 2.0),
+		},
+		{
+			"name": "MedallionRing", "mesh": _row_taper_mesh(MARSTON_MEDALLION_R,
+					MARSTON_MEDALLION_R, 0.06, MARSTON_MEDALLION),
+			"pos": Vector3(c.x + MARSTON_TANK_RADIUS + 0.05, MARSTON_MEDALLION_Y, c.y),
+			"rot": face, "convex": PackedVector3Array(),
+			"band": "medallion", "size": Vector3(0.06, MARSTON_MEDALLION_R * 2.0,
+					MARSTON_MEDALLION_R * 2.0),
+		},
+		{
+			"name": "MedallionDisc", "mesh": _row_taper_mesh(MARSTON_MEDALLION_DISC_R,
+					MARSTON_MEDALLION_DISC_R, 0.08, MARSTON_MEDALLION),
+			"pos": Vector3(c.x + MARSTON_TANK_RADIUS + 0.10, MARSTON_MEDALLION_Y, c.y),
+			"rot": face, "convex": PackedVector3Array(),
+			"band": "medallion", "size": Vector3(0.08, MARSTON_MEDALLION_DISC_R * 2.0,
+					MARSTON_MEDALLION_DISC_R * 2.0),
+		},
+	]
 	return out
 
 
