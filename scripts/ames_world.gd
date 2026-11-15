@@ -2811,6 +2811,8 @@ func _row_commit(chunk_root: Node3D, center: Vector3, hero_name: String,
 		hero_id: String, boxes: Array[Dictionary], crumb: Vector3,
 		chunk_body: StaticBody3D, extras: Array[Dictionary],
 		record_only: Array[Dictionary] = []) -> void:
+	var hero_key: String = hero_name.to_lower().replace("farmhouse", "farm_house") \
+			.replace("marstonhall", "marston_hall") ## The record's lowercase key.
 	var root := Node3D.new()
 	root.name = "HeroRow%s" % hero_name
 	chunk_root.add_child(root)
@@ -2891,18 +2893,20 @@ func _row_commit(chunk_root: Node3D, center: Vector3, hero_name: String,
 	## convention — the superseded bake entries stopped filing in
 	## `_collect_roof_spots`).
 	_hero_roof_tops[hero_id] = crumb
-	## Retain the part record (world-local bands, positions, sizes, colors).
+	## Retain the part record (world-local bands, positions, sizes, colors);
+	## `mesh` marks the named mesh extras so the gate can count the box
+	## schedule against the render MM separately.
 	for b4: Dictionary in boxes:
 		campus_row_hero_parts.append({
-			"hero": hero_name, "band": str(b4["band"]), "p": b4["p"],
+			"hero": hero_key, "band": str(b4["band"]), "p": b4["p"],
 			"s": b4["s"], "color": _row_band_color(str(b4["band"])),
-			"collide": b4["collide"],
+			"collide": b4["collide"], "mesh": false,
 		})
 	for e3: Dictionary in extras:
 		campus_row_hero_parts.append({
-			"hero": hero_name, "band": str(e3["band"]), "p": e3["pos"],
+			"hero": hero_key, "band": str(e3["band"]), "p": e3["pos"],
 			"s": e3["size"], "color": _row_band_color(str(e3["band"])),
-			"collide": false,
+			"collide": false, "mesh": true,
 		})
 
 
@@ -2959,23 +2963,24 @@ func _beardshear_hero_boxes(c: Vector2) -> Array[Dictionary]:
 	## top 18 — its square top corners read as the plinth under the round
 	## cap), the dark copper base ring, and the cap's ground box (sized to
 	## stay fully under the tapered cap mesh; the mesh + convex ride the
-	## extras and the box files the 20.0 walkability top).
+	## extras and the box files the 20.0 walkability top — every height
+	## derives from BEARDSHEAR_DOME_TOP so the settled pin is one constant).
 	_add_row_box(out, "dome_light", Vector3(dx, 16.0, c.y),
 			Vector3(9.0, 4.0, 9.0), true, true)
 	_add_row_box(out, "dome_dark", Vector3(dx, 14.25, c.y),
 			Vector3(9.3, 0.5, 9.3), false, false)
-	_add_row_box(out, "dome_mid", Vector3(dx, 19.0, c.y),
+	_add_row_box(out, "dome_mid", Vector3(dx, BEARDSHEAR_DOME_TOP - 1.0, c.y),
 			Vector3(3.0, 2.0, 3.0), false, true)
 	return out
 
 
 ## Beardshear's mesh extras: the oxidized-copper dome cap — one tapered
 ## CylinderMesh (the round read the box path cannot give), 18→20 so the top
-## stays the slot's settled 20.0. The convex is the 8-segment frustum under
-## it (the walkable dome mass).
+## stays the slot's settled 20.0 (BEARDSHEAR_DOME_TOP). The convex is the
+## 8-segment frustum under it (the walkable dome mass).
 func _beardshear_hero_extras(c: Vector2) -> Array[Dictionary]:
 	var dx := c.x + BEARDSHEAR_DOME_OFFSET_X
-	var pos := Vector3(dx, 19.0, c.y)
+	var pos := Vector3(dx, BEARDSHEAR_DOME_TOP - 1.0, c.y)
 	var out: Array[Dictionary] = [{
 		"name": "DomeCap", "mesh": _row_taper_mesh(2.2, 4.5, 2.0, ROW_DOME_MID),
 		"pos": pos, "convex": _row_cylinder_convex(4.5, 2.2, 2.0, 8),
