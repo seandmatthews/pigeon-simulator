@@ -287,6 +287,25 @@ var hilton_hero_parts: Array[Dictionary] = []
 ## stall-marking transforms (world-local), retained on the headless law.
 var lot_flat_tris: int = 0
 var lot_marking_xfs: Array[Transform3D] = []
+## (T-192) The Durham Bandshell hero's part record, the T-191 law carried
+## downtown: every box the build emitted —
+## `{hero, band, p, s, color, collide, mesh}` in world-local (pack)
+## coordinates, the arch rings' chords filing their boxes' world AABBs (the
+## rotated-chord law) so the dims arm unions the arch by band.
+var bandshell_hero_parts: Array[Dictionary] = []
+## (T-192) The civic pair's part record, same shape — the City Hall block
+## (`relation/2560369`) and the Municipal Building (`way/237834146`) hero
+## boxes with their stone cornice bands and cartouche-entry hints.
+var civic_hero_parts: Array[Dictionary] = []
+## (T-192) The Main Street fabric's part record, same shape — the retail
+## row's cornice hints, the maroon street furniture (lamp posts, arms,
+## shades), the blue banner slabs and the neon blade sign seeds.
+var fabric_parts: Array[Dictionary] = []
+## (T-192) The frontage-row slots collected while the chunks parse (the
+## authored downtown massing in the Main/5th frontage bands), consumed by
+## the step-3 fabric build — the cornice hints ride the bake's own slot
+## dims, so the walk happens where the JSON is in hand.
+var _fabric_row_slots: Array[Dictionary] = []
 
 @onready var _box_mesh: BoxMesh = _make_box_mesh()
 @onready var _tri_mesh: ArrayMesh = _make_tri_mesh()
@@ -448,6 +467,10 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	hilton_hero_parts = [] ## (T-191) The Hilton drum record rebuilds with it.
 	lot_flat_tris = 0 ## (T-191) The tailgate-lot dress records rebuild with it.
 	lot_marking_xfs = []
+	bandshell_hero_parts = [] ## (T-192) The downtown records rebuild with the world.
+	civic_hero_parts = []
+	fabric_parts = []
+	_fabric_row_slots = []
 	ped_zones = null
 	parking = null
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
@@ -467,6 +490,16 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	## already rides the bake's own `heroes` list. Each hero files its own true
 	## tops in its build below.
 	for hero_id: String in CAMPUS_ROW_RUNTIME_HERO_IDS:
+		_hero_ids[hero_id] = true
+	## (T-192) The downtown civic pair swaps AUTHORED massing slots (the City
+	## Hall block + the Municipal Building) the same way — their ids join the
+	## hero set at runtime so every massing-family skip (render, occluder,
+	## collision, ground record, roof spots) applies unchanged. The bandshell
+	## is NOT here: its superseded PLACEHOLDER parts run through
+	## `_row_superseded_placeholder` (it carries no massing bbox — a park POI,
+	## not a building), and joining it would let `_collect_roof_spots` file
+	## the retired pier tops it must not.
+	for hero_id: String in DOWNTOWN_RUNTIME_HERO_IDS:
 		_hero_ids[hero_id] = true
 	_bounds_from_manifest()
 	_build_static_root()
@@ -497,6 +530,7 @@ func generate_step_finish() -> void:
 	_build_swans() ## (T-185) Lancelot & Elaine on their lake circuit.
 	_build_campus_lawn() ## (T-187) The lawn slab, the crossing axes' ribbons, the fountain.
 	_build_tailgate_lots() ## (T-191) The Iowa State Center lot flats + stall-marking hint.
+	_build_downtown_fabric() ## (T-192) The Main Street cornices + the maroon furniture + the blade seeds.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -538,6 +572,9 @@ func generate_step_finish() -> void:
 		"hilton_parts": hilton_hero_parts.size(), ## (T-191) The drum hero is live.
 		"lot_flat_tris": lot_flat_tris, ## (T-191) The tailgate-lot flats are live.
 		"lot_markings": lot_marking_xfs.size(), ## (T-191) The stall-marking hint is live.
+		"bandshell_parts": bandshell_hero_parts.size(), ## (T-192) The bandshell hero is live.
+		"civic_parts": civic_hero_parts.size(), ## (T-192) The civic pair is live.
+		"fabric_parts": fabric_parts.size(), ## (T-192) The Main Street fabric is live.
 		"campus_ribbons": campus_ribbon_xfs.size(), ## (T-187) The lawn dress is live.
 		"campus_slab_tris": campus_slab_tris,
 		"campus_plaza_tris": campus_plaza_tris,
@@ -1700,6 +1737,8 @@ func _build_chunk(entry: Dictionary) -> void:
 	_build_marston_hero(chunk_root, chunk, center, chunk_body) ## (T-190) the water-tower hero rides its own chunk.
 	_build_stadium_hero(chunk_root, chunk, center, chunk_body) ## (T-191) the bowl hero rides its carrier chunk.
 	_build_hilton_hero(chunk_root, chunk, center, chunk_body) ## (T-191) the drum hero rides its carrier chunk.
+	_build_downtown_heroes(chunk_root, chunk, center, chunk_body) ## (T-192) the bandshell + civic pair ride their carrier chunks.
+	_collect_fabric_row_slots(chunk) ## (T-192) the frontage-row walk, while the doc is in hand.
 
 
 ## One vertex-color unit-box MultiMesh from the chunk's massing entries
@@ -1933,6 +1972,12 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 			## segments on the bake's own chord schedule, the hillside/press/
 			## Sukup/statue/portico boxes, the roofs as convex solids); no
 			## capture.
+			continue
+		if pid == BANDSHELL_SLOT_ID:
+			## (T-192) The bandshell hero supersedes its slot's seven shell
+			## piers + stage deck the same 1:1 way — its build files the
+			## shapes (the stage deck, the brick piers, the arch chords on
+			## their rotated radial bases); no capture.
 			continue
 		var p: Array = e["p"]
 		var s: Array = e["s"]
@@ -2899,19 +2944,22 @@ func _row_band_color(band: String) -> Color:
 ## (T-188) TRUE when a baked placeholder entry belongs to a hero that
 ## supersedes its slot at runtime — the campanile (T-186), Beardshear (T-188),
 ## the MU + Parks pair (T-189; both ids already ride the bake manifest's
-## `heroes` list, so only their PLACEHOLDER parts need the runtime skip), the
-## Marston Water Tower (T-190; its id rides the same bake list, and the four
-## legs + tank + cap parts are the slot the hero re-shapes) and the stadium
+## `heroes` list, so only their PLACEHOLDER parts need the runtime skip) and
+## the Marston Water Tower (T-190; its id rides the same bake list, and the
+## four legs + tank + cap parts are the slot the hero re-shapes). The stadium
 ## complex (T-191: the bowl's ring/berm/pitch parts across chunks (4,3)/(4,4)
 ## and the drum's ring/roof parts across (4,0)/(5,0) are the slots the two
-## heroes re-shape).
+## heroes re-shape). The Durham Bandshell (T-192: the park POI's seven shell
+## piers + stage deck in chunk (13,−2) are the slot the hero re-shapes at its
+## true structure position ~35 m north).
 ## The placeholder-family passes (render, collision, ground record, roof
 ## spots) skip these ids so a hero never renders twice.
 func _row_superseded_placeholder(id: String) -> bool:
 	return id == CAMPANILE_HERO_ID or id == BEARDSHEAR_HERO_ID \
 			or id == MU_HERO_ID or id == PARKS_HERO_ID \
 			or id == MARSTON_TOWER_HERO_ID \
-			or id == JACK_TRICE_HERO_ID or id == HILTON_HERO_ID
+			or id == JACK_TRICE_HERO_ID or id == HILTON_HERO_ID \
+			or id == BANDSHELL_SLOT_ID
 
 
 ## Builds the row heroes found in this chunk (Beardshear + Morrill + Marston
@@ -4160,11 +4208,12 @@ func _hilton_band_color(band: String) -> Color:
 ## box through the chunk's vertex-color unit box at its own (optional
 ## rotated) basis, append colliding boxes to the chunk's placeholder body,
 ## file `ground`-flagged boxes into the walkable-top record, retain every
-## box in `record`. Returns the MultiMeshInstance3D (or null for an empty
-## schedule).
+## box in `record`. `extra_bands` (T-192) extends the band->color lookup
+## for later heroes (the band names stay unique across ALL the tables).
+## Returns the MultiMeshInstance3D (or null for an empty schedule).
 func _mount_complex_hero_boxes(root: Node3D, body: StaticBody3D, center: Vector3,
 		boxes: Array[Dictionary], record: Array[Dictionary], hero_name: String,
-		mm_name: String) -> MultiMeshInstance3D:
+		mm_name: String, extra_bands: Dictionary = {}) -> MultiMeshInstance3D:
 	if boxes.is_empty():
 		return null
 	var mm := _new_multimesh(boxes.size())
@@ -4178,9 +4227,9 @@ func _mount_complex_hero_boxes(root: Node3D, body: StaticBody3D, center: Vector3
 		var bp: Vector3 = b["p"]
 		var bs: Vector3 = b["s"]
 		var band := str(b["band"])
-		## The band names are unique across the two tables (one lookup).
+		## The band names are unique across the tables (one lookup).
 		var color: Color = STADIUM_BANDS.get(band, HILTON_BANDS.get(band,
-				Color(0.5, 0.5, 0.5)))
+				extra_bands.get(band, Color(0.5, 0.5, 0.5))))
 		mm.set_instance_transform(i, Transform3D(basis * Basis.from_scale(bs),
 				bp - center))
 		mm.set_instance_color(i, color)
@@ -4195,8 +4244,15 @@ func _mount_complex_hero_boxes(root: Node3D, body: StaticBody3D, center: Vector3
 			shape.transform = Transform3D(basis, bp - center)
 			body.add_child(shape)
 		if bool(b.get("ground", false)):
-			bytes += _file_ground_box(tiles, [bp.x, bp.y, bp.z],
-					[bs.x, bs.y, bs.z])
+			## The walkable top files from the box's world AABB (the same
+			## corners the record holds) — identical numbers for the
+			## axis-aligned schedules, the honest footprint for the rotated
+			## ones (the T-192 arch chords; the T-191 schedule is identity
+			## and files byte-unchanged).
+			var gc := ((ab[0] as Vector3) + (ab[1] as Vector3)) * 0.5
+			var gs := (ab[1] as Vector3) - (ab[0] as Vector3)
+			bytes += _file_ground_box(tiles, [gc.x, gc.y, gc.z],
+					[gs.x, gs.y, gs.z])
 		record.append({
 			"hero": hero_name, "band": band,
 			"p": ((ab[0] as Vector3) + (ab[1] as Vector3)) * 0.5,
@@ -4725,6 +4781,595 @@ func _build_lot_markings(root: Node3D, lots: Array[PackedVector2Array],
 	node.name = "LotMarkings"
 	node.multimesh = mm
 	root.add_child(node)
+
+
+## --- T-192 the downtown heroes + the Main Street fabric ---------------------
+## Downtown's identity set, on the T-186/T-188/T-191 swap law:
+##
+## - **Durham Bandshell** (LANDMARKS T2 — built 1934, refurbished 2005;
+##   §1.7's L3 "a small, high-value organic shell"): the weathered-copper
+##   ribbed arch over the pale mint/cream concentric shells on the red-brick
+##   pier pair, standing in Bandshell Park. The park sits ~30 m OUTSIDE the
+##   v1 core bbox (census §5) — the hero models the STRUCTURE at its true
+##   position: the OSM way `269752151` footprint (25.4 × 14.6 m, center
+##   (3360.9, −377.7)), ~35 m north of the T-175 placeholder slot whose seven
+##   shell piers + stage deck sit at the PARK POI's centroid (3353.52,
+##   −412.08). The slot parts retire through `_row_superseded_placeholder`;
+##   the shell keeps the footprint's own orientation — the wide NORTH block
+##   is the open face and pier line (the audience lawn runs north off the
+##   structure's 5th-St end; 5th Street is the park's SOUTH edge, the lawn
+##   stretches away from it), the narrow south neck the dome's taper + rear
+##   annex — so the scallop reads from Main Street and from the air as the
+##   survey's instant-read demands (LANDMARKS §5 item 13); T-203 extends the
+##   bbox east and makes the inclusion official. Proportions are the photo
+##   read (`downtown/05` front: ~4 nested shells under the copper band;
+##   `downtown/06` side: brick piers with the art-deco grille windows, dome
+##   depth ≈ half the span), flagged as photo-grounded approximations — the
+##   survey pins no bandshell dims.
+## - **City Hall** (`relation/2560369`, 515 Clark — LANDMARKS T3) and the
+##   **Municipal Building** (`way/237834146`, photo `downtown/02`): the civic
+##   brick set. Each swaps its AUTHORED massing slot 1:1 (the T-188 runtime
+##   `_hero_ids` law), keeps the slot envelope EXACT, and wears the photo-02
+##   stone vocabulary at hint level: the cornice band, the cartouche entry
+##   surround with the carved panel, the door, the steps. City Hall fronts
+##   Clark Ave (its east face — Clark runs at x ≈ 2750, east of the block);
+##   the Municipal Building fronts Kellogg (its west face — Kellogg at
+##   x ≈ 3013, west of the block). The bake slot colors are the §1.7 brick
+##   range's own two ends (#A8663F / #8A4A36) and stay.
+## - **The Main Street fabric**: the two frontage rows (Main + 5th, §1.7's
+##   L2 row) get cornice hints riding their own bake slots (0.8/1.2 m bands
+##   alternating by a fixed parity — the parapet-variety hint); the maroon
+##   street furniture (#5C2E35 lamp posts with gooseneck arms + shades and
+##   banner brackets) and the blue AMES banner slab (#2E4E9E, text is R4)
+##   run the Main sidewalks at a fixed pitch, skipping the cross streets;
+##   the Whiskey River-style neon blade sign (no text — R4's legal pass)
+##   seeds the bar-sign typology on the row's named bar venues.
+##   NO door-number logic anywhere — the survey's QA-corrected rule (Main
+##   numbering increases WESTWARD, V-06/F-07) is honored by not reading
+##   numbers; the blade mounts derive from the pack's own venue names.
+##
+## Like every corner dress: pure pack/bake-derived geometry, zero RNG of any
+## stream — a rebuild reproduces every transform byte-identically — and the
+## part records are retained for the gates (headless runs cannot read
+## MultiMesh instances back).
+
+const BANDSHELL_SLOT_ID := "downtown_bandshell"
+const CITY_HALL_HERO_ID := "relation/2560369"
+const MUNICIPAL_HERO_ID := "way/237834146"
+
+## (T-192) The civic massing-slot supersessions (the T-188 runtime-merge law;
+## the bandshell is deliberately NOT here — see `generate_step_ground`).
+const DOWNTOWN_RUNTIME_HERO_IDS: Array[String] = [
+	CITY_HALL_HERO_ID, MUNICIPAL_HERO_ID,
+]
+
+## (T-192) The pinned palette — §1.7's downtown rows, verbatim.
+const BSHELL_ARCH := Color(0.29, 0.353, 0.341) ## #4A5A57 the weathered copper arch.
+const BSHELL_MINT := Color(0.863, 0.91, 0.863) ## #DCE8DC the pale mint shells.
+const BSHELL_CREAM := Color(0.929, 0.914, 0.847) ## #EDE9D8 the cream shells.
+const BSHELL_BRICK := Color(0.612, 0.29, 0.204) ## #9C4A34 the brick piers + stage base.
+const CIVIC_CORNICESTONE := Color(0.839, 0.808, 0.733) ## #D6CDBB the cornice stone (civic + fabric).
+const CIVIC_BRICK_LIGHT := Color(0.659, 0.4, 0.247) ## #A8663F City Hall — its OWN bake slot color (the range's light end).
+const CIVIC_BRICK_DARK := Color(0.541, 0.29, 0.212) ## #8A4A36 the Municipal Building — its OWN bake slot color (the range's dark end).
+const FURNITURE_MAROON := Color(0.361, 0.18, 0.208) ## #5C2E35 the street furniture.
+const BANNER_BLUE := Color(0.18, 0.306, 0.62) ## #2E4E9E the AMES banner.
+
+## The bands with NO survey hex, held by laws (the campanile `hand`
+## precedent): the piers' dark ironwork grilles, the civic doors, the blade
+## board (all dark law ≤ 0.25) and the neon tube (photo-07 read — red-orange;
+## no survey hex exists, pinned exact here and asserted as the scenario's
+## own literal).
+const BSHELL_GRILLE := Color(0.14, 0.15, 0.16) ## Dark law: luminance ≤ 0.25.
+const CIVIC_DOOR := Color(0.16, 0.14, 0.13) ## Dark law: luminance ≤ 0.25.
+const BLADE_BOARD := Color(0.13, 0.12, 0.13) ## Dark law: luminance ≤ 0.25.
+const BLADE_NEON := Color(0.91, 0.32, 0.14) ## The neon tube read (photo 07).
+
+## (T-192) The band -> color table (the records and the render share this
+## one mapping).
+const DOWNTOWN_BANDS: Dictionary = {
+	"arch": BSHELL_ARCH,
+	"shell_mint": BSHELL_MINT,
+	"shell_cream": BSHELL_CREAM,
+	"pier_brick": BSHELL_BRICK,
+	"backstage": BSHELL_BRICK,
+	"stage_floor": BSHELL_CREAM,
+	"grille": BSHELL_GRILLE,
+	"civic_brick": CIVIC_BRICK_LIGHT,
+	"civic_brick_dark": CIVIC_BRICK_DARK,
+	"cornice_stone": CIVIC_CORNICESTONE,
+	"cartouche_stone": CIVIC_CORNICESTONE,
+	"civic_door": CIVIC_DOOR,
+	"cornice": CIVIC_CORNICESTONE,
+	"lamp": FURNITURE_MAROON,
+	"lamp_arm": FURNITURE_MAROON,
+	"lamp_shade": FURNITURE_MAROON,
+	"banner_arm": FURNITURE_MAROON,
+	"banner": BANNER_BLUE,
+	"blade": BLADE_BOARD,
+	"blade_neon": BLADE_NEON,
+}
+
+## (T-192) The pinned bandshell geometry: the OSM footprint is the truth
+## (25.4 × 14.6 m at the pinned center; +z offsets run SOUTH toward the
+## stage neck), the heights are the photo read. The arch rings stand on the
+## stage deck top (the slot's own 1.2, kept byte-continuous); the front
+## plane sits in the wide north block, the rear rings step south so the
+## dome profile slopes down toward the annex.
+const BSHELL_CENTER := Vector2(3360.9, -377.7)
+const BSHELL_STAGE_TOP := 1.2 ## The slot's own stage deck top.
+const BSHELL_PIER_TOP := 7.2
+const BSHELL_APEX := 11.6 ## The outer arch crown (base 1.2 + r 9.2 + t/2 1.2).
+## One arch ring: r the arch radius, t the radial band thickness, z the
+## ring's south-offset from the center, d the ring's z depth, n the chord
+## count, band the palette row, ground whether the chords file walkable
+## tops — the FRONT scallop only (the rear profile rings would otherwise
+## file their tops over the stage deck's own walk answer behind the face).
+const BSHELL_RINGS: Array = [
+	{"r": 9.2, "t": 2.4, "z": -5.2, "d": 3.0, "n": 10, "band": "arch", "ground": true},
+	{"r": 6.6, "t": 2.3, "z": -5.2, "d": 2.9, "n": 10, "band": "shell_mint", "ground": true},
+	{"r": 4.3, "t": 2.1, "z": -5.2, "d": 2.8, "n": 10, "band": "shell_cream", "ground": true},
+	{"r": 2.3, "t": 1.8, "z": -5.2, "d": 2.7, "n": 8, "band": "shell_mint", "ground": true},
+	{"r": 7.4, "t": 2.2, "z": -1.8, "d": 2.6, "n": 10, "band": "arch", "ground": false},
+	{"r": 5.0, "t": 2.0, "z": 1.4, "d": 2.4, "n": 8, "band": "arch", "ground": false},
+]
+
+## (T-192) The Main Street fabric pins: the frontage-row walk bands (x span
+## Clark → Duff; the Main and 5th centroid bands — the §1.7 L2 rows), the
+## furniture pitch and the blade typology.
+const FABRIC_ROW_X := Vector2(2752.0, 3292.0)
+const FABRIC_MAIN_Z := Vector2(-286.0, -236.0)
+const FABRIC_FIFTH_Z := Vector2(-372.0, -322.0)
+const FABRIC_CORNICETAIL := 0.6 ## The cornice band's proud margin per side.
+const FABRIC_LAMP_PITCH := 32.0 ## The lamp run's along-street pitch.
+const FABRIC_LAMP_INSET := 24.0 ## The run's inset from the span ends.
+const FABRIC_LAMP_CLEAR := 16.0 ## The crossing-clearance radius.
+const FABRIC_LAMP_OFFSET := 6.9 ## Main half-width 5.5 + the 1.4 sidewalk margin.
+## The bar-sign tokens (the T-176 café-token law): matched lowercase against
+## the pack building names in the frontage window.
+const FABRIC_BAR_TOKENS: Array[String] = ["whiskey river", "mary jane"]
+
+
+## Builds the three downtown heroes found in this chunk — the bandshell
+## (chunk (13,−2), the placeholder-slot carrier) and the civic pair (the
+## authored massing slots in chunks (10,−2) / (11,−2)). Same law as the
+## T-191 builds: render (one rotated-box MultiMesh per hero via the shared
+## mount), collision (the hero's own shapes ride the chunk's placeholder
+## body — same slot, same layer-1 `world` class), ground-record tops, the
+## roof-crumb host, the retained part record. No-op for every other chunk.
+func _build_downtown_heroes(chunk_root: Node3D, chunk: Dictionary, center: Vector3,
+		chunk_body: StaticBody3D) -> void:
+	var shell_found := false
+	for ph: Dictionary in chunk.get("placeholders", []):
+		if str(ph.get("id", "")) == BANDSHELL_SLOT_ID:
+			shell_found = true
+			break
+	var hall_slot: Dictionary = {}
+	var municipal_slot: Dictionary = {}
+	for m: Dictionary in chunk.get("massing", []):
+		var mid := str(m.get("id", ""))
+		if mid == CITY_HALL_HERO_ID:
+			hall_slot = m
+		elif mid == MUNICIPAL_HERO_ID:
+			municipal_slot = m
+	if shell_found:
+		var root := Node3D.new()
+		root.name = "HeroBandshell"
+		chunk_root.add_child(root)
+		var body := chunk_body
+		if body == null:
+			body = StaticBody3D.new()
+			body.name = "Placeholders"
+			body.collision_layer = 1 ## world
+			body.collision_mask = 0
+			chunk_root.add_child(body)
+		_mount_complex_hero_boxes(root, body, center, _bandshell_boxes(BSHELL_CENTER),
+				bandshell_hero_parts, "bandshell", "Boxes", DOWNTOWN_BANDS)
+		## The arch crown: the game-native perch this swap files (the §1.7
+		## GAME-NATIVE line — the superseded pier-top reads retire).
+		_hero_roof_tops[BANDSHELL_SLOT_ID] = Vector3(
+				BSHELL_CENTER.x, BSHELL_APEX, BSHELL_CENTER.y - 5.2)
+	if not hall_slot.is_empty():
+		_row_commit(chunk_root, center, "CityHall", CITY_HALL_HERO_ID,
+				_cityhall_boxes(Vector2(float(hall_slot["p"][0]),
+						float(hall_slot["p"][2]))),
+				Vector3(float(hall_slot["p"][0]),
+						float(hall_slot["p"][1]) + float(hall_slot["s"][1]) * 0.5,
+						float(hall_slot["p"][2])), chunk_body,
+				[] as Array[Dictionary], civic_hero_parts, DOWNTOWN_BANDS)
+	if not municipal_slot.is_empty():
+		_row_commit(chunk_root, center, "Municipal", MUNICIPAL_HERO_ID,
+				_municipal_boxes(Vector2(float(municipal_slot["p"][0]),
+						float(municipal_slot["p"][2]))),
+				Vector3(float(municipal_slot["p"][0]),
+						float(municipal_slot["p"][1]) + float(municipal_slot["s"][1]) * 0.5,
+						float(municipal_slot["p"][2])), chunk_body,
+				[] as Array[Dictionary], civic_hero_parts, DOWNTOWN_BANDS)
+
+
+## The bandshell hero's box schedule in WORLD-LOCAL coordinates (pack-local —
+## the world node IS the pack frame; +z offsets run SOUTH toward the stage
+## neck). The stage deck + floor, the pier pair with their caps and grille
+## windows, the four nested front arch rings, the two rear profile rings and
+## the low rear annex — the OSM footprint's 25.4 × 14.6 filled by the photo
+## proportions. The arch chords ride rotated radial bases (the T-191
+## statue-lean law); every chord ground-files so the arch crown walks.
+func _bandshell_boxes(c: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var base := BSHELL_STAGE_TOP
+	## --- the stage: the wide north block + into the neck ---------------------
+	out.append({"band": "pier_brick", "basis": Basis(),
+			"p": Vector3(c.x, 0.6, c.y - 2.3),
+			"s": Vector3(25.4, 1.2, 9.2), "collide": true, "ground": true})
+	out.append({"band": "stage_floor", "basis": Basis(),
+			"p": Vector3(c.x, 1.26, c.y - 2.3),
+			"s": Vector3(23.0, 0.12, 8.0), "collide": false, "ground": false})
+	## --- the pier pair (the front corners) + caps + grille windows -----------
+	for side: float in [-1.0, 1.0]:
+		out.append({"band": "pier_brick", "basis": Basis(),
+				"p": Vector3(c.x + side * 10.6, base + 3.0, c.y - 5.2),
+				"s": Vector3(2.8, 6.0, 3.6), "collide": true, "ground": true})
+		out.append({"band": "cornice_stone", "basis": Basis(),
+				"p": Vector3(c.x + side * 10.6, BSHELL_PIER_TOP + 0.15, c.y - 5.2),
+				"s": Vector3(3.2, 0.3, 4.0), "collide": false, "ground": false})
+		out.append({"band": "grille", "basis": Basis(),
+				"p": Vector3(c.x + side * 10.6, 4.6, c.y - 7.06),
+				"s": Vector3(1.7, 2.5, 0.16), "collide": false, "ground": false})
+	## --- the arch rings (front to back; the nested scallop + the profile) ----
+	for ring: Dictionary in BSHELL_RINGS:
+		var r := float(ring["r"])
+		var t := float(ring["t"])
+		var n := int(ring["n"])
+		var ring_ground := bool(ring["ground"])
+		for k in n:
+			var a0 := PI * float(k) / float(n)
+			var a1 := PI * float(k + 1) / float(n)
+			var am := (a0 + a1) * 0.5
+			var chord := 2.0 * r * sin(PI / (2.0 * float(n))) + 0.4
+			var sx := sin(am)
+			var cx := cos(am)
+			## The T-191 statue-lean law: the basis is the PURE rotation
+			## (tangent × radial × depth, unit columns), the size rides `s`
+			## in that rotated frame — the mount scales, collides and files
+			## from `s`, never from the basis.
+			out.append({
+				"band": str(ring["band"]),
+				"basis": Basis(Vector3(sx, cx, 0.0), Vector3(-cx, sx, 0.0),
+						Vector3(0.0, 0.0, 1.0)),
+				"p": Vector3(c.x - r * cx, base + r * sx, c.y + float(ring["z"])),
+				"s": Vector3(chord, t, float(ring["d"])),
+				"collide": true, "ground": ring_ground,
+			})
+	## --- the rear annex (the south neck's low mass) ---------------------------
+	out.append({"band": "backstage", "basis": Basis(),
+			"p": Vector3(c.x, 1.5, c.y + 5.0),
+			"s": Vector3(11.3, 3.0, 5.4), "collide": true, "ground": true})
+	return out
+
+
+## The City Hall hero's box schedule: the slot envelope EXACT (82.3 × 14 ×
+## 78.5 at the bake slot's center and color), the cornice band, and the
+## photo-02 entry hint on the EAST face (Clark Ave frontage): the stone
+## surround, the carved cartouche panel above, the dark door, the steps.
+func _cityhall_boxes(c: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var ex := c.x + 41.15 ## The east face.
+	_add_row_box(out, "civic_brick", Vector3(c.x, 7.0, c.y),
+			Vector3(82.3, 14.0, 78.5), true, true)
+	_add_row_box(out, "cornice_stone", Vector3(c.x, 13.55, c.y),
+			Vector3(83.5, 0.9, 79.7), true, false)
+	_add_row_box(out, "cartouche_stone", Vector3(ex + 0.25, 2.9, c.y),
+			Vector3(0.5, 5.8, 9.0), false, false) ## The entry surround.
+	_add_row_box(out, "cartouche_stone", Vector3(ex + 0.17, 6.6, c.y),
+			Vector3(0.34, 2.0, 4.4), false, false) ## The carved panel.
+	_add_row_box(out, "civic_door", Vector3(ex + 0.15, 1.5, c.y),
+			Vector3(0.3, 3.0, 2.4), false, false)
+	_add_row_box(out, "cartouche_stone", Vector3(ex + 1.45, 0.22, c.y),
+			Vector3(4.2, 0.44, 7.0), true, false) ## The steps.
+	return out
+
+
+## The Municipal Building hero's box schedule: the slot envelope EXACT (26.7
+## × 11 × 25.3 at the bake slot's center and color), the cornice band, and
+## the photo-02 cartouche entry on the WEST face (Kellogg frontage) — the
+## photo building itself: surround, the carved panel high under the cornice,
+## door, steps.
+func _municipal_boxes(c: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var wx := c.x - 13.35 ## The west face.
+	_add_row_box(out, "civic_brick_dark", Vector3(c.x, 5.5, c.y),
+			Vector3(26.7, 11.0, 25.3), true, true)
+	_add_row_box(out, "cornice_stone", Vector3(c.x, 10.6, c.y),
+			Vector3(27.7, 0.8, 26.3), true, false)
+	_add_row_box(out, "cartouche_stone", Vector3(wx - 0.25, 3.0, c.y),
+			Vector3(0.5, 6.0, 6.5), false, false) ## The entry surround.
+	_add_row_box(out, "cartouche_stone", Vector3(wx - 0.2, 7.0, c.y),
+			Vector3(0.4, 1.8, 3.4), false, false) ## The carved panel.
+	_add_row_box(out, "civic_door", Vector3(wx - 0.15, 1.4, c.y),
+			Vector3(0.3, 2.8, 2.2), false, false)
+	_add_row_box(out, "cartouche_stone", Vector3(wx - 1.25, 0.3, c.y),
+			Vector3(3.4, 0.6, 5.0), true, false) ## The steps.
+	return out
+
+
+## (T-192) The frontage-row walk, run while each chunk's JSON is in hand:
+## every authored downtown massing slot whose center sits in the Main or 5th
+## frontage bands (the §1.7 L2 rows, Clark → Duff) joins the fabric's slot
+## list — the cornice hints ride these slots' own dims in step 3.
+func _collect_fabric_row_slots(chunk: Dictionary) -> void:
+	for m: Dictionary in chunk.get("massing", []):
+		if not bool(m.get("a", false)) or _is_hero_massing(m):
+			continue
+		if str(m.get("d", "")) != "downtown":
+			continue
+		var x := float(m["p"][0])
+		var z := float(m["p"][2])
+		if x < FABRIC_ROW_X.x or x > FABRIC_ROW_X.y:
+			continue
+		if (z >= FABRIC_MAIN_Z.x and z <= FABRIC_MAIN_Z.y) \
+				or (z >= FABRIC_FIFTH_Z.x and z <= FABRIC_FIFTH_Z.y):
+			_fabric_row_slots.append({
+				"id": str(m.get("id", "")),
+				"p": Vector3(x, float(m["p"][1]), z),
+				"s": Vector3(float(m["s"][0]), float(m["s"][1]), float(m["s"][2])),
+			})
+
+
+## The Main Street fabric (step 3): the frontage cornice hints, the maroon
+## street-furniture run along Main's sidewalks (poles, gooseneck arms,
+## shades, banner brackets, the blue banner slabs) and the neon blade sign
+## seeds on the row's named bar venues. Families under `DowntownFabric/`
+## (one MultiMesh per band family + one layer-1 StaticBody carrying the
+## pole colliders), the part record retained. Zero RNG of any stream.
+func _build_downtown_fabric() -> void:
+	var root := Node3D.new()
+	root.name = "DowntownFabric"
+	add_child(root)
+	## --- the cornice hints on the pinned frontage rows -----------------------
+	var cornices: Array[Transform3D] = []
+	for i in _fabric_row_slots.size():
+		var slot: Dictionary = _fabric_row_slots[i]
+		var p: Vector3 = slot["p"]
+		var s: Vector3 = slot["s"]
+		var h := 0.8 if i % 2 == 0 else 1.2
+		var top := p.y + s.y * 0.5
+		cornices.append(Transform3D(
+				Basis.from_scale(Vector3(s.x + FABRIC_CORNICETAIL, h,
+						s.z + FABRIC_CORNICETAIL)),
+				Vector3(p.x, top - h * 0.5, p.z)))
+		fabric_parts.append({
+			"hero": "fabric", "band": "cornice",
+			"p": Vector3(p.x, top - h * 0.5, p.z),
+			"s": Vector3(s.x + FABRIC_CORNICETAIL, h, s.z + FABRIC_CORNICETAIL),
+			"color": CIVIC_CORNICESTONE, "collide": true, "mesh": false,
+		})
+	## --- the maroon furniture run along Main ---------------------------------
+	var main_pts := _fabric_main_points()
+	var cross_xs := _fabric_cross_xs(main_pts)
+	var poles: Array[Transform3D] = []
+	var arms: Array[Transform3D] = []
+	var shades: Array[Transform3D] = []
+	var brackets: Array[Transform3D] = []
+	var banners: Array[Transform3D] = []
+	var run_len := 0.0
+	for i in main_pts.size() - 1:
+		run_len += main_pts[i].distance_to(main_pts[i + 1])
+	var s_pos := FABRIC_LAMP_INSET
+	while s_pos <= run_len - FABRIC_LAMP_INSET:
+		var lamp_at := _fabric_point_at(main_pts, s_pos)
+		var skip := false
+		for cx: float in cross_xs:
+			if absf(lamp_at.x - cx) < FABRIC_LAMP_CLEAR:
+				skip = true
+				break
+		if not skip:
+			var side := 1.0 if fmod(s_pos / FABRIC_LAMP_PITCH, 2.0) < 1.0 else -1.0
+			var lamp_z := lamp_at.y + side * FABRIC_LAMP_OFFSET
+			var to_street := -side ## The arm/shade aim at the centerline.
+			poles.append(Transform3D(
+					Basis.from_scale(Vector3(0.22, 5.0, 0.22)),
+					Vector3(lamp_at.x, 2.5, lamp_z)))
+			arms.append(Transform3D(
+					Basis.from_scale(Vector3(0.14, 0.14, 1.5)),
+					Vector3(lamp_at.x, 4.9, lamp_z + to_street * 0.75)))
+			shades.append(Transform3D(
+					Basis.from_scale(Vector3(0.55, 0.28, 0.55)),
+					Vector3(lamp_at.x, 4.75, lamp_z + to_street * 1.5)))
+			for by: float in [3.8, 3.0]:
+				brackets.append(Transform3D(
+						Basis.from_scale(Vector3(0.9, 0.08, 0.08)),
+						Vector3(lamp_at.x, by, lamp_z)))
+			banners.append(Transform3D(
+					Basis.from_scale(Vector3(0.95, 1.5, 0.06)),
+					Vector3(lamp_at.x, 3.4, lamp_z)))
+			fabric_parts.append({
+				"hero": "fabric", "band": "lamp",
+				"p": Vector3(lamp_at.x, 2.5, lamp_z),
+				"s": Vector3(0.22, 5.0, 0.22),
+				"color": FURNITURE_MAROON, "collide": true, "mesh": false,
+			})
+			fabric_parts.append({
+				"hero": "fabric", "band": "lamp_arm",
+				"p": Vector3(lamp_at.x, 4.9, lamp_z + to_street * 0.75),
+				"s": Vector3(0.14, 0.14, 1.5),
+				"color": FURNITURE_MAROON, "collide": false, "mesh": false,
+			})
+			fabric_parts.append({
+				"hero": "fabric", "band": "lamp_shade",
+				"p": Vector3(lamp_at.x, 4.75, lamp_z + to_street * 1.5),
+				"s": Vector3(0.55, 0.28, 0.55),
+				"color": FURNITURE_MAROON, "collide": false, "mesh": false,
+			})
+			for by2: float in [3.8, 3.0]:
+				fabric_parts.append({
+					"hero": "fabric", "band": "banner_arm",
+					"p": Vector3(lamp_at.x, by2, lamp_z),
+					"s": Vector3(0.9, 0.08, 0.08),
+					"color": FURNITURE_MAROON, "collide": false, "mesh": false,
+				})
+			fabric_parts.append({
+				"hero": "fabric", "band": "banner",
+				"p": Vector3(lamp_at.x, 3.4, lamp_z),
+				"s": Vector3(0.95, 1.5, 0.06),
+				"color": BANNER_BLUE, "collide": false, "mesh": false,
+			})
+		s_pos += FABRIC_LAMP_PITCH
+	## --- the neon blade sign seeds (the bar venues of the row) ---------------
+	var blades: Array[Transform3D] = []
+	var neons: Array[Transform3D] = []
+	for b: Dictionary in AmesDataPack.buildings():
+		var nm := str(b.get("name", "")).to_lower()
+		var hit := false
+		for tok: String in FABRIC_BAR_TOKENS:
+			if nm.contains(tok):
+				hit = true
+				break
+		if not hit:
+			continue
+		var bc: Array = b["centroid"]
+		var bb: Array = b["bbox_m"]
+		var bx := float(bc[0])
+		var bz := float(bc[1])
+		if bx < FABRIC_ROW_X.x or bx > FABRIC_ROW_X.y \
+				or bz < -300.0 or bz > -220.0:
+			continue
+		var mz := _fabric_main_z_at(main_pts, bx)
+		if mz == INF:
+			continue
+		## The blade hangs on the Main-facing facade, projecting over the
+		## sidewalk so it reads along the street (the photo-07 read). North
+		## of Main (bz < mz) the SOUTH face fronts the street and the blade
+		## projects south (+z); south of Main it mirrors.
+		var proj := 1.0 if bz < mz else -1.0
+		var half := float(bb[1]) * 0.5
+		var facade_z := bz + half if bz < mz else bz - half
+		var blade_z := facade_z + proj * 0.75
+		blades.append(Transform3D(
+				Basis.from_scale(Vector3(0.3, 3.6, 1.15)),
+				Vector3(bx, 5.6, blade_z)))
+		for nx: float in [-0.19, 0.19]:
+			neons.append(Transform3D(
+					Basis.from_scale(Vector3(0.06, 3.0, 0.75)),
+					Vector3(bx + nx, 5.5, blade_z)))
+		fabric_parts.append({
+			"hero": "fabric", "band": "blade",
+			"p": Vector3(bx, 5.6, blade_z),
+			"s": Vector3(0.3, 3.6, 1.15),
+			"color": BLADE_BOARD, "collide": false, "mesh": false,
+		})
+		for nx2: float in [-0.19, 0.19]:
+			fabric_parts.append({
+				"hero": "fabric", "band": "blade_neon",
+				"p": Vector3(bx + nx2, 5.5, blade_z),
+				"s": Vector3(0.06, 3.0, 0.75),
+				"color": BLADE_NEON, "collide": false, "mesh": false,
+			})
+	## --- the blade tops walk (the game-native perch line) --------------------
+	var tiles: Dictionary = {}
+	var bytes := 0
+	for part: Dictionary in fabric_parts:
+		if str(part["band"]) != "blade":
+			continue
+		var gp: Vector3 = part["p"]
+		var gs: Vector3 = part["s"]
+		bytes += _file_ground_box(tiles, [gp.x, gp.y, gp.z], [gs.x, gs.y, gs.z])
+	for key: Vector2i in tiles:
+		var rec: Dictionary = _chunks.get(key, {})
+		var ground: PackedFloat32Array = rec.get("ground", PackedFloat32Array())
+		ground.append_array(PackedFloat32Array(tiles[key]))
+		rec["ground"] = ground
+		_chunks[key] = rec
+	_buffer_bytes += bytes
+	## --- the families ---------------------------------------------------------
+	var body := StaticBody3D.new()
+	body.name = "Furniture"
+	body.collision_layer = 1 ## world
+	body.collision_mask = 0
+	root.add_child(body)
+	for part2: Dictionary in fabric_parts:
+		if not bool(part2["collide"]):
+			continue
+		var fp: Vector3 = part2["p"]
+		var fs: Vector3 = part2["s"]
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = fs
+		shape.shape = box
+		shape.position = fp
+		body.add_child(shape)
+	_spawn_corner_family(root, "Cornices", cornices, CIVIC_CORNICESTONE)
+	_spawn_corner_family(root, "LampPoles", poles, FURNITURE_MAROON)
+	_spawn_corner_family(root, "LampArms", arms, FURNITURE_MAROON)
+	_spawn_corner_family(root, "LampShades", shades, FURNITURE_MAROON)
+	_spawn_corner_family(root, "BannerBrackets", brackets, FURNITURE_MAROON)
+	_spawn_corner_family(root, "Banners", banners, BANNER_BLUE)
+	_spawn_corner_family(root, "BladeBoards", blades, BLADE_BOARD)
+	_spawn_corner_family(root, "BladeNeons", neons, BLADE_NEON)
+
+
+## The Main Street downtown polyline (pack-derived): every Main Street point
+## inside the fabric x span, sorted west → east, deduplicated.
+func _fabric_main_points() -> Array[Vector2]:
+	var pts: Array[Vector2] = []
+	for street: Dictionary in AmesDataPack.streets():
+		if str(street.get("name", "")) != "Main Street":
+			continue
+		for q: Variant in street.get("points", []):
+			var v := Vector2(float((q as Array)[0]), float((q as Array)[1]))
+			if v.x >= FABRIC_ROW_X.x and v.x <= FABRIC_ROW_X.y:
+				pts.append(v)
+	pts.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+	var out: Array[Vector2] = []
+	for p: Vector2 in pts:
+		if out.is_empty() or out.back().distance_to(p) > 0.5:
+			out.append(p)
+	return out
+
+
+## The downtown crossing x positions (pack-derived): every non-Main street
+## point inside the fabric window near Main's z band — the walk skips lamp
+## positions within `FABRIC_LAMP_CLEAR` of any of these.
+func _fabric_cross_xs(main_pts: Array[Vector2]) -> Array[float]:
+	var main_z := 0.0
+	if not main_pts.is_empty():
+		for p: Vector2 in main_pts:
+			main_z += p.y
+		main_z /= float(main_pts.size())
+	var xs: Array[float] = []
+	for street: Dictionary in AmesDataPack.streets():
+		if str(street.get("name", "")) == "Main Street":
+			continue
+		for q: Variant in street.get("points", []):
+			var v := Vector2(float((q as Array)[0]), float((q as Array)[1]))
+			if v.x >= FABRIC_ROW_X.x - 5.0 and v.x <= FABRIC_ROW_X.y + 5.0 \
+					and absf(v.y - main_z) < 25.0:
+				xs.append(v.x)
+	xs.sort()
+	return xs
+
+
+## The polyline position at arc length `s` (west → east).
+func _fabric_point_at(pts: Array[Vector2], s: float) -> Vector2:
+	var acc := 0.0
+	for i in pts.size() - 1:
+		var seg := pts[i].distance_to(pts[i + 1])
+		if acc + seg >= s:
+			var t := (s - acc) / maxf(seg, 0.001)
+			return pts[i].lerp(pts[i + 1], t)
+		acc += seg
+	return pts.back() if not pts.is_empty() else Vector2.ZERO
+
+
+## Main's centerline z at the given x (nearest polyline point's z; INF when
+## the walk is empty).
+func _fabric_main_z_at(pts: Array[Vector2], x: float) -> float:
+	var best := INF
+	var best_d := INF
+	for p: Vector2 in pts:
+		var d := absf(p.x - x)
+		if d < best_d:
+			best_d = d
+			best = p.y
+	return best
 
 
 ## One tapered/straight cylinder mesh with its own albedo material — the

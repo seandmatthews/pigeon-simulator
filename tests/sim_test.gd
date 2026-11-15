@@ -196,6 +196,7 @@ func _run_scenarios() -> void:
 	await _scenario_mu_parks_heroes() ## T-189 — the MU + Parks heroes: the 1:1 slot swaps at the CORRECT corner (the tower at Lincoln Way & Morrill/Lynn), the zodiac decal at the Gold Star Hall threshold, the tower-estimate pin, the live seams.
 	await _scenario_marston_hero_dims() ## T-190 — the Marston Water Tower hero: the 1:1 slot swap, the 51.2 m survey pin + photo-11 proportions, the white-steel palette pin, the east-facing seal medallion, the live seams.
 	await _scenario_stadium_complex_dims() ## T-191 — the Jack Trice Stadium complex hero: the 1:1 slot swaps, the 183×208 N–S bowl re-pin + the N–S field assertion, the hillside/press/Sukup/statue pins, the Hilton drum re-pin with the arc roof + portico, the tailgate lot dress, the live seams.
+	await _scenario_downtown_heroes() ## T-192 — the downtown heroes: the bandshell at its true OSM position (the copper arch over the mint shells), the City Hall + Municipal civic pair's 1:1 slot swaps with the photo-02 cartouche stone, the Main Street fabric (cornices, the maroon furniture run, the blue banners, the neon blade seeds), the live seams.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -1027,13 +1028,17 @@ func _scenario_ames_world_render_budget() -> void:
 ## (T-191) the stadium complex retires its slots' 52 placeholder parts
 ## the same way (the bowl's ring/berm/pitch across chunks (4,3)/(4,4),
 ## the drum's ring/roof across (4,0)/(5,0) — both ids ride the bake's
-## heroes list), walked too.
+## heroes list), walked too. (T-192) the downtown heroes retire the
+## bandshell's eight placeholder parts (chunk (13,−2)) plus the civic
+## pair's two authored massing slots (chunks (10,−2)/(11,−2) — the T-188
+## runtime-merge law), walked too.
 	var hero_count := (manifest.get("heroes", []) as Array).size()
 	var campanile_slot_parts := 0
 	var row_slot_parts := 0
 	var mu_parks_slot_parts := 0
 	var marston_slot_parts := 0
 	var complex_slot_parts := 0
+	var downtown_slot_parts := 0
 	for entry: Dictionary in manifest.get("chunks", []):
 		var doc_b: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
 		for ph_b: Dictionary in doc_b.get("placeholders", []):
@@ -1049,10 +1054,15 @@ func _scenario_ames_world_render_budget() -> void:
 			if str(ph_b.get("id", "")) == "way/613735866" \
 					or str(ph_b.get("id", "")) == "way/180651868":
 				complex_slot_parts += 1
+			if str(ph_b.get("id", "")) == "downtown_bandshell":
+				downtown_slot_parts += 1
 		for m_b: Dictionary in doc_b.get("massing", []):
 			if bool(m_b.get("a", false)) and ["way/158023244", "way/158023219",
 					"way/183216666"].has(str(m_b.get("id", ""))):
 				row_slot_parts += 1
+			if bool(m_b.get("a", false)) and ["relation/2560369",
+					"way/237834146"].has(str(m_b.get("id", ""))):
+				downtown_slot_parts += 1
 	var expected_instances := int(totals.get("massing", 0)) - hero_count \
 			+ int(totals.get("ribbons", 0)) \
 			+ int(totals.get("lane_quads", 0)) + int(totals.get("shore_quads", 0)) \
@@ -1061,7 +1071,7 @@ func _scenario_ames_world_render_budget() -> void:
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
 			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
 			- row_slot_parts - mu_parks_slot_parts - marston_slot_parts \
-			- complex_slot_parts
+			- complex_slot_parts - downtown_slot_parts
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
 	if int(m.instances) != expected_instances:
@@ -8298,6 +8308,594 @@ func _linear_to_srgb(c: Color) -> Color:
 	var f := func(v: float) -> float:
 		return v * 12.92 if v <= 0.0031308 else 1.055 * pow(v, 1.0 / 2.4) - 0.055
 	return Color(f.call(c.r), f.call(c.g), f.call(c.b), c.a)
+
+
+## --- scenario (T-192 the downtown heroes + the Main Street fabric) ----------
+
+
+## (T-192) Downtown's identity set on the resident Ames world, every
+## expectation re-derived from the COMMITTED DATA (the bake slots walked
+## in-scenario from the chunk files, the pack, the survey's §1.7 rows as
+## verbatim scenario literals — never through the world's own constants):
+## A. THE SWAPS — the bandshell (`downtown_bandshell`) supersedes its slot's
+##    EIGHT baked placeholder parts (7 shell piers + the stage deck, chunk
+##    (13,−2) — the chunk's whole gray family, so its placeholder MM
+##    vanishes, the campanile-chunk precedent); the City Hall
+##    (`relation/2560369`) and Municipal (`way/237834146`) slots' authored
+##    bbox massing retires through the runtime hero set (the T-188 Morrill
+##    law — the carrier chunks' massing MMs shrink by exactly 1 each, the
+##    tiles re-derived from the walked slot centers); the three hero roots
+##    mount under their carrier chunks.
+## B. THE BANDSHELL (the L3 organic shell) — the record unions the OSM way
+##    269752151 footprint at its TRUE position: 25.4 × 14.6 ±2 centered on
+##    the literal (3360.9, −377.7) — ~35 m north of the retired slot at the
+##    park POI's centroid (the reach arm: hero center to slot center > 30,
+##    the ticket's "true position" law); apex 11.6 (the air-read crown);
+##    the nested scallop — 4 front rings (copper/mint/cream/mint, ≥8 chords
+##    each) + 2 rear copper profile rings, all ground-filed; the stage deck
+##    at the slot's own 1.2 top, the pier pair topping 7.2, the south annex
+##    at 3.0; the §1.7 palette verbatim ±0.02 (arch #4A5A57, mint #DCE8DC,
+##    cream #EDE9D8, pier brick #9C4A34) + the grille's dark law (≤ 0.25).
+## C. THE CIVIC PAIR — City Hall 82.3 × 14 × 78.5 ±0.05 at its slot center
+##    wearing #A8663F (its OWN bake slot color), Municipal 26.7 × 11 × 25.3
+##    wearing #8A4A36; each carries the cornice stone band #D6CDBB at its
+##    top and the cartouche-entry stone proud of the Clark (east) / Kellogg
+##    (west) face; ground answers the roofs 14.0 / 11.0; the roof crumbs
+##    ride the tops.
+## D. THE FABRIC — the cornice count equals the in-scenario recount over the
+##    chunk files with the row-band literals (the no-self-test rule), every
+##    cornice inside the row bands wearing #D6CDBB; the lamp run equals the
+##    polyline recount (pitch 32, inset 24, clear 16, offset 6.9, the pack's
+##    own Main points), maroon #5C2E35 poles + blue #2E4E9E banners, one
+##    banner per lamp, bracket pairs; the blade count equals the bar-token
+##    recount over the pack names (window + Main-projection side, re-derived
+##    here), blades dark (≤ 0.25) with the neon tube at the scenario's own
+##    pinned literal #E85224; the DowntownFabric families mount and every
+##    live MM count equals its retained-record count.
+## E. THE SEAMS, LIVE — layer-1 rays answer the City Hall east (Clark) face,
+##    the Municipal west (Kellogg) face, the bandshell stage's south face
+##    and the arch crown from above; ground_height answers the stage deck
+##    1.2, a pier top 7.2, the arch crown 11.6, the annex 3.0, the roofs
+##    14.0 / 11.0, and a blade top 7.4; the bandshell's roof crumb rides the
+##    arch crown, the civic pair's their roof centers.
+func _scenario_downtown_heroes() -> void:
+	const S := "downtown_heroes"
+	var bad: PackedStringArray = PackedStringArray()
+	const DIM_TOL := 2.0
+	const BS_CENTER := Vector2(3360.9, -377.7) ## The OSM way 269752151 footprint center.
+	const SLOT_CENTER := Vector2(3353.52, -412.08) ## The park POI's centroid (the retired slot).
+	## --- the bake slots, walked independently --------------------------------
+	var shell_parts := {}
+	var hall_slot := Vector2.ZERO
+	var hall_top := 0.0
+	var municipal_slot := Vector2.ZERO
+	var municipal_top := 0.0
+	var chunk_rest: Dictionary = {} ## tile -> the gray family's remainder after the swaps
+	var chunk_massing: Dictionary = {} ## tile -> [file massing, hero massing]
+	var hero_ids := {}
+	for hid: Variant in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("heroes", []):
+		hero_ids[str(hid)] = true
+	hero_ids["relation/2560369"] = true
+	hero_ids["way/237834146"] = true
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var tile := Vector2i(int(entry["cx"]), int(entry["cz"]))
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		var rest := 0
+		for ph: Dictionary in doc.get("placeholders", []):
+			var pid := str(ph.get("id", ""))
+			if pid == "downtown_bandshell":
+				var part := str(ph.get("part", ""))
+				shell_parts[part] = int(shell_parts.get(part, 0)) + 1
+				continue ## The slot the hero supersedes — off the gray family.
+			rest += 1
+		chunk_rest[tile] = rest
+		var ma_hero := 0
+		for m: Dictionary in doc.get("massing", []):
+			if not hero_ids.has(str(m.get("id", ""))):
+				continue
+			ma_hero += 1
+			var mx := float(m["p"][0])
+			var mz := float(m["p"][2])
+			if str(m.get("id", "")) == "relation/2560369":
+				hall_slot = Vector2(mx, mz)
+				hall_top = float(m["p"][1]) + float(m["s"][1]) * 0.5
+			elif str(m.get("id", "")) == "way/237834146":
+				municipal_slot = Vector2(mx, mz)
+				municipal_top = float(m["p"][1]) + float(m["s"][1]) * 0.5
+		chunk_massing[tile] = [doc.get("massing", []).size(), ma_hero]
+	var shell_total: int = int(shell_parts.get("shell", 0)) \
+			+ int(shell_parts.get("stage", 0))
+	if shell_total != 8 or int(shell_parts.get("shell", 0)) != 7 \
+			or int(shell_parts.get("stage", 0)) != 1:
+		bad.append("bake slot walk %s != the bandshell's 8 parts (7+1)" % str(shell_parts))
+	if hall_slot == Vector2.ZERO or municipal_slot == Vector2.ZERO:
+		bad.append("bake slot walk failed: civic anchors missing")
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var shell_record := world.bandshell_hero_parts
+	var civic_record := world.civic_hero_parts
+	var fabric_record := world.fabric_parts
+	if shell_record.is_empty() or civic_record.is_empty() or fabric_record.is_empty():
+		bad.append("no retained bandshell/civic/fabric parts — a hero never built")
+		_check(S, false, "; ".join(bad))
+		world.queue_free()
+		return
+
+	## --- A. the swaps, per affected chunk --------------------------------------
+	var shell_tile := Vector2i(floori(BS_CENTER.x / 256.0), floori(BS_CENTER.y / 256.0))
+	var hall_tile := Vector2i(floori(hall_slot.x / 256.0), floori(hall_slot.y / 256.0))
+	var mun_tile := Vector2i(floori(municipal_slot.x / 256.0),
+			floori(municipal_slot.y / 256.0))
+	for pair: Array in [[shell_tile, true], [hall_tile, false], [mun_tile, false]]:
+		var tile: Vector2i = pair[0]
+		var chunk_node := world.get_node_or_null(
+				"Chunks/Chunk_%d_%d" % [tile.x, tile.y]) as Node3D
+		if chunk_node == null:
+			bad.append("chunk %s missing" % tile)
+			continue
+		var rest: int = chunk_rest.get(tile, 0)
+		var ph_mm := chunk_node.get_node_or_null("Placeholders") as MultiMeshInstance3D
+		if pair[1]:
+			## The bandshell chunk's whole gray family retired — the MM
+			## vanishes outright (the campanile-chunk precedent).
+			if ph_mm != null:
+				bad.append("chunk %s kept a placeholder MM after the full swap" % tile)
+		elif rest == 0:
+			if ph_mm != null:
+				bad.append("chunk %s kept a placeholder MM after the full swap" % tile)
+		elif ph_mm == null or ph_mm.multimesh.instance_count != rest:
+			bad.append("chunk %s placeholder MM %d != the non-superseded remainder %d" % [
+					tile, ph_mm.multimesh.instance_count if ph_mm != null else -1, rest])
+		var want_ma: Array = chunk_massing.get(tile, [0, 0])
+		var ma_mm := chunk_node.get_node_or_null("Massing") as MultiMeshInstance3D
+		var want_ma_count := int(want_ma[0]) - int(want_ma[1])
+		if want_ma_count == 0:
+			if ma_mm != null:
+				bad.append("chunk %s kept a massing MM after the hero retirements" % tile)
+		elif ma_mm == null or ma_mm.multimesh.instance_count != want_ma_count:
+			bad.append("chunk %s massing MM %d != file %d - %d hero bbox" % [tile,
+					ma_mm.multimesh.instance_count if ma_mm != null else -1,
+					want_ma[0], want_ma[1]])
+	if world.get_node_or_null("Chunks/Chunk_%d_%d/HeroBandshell"
+			% [shell_tile.x, shell_tile.y]) == null:
+		bad.append("no HeroBandshell under chunk %s" % shell_tile)
+	## The civic pair mounts through `_row_commit` — its root names carry the
+	## `HeroRow` prefix (the T-188 row law).
+	if world.get_node_or_null("Chunks/Chunk_%d_%d/HeroRowCityHall"
+			% [hall_tile.x, hall_tile.y]) == null:
+		bad.append("no HeroRowCityHall under chunk %s" % hall_tile)
+	if world.get_node_or_null("Chunks/Chunk_%d_%d/HeroRowMunicipal"
+			% [mun_tile.x, mun_tile.y]) == null:
+		bad.append("no HeroRowMunicipal under chunk %s" % mun_tile)
+
+	## --- B. the bandshell (the true-position read) ------------------------------
+	var bs_lo := Vector3(INF, INF, INF)
+	var bs_hi := Vector3(-INF, -INF, -INF)
+	var arch_lo := Vector3(INF, INF, INF)
+	var arch_hi := Vector3(-INF, -INF, -INF)
+	var stage := {}
+	var pier_lo := Vector3(INF, INF, INF)
+	var pier_hi := Vector3(-INF, -INF, -INF)
+	var annex := {}
+	var arch_chords := 0
+	var mint_chords := 0
+	var cream_chords := 0
+	for part: Dictionary in shell_record:
+		var p: Vector3 = part["p"]
+		var s: Vector3 = part["s"]
+		var band := str(part["band"])
+		bs_lo = bs_lo.min(p - s * 0.5)
+		bs_hi = bs_hi.max(p + s * 0.5)
+		if band == "arch":
+			arch_lo = arch_lo.min(p - s * 0.5)
+			arch_hi = arch_hi.max(p + s * 0.5)
+			arch_chords += 1
+		elif band == "shell_mint":
+			mint_chords += 1
+		elif band == "shell_cream":
+			cream_chords += 1
+		elif band == "pier_brick":
+			pier_lo = pier_lo.min(p - s * 0.5)
+			pier_hi = pier_hi.max(p + s * 0.5)
+			if s.y <= 1.3:
+				stage = part
+		elif band == "backstage":
+			annex = part
+	if bs_hi == Vector3(-INF, -INF, -INF):
+		bad.append("the bandshell record is empty")
+	else:
+		var span := bs_hi - bs_lo
+		if absf(span.x - 25.4) > DIM_TOL or absf(span.z - 14.6) > DIM_TOL:
+			bad.append("bandshell %.1fx%.1f != the OSM footprint 25.4x14.6 (+-%.0f)" % [
+					span.x, span.z, DIM_TOL])
+		var center := (bs_lo + bs_hi) * 0.5
+		if Vector2(center.x, center.z).distance_to(BS_CENTER) > DIM_TOL:
+			bad.append("bandshell center %s != the OSM footprint center %s" % [
+					Vector2(center.x, center.z), BS_CENTER])
+		## THE TRUE POSITION: the hero stands at the structure, ~35 m north of
+		## the retired park-centroid slot (the ticket's law).
+		if Vector2(center.x, center.z).distance_to(SLOT_CENTER) <= 30.0:
+			bad.append("bandshell still reads at the slot centroid %s — not the true position"
+					% Vector2(center.x, center.z))
+	if arch_hi == Vector3(-INF, -INF, -INF):
+		bad.append("the copper arch band is missing from the record")
+	else:
+		## The record files the chords' world AABBs (the T-190 law) — the
+		## straddling apex chords' corners overshoot the true arc crown by
+		## the AABB slop, so the union tops at ~11.73 against the 11.6 read.
+		if absf(arch_hi.y - 11.6) > 0.2:
+			bad.append("arch crown %.2f != the photo-read apex 11.6 (+-0.2, the AABB law)"
+					% arch_hi.y)
+		if arch_hi.y <= pier_hi.y:
+			bad.append("the arch does not rise above the piers")
+	if stage.is_empty():
+		bad.append("the stage deck is missing from the record")
+	else:
+		var st_top: float = (stage["p"] as Vector3).y + (stage["s"] as Vector3).y * 0.5
+		if absf(st_top - 1.2) > 0.05:
+			bad.append("stage top %.2f != the slot's own 1.2" % st_top)
+	if annex.is_empty():
+		bad.append("the rear annex is missing from the record")
+	else:
+		if (annex["p"] as Vector3).z <= BS_CENTER.y:
+			bad.append("the annex is not south of the shell center")
+	if arch_chords < 8 or mint_chords < 8 or cream_chords < 8:
+		bad.append("the nested scallop is thin (arch=%d mint=%d cream=%d — want >= 8 each)"
+				% [arch_chords, mint_chords, cream_chords])
+
+	## --- C. the civic pair -------------------------------------------------------
+	var hall := {}
+	var municipal := {}
+	for part2: Dictionary in civic_record:
+		var band2 := str(part2["band"])
+		var s2: Vector3 = part2["s"]
+		if band2 == "civic_brick" and s2.x > 40.0:
+			hall = part2
+		elif band2 == "civic_brick_dark" and s2.x > 20.0:
+			municipal = part2
+	if hall.is_empty() or municipal.is_empty():
+		bad.append("the civic pair's body records are missing (hall=%s mun=%s)" % [
+				not hall.is_empty(), not municipal.is_empty()])
+	else:
+		var hs: Vector3 = hall["s"]
+		if absf(hs.x - 82.3) > 0.05 or absf(hs.y - 14.0) > 0.05 \
+				or absf(hs.z - 78.5) > 0.05:
+			bad.append("City Hall block %s != the slot envelope 82.3x14x78.5" % hs)
+		if (hall["p"] as Vector3).distance_to(Vector3(hall_slot.x,
+				(hall["p"] as Vector3).y, hall_slot.y)) > 0.05:
+			bad.append("City Hall block not at its slot center")
+		var ms: Vector3 = municipal["s"]
+		if absf(ms.x - 26.7) > 0.05 or absf(ms.y - 11.0) > 0.05 \
+				or absf(ms.z - 25.3) > 0.05:
+			bad.append("Municipal block %s != the slot envelope 26.7x11x25.3" % ms)
+		if (municipal["p"] as Vector3).distance_to(Vector3(municipal_slot.x,
+				(municipal["p"] as Vector3).y, municipal_slot.y)) > 0.05:
+			bad.append("Municipal block not at its slot center")
+	var cornice_stone := 0
+	var cartouche := 0
+	var hall_east := 0
+	var mun_west := 0
+	for part3: Dictionary in civic_record:
+		var p3: Vector3 = part3["p"]
+		var s3: Vector3 = part3["s"]
+		if str(part3["band"]) == "cornice_stone" and s3.y > 0.5:
+			cornice_stone += 1
+		if str(part3["band"]) == "cartouche_stone":
+			cartouche += 1
+			if hall != {} and p3.x > (hall["p"] as Vector3).x + 30.0:
+				hall_east += 1
+			if municipal != {} and p3.x < (municipal["p"] as Vector3).x - 8.0:
+				mun_west += 1
+	if cornice_stone < 2:
+		bad.append("the civic cornice bands are missing (%d)" % cornice_stone)
+	if cartouche < 4 or hall_east < 1 or mun_west < 1:
+		bad.append("the cartouche entries are thin (total=%d hall-east=%d mun-west=%d)"
+				% [cartouche, hall_east, mun_west])
+
+	## --- the palette (§1.7's rows, verbatim scenario literals) -------------------
+	var hexes: Dictionary = {
+		"arch": Color("4a5a57"),
+		"shell_mint": Color("dce8dc"),
+		"shell_cream": Color("ede9d8"),
+		"pier_brick": Color("9c4a34"),
+		"stage_floor": Color("ede9d8"),
+		"backstage": Color("9c4a34"),
+		"civic_brick": Color("a8663f"),
+		"civic_brick_dark": Color("8a4a36"),
+		"cornice_stone": Color("d6cdbb"),
+		"cartouche_stone": Color("d6cdbb"),
+		"cornice": Color("d6cdbb"),
+		"lamp": Color("5c2e35"),
+		"lamp_arm": Color("5c2e35"),
+		"lamp_shade": Color("5c2e35"),
+		"banner_arm": Color("5c2e35"),
+		"banner": Color("2e4e9e"),
+	}
+	var bands_seen := {}
+	for record: Array in [shell_record, civic_record, fabric_record]:
+		for part4: Dictionary in record:
+			var band4 := str(part4["band"])
+			bands_seen[band4] = true
+			var got: Color = part4["color"]
+			if band4 == "grille" or band4 == "civic_door" or band4 == "blade":
+				if _luminance(got) > 0.25:
+					bad.append("%s luminance %.3f > 0.25 — must read dark" % [band4, _luminance(got)])
+				continue
+			if band4 == "blade_neon":
+				if _color_gap(got, Color(0.91, 0.32, 0.14)) > 0.02:
+					bad.append("blade neon %s != the scenario's pinned tube read" % got)
+				continue
+			if not hexes.has(band4):
+				bad.append("band %s wears no pinned §1.7 hex" % band4)
+				continue
+			var want: Color = hexes[band4]
+			if _color_gap(got, want) > 0.02:
+				bad.append("band %s color %s != the pinned hex %s" % [band4, got, want])
+	for need: String in ["arch", "shell_mint", "shell_cream", "pier_brick",
+			"stage_floor", "backstage", "grille", "civic_brick", "civic_brick_dark",
+			"cornice_stone", "cartouche_stone", "civic_door", "cornice",
+			"lamp", "lamp_arm", "lamp_shade", "banner_arm", "banner",
+			"blade", "blade_neon"]:
+		if not bands_seen.has(need):
+			bad.append("band %s never used — the family is missing" % need)
+
+	## --- D. the fabric, recounted ------------------------------------------------
+	## The cornice recount: the row-band literals re-derived over the chunk
+	## files, the hero ids skipped the same way the build skips them.
+	var cornice_recount := 0
+	for entry2: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc2: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry2["file"]))
+		for m2: Dictionary in doc2.get("massing", []):
+			if not bool(m2.get("a", false)) or hero_ids.has(str(m2.get("id", ""))):
+				continue
+			if str(m2.get("d", "")) != "downtown":
+				continue
+			var x2 := float(m2["p"][0])
+			var z2 := float(m2["p"][2])
+			if x2 < 2752.0 or x2 > 3292.0:
+				continue
+			if (z2 >= -286.0 and z2 <= -236.0) or (z2 >= -372.0 and z2 <= -322.0):
+				cornice_recount += 1
+	var cornices := 0
+	for part5: Dictionary in fabric_record:
+		if str(part5["band"]) == "cornice":
+			cornices += 1
+			var cp: Vector3 = part5["p"]
+			if cp.x < 2752.0 or cp.x > 3292.0 \
+					or not ((cp.z >= -286.0 and cp.z <= -236.0)
+					or (cp.z >= -372.0 and cp.z <= -322.0)):
+				bad.append("cornice at %s outside the frontage row bands" % cp)
+				break
+	if cornices != cornice_recount:
+		bad.append("cornices %d != the row-band recount %d" % [cornices, cornice_recount])
+	if cornices < 40:
+		bad.append("cornices %d < 40 — the pinned-row read is missing" % cornices)
+	## The lamp recount: the pack's own Main points, the same pitch literals.
+	var main_pts: Array[Vector2] = []
+	for street: Dictionary in AmesDataPack.streets():
+		if str(street.get("name", "")) != "Main Street":
+			continue
+		for q: Variant in street.get("points", []):
+			var v := Vector2(float((q as Array)[0]), float((q as Array)[1]))
+			if v.x >= 2752.0 and v.x <= 3292.0:
+				main_pts.append(v)
+	main_pts.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+	var walk: Array[Vector2] = []
+	for p6: Vector2 in main_pts:
+		if walk.is_empty() or walk.back().distance_to(p6) > 0.5:
+			walk.append(p6)
+	var main_z := 0.0
+	for p7: Vector2 in walk:
+		main_z += p7.y
+	main_z /= float(walk.size())
+	var cross_xs: Array[float] = []
+	for street2: Dictionary in AmesDataPack.streets():
+		if str(street2.get("name", "")) == "Main Street":
+			continue
+		for q2: Variant in street2.get("points", []):
+			var v2 := Vector2(float((q2 as Array)[0]), float((q2 as Array)[1]))
+			if v2.x >= 2747.0 and v2.x <= 3297.0 and absf(v2.y - main_z) < 25.0:
+				cross_xs.append(v2.x)
+	var run_len := 0.0
+	for i2 in walk.size() - 1:
+		run_len += walk[i2].distance_to(walk[i2 + 1])
+	var lamp_recount := 0
+	var s_pos := 24.0
+	while s_pos <= run_len - 24.0:
+		var acc := 0.0
+		var at: Vector2 = walk.back()
+		for i3 in walk.size() - 1:
+			var seg := walk[i3].distance_to(walk[i3 + 1])
+			if acc + seg >= s_pos:
+				at = walk[i3].lerp(walk[i3 + 1], (s_pos - acc) / maxf(seg, 0.001))
+				break
+			acc += seg
+		var skip := false
+		for cx2: float in cross_xs:
+			if absf(at.x - cx2) < 16.0:
+				skip = true
+				break
+		if not skip:
+			lamp_recount += 1
+		s_pos += 32.0
+	var lamps := 0
+	var banners := 0
+	var brackets := 0
+	for part6: Dictionary in fabric_record:
+		match str(part6["band"]):
+			"lamp":
+				lamps += 1
+			"banner":
+				banners += 1
+				var bp: Vector3 = part6["p"]
+				if absf(bp.y - 3.4) > 0.05:
+					bad.append("banner at %s not at the bracket band" % bp)
+					break
+			"banner_arm":
+				brackets += 1
+	if lamps != lamp_recount:
+		bad.append("lamps %d != the polyline recount %d" % [lamps, lamp_recount])
+	if lamps < 8:
+		bad.append("lamps %d < 8 — the Main furniture run is missing" % lamps)
+	if banners != lamps or brackets != lamps * 2:
+		bad.append("banner furniture mismatch (banners %d, brackets %d, lamps %d)" % [
+				banners, brackets, lamps])
+	## The blade recount: the bar-token walk over the pack names.
+	var blade_recount := 0
+	for b3: Dictionary in AmesDataPack.buildings():
+		var nm := str(b3.get("name", "")).to_lower()
+		var hit := false
+		for tok: String in ["whiskey river", "mary jane"]:
+			if nm.contains(tok):
+				hit = true
+				break
+		if not hit:
+			continue
+		var bc: Array = b3["centroid"]
+		var bx3 := float(bc[0])
+		var bz3 := float(bc[1])
+		if bx3 < 2752.0 or bx3 > 3292.0 or bz3 < -300.0 or bz3 > -220.0:
+			continue
+		var mz3 := INF
+		var best_d := INF
+		for p8: Vector2 in walk:
+			var d := absf(p8.x - bx3)
+			if d < best_d:
+				best_d = d
+				mz3 = p8.y
+		if mz3 == INF:
+			continue
+		blade_recount += 1
+	var blades := 0
+	var neons := 0
+	var blade_at := Vector3.ZERO
+	for part7: Dictionary in fabric_record:
+		if str(part7["band"]) == "blade":
+			blades += 1
+			blade_at = part7["p"]
+		elif str(part7["band"]) == "blade_neon":
+			neons += 1
+	if blades != blade_recount or neons != blades * 2:
+		bad.append("blades %d != the token recount %d (neons %d)" % [
+				blades, blade_recount, neons])
+	if blades < 1:
+		bad.append("no blade sign seeded — the bar-sign typology is missing")
+	## The families, live.
+	var fabric_root := world.get_node_or_null("DowntownFabric") as Node3D
+	if fabric_root == null:
+		bad.append("no DowntownFabric root")
+	else:
+		for family: Array in [["Cornices", cornices], ["LampPoles", lamps],
+				["LampShades", lamps], ["Banners", banners],
+				["BannerBrackets", brackets], ["BladeBoards", blades],
+				["BladeNeons", neons]]:
+			var node := fabric_root.get_node_or_null(str(family[0])) as MultiMeshInstance3D
+			if node == null:
+				bad.append("fabric family %s not mounted" % family[0])
+			elif node.multimesh.instance_count != int(family[1]):
+				bad.append("fabric family %s MM %d != retained %d" % [
+						family[0], node.multimesh.instance_count, int(family[1])])
+		if fabric_root.get_node_or_null("Furniture") == null:
+			bad.append("the furniture collision body is missing")
+
+	## --- E. the seams, live -------------------------------------------------------
+	var space := get_world_3d().direct_space_state
+	var probe := func(from: Vector3, to: Vector3) -> Dictionary:
+		var ray := PhysicsRayQueryParameters3D.create(world.to_global(from),
+				world.to_global(to))
+		ray.collision_mask = 1
+		return space.intersect_ray(ray)
+	## City Hall's east (Clark) face at the entry band.
+	var hall_hit: Dictionary = probe.call(
+			Vector3(hall_slot.x + 60.0, 3.0, hall_slot.y),
+			Vector3(hall_slot.x, 3.0, hall_slot.y))
+	if hall_hit.is_empty():
+		bad.append("City Hall east-face ray missed")
+	else:
+		var hall_x: float = world.to_local((hall_hit as Dictionary)["position"]).x
+		if absf(hall_x - (hall_slot.x + 41.15)) > 0.3:
+			bad.append("City Hall east face x %.2f != the slot face %.2f (+-0.3)" % [
+					hall_x, hall_slot.x + 41.15])
+	## The Municipal Building's west (Kellogg) face.
+	var mun_hit: Dictionary = probe.call(
+			Vector3(municipal_slot.x - 40.0, 3.0, municipal_slot.y),
+			Vector3(municipal_slot.x, 3.0, municipal_slot.y))
+	if mun_hit.is_empty():
+		bad.append("Municipal west-face ray missed")
+	else:
+		var mun_x: float = world.to_local((mun_hit as Dictionary)["position"]).x
+		if absf(mun_x - (municipal_slot.x - 13.35)) > 0.3:
+			bad.append("Municipal west face x %.2f != the slot face %.2f (+-0.3)" % [
+					mun_x, municipal_slot.x - 13.35])
+	## The bandshell stage's south face (the lawn approach; x offset +9 keeps
+	## the ray inside the deck's 25.4 span but clear of the annex's 11.3) +
+	## the crown above.
+	var stage_hit: Dictionary = probe.call(
+			Vector3(BS_CENTER.x + 9.0, 0.6, BS_CENTER.y + 20.0),
+			Vector3(BS_CENTER.x + 9.0, 0.6, BS_CENTER.y))
+	if stage_hit.is_empty():
+		bad.append("bandshell stage ray missed")
+	else:
+		var stage_z: float = world.to_local((stage_hit as Dictionary)["position"]).z
+		if absf(stage_z - (BS_CENTER.y + 2.3)) > 0.3:
+			bad.append("stage south face z %.2f != the deck edge %.2f (+-0.3)" % [
+					stage_z, BS_CENTER.y + 2.3])
+	var crown_hit: Dictionary = probe.call(
+			Vector3(BS_CENTER.x, 20.0, BS_CENTER.y - 5.2),
+			Vector3(BS_CENTER.x, 5.0, BS_CENTER.y - 5.2))
+	if crown_hit.is_empty():
+		bad.append("arch crown ray missed")
+	else:
+		var crown_y: float = world.to_local((crown_hit as Dictionary)["position"]).y
+		if absf(crown_y - 11.6) > 0.2:
+			bad.append("arch crown y %.2f != the apex 11.6 (+-0.2)" % crown_y)
+	## The ground record (the walkability query).
+	var queries := [
+		[Vector3(BS_CENTER.x, 0.0, BS_CENTER.y - 2.3), 1.2, "bandshell stage"],
+		[Vector3(BS_CENTER.x - 10.6, 0.0, BS_CENTER.y - 5.2), 7.2, "bandshell pier"],
+		[Vector3(BS_CENTER.x, 0.0, BS_CENTER.y - 5.2), -1.0, "arch crown"],
+		[Vector3(BS_CENTER.x, 0.0, BS_CENTER.y + 5.0), 3.0, "bandshell annex"],
+		[Vector3(hall_slot.x, 0.0, hall_slot.y), 14.0, "City Hall roof"],
+		[Vector3(municipal_slot.x, 0.0, municipal_slot.y), 11.0, "Municipal roof"],
+		[Vector3(blade_at.x, 0.0, blade_at.z), 7.4, "blade top"],
+	]
+	for gq: Array in queries:
+		var got_h := world.ground_height(world.to_global(gq[0] as Vector3))
+		if gq[2] == "arch crown":
+			## The crown's walk answer IS the filed AABB top — the same
+			## corners the record's arch band unions (the rotated-chord
+			## filing law), read off the record, never hard-coded.
+			if absf(got_h - arch_hi.y) > 0.05:
+				bad.append("ground record at the arch crown answers %.3f != the filed AABB top %.3f"
+						% [got_h, arch_hi.y])
+			continue
+		if absf(got_h - float(gq[1])) > 0.05:
+			bad.append("ground record at %s answers %.3f != the %s %.1f" % [
+					gq[2], got_h, gq[2], float(gq[1])])
+	## The roof crumbs: the bandshell's at the arch crown (the game-native
+	## perch this swap files), the civic pair's at their roof centers.
+	var lift: float = AmesWorld.SPOT_LIFT
+	for crumb: Array in [[Vector3(BS_CENTER.x, 11.6 + lift, BS_CENTER.y - 5.2), "arch crown"],
+			[Vector3(hall_slot.x, hall_top + lift, hall_slot.y), "City Hall roof"],
+			[Vector3(municipal_slot.x, municipal_top + lift, municipal_slot.y), "Municipal roof"]]:
+		var crumb_ok := false
+		for i4: int in world.bread_spots.size():
+			if world.bread_spots[i4].distance_to(crumb[0]) < 0.005 \
+					and i4 < world.bread_spot_kinds.size() \
+					and world.bread_spot_kinds[i4] == City.BreadKind.ROOF:
+				crumb_ok = true
+				break
+		if not crumb_ok:
+			bad.append("no roof crumb at the %s %s" % [crumb[1], crumb[0]])
+	_check(S, bad.is_empty(),
+			"shell=%d civic=%d fabric=%d bs=%.1fx%.1f cornices=%d lamps=%d blades=%d; %s"
+			% [shell_record.size(), civic_record.size(), fabric_record.size(),
+			bs_hi.x - bs_lo.x if bs_hi.x > -INF else -1.0,
+			bs_hi.z - bs_lo.z if bs_hi.z > -INF else -1.0,
+			cornices, lamps, blades, "; ".join(bad)])
+	world.queue_free()
 
 
 ## --- scenario (T-187 the Central Campus lawn) -------------------------------
