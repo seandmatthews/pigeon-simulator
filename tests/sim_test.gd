@@ -194,6 +194,7 @@ func _run_scenarios() -> void:
 	await _scenario_central_campus_layout() ## T-187 — the lawn slab + the crossing axes + the fountain at its data position + the campus sit benches, all re-derived from the committed lawn layer.
 	await _scenario_campus_row_heroes() ## T-188 — the campus row west heroes: the 1:1 slot swaps (Beardshear's dome, Morrill's turret, Farm House, the Marston hint), the AABB/palette pins, the live seams.
 	await _scenario_mu_parks_heroes() ## T-189 — the MU + Parks heroes: the 1:1 slot swaps at the CORRECT corner (the tower at Lincoln Way & Morrill/Lynn), the zodiac decal at the Gold Star Hall threshold, the tower-estimate pin, the live seams.
+	await _scenario_marston_hero_dims() ## T-190 — the Marston Water Tower hero: the 1:1 slot swap, the 51.2 m survey pin + photo-11 proportions, the white-steel palette pin, the east-facing seal medallion, the live seams.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -1019,11 +1020,14 @@ func _scenario_ames_world_render_budget() -> void:
 	## joined to the hero set at runtime, all walked from the chunk files.
 	## (T-189) the MU + Parks pair retires its five placeholder parts the
 	## same way (both ids already bake heroes — the massing term handles
-	## their bboxes), walked from the chunk files.
+	## their bboxes), walked from the chunk files. (T-190) the Marston
+	## Water Tower hero retires its slot's six placeholder parts the same
+	## way (its id already rides the bake's heroes list), walked too.
 	var hero_count := (manifest.get("heroes", []) as Array).size()
 	var campanile_slot_parts := 0
 	var row_slot_parts := 0
 	var mu_parks_slot_parts := 0
+	var marston_slot_parts := 0
 	for entry: Dictionary in manifest.get("chunks", []):
 		var doc_b: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
 		for ph_b: Dictionary in doc_b.get("placeholders", []):
@@ -1034,6 +1038,8 @@ func _scenario_ames_world_render_budget() -> void:
 			if str(ph_b.get("id", "")) == "way/183224150" \
 					or str(ph_b.get("id", "")) == "way/33725897":
 				mu_parks_slot_parts += 1
+			if str(ph_b.get("id", "")) == "way/861201396":
+				marston_slot_parts += 1
 		for m_b: Dictionary in doc_b.get("massing", []):
 			if bool(m_b.get("a", false)) and ["way/158023244", "way/158023219",
 					"way/183216666"].has(str(m_b.get("id", ""))):
@@ -1045,7 +1051,7 @@ func _scenario_ames_world_render_budget() -> void:
 			+ int(totals.get("tie_quads", 0)) + int(totals.get("ground_quads", 0)) \
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
 			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
-			- row_slot_parts - mu_parks_slot_parts
+			- row_slot_parts - mu_parks_slot_parts - marston_slot_parts
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
 	if int(m.instances) != expected_instances:
@@ -7334,6 +7340,356 @@ func _scenario_mu_parks_heroes() -> void:
 	_check(S, bad.is_empty(), "parts=%d bands=%d mu_top=%.2f pk_top=%.2f; %s"
 			% [parts.size(), bands_seen.size(), per_hi["memorial_union"].y,
 			per_hi["parks_library"].y, "; ".join(bad)])
+	world.queue_free()
+
+
+## --- scenario (T-190 the Marston Water Tower hero) ---------------------------
+
+
+## (T-190) The campus beacon re-pins its slot onto the HERO — the T-186 swap
+## law carried to the tallest object on campus, every expectation re-derived
+## from the committed bake slot (walked in-scenario from the chunk file) +
+## the survey docs as verbatim scenario literals:
+## THE SWAP — Marston (`way/861201396`) supersedes its slot's six placeholder
+## parts (four legs + tank + cap — chunk (−1,−2)'s whole gray placeholder
+## family WAS the tower, so the MM legitimately vanishes, the campanile-chunk
+## precedent; its bbox massing already rides the bake's `heroes` list so the
+## massing family shrinks by exactly the retired authored bbox, walked
+## total-minus-retired INCLUDING the filler entries the render family
+## consumes).
+## THE DIMS — the total closes at the survey's settled 51.2 (the AC ±2 band,
+## pinned exact; taller than the campanile's 33.5 — the beacon read), the
+## tank drum 36.0→48.2 (the LANDMARKS C2 12.2 m × 7.3 m cylinder, the slot
+## stack's own span), the trestle carrying photo 11's full-height
+## proportions: the balcony walkway at 36.05 = 70.4% of the total (the
+## photo's trestle fraction), the base spread 14.0 ≈ 1.92× the tank diameter
+## (the photo's flare read), the bowl hang to 33.2, the top cornice lip flush
+## at 48.2, the cone closing at 51.2; the record AABB pinned at the legs'
+## splay (14.0 × 12.4 ±0.5 — the OSM polygon's 13.9 z reads the footing
+## apron; the six-leg hexagon is the structure; the deviation recorded
+## in-ticket).
+## THE PALETTE — the white steel pinned (§1.4 verbatim, F-03's correction:
+## WHITE painted steel, NOT the dossier's dark tank): tank #EDEDEA / shade
+## #D8D8D4, legs #C9C9C4; the brace + medallion bands carry NO survey hex and
+## are held by darkness laws (luminance ≤ 0.45; the medallion also ≥ 0.25
+## dark against the white tank — the campanile `hand` precedent).
+## THE MESHES, LIVE — the tank drum and the cone at their albedos off the
+## live nodes; the medallion ring + proud disc turned to face EAST (the
+## campus-facing read — photos 10/12), positions off the record ±0.05.
+## THE SEAMS, LIVE — layer-1 rays answer the 0° leg's east face at its
+## splayed position (y 10, the flare re-derived from the row's literals),
+## the cornice top at 48.2, the cone slope at r 3.4 and the tip plane at
+## 51.2 down the axis; `ground_height` answers the tank top 48.2 (the survey
+## answer kept — the cone tip files NO walkable top), the balcony ring 36.05,
+## and the PLATE (0.0) between the legs (the trestle is open); the roof crumb
+## rides the cone tip as a ROOF spot (byte-identical to the bake-derived
+## cap pin this swap retires).
+func _scenario_marston_hero_dims() -> void:
+	const S := "marston_hero_dims"
+	var bad: PackedStringArray = PackedStringArray()
+	const MT_ID := "way/861201396"
+	## --- the bake slot, walked independently --------------------------------
+	var mt_center := Vector2.ZERO
+	var ph_file := 0
+	var ph_retired := 0
+	var ma_file := 0
+	var ma_retired := 0
+	var hero_ids := {}
+	for hid: Variant in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("heroes", []):
+		hero_ids[str(hid)] = true
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var tile := Vector2i(int(entry["cx"]), int(entry["cz"]))
+		if tile != Vector2i(-1, -2):
+			continue
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for ph: Dictionary in doc.get("placeholders", []):
+			ph_file += 1
+			if hero_ids.has(str(ph.get("id", ""))):
+				ph_retired += 1
+			if str(ph.get("id", "")) == MT_ID and str(ph.get("part", "")) == "tank":
+				mt_center = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+		for m: Dictionary in doc.get("massing", []):
+			ma_file += 1
+			if hero_ids.has(str(m.get("id", ""))):
+				ma_retired += 1
+	if mt_center == Vector2.ZERO:
+		_check(S, false, "bake slot walk failed: the tank part is missing")
+		return
+	if ph_file != 6 or ph_retired != 6:
+		bad.append("chunk (-1,-2) placeholder walk %d/%d != the tower's six retired parts" % [
+				ph_retired, ph_file])
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var parts := world.marston_hero_parts
+	if parts.is_empty():
+		_check(S, false, "no retained Marston hero parts — the hero never built")
+		world.queue_free()
+		return
+
+	## --- A. the swap: the gray family vanishes, the hero mounts ---------------
+	var chunk_node := world.get_node_or_null("Chunks/Chunk_-1_-2") as Node3D
+	if chunk_node == null:
+		_check(S, false, "chunk (-1,-2) missing")
+		world.queue_free()
+		return
+	var found_ph := false
+	for child: Node in chunk_node.get_children():
+		if child is MultiMeshInstance3D \
+				and (child as MultiMeshInstance3D).name == "Placeholders":
+			found_ph = true
+	if found_ph:
+		bad.append("chunk (-1,-2) kept a placeholder MM after the full swap")
+	var ma_mm := chunk_node.get_node_or_null("Massing") as MultiMeshInstance3D
+	if ma_mm == null or ma_mm.multimesh.instance_count != ma_file - ma_retired:
+		bad.append("chunk (-1,-2) massing MM %d != file %d - %d retired" % [
+				ma_mm.multimesh.instance_count if ma_mm != null else -1,
+				ma_file, ma_retired])
+	var hero_root := chunk_node.get_node_or_null("HeroMarstonTower") as Node3D
+	if hero_root == null:
+		bad.append("no HeroMarstonTower under chunk (-1,-2)")
+	else:
+		var boxes_mm := hero_root.get_node_or_null("Boxes") as MultiMeshInstance3D
+		var box_count := 0
+		for part: Dictionary in parts:
+			if not bool(part.get("mesh", false)):
+				box_count += 1
+		if boxes_mm == null:
+			bad.append("HeroMarstonTower carries no Boxes MM")
+		elif boxes_mm.multimesh.instance_count != box_count:
+			bad.append("trestle box MM %d != the record's box count %d" % [
+					boxes_mm.multimesh.instance_count, box_count])
+
+	## --- B. the dims (the survey pin + photo 11's proportions) ----------------
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	var tank := {}
+	var cone := {}
+	var cornice := {}
+	var balcony := {}
+	var bowl := {}
+	var med_ring := {}
+	var med_disc := {}
+	for part2: Dictionary in parts:
+		var p2: Vector3 = part2["p"]
+		var s2: Vector3 = part2["s"]
+		lo = lo.min(p2 - s2 * 0.5)
+		hi = hi.max(p2 + s2 * 0.5)
+		if not bool(part2.get("mesh", false)):
+			continue
+		var band := str(part2["band"])
+		if band == "tank" and absf(s2.y - 12.2) < 0.01:
+			tank = part2
+		elif band == "tank" and absf(s2.y - 0.5) < 0.01 and absf(s2.x - 7.9) < 0.01:
+			cornice = part2
+		elif band == "tank" and absf(s2.y - 3.0) < 0.01:
+			cone = part2
+		elif band == "legs" and absf(s2.y - 0.5) < 0.01 and absf(s2.x - 7.9) < 0.01:
+			balcony = part2
+		elif band == "tank_shade":
+			bowl = part2
+		elif band == "medallion" and s2.x < 0.07:
+			med_ring = part2
+		elif band == "medallion":
+			med_disc = part2
+	if tank.is_empty() or cone.is_empty() or cornice.is_empty() or balcony.is_empty() \
+			or bowl.is_empty() or med_ring.is_empty() or med_disc.is_empty():
+		bad.append("the hero record misses a family (tank=%s cone=%s cornice=%s "
+				+ "balcony=%s bowl=%s med_ring=%s med_disc=%s)" % [
+				tank.is_empty(), cone.is_empty(), cornice.is_empty(),
+				balcony.is_empty(), bowl.is_empty(),
+				med_ring.is_empty(), med_disc.is_empty()])
+	else:
+		if absf(hi.y - 51.2) > 0.05:
+			bad.append("tower top %.3f != the survey's settled 51.2 (AC ±2 band)" % hi.y)
+		if hi.y <= 33.5:
+			bad.append("tower top %.2f not taller than the campanile's 33.5 — the beacon read" % hi.y)
+		if lo.y < -0.15:
+			bad.append("tower base %.3f sinks past the plate (the brace work-point corners round %.1f)" % [
+					lo.y, -lo.y])
+		var span := hi - lo
+		if absf(span.x - 14.0) > 0.5 or absf(span.z - 12.4) > 0.5:
+			bad.append("record AABB %.1fx%.1f != the legs' splay 14.0x12.4 (±0.5)" % [
+					span.x, span.z])
+		if span.x / 7.3 < 1.7:
+			bad.append("base spread %.1f under 1.7× the tank diameter — the photo-11 flare read" % span.x)
+		var tp: Vector3 = tank["p"]
+		if absf((tp.y + 6.1) - 48.2) > 0.05 or absf((tp.y - 6.1) - 36.0) > 0.05:
+			bad.append("tank drum %s != the slot stack's 36.0→48.2 span" % tp)
+		## The trestle fraction: the balcony walkway closes the legs at
+		## 70.4% of the total (photo 11's full-height read).
+		if absf((balcony["p"] as Vector3).y + 0.25 - 36.05) > 0.05:
+			bad.append("balcony top %.3f != the walkway pin 36.05 (the 70.4%% trestle fraction)"
+					% ((balcony["p"] as Vector3).y + 0.25))
+		if absf((balcony["p"] as Vector3).y + 0.25 - 36.05) <= 0.05 \
+				and ((balcony["p"] as Vector3).y + 0.25) / 51.2 < 0.684:
+			bad.append("trestle fraction %.3f under the photo's ~0.70 read" % [
+					((balcony["p"] as Vector3).y + 0.25) / 51.2])
+		var cp: Vector3 = cone["p"]
+		if absf((cp.y + 1.5) - 51.2) > 0.05:
+			bad.append("cone %s does not close at 51.2" % cp)
+		if absf((cornice["p"] as Vector3).y + 0.25 - 48.2) > 0.05:
+			bad.append("cornice top %.3f != the tank-top lip 48.2" % [
+					(cornice["p"] as Vector3).y + 0.25])
+		var bp: Vector3 = bowl["p"]
+		var bowl_bottom: float = bp.y - (bowl["s"] as Vector3).y * 0.5
+		if absf(bowl_bottom - 33.2) > 0.05:
+			bad.append("bowl bottom %.3f != the photo-11 hang 33.2" % bowl_bottom)
+		## The medallion on the EAST face (the campus-facing read), positions
+		## off the record ±0.05.
+		var rp: Vector3 = med_ring["p"]
+		var want_ring := Vector3(mt_center.x + 3.70, 42.8, mt_center.y)
+		if rp.distance_to(want_ring) > 0.05:
+			bad.append("medallion ring %s != the east-face read %s" % [rp, want_ring])
+		var dp: Vector3 = med_disc["p"]
+		if dp.distance_to(want_ring + Vector3(0.05, 0.0, 0.0)) > 0.05:
+			bad.append("medallion disc %s != the proud read %s" % [dp, want_ring])
+
+	## --- C. the palette (§1.4's rows, verbatim scenario literals) --------------
+	var hexes: Dictionary = {
+		"tank": Color("eded ea".replace(" ", "")),
+		"tank_shade": Color("d8d8d4"),
+		"legs": Color("c9c9c4"),
+	}
+	var bands_seen := {}
+	for part3: Dictionary in parts:
+		var band3 := str(part3["band"])
+		bands_seen[band3] = true
+		var got: Color = part3["color"]
+		if band3 == "brace" or band3 == "medallion":
+			## The dark laws (no survey hex — the photos' dark lattice and the
+			## seal's dark silhouette): luminance ≤ 0.45; the medallion also
+			## ≥ 0.25 dark against the white tank (F-03's correction).
+			var wl: float = got.r * 0.299 + got.g * 0.587 + got.b * 0.114
+			if wl > 0.45:
+				bad.append("%s band %s luminance %.3f > 0.45 — must read dark" % [
+						band3, got, wl])
+			if band3 == "medallion":
+				var white := Color("eded ea".replace(" ", ""))
+				var whl: float = white.r * 0.299 + white.g * 0.587 + white.b * 0.114
+				if whl - wl < 0.25:
+					bad.append("medallion %.3f not ≥0.25 dark against the white tank %.3f" % [
+							wl, whl])
+			continue
+		if not hexes.has(band3):
+			bad.append("band %s wears no pinned §1.4 hex" % band3)
+			continue
+		var want: Color = hexes[band3]
+		if _color_gap(got, want) > 0.02:
+			bad.append("band %s color %s != the pinned hex %s" % [band3, got, want])
+	for band4: String in hexes:
+		if not bands_seen.has(band4):
+			bad.append("band %s never used — the family is missing" % band4)
+	for band5: String in ["brace", "medallion"]:
+		if not bands_seen.has(band5):
+			bad.append("band %s never used — the family is missing" % band5)
+
+	## --- D. the meshes, live ---------------------------------------------------
+	if hero_root != null:
+		var tank_node := hero_root.get_node_or_null("TankCylinder") as MeshInstance3D
+		var cone_node := hero_root.get_node_or_null("CapCone") as MeshInstance3D
+		var ring_node := hero_root.get_node_or_null("MedallionRing") as MeshInstance3D
+		var disc_node := hero_root.get_node_or_null("MedallionDisc") as MeshInstance3D
+		if tank_node == null or cone_node == null or ring_node == null or disc_node == null:
+			bad.append("a named mesh is missing (tank=%s cone=%s ring=%s disc=%s)" % [
+					tank_node != null, cone_node != null, ring_node != null, disc_node != null])
+		else:
+			var want_white := Color("eded ea".replace(" ", ""))
+			for m_node: MeshInstance3D in [tank_node, cone_node]:
+				var mat := (m_node.mesh as CylinderMesh).material as StandardMaterial3D
+				if mat == null or _color_gap(mat.albedo_color, want_white) > 0.02:
+					bad.append("%s albedo %s != the tank white #EDEDEA" % [
+							m_node.name, mat.albedo_color if mat != null else "<null>"])
+			var want_med := Color(0.38, 0.38, 0.36)
+			for m_node2: MeshInstance3D in [ring_node, disc_node]:
+				var mat2 := (m_node2.mesh as CylinderMesh).material as StandardMaterial3D
+				if mat2 == null or _color_gap(mat2.albedo_color, want_med) > 0.02:
+					bad.append("%s albedo %s != the medallion dark" % [
+							m_node2.name, mat2.albedo_color if mat2 != null else "<null>"])
+			## The medallion faces EAST (its local +Y turned onto +X).
+			var face_x: Vector3 = disc_node.transform.basis * Vector3.UP
+			if absf(face_x.x - 1.0) > 0.01 or absf(face_x.y) > 0.01:
+				bad.append("medallion faces %s != due east" % face_x)
+
+	## --- E. the seams, live ------------------------------------------------------
+	var space := get_world_3d().direct_space_state
+	var probe := func(from: Vector3, to: Vector3) -> Dictionary:
+		var ray := PhysicsRayQueryParameters3D.create(world.to_global(from),
+				world.to_global(to))
+		ray.collision_mask = 1
+		return space.intersect_ray(ray)
+	## The 0° leg's east face at y 10 — the splay re-derived from the row's
+	## literals (base 6.725 → top 2.95 over 36.0, the 0.55 m section).
+	var r10: float = lerpf(6.725, 2.95, 10.0 / 36.0)
+	var lean: float = atan2(6.725 - 2.95, 36.0)
+	var want_face: float = r10 + 0.275 * cos(lean)
+	var leg_ray: Dictionary = probe.call(Vector3(mt_center.x + 30.0, 10.0, mt_center.y),
+			Vector3(mt_center.x, 10.0, mt_center.y))
+	if leg_ray.is_empty():
+		bad.append("leg east-face ray missed")
+	else:
+		var lx: float = world.to_local((leg_ray as Dictionary)["position"]).x
+		if absf(lx - (mt_center.x + want_face)) > 0.3:
+			bad.append("leg east face x %.2f != the splay read %.2f (±0.3)" % [
+					lx, mt_center.x + want_face])
+	## The cornice top at 48.2 (down at r 3.75 — outside the cone base 3.55,
+	## inside the lip 3.95).
+	var cornice_ray: Dictionary = probe.call(Vector3(mt_center.x + 3.75, 60.0, mt_center.y),
+			Vector3(mt_center.x + 3.75, 30.0, mt_center.y))
+	if cornice_ray.is_empty():
+		bad.append("cornice ray missed")
+	else:
+		var cy: float = world.to_local((cornice_ray as Dictionary)["position"]).y
+		if absf(cy - 48.2) > 0.1:
+			bad.append("cornice top y %.2f != the tank-top lip 48.2 (±0.1)" % cy)
+	## The cone slope at r 3.4 (the photo-11 cap read, re-derived).
+	var slope_y: float = 48.2 + (3.55 - 3.4) * 3.0 / (3.55 - 0.22)
+	var slope_ray: Dictionary = probe.call(Vector3(mt_center.x + 3.4, 60.0, mt_center.y),
+			Vector3(mt_center.x + 3.4, 40.0, mt_center.y))
+	if slope_ray.is_empty():
+		bad.append("cone slope ray missed")
+	else:
+		var sy: float = world.to_local((slope_ray as Dictionary)["position"]).y
+		if absf(sy - slope_y) > 0.1:
+			bad.append("cone slope y %.2f != the frustum read %.2f (±0.1)" % [sy, slope_y])
+	## The tip plane down the axis — the beacon's very point.
+	var tip_ray: Dictionary = probe.call(Vector3(mt_center.x, 60.0, mt_center.y),
+			Vector3(mt_center.x, 40.0, mt_center.y))
+	if tip_ray.is_empty():
+		bad.append("tip ray missed")
+	else:
+		var ty: float = world.to_local((tip_ray as Dictionary)["position"]).y
+		if absf(ty - 51.2) > 0.1:
+			bad.append("tip plane y %.2f != the survey 51.2 (±0.1)" % ty)
+	## The ground record: the tank top kept, the balcony ring, the open
+	## trestle (the old cap square's 51.2 answer is gone — the tip files no
+	## walkable top).
+	var queries := [
+		[Vector3(mt_center.x, 0.0, mt_center.y), 48.2, "tank top"],
+		[Vector3(mt_center.x + 3.8, 0.0, mt_center.y), 36.05, "balcony ring"],
+		[Vector3(mt_center.x + 6.5, 0.0, mt_center.y), 0.0, "the plate between the legs"],
+	]
+	for q: Array in queries:
+		var got_h := world.ground_height(world.to_global(q[0] as Vector3))
+		if absf(got_h - float(q[1])) > 0.05:
+			bad.append("ground record at %s answers %.3f != the %s %.1f" % [
+					q[2], got_h, q[2], float(q[1])])
+	## The roof crumb: one ROOF spot at the cone tip + the lift —
+	## byte-identical to the bake-derived cap pin this swap retires.
+	var lift: float = AmesWorld.SPOT_LIFT
+	var want_crumb := Vector3(mt_center.x, 51.2 + lift, mt_center.y)
+	var crumb_ok := false
+	for i: int in world.bread_spots.size():
+		if world.bread_spots[i].distance_to(want_crumb) < 0.005 \
+				and i < world.bread_spot_kinds.size() \
+				and world.bread_spot_kinds[i] == City.BreadKind.ROOF:
+			crumb_ok = true
+			break
+	if not crumb_ok:
+		bad.append("no roof crumb at the cone tip %s" % want_crumb)
+	_check(S, bad.is_empty(), "parts=%d bands=%d top=%.2f; %s"
+			% [parts.size(), bands_seen.size(), hi.y, "; ".join(bad)])
 	world.queue_free()
 
 
