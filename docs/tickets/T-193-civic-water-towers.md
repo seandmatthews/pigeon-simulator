@@ -1,6 +1,6 @@
 # T-193 — Ames R3 · civic water towers: the AMES diamond in the sky
 
-- **Status:** proposed · **Category:** visual-design · **Ring:** R3 The Landmarks ·
+- **Status:** doing · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-177
 - **Refs:** `images/misc/01,02` (diamond logo closeup; dusk full tank
