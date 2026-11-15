@@ -270,6 +270,23 @@ var mu_parks_hero_parts: Array[Dictionary] = []
 ## dims and palette arms walk one record; the LIVE material arms re-prove the
 ## meshes themselves.
 var marston_hero_parts: Array[Dictionary] = []
+## (T-191) The Jack Trice Stadium hero's part record, retained on the same
+## headless-visibility law: every box the build emitted —
+## `{hero, band, p, s, color, collide, mesh}` in world-local (pack)
+## coordinates. The bowl ring bands carry their per-band palette (the
+## cardinal seat field, the gold section accents, the concrete north wall)
+## so the dims arm can union the ring by band prefix while the palette arm
+## walks the exact hexes.
+var stadium_hero_parts: Array[Dictionary] = []
+## (T-191) The Hilton Coliseum hero's part record, same shape — the drum
+## segments (concrete + streak panels), the arc roof slab, the portico
+## canopy/columns and the seal medallion (`mesh` marks the named extras).
+var hilton_hero_parts: Array[Dictionary] = []
+## (T-191) The tailgate-lot dress records: the paved flats' ear-clip tri
+## count over the pack's Iowa State Center lot polygons and the white
+## stall-marking transforms (world-local), retained on the headless law.
+var lot_flat_tris: int = 0
+var lot_marking_xfs: Array[Transform3D] = []
 
 @onready var _box_mesh: BoxMesh = _make_box_mesh()
 @onready var _tri_mesh: ArrayMesh = _make_tri_mesh()
@@ -427,6 +444,10 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	campus_row_hero_parts = [] ## (T-188) The row-hero record rebuilds with the world.
 	mu_parks_hero_parts = [] ## (T-189) The MU + Parks hero record rebuilds with it.
 	marston_hero_parts = [] ## (T-190) The Marston tower record rebuilds with it.
+	stadium_hero_parts = [] ## (T-191) The stadium-complex record rebuilds with the world.
+	hilton_hero_parts = [] ## (T-191) The Hilton drum record rebuilds with it.
+	lot_flat_tris = 0 ## (T-191) The tailgate-lot dress records rebuild with it.
+	lot_marking_xfs = []
 	ped_zones = null
 	parking = null
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
@@ -475,6 +496,7 @@ func generate_step_finish() -> void:
 	_build_lake_dress() ## (T-185) The LaVerne shore polish: pale edge + reed hint.
 	_build_swans() ## (T-185) Lancelot & Elaine on their lake circuit.
 	_build_campus_lawn() ## (T-187) The lawn slab, the crossing axes' ribbons, the fountain.
+	_build_tailgate_lots() ## (T-191) The Iowa State Center lot flats + stall-marking hint.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -512,6 +534,10 @@ func generate_step_finish() -> void:
 		"campus_row_parts": campus_row_hero_parts.size(), ## (T-188) The row heroes are live.
 		"mu_parks_parts": mu_parks_hero_parts.size(), ## (T-189) The MU + Parks pair is live.
 		"marston_parts": marston_hero_parts.size(), ## (T-190) The water-tower hero is live.
+		"stadium_parts": stadium_hero_parts.size(), ## (T-191) The bowl hero is live.
+		"hilton_parts": hilton_hero_parts.size(), ## (T-191) The drum hero is live.
+		"lot_flat_tris": lot_flat_tris, ## (T-191) The tailgate-lot flats are live.
+		"lot_markings": lot_marking_xfs.size(), ## (T-191) The stall-marking hint is live.
 		"campus_ribbons": campus_ribbon_xfs.size(), ## (T-187) The lawn dress is live.
 		"campus_slab_tris": campus_slab_tris,
 		"campus_plaza_tris": campus_plaza_tris,
@@ -1545,10 +1571,13 @@ func _collect_roof_spots(chunk: Dictionary) -> void:
 		if not _hero_ids.has(hero_id) or hero_id == CAMPANILE_HERO_ID \
 				or hero_id == BEARDSHEAR_HERO_ID \
 				or hero_id == MU_HERO_ID or hero_id == PARKS_HERO_ID \
-				or hero_id == MARSTON_TOWER_HERO_ID:
-			continue ## (T-186/T-188/T-189/T-190) the campanile's cap crumb is
+				or hero_id == MARSTON_TOWER_HERO_ID \
+				or hero_id == JACK_TRICE_HERO_ID or hero_id == HILTON_HERO_ID:
+			continue ## (T-186/T-188/T-189/T-190/T-191) the campanile's cap crumb is
 			## pinned; the other heroes file their own true-top spots in their
-			## builds (Marston's byte-identical to the bake-derived cap pin).
+			## builds (Marston's byte-identical to the bake-derived cap pin;
+			## the stadium's re-pins the ring-top read at the press-tower roof,
+			## Hilton's byte-identical at the drum roof top).
 		var top := float(ph["p"][1]) + float(ph["s"][1]) * 0.5
 		var pos := Vector3(float(ph["p"][0]), top, float(ph["p"][2]))
 		var current: Variant = _hero_roof_tops.get(hero_id)
@@ -1669,6 +1698,8 @@ func _build_chunk(entry: Dictionary) -> void:
 	_build_campus_row_heroes(chunk_root, chunk, center, chunk_body) ## (T-188) the row heroes ride theirs.
 	_build_mu_parks_heroes(chunk_root, chunk, center, chunk_body) ## (T-189) the MU + Parks pair rides theirs.
 	_build_marston_hero(chunk_root, chunk, center, chunk_body) ## (T-190) the water-tower hero rides its own chunk.
+	_build_stadium_hero(chunk_root, chunk, center, chunk_body) ## (T-191) the bowl hero rides its carrier chunk.
+	_build_hilton_hero(chunk_root, chunk, center, chunk_body) ## (T-191) the drum hero rides its carrier chunk.
 
 
 ## One vertex-color unit-box MultiMesh from the chunk's massing entries
@@ -1894,6 +1925,14 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 			## parts the same 1:1 way (four legs + tank + cap) — its build
 			## files the shapes (the splayed legs as rotated boxes, the round
 			## families as convex cylinders); no capture.
+			continue
+		if pid == JACK_TRICE_HERO_ID or pid == HILTON_HERO_ID:
+			## (T-191) The stadium + Hilton heroes supersede their slots'
+			## placeholder parts the same 1:1 way (the bowl's ring/berm/pitch,
+			## the drum's ring/roof) — their builds file the shapes (the ring
+			## segments on the bake's own chord schedule, the hillside/press/
+			## Sukup/statue/portico boxes, the roofs as convex solids); no
+			## capture.
 			continue
 		var p: Array = e["p"]
 		var s: Array = e["s"]
@@ -2860,15 +2899,19 @@ func _row_band_color(band: String) -> Color:
 ## (T-188) TRUE when a baked placeholder entry belongs to a hero that
 ## supersedes its slot at runtime — the campanile (T-186), Beardshear (T-188),
 ## the MU + Parks pair (T-189; both ids already ride the bake manifest's
-## `heroes` list, so only their PLACEHOLDER parts need the runtime skip) and
-## the Marston Water Tower (T-190; its id rides the same bake list, and the
-## four legs + tank + cap parts are the slot the hero re-shapes).
+## `heroes` list, so only their PLACEHOLDER parts need the runtime skip), the
+## Marston Water Tower (T-190; its id rides the same bake list, and the four
+## legs + tank + cap parts are the slot the hero re-shapes) and the stadium
+## complex (T-191: the bowl's ring/berm/pitch parts across chunks (4,3)/(4,4)
+## and the drum's ring/roof parts across (4,0)/(5,0) are the slots the two
+## heroes re-shape).
 ## The placeholder-family passes (render, collision, ground record, roof
 ## spots) skip these ids so a hero never renders twice.
 func _row_superseded_placeholder(id: String) -> bool:
 	return id == CAMPANILE_HERO_ID or id == BEARDSHEAR_HERO_ID \
 			or id == MU_HERO_ID or id == PARKS_HERO_ID \
-			or id == MARSTON_TOWER_HERO_ID
+			or id == MARSTON_TOWER_HERO_ID \
+			or id == JACK_TRICE_HERO_ID or id == HILTON_HERO_ID
 
 
 ## Builds the row heroes found in this chunk (Beardshear + Morrill + Marston
@@ -3932,6 +3975,753 @@ func _marston_tower_extras(c: Vector2) -> Array[Dictionary]:
 		},
 	]
 	return out
+
+
+## --- T-191 the Jack Trice Stadium complex hero ------------------------------
+## The town's biggest silhouette set, one complex — the #1 and #2
+## from-the-air reads (the bowl + the drum) — swapping the T-175 placeholder
+## slots 1:1 on the T-186 law. `way/613735866` (the bowl) and
+## `way/180651868` (the drum) already ride the bake manifest's `heroes`
+## list, so their bbox massing is skipped by every massing family; the
+## heroes supersede the slots' placeholder parts through
+## `_row_superseded_placeholder` (the bowl's 22+14 ring segments + 2 berms +
+## pitch across chunks (4,3)/(4,4); the drum's 12 segments + roof across
+## (4,0)/(5,0)).
+##
+## The silhouette is MODELING-SPECS §1.3's photo read (`images/stadium/20`
+## the west gate facade with the flanking berms · `21` the glass gable ·
+## `22` the drum): a concrete bowl 183 × 208 m long axis N–S (V-09 — the
+## field runs NORTH–SOUTH, standard; the "Wikipedia east–west" line was a
+## misquote — verification ledger V-09), double-decked sideline grandstands
+## whose seats read brick-red from OUTSIDE with the gold section accents,
+## the 3-level press/suite tower on the WEST sideline (1997), the glass
+## Sukup endzone-club hint closing the SOUTH end over the bowl (2015; the
+## authored south mass `way/613735869` keeps the exterior read), the north
+## videoboard (11 × 24.2 m, added 2011 — V-11) over the Jacobson mass, and
+## the NORTH grass hillside wedge (V-11: GA berms in the NE/NW corners)
+## crested past the bowl's north rim. The naming timeline is ground truth
+## and rides these comments (TRADITIONS §3 / F-15): students fought for the
+## name from 1973–74, the FIELD named 1984 (informal use from the 1975
+## opening as Cyclone Stadium / Jack Trice Field), the STATUE dedicated
+## 1988 on Central Campus and MOVED here when the STADIUM was renamed
+## Jack Trice Stadium in 1997, the street Jack Trice Way in 2023 — the
+## only D-I FBS stadium named for a Black man; the CYCLONES facade letters
+## defer to R4's legal pass (text), and the statue is a simplified
+## dignified read: presence, the forward crouch of the "Fight low, with
+## your eyes open" letter, no face, no caricature. The statue POSITION is
+## a survey-anchored approximation recorded right here (the V-30 law: no
+## sourced statue coordinate exists in the survey): the northeast plaza
+## between the hillside wedge and the east lots, overlooking the bowl.
+## Hilton: the low 12-sided board-formed concrete drum 138 × 105 m with
+## the stain-streak panels, the shallow arc roof overhang and the east
+## entry portico hint (canopy + columns + the ISU-seal medallion
+## silhouette — the T-190 medallion law; the cast HILTON COLISEUM letters
+## defer to R4's legal pass). Tailgate lots: the pack's own Iowa State
+## Center lot polygons (census §3 — 19 mapped, 8.9 ha, the tailgate box
+## filter `ames_parking.gd` carries) painted as paved flats with a white
+## stall-marking hint — the populated dressing is T-208's. Like every
+## corner dress: pure pack-derived geometry, zero RNG of any stream — a
+## rebuild reproduces every transform byte-identically — and the part
+## records are retained for the gates (headless runs cannot read
+## MultiMesh instances back).
+
+const JACK_TRICE_HERO_ID := "way/613735866"
+const HILTON_HERO_ID := "way/180651868"
+
+## (T-191) The pinned palette — MODELING-SPECS §1.3's rows, verbatim.
+const STADIUM_SEAT_CARDINAL := Color(0.651, 0.098, 0.18) ## #A6192E the seat field (dominant).
+const STADIUM_SEAT_GOLD := Color(0.788, 0.663, 0.306) ## #C9A94E the section accents.
+const STADIUM_CONCRETE := Color(0.612, 0.612, 0.58) ## #9C9C94 the weathered bowl concrete.
+const STADIUM_PRESS_GLASS := Color(0.431, 0.482, 0.51) ## #6E7B82 the press tower glass/steel.
+const STADIUM_SUKUP_GLASS := Color(0.788, 0.776, 0.561) ## #C9C68F the pale yellow-green club glass.
+const STADIUM_FIELD_GRASS := Color(0.306, 0.478, 0.227) ## #4E7A3A the field grass (and the berms).
+const STADIUM_FIELD_MARK := Color(0.91, 0.91, 0.886) ## #E8E8E2 the white markings.
+const LOT_ASPHALT := Color(0.337, 0.345, 0.361) ## #56585C the tailgate asphalt.
+const LOT_MARKING := Color(0.91, 0.91, 0.886) ## the white stall lines (the §1.3 markings row).
+const HILTON_CONCRETE := Color(0.651, 0.62, 0.561) ## #A69E8F the board-formed concrete.
+const HILTON_STREAK := Color(0.549, 0.522, 0.478) ## #8C857A the stain streaks.
+
+## The bands that carry NO survey hex, held by darkness laws (the campanile
+## `hand` precedent): the videoboard slab (L1 black + emissive), the statue
+## bronze + stone (the dignity read — dark, quiet, no caricature), and the
+## Hilton seal (the medallion silhouette).
+const STADIUM_VIDEOBOARD := Color(0.12, 0.12, 0.13) ## Dark law: luminance ≤ 0.25.
+const STATUE_BRONZE := Color(0.29, 0.22, 0.15) ## Dark law: luminance ≤ 0.35.
+const STATUE_STONE := Color(0.34, 0.34, 0.33) ## Dark law: luminance ≤ 0.35.
+const HILTON_SEAL := Color(0.38, 0.36, 0.33) ## Medallion law: luminance ≤ 0.45.
+
+## (T-191) The pinned bowl geometry — the T-175 slot numbers kept EXACTLY:
+## the ring's outer face at the survey's 91.5 × 104.0 half-extents (the
+## 183 × 208 m envelope, V-09), built on the bake's own chord schedule (36
+## segments, 20 m band, inward shift width/2 — the `_ring_parts` geometry
+## the placeholder baked, now decked). Double-decked sidelines (LANDMARKS
+## C6): the upper deck cantilevers 7 m over the lower deck at the same
+## outer face, the end zones ride one deck, and the north end drops to the
+## low wall the grass hillside crests over.
+const STADIUM_RING_RX := 91.5
+const STADIUM_RING_RZ := 104.0
+const STADIUM_RING_SEGMENTS := 36
+const STADIUM_RING_WIDTH := 20.0
+const STADIUM_SIDE_LOWER_TOP := 10.5
+const STADIUM_SIDE_UPPER_TOP := 19.5
+const STADIUM_SIDE_UPPER_WIDTH := 13.0
+const STADIUM_END_TOP := 16.0
+const STADIUM_NORTH_WALL_TOP := 6.0
+## The west press/suite tower (1997, 3 levels — LANDMARKS C6): concrete
+## base + two glass levels + the roof slab, its west face ON the ring's
+## outer face, rising above the sideline decks.
+const STADIUM_PRESS_X := -79.0 ## The base center x offset (25 m deep, −91.5..−66.5).
+const STADIUM_PRESS_HALF_Z := 30.0
+const STADIUM_PRESS_TOP := 29.0
+## The Sukup Endzone Club hint (2015 south enclosure): the pale glass band
+## closing the south end over the deck, inner face flush.
+const STADIUM_SUKUP_TOP := 22.0
+## The north videoboard (V-11: 11 × 24.2 m, added 2011), mounted over the
+## Jacobson mass at the north end, face to the field (south).
+const STADIUM_VIDEOBOARD_SIZE := Vector3(24.2, 11.0, 1.2)
+const STADIUM_VIDEOBOARD_CENTER := Vector3(0.0, 23.5, -105.0)
+## The north grass hillside (V-11: GA berms in the NE/NW corners): two
+## grass steps per side, crested past the bowl's north rim (the berm
+## union's north edge sits beyond the ring's — the T-175 reach law). The
+## x bands clear the authored Jacobson mass (x 1166.7..1210.7 pack-local).
+const STADIUM_BERM_STEP1 := Vector3(36.0, 6.0, 24.0) ## Center y 3.0, z offset −108.
+const STADIUM_BERM_STEP2 := Vector3(24.0, 4.5, 15.0) ## Center y 8.25, z offset −104.5.
+const STADIUM_BERM_X := 52.0
+## The pitch (V-09: "MidAmerican Field" 53 m E–W × 113 m N–S — the N–S
+## orientation IS the AC assertion), kept at the slot's own 0.6 deck.
+const STADIUM_PITCH_SIZE := Vector3(53.0, 0.6, 113.0)
+## The Jack Trice statue at the northeast plaza (the survey-anchored
+## approximation recorded in the section header): plaza offset from the
+## bowl center. The figure is the simplified dignified read — the crouch
+## of the October 5, 1923 letter, head up, eyes toward the play (south,
+## the bowl side).
+const STADIUM_STATUE_OFFSET := Vector2(58.0, -140.0)
+
+## (T-191) The pinned Hilton geometry — the T-175 slot numbers kept
+## EXACTLY: the 12-sided drum's outer face at the survey's 69 × 52.5
+## half-extents (138 × 105 m, §1.3), the drum wall to 20.0, the arc roof
+## closing at the slot's own 23.0 with the §1.3 overhang (3 m past the
+## face) replacing the old inset roof box, and the east entry portico
+## hint (the POI faces University Boulevard, east — `facing_deg` 75.1).
+const HILTON_RING_RX := 69.0
+const HILTON_RING_RZ := 52.5
+const HILTON_RING_SEGMENTS := 12
+const HILTON_RING_WIDTH := 12.0
+const HILTON_RING_TOP := 20.0
+const HILTON_ROOF_RX := 72.0
+const HILTON_ROOF_RZ := 55.5
+const HILTON_ROOF_Y := 21.5 ## The slab's center (20.0..23.0).
+const HILTON_ROOF_TOP := 23.0
+## The portico hint: canopy slab + two outer columns projecting east, the
+## seal medallion silhouette on the drum wall above it (the photo-22 read:
+## seal + letters between canopy and roof; the letters defer to R4).
+const HILTON_PORTICO_CANOPY := Vector3(13.0, 1.0, 26.0) ## Center (+72.0, 8.7, 0).
+const HILTON_PORTICO_COL := Vector3(0.9, 8.2, 0.9) ## Centers (+77.5, 4.1, ±11.5).
+const HILTON_SEAL_POS := Vector3(69.1, 13.0, 0.0)
+const HILTON_SEAL_R := 1.6
+
+## The band -> color table (the records and the render share this one
+## mapping; the deck bands split the ring palette).
+const STADIUM_BANDS: Dictionary = {
+	"bowl_cardinal": STADIUM_SEAT_CARDINAL,
+	"bowl_gold": STADIUM_SEAT_GOLD,
+	"bowl_concrete": STADIUM_CONCRETE,
+	"berm": STADIUM_FIELD_GRASS,
+	"pitch": STADIUM_FIELD_GRASS,
+	"field_mark": STADIUM_FIELD_MARK,
+	"press_concrete": STADIUM_CONCRETE,
+	"press_glass": STADIUM_PRESS_GLASS,
+	"sukup": STADIUM_SUKUP_GLASS,
+	"videoboard": STADIUM_VIDEOBOARD,
+	"statue_plaza": STADIUM_CONCRETE,
+	"statue_stone": STATUE_STONE,
+	"statue_bronze": STATUE_BRONZE,
+}
+const HILTON_BANDS: Dictionary = {
+	"drum": HILTON_CONCRETE,
+	"drum_streak": HILTON_STREAK,
+	"hilton_roof": HILTON_CONCRETE,
+	"hilton_portico": HILTON_CONCRETE,
+	"hilton_seal": HILTON_SEAL,
+}
+
+
+func _stadium_band_color(band: String) -> Color:
+	return STADIUM_BANDS.get(band, STADIUM_CONCRETE)
+
+
+func _hilton_band_color(band: String) -> Color:
+	return HILTON_BANDS.get(band, HILTON_CONCRETE)
+
+
+## One hero box schedule entry's render+collision+record mount, shared by
+## the two complex heroes (the T-190 tower's own build keeps its shape —
+## this is the same law with the record name parameterized): render every
+## box through the chunk's vertex-color unit box at its own (optional
+## rotated) basis, append colliding boxes to the chunk's placeholder body,
+## file `ground`-flagged boxes into the walkable-top record, retain every
+## box in `record`. Returns the MultiMeshInstance3D (or null for an empty
+## schedule).
+func _mount_complex_hero_boxes(root: Node3D, body: StaticBody3D, center: Vector3,
+		boxes: Array[Dictionary], record: Array[Dictionary], hero_name: String,
+		mm_name: String) -> MultiMeshInstance3D:
+	if boxes.is_empty():
+		return null
+	var mm := _new_multimesh(boxes.size())
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	var tiles: Dictionary = {}
+	var bytes := 0
+	for i in boxes.size():
+		var b: Dictionary = boxes[i]
+		var basis: Basis = b.get("basis", Basis())
+		var bp: Vector3 = b["p"]
+		var bs: Vector3 = b["s"]
+		var band := str(b["band"])
+		## The band names are unique across the two tables (one lookup).
+		var color: Color = STADIUM_BANDS.get(band, HILTON_BANDS.get(band,
+				Color(0.5, 0.5, 0.5)))
+		mm.set_instance_transform(i, Transform3D(basis * Basis.from_scale(bs),
+				bp - center))
+		mm.set_instance_color(i, color)
+		var ab: Array = _complex_box_aabb(basis, bp, bs)
+		lo = (ab[0] as Vector3).min(lo)
+		hi = (ab[1] as Vector3).max(hi)
+		if bool(b.get("collide", true)):
+			var shape := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = bs
+			shape.shape = box
+			shape.transform = Transform3D(basis, bp - center)
+			body.add_child(shape)
+		if bool(b.get("ground", false)):
+			bytes += _file_ground_box(tiles, [bp.x, bp.y, bp.z],
+					[bs.x, bs.y, bs.z])
+		record.append({
+			"hero": hero_name, "band": band,
+			"p": ((ab[0] as Vector3) + (ab[1] as Vector3)) * 0.5,
+			"s": (ab[1] as Vector3) - (ab[0] as Vector3),
+			"color": color, "collide": bool(b.get("collide", true)),
+			"mesh": false,
+		})
+	mm.custom_aabb = AABB(lo - center - Vector3.ONE * 2.0,
+			(hi - lo) + Vector3.ONE * 4.0)
+	var mm_node := MultiMeshInstance3D.new()
+	mm_node.name = mm_name
+	mm_node.multimesh = mm
+	root.add_child(mm_node)
+	for key: Vector2i in tiles:
+		var rec: Dictionary = _chunks.get(key, {})
+		var ground: PackedFloat32Array = rec.get("ground", PackedFloat32Array())
+		ground.append_array(PackedFloat32Array(tiles[key]))
+		rec["ground"] = ground
+		_chunks[key] = rec
+	_buffer_bytes += bytes
+	return mm_node
+
+
+## One rotated/axis-aligned box's world AABB (the `_marston_box_aabb` law,
+## shared by the complex heroes).
+func _complex_box_aabb(basis: Basis, origin: Vector3, size: Vector3) -> Array:
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for sx: float in [-0.5, 0.5]:
+		for sy: float in [-0.5, 0.5]:
+			for sz: float in [-0.5, 0.5]:
+				var corner := origin + basis * Vector3(
+						sx * size.x, sy * size.y, sz * size.z)
+				lo = lo.min(corner)
+				hi = hi.max(corner)
+	return [lo, hi]
+
+
+## Builds the stadium hero into its carrier chunk — chunk (4,3) is the only
+## carrier (the bowl center + the pitch part live there; the north rim's
+## segments in chunk (4,4) retire through `_row_superseded_placeholder`).
+## Render: the decked ring + hillside + press tower + Sukup hint + statues
+## as one rotated-box MultiMesh; collision: the hero's own shapes ride the
+## chunk's placeholder body — same slot, same layer-1 `world` class (the
+## T-175 boxes were removed from this body's feed in
+## `_build_chunk_colliders`); ground record: the walkable tops (the pitch,
+## the berm steps, the decks, the tower roof, the statue pedestal); the
+## roof crumb at the press-tower roof (the ring-top read this swap
+## retires re-pins at the tower — recorded in the ticket); the retained
+## part record the gates walk. No-op for every chunk that does not carry
+## the pitch slot.
+func _build_stadium_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3,
+		chunk_body: StaticBody3D) -> void:
+	var c := Vector2.ZERO
+	var found := false
+	for ph: Dictionary in chunk.get("placeholders", []):
+		if str(ph.get("id", "")) != JACK_TRICE_HERO_ID \
+				or str(ph.get("part", "")) != "pitch":
+			continue
+		c = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+		found = true
+		break
+	if not found:
+		return ## Not this chunk's slot (or the bake lost the pitch — the gate fails loudly).
+	var boxes := _stadium_boxes(c)
+	var root := Node3D.new()
+	root.name = "HeroJackTrice"
+	chunk_root.add_child(root)
+	var body := chunk_body
+	if body == null:
+		body = StaticBody3D.new()
+		body.name = "Placeholders"
+		body.collision_layer = 1 ## world
+		body.collision_mask = 0
+		chunk_root.add_child(body)
+	_mount_complex_hero_boxes(root, body, center, boxes, stadium_hero_parts,
+			"jack_trice", "Boxes")
+	## The roof crumb: one ROOF spot at the press-tower roof (the hero's
+	## true top — the superseded ring-top pin re-anchors here).
+	_hero_roof_tops[JACK_TRICE_HERO_ID] = Vector3(
+			c.x + STADIUM_PRESS_X, STADIUM_PRESS_TOP, c.y)
+
+
+## The stadium hero's box schedule in WORLD-LOCAL coordinates (pack-local —
+## the world node IS the pack frame), one entry per box:
+## `{band, basis, p, s, collide, ground}` — `basis` the UNSCALED rotation
+## (identity except the statue figure's lean), `s` the box size applied in
+## that rotated local frame, `p` the box center. Every height rides the
+## pinned constants; every span derives from the bake slot center.
+func _stadium_boxes(c: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var o := Vector3(c.x, 0.0, c.y) ## The slot center.
+	## --- the decked bowl ring (the bake's own chord schedule) ---------------
+	for k in STADIUM_RING_SEGMENTS:
+		var a0 := TAU * float(k) / float(STADIUM_RING_SEGMENTS)
+		var a1 := TAU * float(k + 1) / float(STADIUM_RING_SEGMENTS)
+		var am := (a0 + a1) * 0.5
+		var ca := cos(am)
+		var sa := sin(am)
+		var sideline := absf(ca) >= 0.7071
+		var north := sa < -0.7071
+		var p0 := Vector2(c.x + STADIUM_RING_RX * cos(a0),
+				c.y + STADIUM_RING_RZ * sin(a0))
+		var p1 := Vector2(c.x + STADIUM_RING_RX * cos(a1),
+				c.y + STADIUM_RING_RZ * sin(a1))
+		var mid := (p0 + p1) * 0.5
+		var from_center := mid - c
+		var radial := from_center / maxf(from_center.length(), 0.001)
+		## The lower deck / end zones / north wall: the placeholder band.
+		var width := STADIUM_RING_WIDTH
+		var height := STADIUM_END_TOP
+		var band := "bowl_cardinal"
+		if sideline:
+			height = STADIUM_SIDE_LOWER_TOP
+		elif north:
+			height = STADIUM_NORTH_WALL_TOP
+			band = "bowl_concrete"
+		var inward := radial * (width * 0.5)
+		out.append({"band": band, "basis": Basis(),
+				"p": Vector3(mid.x - inward.x, height * 0.5, mid.y - inward.y),
+				"s": Vector3(absf(p1.x - p0.x) + width, height,
+				absf(p1.y - p0.y) + width),
+				"collide": true, "ground": true})
+		## The upper deck over the sideline segments only: narrower box at
+		## the same outer face (the cantilever read), sections striped.
+		if sideline:
+			var uw := STADIUM_SIDE_UPPER_WIDTH
+			var u_height := STADIUM_SIDE_UPPER_TOP - STADIUM_SIDE_LOWER_TOP
+			var u_inward := radial * (uw * 0.5)
+			out.append({"band": "bowl_gold" if k % 2 == 1 else "bowl_cardinal",
+					"basis": Basis(),
+					"p": Vector3(mid.x - u_inward.x,
+					STADIUM_SIDE_LOWER_TOP + u_height * 0.5, mid.y - u_inward.y),
+					"s": Vector3(absf(p1.x - p0.x) + uw, u_height,
+					absf(p1.y - p0.y) + uw),
+					"collide": true, "ground": true})
+	## --- the north grass hillside (the berm read, NE/NW corners) ------------
+	for side: float in [-1.0, 1.0]:
+		out.append({"band": "berm", "basis": Basis(),
+				"p": o + Vector3(side * STADIUM_BERM_X, 3.0, -108.0),
+				"s": STADIUM_BERM_STEP1, "collide": true, "ground": true})
+		out.append({"band": "berm", "basis": Basis(),
+				"p": o + Vector3(side * STADIUM_BERM_X, 8.25, -104.5),
+				"s": STADIUM_BERM_STEP2, "collide": true, "ground": true})
+	## --- the pitch (V-09: 53 E–W × 113 N–S at the slot's own deck) ----------
+	out.append({"band": "pitch", "basis": Basis(),
+			"p": o + Vector3(0.0, 0.3, 0.0), "s": STADIUM_PITCH_SIZE,
+			"collide": true, "ground": true})
+	## The white markings hint (visual only): the touchline rectangle + the
+	## mid line, 30 mm proud of the pitch deck.
+	var my := 0.63
+	for side2: float in [-1.0, 1.0]:
+		out.append({"band": "field_mark", "basis": Basis(),
+				"p": o + Vector3(side2 * 26.2, my, 0.0),
+				"s": Vector3(0.3, 0.05, 112.0), "collide": false})
+		out.append({"band": "field_mark", "basis": Basis(),
+				"p": o + Vector3(0.0, my, side2 * 55.7),
+				"s": Vector3(52.4, 0.05, 0.3), "collide": false})
+	out.append({"band": "field_mark", "basis": Basis(),
+			"p": o + Vector3(0.0, my, 0.0),
+			"s": Vector3(52.4, 0.05, 0.3), "collide": false})
+	## --- the west press/suite tower (3 levels, west face ON the ring) -------
+	var px := STADIUM_PRESS_X
+	out.append({"band": "press_concrete", "basis": Basis(),
+			"p": o + Vector3(px, 6.0, 0.0),
+			"s": Vector3(25.0, 12.0, STADIUM_PRESS_HALF_Z * 2.0),
+			"collide": true})
+	out.append({"band": "press_glass", "basis": Basis(),
+			"p": o + Vector3(px, 17.0, 0.0),
+			"s": Vector3(25.0, 10.0, STADIUM_PRESS_HALF_Z * 2.0),
+			"collide": true})
+	out.append({"band": "press_glass", "basis": Basis(),
+			"p": o + Vector3(px, 25.0, 0.0),
+			"s": Vector3(19.0, 6.0, 40.0), "collide": true})
+	out.append({"band": "press_concrete", "basis": Basis(),
+			"p": o + Vector3(px, 28.5, 0.0),
+			"s": Vector3(21.0, 1.0, 44.0), "collide": true, "ground": true})
+	## --- the Sukup Endzone Club hint (south end, inner face flush) ----------
+	out.append({"band": "sukup", "basis": Basis(),
+			"p": o + Vector3(0.0, 19.0, 86.0),
+			"s": Vector3(68.0, STADIUM_SUKUP_TOP - STADIUM_END_TOP, 4.0),
+			"collide": true, "ground": true})
+	## --- the north videoboard (V-11, over the Jacobson mass) ----------------
+	out.append({"band": "videoboard", "basis": Basis(),
+			"p": o + STADIUM_VIDEOBOARD_CENTER, "s": STADIUM_VIDEOBOARD_SIZE,
+			"collide": true, "ground": true})
+	## --- the Jack Trice statue (the northeast plaza; dignity note in the
+	## section header — presence and the crouch, no face, no caricature) ----
+	var sp := o + Vector3(STADIUM_STATUE_OFFSET.x, 0.0, STADIUM_STATUE_OFFSET.y)
+	out.append({"band": "statue_plaza", "basis": Basis(),
+			"p": sp + Vector3(0.0, 0.06, 0.0),
+			"s": Vector3(8.0, 0.12, 8.0), "collide": true, "ground": true})
+	out.append({"band": "statue_stone", "basis": Basis(),
+			"p": sp + Vector3(0.0, 0.72, 0.0),
+			"s": Vector3(2.4, 1.2, 2.4), "collide": true, "ground": true})
+	## The figure: legs mass, the forward-leaning torso (the crouch, +z the
+	## bowl side), the head eyes-open toward the play, the arm reaching low
+	## — the October 5, 1923 letter's posture, abstracted.
+	out.append({"band": "statue_bronze", "basis": Basis(),
+			"p": sp + Vector3(0.0, 1.67, 0.15),
+			"s": Vector3(1.5, 0.7, 1.0), "collide": true})
+	var lean := Basis(Vector3.RIGHT, deg_to_rad(35.0))
+	out.append({"band": "statue_bronze", "basis": lean,
+			"p": sp + Vector3(0.0, 2.0, -0.2),
+			"s": Vector3(0.75, 1.15, 0.55), "collide": true})
+	out.append({"band": "statue_bronze", "basis": Basis(),
+			"p": sp + Vector3(0.0, 2.6, 0.15),
+			"s": Vector3(0.3, 0.34, 0.34), "collide": true})
+	var arm := Basis(Vector3.RIGHT, deg_to_rad(65.0))
+	out.append({"band": "statue_bronze", "basis": arm,
+			"p": sp + Vector3(0.0, 1.55, 0.5),
+			"s": Vector3(0.16, 0.85, 0.16), "collide": true})
+	return out
+
+
+## Builds the Hilton hero into its carrier chunk — chunk (4,0) is the only
+## carrier (the drum center + the roof part live there; the east segments
+## in chunk (5,0) retire through `_row_superseded_placeholder`). Same law
+## as the stadium build; the roof crumb stays byte-identical at the drum
+## roof top (the slot's own answer). No-op for every chunk that does not
+## carry the roof slot.
+func _build_hilton_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3,
+		chunk_body: StaticBody3D) -> void:
+	var h := Vector2.ZERO
+	var found := false
+	for ph: Dictionary in chunk.get("placeholders", []):
+		if str(ph.get("id", "")) != HILTON_HERO_ID \
+				or str(ph.get("part", "")) != "roof":
+			continue
+		h = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+		found = true
+		break
+	if not found:
+		return ## Not this chunk's slot.
+	var boxes := _hilton_boxes(h)
+	var root := Node3D.new()
+	root.name = "HeroHilton"
+	chunk_root.add_child(root)
+	var body := chunk_body
+	if body == null:
+		body = StaticBody3D.new()
+		body.name = "Placeholders"
+		body.collision_layer = 1 ## world
+		body.collision_mask = 0
+		chunk_root.add_child(body)
+	_mount_complex_hero_boxes(root, body, center, boxes, hilton_hero_parts,
+			"hilton", "Boxes")
+	## The arc roof slab + the seal medallion: the named mesh extras (the
+	## T-190 extras law — an elliptical slab cannot ride the box path).
+	var roof := MeshInstance3D.new()
+	roof.name = "RoofSlab"
+	roof.mesh = _elliptic_slab_mesh(HILTON_ROOF_RX, HILTON_ROOF_RZ, 3.0,
+			HILTON_CONCRETE)
+	roof.transform = Transform3D(Basis(),
+			Vector3(h.x, HILTON_ROOF_Y, h.y) - center)
+	root.add_child(roof)
+	var face := Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(-90.0)) ## Y axis -> east.
+	var seal := MeshInstance3D.new()
+	seal.name = "SealDisc"
+	seal.mesh = _row_taper_mesh(HILTON_SEAL_R, HILTON_SEAL_R, 0.08, HILTON_SEAL)
+	seal.transform = Transform3D(face,
+			Vector3(h.x + HILTON_SEAL_POS.x, HILTON_SEAL_POS.y,
+			h.y + HILTON_SEAL_POS.z) - center)
+	root.add_child(seal)
+	## The roof's collision: one elliptic-prism convex at the slab's spot.
+	var shape := CollisionShape3D.new()
+	var convex := ConvexPolygonShape3D.new()
+	var pts := PackedVector3Array()
+	for k in HILTON_RING_SEGMENTS:
+		var a := TAU * float(k) / float(HILTON_RING_SEGMENTS)
+		pts.append(Vector3(cos(a) * HILTON_ROOF_RX, -1.5, sin(a) * HILTON_ROOF_RZ))
+		pts.append(Vector3(cos(a) * HILTON_ROOF_RX, 1.5, sin(a) * HILTON_ROOF_RZ))
+	convex.points = pts
+	shape.shape = convex
+	shape.transform = Transform3D(Basis(),
+			Vector3(h.x, HILTON_ROOF_Y, h.y) - center)
+	body.add_child(shape)
+	## The roof's ground record: the slab's bbox as the walkable top (the
+	## slot's own 23.0 answer kept).
+	var tiles: Dictionary = {}
+	var bytes := _file_ground_box(tiles, [h.x, HILTON_ROOF_Y, h.y],
+			[HILTON_ROOF_RX * 2.0, 3.0, HILTON_ROOF_RZ * 2.0])
+	for key: Vector2i in tiles:
+		var rec: Dictionary = _chunks.get(key, {})
+		var ground: PackedFloat32Array = rec.get("ground", PackedFloat32Array())
+		ground.append_array(PackedFloat32Array(tiles[key]))
+		rec["ground"] = ground
+		_chunks[key] = rec
+	_buffer_bytes += bytes
+	## The retained record's mesh entries (the gates walk the families).
+	hilton_hero_parts.append({
+		"hero": "hilton", "band": "hilton_roof",
+		"p": Vector3(h.x, HILTON_ROOF_Y, h.y),
+		"s": Vector3(HILTON_ROOF_RX * 2.0, 3.0, HILTON_ROOF_RZ * 2.0),
+		"color": HILTON_CONCRETE, "collide": true, "mesh": true,
+	})
+	hilton_hero_parts.append({
+		"hero": "hilton", "band": "hilton_seal",
+		"p": Vector3(h.x + HILTON_SEAL_POS.x, HILTON_SEAL_POS.y,
+				h.y + HILTON_SEAL_POS.z),
+		"s": Vector3(0.08, HILTON_SEAL_R * 2.0, HILTON_SEAL_R * 2.0),
+		"color": HILTON_SEAL, "collide": false, "mesh": true,
+	})
+	## The roof crumb: byte-identical to the bake-derived roof pin this
+	## swap retires.
+	_hero_roof_tops[HILTON_HERO_ID] = Vector3(h.x, HILTON_ROOF_TOP, h.y)
+
+
+## The Hilton hero's box schedule (world-local; the drum on the bake's own
+## 12-segment chord schedule with the streak panels every third segment,
+## the east entry portico hint — canopy + two outer columns).
+func _hilton_boxes(h: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for k in HILTON_RING_SEGMENTS:
+		var a0 := TAU * float(k) / float(HILTON_RING_SEGMENTS)
+		var a1 := TAU * float(k + 1) / float(HILTON_RING_SEGMENTS)
+		var p0 := Vector2(h.x + HILTON_RING_RX * cos(a0),
+				h.y + HILTON_RING_RZ * sin(a0))
+		var p1 := Vector2(h.x + HILTON_RING_RX * cos(a1),
+				h.y + HILTON_RING_RZ * sin(a1))
+		var mid := (p0 + p1) * 0.5
+		var from_center := mid - h
+		var inward := from_center / maxf(from_center.length(), 0.001) \
+				* (HILTON_RING_WIDTH * 0.5)
+		out.append({
+			"band": "drum_streak" if k % 3 == 1 else "drum",
+			"basis": Basis(),
+			"p": Vector3(mid.x - inward.x, HILTON_RING_TOP * 0.5,
+					mid.y - inward.y),
+			"s": Vector3(absf(p1.x - p0.x) + HILTON_RING_WIDTH, HILTON_RING_TOP,
+					absf(p1.y - p0.y) + HILTON_RING_WIDTH),
+			"collide": true, "ground": true,
+		})
+	## The portico: canopy slab + two outer columns, projecting east.
+	out.append({"band": "hilton_portico", "basis": Basis(),
+			"p": Vector3(h.x + 72.0, 8.7, h.y),
+			"s": HILTON_PORTICO_CANOPY, "collide": true, "ground": true})
+	for side: float in [-1.0, 1.0]:
+		out.append({"band": "hilton_portico", "basis": Basis(),
+				"p": Vector3(h.x + 77.5, HILTON_PORTICO_COL.y * 0.5,
+				h.y + side * 11.5),
+				"s": HILTON_PORTICO_COL, "collide": true})
+	return out
+
+
+## One elliptical slab (12-gon prism) as a double-sided-shaded ArrayMesh —
+## the Hilton arc-roof read the box path cannot carry. SurfaceTool norms,
+## own albedo material (the dial-material path's sRGB law).
+func _elliptic_slab_mesh(rx: float, rz: float, thickness: float,
+		color: Color) -> ArrayMesh:
+	var hh := thickness * 0.5
+	var top := PackedVector3Array()
+	for k in HILTON_RING_SEGMENTS:
+		var a := TAU * float(k) / float(HILTON_RING_SEGMENTS)
+		top.append(Vector3(cos(a) * rx, hh, sin(a) * rz))
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := HILTON_RING_SEGMENTS
+	for k in n:
+		var k1 := (k + 1) % n
+		## Top face fan.
+		st.set_normal(Vector3.UP)
+		st.set_color(color)
+		st.add_vertex(Vector3.ZERO + Vector3(0.0, hh, 0.0))
+		st.add_vertex(top[k])
+		st.add_vertex(top[k1])
+		## Bottom face fan.
+		st.set_normal(Vector3.DOWN)
+		st.add_vertex(Vector3(0.0, -hh, 0.0))
+		st.add_vertex(top[k1] + Vector3(0.0, -thickness, 0.0))
+		st.add_vertex(top[k] + Vector3(0.0, -thickness, 0.0))
+		## Side wall.
+		var side := Vector3(top[k].x, 0.0, top[k].z).normalized()
+		st.set_normal(side)
+		st.add_vertex(top[k])
+		st.add_vertex(top[k] + Vector3(0.0, -thickness, 0.0))
+		st.add_vertex(top[k1] + Vector3(0.0, -thickness, 0.0))
+		st.add_vertex(top[k])
+		st.add_vertex(top[k1] + Vector3(0.0, -thickness, 0.0))
+		st.add_vertex(top[k1])
+	var mesh := ArrayMesh.new()
+	st.commit(mesh)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 1.0
+	mesh.surface_set_material(0, mat)
+	return mesh
+
+
+## --- T-191 the tailgate lot massing -----------------------------------------
+## The surrounding Iowa State Center lots as paved flats with a white
+## stall-marking hint (§1.3's LOD row: "L0 ground splats + prop scatter" —
+## the populated dressing is T-208's). The data path is the parking
+## census's own lot list (`AmesParking.lots`, the census §3 tailgate box
+## filter that file carries) — one data source, paint and dressing can
+## never disagree. The flats ride the T-187 mesh path (ear-clip over the
+## baker's own ring-split, mesh-carried vertex colors converted
+## sRGB→linear at the build); the markings ride a box MultiMesh at the
+## 30 mm-proud step the ribbon read proved depth-safe. Both families live
+## OUTSIDE the bake-derived render metric (the T-187 corner-dress law),
+## records retained for the gate. Zero RNG of any stream — a rebuild
+## reproduces every transform byte-identically.
+const LOT_FLAT_Y := 0.03 ## The paved flat, above the 0.014 ground-cell tops.
+const LOT_MARK_Y := 0.06 ## The stall lines, 30 mm proud of the flat.
+const LOT_ROW_PITCH := 6.0 ## The stall-row module (depth + aisle).
+const LOT_STALL_PITCH := 2.75 ## The stall width along the row.
+const LOT_STALL_DEPTH := 5.0 ## The painted line length across the row.
+
+
+func _build_tailgate_lots() -> void:
+	if parking == null:
+		return ## The parking system never built — the dress stays empty.
+	var root := Node3D.new()
+	root.name = "StadiumLots"
+	add_child(root)
+	var lots: Array[PackedVector2Array] = []
+	var union := Rect2()
+	for lot: AmesParking.Lot in parking.lots:
+		if not lot.in_tailgate or lot.polygon.size() < 3:
+			continue
+		lots.append(lot.polygon)
+		union = union.merge(lot.aabb)
+	if lots.is_empty():
+		return ## The census lost the lot sea — the gate fails loudly.
+	_build_lot_flats(root, lots)
+	_build_lot_markings(root, lots, union)
+
+
+## The paved flats: every tailgate lot polygon ear-clipped (the baker's own
+## triangulator, fed through its own ring-split first — the T-187 law) into
+## ONE vertex-colored ArrayMesh at the pinned flat level.
+func _build_lot_flats(root: Node3D, lots: Array[PackedVector2Array]) -> void:
+	var verts := PackedVector3Array()
+	var colors := PackedColorArray()
+	var tris := 0
+	for poly: PackedVector2Array in lots:
+		for ring: PackedVector2Array in AmesBaker._split_rings(poly):
+			for t: Vector3i in AmesBaker._triangulate(ring):
+				tris += 1
+				for idx: int in [t.x, t.y, t.z]:
+					verts.append(Vector3(poly[idx].x, LOT_FLAT_Y, poly[idx].y))
+					## Mesh-carried vertex colors ride the shader as LINEAR
+					## values (the T-187 color-space law).
+					colors.append(_srgb_to_linear(LOT_ASPHALT))
+	if tris == 0:
+		return
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	var normals := PackedVector3Array()
+	normals.resize(verts.size())
+	normals.fill(Vector3.UP)
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_COLOR] = colors
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mat := _make_vertex_color_material()
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.surface_set_material(0, mat)
+	var node := MeshInstance3D.new()
+	node.name = "LotFlats"
+	node.mesh = mesh
+	root.add_child(node)
+	lot_flat_tris = tris
+
+
+## The stall-marking hint: rows every `LOT_ROW_PITCH` across the lot's
+## SHORT axis, stall lines every `LOT_STALL_PITCH` along the LONG axis,
+## each line emitted only when both ends and its center sit inside the lot
+## polygon. Box MultiMesh, white, records retained.
+func _build_lot_markings(root: Node3D, lots: Array[PackedVector2Array],
+		union: Rect2) -> void:
+	var xfs: Array[Transform3D] = []
+	for poly: PackedVector2Array in lots:
+		var min_x := INF
+		var min_z := INF
+		var max_x := -INF
+		var max_z := -INF
+		for p: Vector2 in poly:
+			min_x = minf(min_x, p.x)
+			min_z = minf(min_z, p.y)
+			max_x = maxf(max_x, p.x)
+			max_z = maxf(max_z, p.y)
+		var long_x := (max_x - min_x) >= (max_z - min_z)
+		var a_lo := min_x if long_x else min_z
+		var a_hi := max_x if long_x else max_z
+		var b_lo := min_z if long_x else min_x
+		var b_hi := max_z if long_x else max_x
+		var row := b_lo + LOT_STALL_DEPTH * 0.5
+		while row <= b_hi:
+			var stall := a_lo + LOT_STALL_PITCH * 0.5
+			while stall <= a_hi:
+				## The line: across the row (the stall depth), centered on
+				## the stall pitch; emitted only fully inside the polygon.
+				var pa := Vector2(stall, row - LOT_STALL_DEPTH * 0.5)
+				var pb := Vector2(stall, row + LOT_STALL_DEPTH * 0.5)
+				var pc := Vector2(stall, row)
+				var size := Vector3(0.12, 0.04, LOT_STALL_DEPTH)
+				var pos := Vector3(stall, LOT_MARK_Y, row)
+				if not long_x:
+					pa = Vector2(row - LOT_STALL_DEPTH * 0.5, stall)
+					pb = Vector2(row + LOT_STALL_DEPTH * 0.5, stall)
+					pc = Vector2(row, stall)
+					size = Vector3(LOT_STALL_DEPTH, 0.04, 0.12)
+					pos = Vector3(row, LOT_MARK_Y, stall)
+				if Geometry2D.is_point_in_polygon(pa, poly) \
+						and Geometry2D.is_point_in_polygon(pb, poly) \
+						and Geometry2D.is_point_in_polygon(pc, poly):
+					xfs.append(Transform3D(Basis.from_scale(size), pos))
+				stall += LOT_STALL_PITCH
+			row += LOT_ROW_PITCH
+	lot_marking_xfs = xfs
+	if xfs.is_empty():
+		return
+	var mm := _new_multimesh(xfs.size())
+	for i in xfs.size():
+		mm.set_instance_transform(i, xfs[i])
+		mm.set_instance_color(i, LOT_MARKING)
+	var mm_lo := Vector3(union.position.x, 0.0, union.position.y) - Vector3.ONE * 4.0
+	var mm_size := Vector3(union.size.x, 0.0, union.size.y) + Vector3.ONE * 8.0
+	mm.custom_aabb = AABB(mm_lo, mm_size)
+	var node := MultiMeshInstance3D.new()
+	node.name = "LotMarkings"
+	node.multimesh = mm
+	root.add_child(node)
 
 
 ## One tapered/straight cylinder mesh with its own albedo material — the
