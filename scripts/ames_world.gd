@@ -6178,17 +6178,15 @@ func _rail_chain_route() -> PackedVector3Array:
 
 
 ## The road axis at an at-grade crossing: the nearest polyline segment of the
-## matching street (exact name when the crossing names one, else the nearest
-## service-class street for the unnamed lead) — the segment's unit direction
-## is the road axis, its `width_m` the road width. Deterministic.
+## matching street (exact name when the crossing names one, else — the unnamed
+## yard lead — the nearest street segment of ANY class, since the pack's
+## streets[] graph carries no service-class ways for it) — the segment's unit
+## direction is the road axis, its `width_m` the road width. Deterministic.
 func _road_axis_at(pos: Vector2, road_name: String, road_class: String) -> Dictionary:
 	var best: Dictionary = {}
 	var best_d := INF
 	for street: Dictionary in AmesDataPack.streets():
-		if not road_name.is_empty():
-			if str(street.get("name", "")) != road_name:
-				continue
-		elif str(street.get("class", "")) != road_class:
+		if not road_name.is_empty() and str(street.get("name", "")) != road_name:
 			continue
 		var pts: Array = street.get("points", [])
 		for i in range(pts.size() - 1):
@@ -6367,17 +6365,19 @@ func _build_fence(root: Node3D) -> void:
 		for side_i in 2:
 			var offset := FENCE_LEFT_OFFSET if side_i == 0 else FENCE_RIGHT_OFFSET
 			var side_sign := 1.0 if side_i == 0 else -1.0
-			var fp := pt + left * (offset * side_sign) ## Left line north of the route, right line south (the second track's side).
+			var fp_flat := pt + left * (offset * side_sign) ## Left line north of the route, right line south (the second track's side).
+			var fp := Vector3(fp_flat.x, 0.0, fp_flat.z) ## The fence stands on the plate — the route's own y is the rail head.
 			var fp2 := Vector2(fp.x, fp.z)
 			var ok := true
 			for c: Vector2 in crossings:
 				if fp2.distance_to(c) < FENCE_GAP_RADIUS:
 					ok = false
 					break
-			posts.append(Transform3D(
-					Basis(tan * 0.10, Vector3.UP * FENCE_POST_H,
-							Vector3(left.z, 0.0, -left.x) * 0.10),
-					fp + Vector3(0.0, FENCE_POST_H * 0.5, 0.0)))
+			if ok:
+				posts.append(Transform3D(
+						Basis(tan * 0.10, Vector3.UP * FENCE_POST_H,
+								Vector3(left.z, 0.0, -left.x) * 0.10),
+						fp + Vector3(0.0, FENCE_POST_H * 0.5, 0.0)))
 			if ok and prev_ok[side_i]:
 				var span := fp - prev[side_i]
 				var mid := (fp + prev[side_i]) * 0.5

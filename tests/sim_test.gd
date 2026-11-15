@@ -198,6 +198,7 @@ func _run_scenarios() -> void:
 	await _scenario_stadium_complex_dims() ## T-191 — the Jack Trice Stadium complex hero: the 1:1 slot swaps, the 183×208 N–S bowl re-pin + the N–S field assertion, the hillside/press/Sukup/statue pins, the Hilton drum re-pin with the arc roof + portico, the tailgate lot dress, the live seams.
 	await _scenario_downtown_heroes() ## T-192 — the downtown heroes: the bandshell at its true OSM position (the copper arch over the mint shells), the City Hall + Municipal civic pair's 1:1 slot swaps with the photo-02 cartouche stone, the Main Street fabric (cornices, the maroon furniture run, the blue banners, the neon blade seeds), the live seams.
 	await _scenario_civic_tanks_dims() ## T-193 — the civic water tanks: the bulb-on-stem pair's 1:1 slot swaps at the data positions, the photo-02 mushroom shoulder + banding pairs + roof dome, the diamond logo as painted geometry on the town-facing walls (the hue-law palette), the solid-but-not-landable crown, the live seams.
+	await _scenario_rail_dressing_pins() ## T-194 — the rail corridor: the depot's 1:1 slot swap (the corrected track-face canopy), the crossbuck set at the 9 at-grade crossings, the right-of-way fence lines, the coal drag's chained route + loop schedule + livery, and the no-traffic-gating probe (a real car crosses the straddled consist).
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -1044,6 +1045,7 @@ func _scenario_ames_world_render_budget() -> void:
 	var complex_slot_parts := 0
 	var downtown_slot_parts := 0
 	var civic_tank_slot_parts := 0
+	var depot_slot_parts := 0
 	for entry: Dictionary in manifest.get("chunks", []):
 		var doc_b: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
 		for ph_b: Dictionary in doc_b.get("placeholders", []):
@@ -1064,6 +1066,8 @@ func _scenario_ames_world_render_budget() -> void:
 			if str(ph_b.get("id", "")) == "city_water_tank_north" \
 					or str(ph_b.get("id", "")) == "city_water_tank_east":
 				civic_tank_slot_parts += 1
+			if str(ph_b.get("id", "")) == "way/260524827":
+				depot_slot_parts += 1
 		for m_b: Dictionary in doc_b.get("massing", []):
 			if bool(m_b.get("a", false)) and ["way/158023244", "way/158023219",
 					"way/183216666"].has(str(m_b.get("id", ""))):
@@ -1079,7 +1083,8 @@ func _scenario_ames_world_render_budget() -> void:
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
 			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
 			- row_slot_parts - mu_parks_slot_parts - marston_slot_parts \
-			- complex_slot_parts - downtown_slot_parts - civic_tank_slot_parts
+			- complex_slot_parts - downtown_slot_parts - civic_tank_slot_parts \
+			- depot_slot_parts
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
 	if int(m.instances) != expected_instances:
@@ -9346,7 +9351,681 @@ func _is_superseded_t193(id: String) -> bool:
 	return id == "city_water_tank_north" or id == "city_water_tank_east"
 
 
-## --- scenario (T-187 the Central Campus lawn) -------------------------------
+## --- scenario (T-194 the rail corridor) --------------------------------------
+
+## The town's motion landmark (LANDMARKS §5 item 12) on the resident Ames
+## world, every expectation re-derived from the COMMITTED DATA (the pack's
+## rail crossings + centerlines + streets, the bake's chunk files — never
+## through the world's own constants). Arms:
+## A. THE DATA LAYER — the pack's 9 at-grade crossings (the downtown four
+##    named), the depot slot's three placeholder parts in the bake (chunk
+##    (10,−1)), and the world's retained route re-proven against the pack's
+##    26 main-line ways: every route vertex IS a way vertex, all 13 ways of
+##    one track are consumed end-to-end, the west/east ends + length pin,
+##    and the route passes the 6 main-line at-grade crossings (the two
+##    Jewell-branch ones stay far off it).
+## B. THE COAL DRAG — the consist schedule (32 boxes: 8 loco + 12 hoppers ×
+##    2), the §1.8 livery at its literals + hue/luminance laws (weathered
+##    yellow #D9A02C, shield white #E8E6E0 / blue #1C3F94, hoppers #6B655C),
+##    the loop-timer pins (period 360 s, speed 31.3 = the tagged 70-mph
+##    class, first pass at 25 s — hidden/gap/wrap states + arc arithmetic),
+##    the live clock advance + visibility flip, and the scope guard (no
+##    CollisionObject3D anywhere in the rig).
+## C. THE DEPOT — the 1:1 swap (the slot's gray stack retired), the photo-08
+##    dims on the slot's own envelope (wall 92.8 × 7.0 × 19.9, hip top 9.5
+##    over the 88.16 × 16.915 base, canopy slab at the CORRECTED track face
+##    z −173.04 — the pack's own geometry puts the main line south of the
+##    footprint — top 4.0), the walk seam (ridge answers 9.5, canopy 4.0,
+##    the retired north-face slot answers the plate), the closed 6-band
+##    palette with NO sign band (the no-Amtrak law), the live loft + arch
+##    albedos, and the live collision seams (wall face, canopy top, hip
+##    slope).
+## D. THE CROSSBUCKS — one pin per at-grade crossing (9), two assemblies
+##    each (18 posts / 36 arms) at the derived setback past the matched
+##    street's half-width, the arms at ±45° in the plane facing along the
+##    road; the museum wigwag at Duff (4 boxes + the red disc).
+## E. THE FENCE — the right-of-way lines at ±5.0/9.5 off the route, the
+##    18 m post pitch (exact count from the route length), the two strand
+##    lines at 0.55/1.05, and the crossing gap (nothing within 17.5 m of
+##    any at-grade crossing).
+## F. THE NO-GATING PROBE — the coal drag's consist held straddling the Duff
+##    crossing while a REAL staged mover drives its graph lane THROUGH the
+##    crossing: minimum distance < 12 m to the crossing center and the
+##    signed side flips — cars cross regardless (the fence; the train is
+##    dressing that moves).
+func _scenario_rail_dressing_pins() -> void:
+	const S := "rail_dressing_pins"
+	var bad: PackedStringArray = PackedStringArray()
+
+	## --- A. the data layer -----------------------------------------------------
+	var at_grade: Array[Dictionary] = []
+	for crossing: Dictionary in AmesDataPack.rail().get("crossings", []):
+		if str(crossing.get("grade", "")) == "at_grade":
+			at_grade.append(crossing)
+	if at_grade.size() != 9:
+		bad.append("pack at-grade crossings %d != the census 9" % at_grade.size())
+	var downtown := ["Grand Avenue", "Clark Avenue", "Kellogg Avenue", "Duff Avenue"]
+	for name_want: String in downtown:
+		var found := false
+		for c: Dictionary in at_grade:
+			if str(c.get("road_name", "")) == name_want:
+				found = true
+				break
+		if not found:
+			bad.append("downtown crossing %s missing from the pack set" % name_want)
+
+	## The depot slot in the bake (walked from the chunk files, not trusted).
+	var slot_parts := 0
+	var slot_center := Vector2.ZERO
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for ph: Dictionary in doc.get("placeholders", []):
+			if str(ph.get("id", "")) != "way/260524827":
+				continue
+			slot_parts += 1
+			if str(ph.get("part", "")) == "wall":
+				slot_center = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+	if slot_parts != 3 or slot_center != Vector2(2652.99, -184.99):
+		bad.append("depot slot walk: %d parts, center %s != the bake's 3 at (2652.99, -184.99)"
+				% [slot_parts, slot_center])
+
+	## The route re-proven against the pack's ways (A continued, on the
+	## harness's far world — the world built once at boot).
+	var route: PackedVector3Array = _city.rail_route
+	var total := 0.0 ## The chained track's length (m) — the fence arms re-read it.
+	if route.size() < 13:
+		bad.append("retained route has only %d vertices" % route.size())
+	else:
+		var way_verts: Array[Vector2] = []
+		var way_count := 0
+		for line: Array in AmesDataPack.rail().get("centerlines", []):
+			way_count += 1
+			for p: Array in line:
+				way_verts.append(Vector2(float(p[0]), float(p[1])))
+		var worst := 0.0
+		for v: Vector3 in route:
+			var v2 := Vector2(v.x, v.z)
+			var bd := INF
+			for w: Vector2 in way_verts:
+				bd = minf(bd, v2.distance_to(w))
+			worst = maxf(worst, bd)
+		if worst > 0.01:
+			bad.append("route vertex %.3f m off the nearest way vertex — the chain invented points" % worst)
+		var served := 0
+		for line: Array in AmesDataPack.rail().get("centerlines", []):
+			var a_ok := false
+			var b_ok := false
+			var a := Vector2(float((line[0] as Array)[0]), float((line[0] as Array)[1]))
+			var b := Vector2(float((line[line.size() - 1] as Array)[0]),
+					float((line[line.size() - 1] as Array)[1]))
+			for v2: Vector3 in route:
+				var rv := Vector2(v2.x, v2.z)
+				if rv.distance_to(a) < 0.01:
+					a_ok = true
+				if rv.distance_to(b) < 0.01:
+					b_ok = true
+			if a_ok and b_ok:
+				served += 1
+		if served != 13:
+			bad.append("route serves %d ways end-to-end != one track's 13" % served)
+		var west := route[0]
+		var east := route[route.size() - 1]
+		if Vector2(west.x, west.z).distance_to(Vector2(-724.6, -1404.39)) > 1.0 \
+				or Vector2(east.x, east.z).distance_to(Vector2(3297.47, -217.26)) > 1.0:
+			bad.append("route ends %s..%s != the westmost way endpoint walking east" % [west, east])
+		total = 0.0
+		for i in route.size() - 1:
+			total += (route[i + 1] as Vector3).distance_to(route[i])
+		if absf(total - 4272.6) > 5.0:
+			bad.append("route length %.1f != the chained track's 4272.6 (±5)" % total)
+		var route_crossings := 0
+		for c: Dictionary in at_grade:
+			var pos := Vector2(float((c["pos"] as Array)[0]), float((c["pos"] as Array)[1]))
+			var dmin := INF
+			for i in route.size() - 1:
+				var a3 := Vector2(route[i].x, route[i].z)
+				var b3 := Vector2(route[i + 1].x, route[i + 1].z)
+				var seg := b3 - a3
+				var l2 := seg.length_squared()
+				var t := 0.0
+				if l2 > 1e-12:
+					t = clampf((pos - a3).dot(seg) / l2, 0.0, 1.0)
+				dmin = minf(dmin, (a3 + seg * t).distance_to(pos))
+			if dmin < 10.0:
+				route_crossings += 1
+			if str(c.get("road_name", "")) == "Duff Avenue" and dmin > 2.0:
+				bad.append("Duff crossing %.1f m off the route — the drag must run it" % dmin)
+		if route_crossings != 6:
+			bad.append("route passes %d at-grade crossings != the main line's 6 (the Jewell branch stays off)" % route_crossings)
+
+	## --- B. the coal drag -------------------------------------------------------
+	var train: AmesTrain = _city.train
+	if train == null:
+		bad.append("no coal drag staged by the world")
+	else:
+		if train.consist_boxes() != 32:
+			bad.append("consist %d boxes != 32 (8 loco + 12 hoppers × 2)" % train.consist_boxes())
+		var band_counts := {}
+		var body_color := Color.BLACK
+		var hopper_color := Color.BLACK
+		var shield_white_color := Color.BLACK
+		var shield_blue_color := Color.BLACK
+		for part: Dictionary in train.part_schedule:
+			var band := str(part["band"])
+			band_counts[band] = int(band_counts.get(band, 0)) + 1
+			match band:
+				"loco_body":
+					body_color = part["color"] as Color
+				"hopper":
+					hopper_color = part["color"] as Color
+				"shield_white":
+					shield_white_color = part["color"] as Color
+				"shield_blue":
+					shield_blue_color = part["color"] as Color
+		for want: Array in [["loco_frame", 1], ["loco_body", 1], ["loco_roof", 1],
+				["loco_glass", 1], ["shield_white", 2], ["shield_blue", 2],
+				["hopper", 12], ["coal", 12]]:
+			if int(band_counts.get(str(want[0]), 0)) != int(want[1]):
+				bad.append("consist band %s count %d != %d" % [want[0],
+						int(band_counts.get(str(want[0]), 0)), int(want[1])])
+		## The §1.8 livery: the rows verbatim, plus the laws that make the
+		## colors read (yellow hue, blue hue, white luminance).
+		if _color_gap(body_color, Color(0.851, 0.627, 0.173)) > 0.02:
+			bad.append("loco body %s != the weathered yellow #D9A02C" % body_color)
+		var yellow_hue := _hue_deg(body_color)
+		if yellow_hue < 35.0 or yellow_hue > 55.0:
+			bad.append("loco body hue %.0f outside the yellow law 35..55" % yellow_hue)
+		if _color_gap(hopper_color, Color(0.420, 0.396, 0.361)) > 0.02:
+			bad.append("hopper %s != the brown-gray #6B655C" % hopper_color)
+		if _color_gap(shield_white_color, Color(0.910, 0.902, 0.878)) > 0.02:
+			bad.append("shield white %s != #E8E6E0" % shield_white_color)
+		var wl := shield_white_color.r * 0.299 + shield_white_color.g * 0.587 \
+				+ shield_white_color.b * 0.114
+		if wl < 0.8:
+			bad.append("shield white luminance %.2f < 0.8 — must read white" % wl)
+		if _color_gap(shield_blue_color, Color(0.110, 0.247, 0.580)) > 0.02:
+			bad.append("shield blue %s != #1C3F94" % shield_blue_color)
+		var blue_hue := _hue_deg(shield_blue_color)
+		if blue_hue < 200.0 or blue_hue > 250.0:
+			bad.append("shield blue hue %.0f outside the blue law 200..250" % blue_hue)
+		## The loop schedule: the pinned constants + the state arithmetic.
+		if absf(train.RUN_PERIOD_S - 360.0) > 0.001:
+			bad.append("RUN_PERIOD_S %.1f != the pinned 360" % train.RUN_PERIOD_S)
+		if absf(train.RUN_SPEED_MPS - 31.3) > 0.001:
+			bad.append("RUN_SPEED_MPS %.2f != the tagged 70-mph class 31.3" % train.RUN_SPEED_MPS)
+		if absf(train.RUN_START_DELAY_S - 25.0) > 0.001:
+			bad.append("RUN_START_DELAY_S %.1f != the pinned 25" % train.RUN_START_DELAY_S)
+		var start_arc := float(train.state_at(0.0)["nose_arc"])
+		var st_pre := train.state_at(20.0)
+		var st_run := train.state_at(25.0)
+		var st_mid := train.state_at(25.0 + train.traverse_time() * 0.5)
+		var st_gap := train.state_at(25.0 + train.traverse_time() + 5.0)
+		var st_wrap := train.state_at(25.0 + train.RUN_PERIOD_S + 1.0)
+		if bool(st_pre["visible"]):
+			bad.append("drag visible before the first pass (t=20)")
+		if not bool(st_run["visible"]) \
+				or absf(float(st_run["nose_arc"]) - start_arc) > 0.05:
+			bad.append("first pass t=25: vis=%s arc=%.2f != tail-at-start %.2f" % [
+					str(st_run["visible"]), float(st_run["nose_arc"]), start_arc])
+		if not bool(st_mid["visible"]):
+			bad.append("drag hidden mid-traverse")
+		else:
+			var want_arc := start_arc + train.traverse_time() * 0.5 * train.RUN_SPEED_MPS
+			if absf(float(st_mid["nose_arc"]) - want_arc) > 0.5:
+				bad.append("mid-traverse arc %.1f != the speed law %.1f" % [
+						float(st_mid["nose_arc"]), want_arc])
+		if bool(st_gap["visible"]):
+			bad.append("drag still visible in the between-pass gap")
+		if not bool(st_wrap["visible"]):
+			bad.append("drag did not wrap at period+1")
+		## The live clock + visibility flip.
+		train.clock = 24.9
+		await _wait_frames(2)
+		if bool(train.state_at(train.clock)["visible"]) != train.visible:
+			bad.append("train visibility does not follow the schedule state")
+		train.clock = 30.0
+		await _wait_frames(2)
+		if not train.visible:
+			bad.append("drag not visible at t=30 (inside the first traverse)")
+		var arc0 := float(train.state_at(train.clock)["nose_arc"])
+		await _wait_frames(60)
+		var arc1 := float(train.state_at(train.clock)["nose_arc"])
+		if arc1 - arc0 < 25.0 or arc1 - arc0 > 40.0:
+			bad.append("live arc advance %.1f m over 60 frames != the 31.3 m/s law band" % (arc1 - arc0))
+		## The scope guard: no physics body anywhere in the rig.
+		if train.find_children("*", "CollisionObject3D", true, false).size() != 0:
+			bad.append("coal drag carries a physics body — the dressing must gate nothing")
+
+	## --- C. the depot -----------------------------------------------------------
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var parts := world.depot_hero_parts
+	if parts.is_empty():
+		bad.append("no retained depot parts — the hero never built")
+	else:
+		if parts.size() != 28:
+			bad.append("depot record %d entries != 25 boxes + 3 meshes" % parts.size())
+		var band_set := {}
+		var wall := {}
+		var canopy := {}
+		var loft := {}
+		for part: Dictionary in parts:
+			var band := str(part["band"])
+			band_set[band] = true
+			if not bool(part["mesh"]) and band == "brick" \
+					and absf((part["s"] as Vector3).x - 92.8) < 0.05 \
+					and absf((part["s"] as Vector3).y - 7.0) < 0.05:
+				wall = part
+			if not bool(part["mesh"]) and band == "tile" \
+					and absf((part["s"] as Vector3).y - 0.8) < 0.05:
+				canopy = part
+			if bool(part["mesh"]) and band == "tile":
+				loft = part
+		for want_band: String in ["brick", "tile", "trim", "green", "steel", "cap"]:
+			if not band_set.has(want_band):
+				bad.append("depot band %s never used — the family is missing" % want_band)
+		## The no-Amtrak law: the band set is CLOSED at the six dressing
+		## bands — no sign band exists for the preserved depot's blank read.
+		for stray_band: Variant in band_set:
+			if not (stray_band as String) in ["brick", "tile", "trim", "green", "steel", "cap"]:
+				bad.append("depot carries stray band %s — the preserved depot wears no marks" % stray_band)
+		if wall.is_empty() or absf(((wall["p"] as Vector3) - Vector3(2652.99, 3.5, -184.99)).length()) > 0.05:
+			bad.append("depot wall %s != the slot's own 92.8 × 7.0 × 19.9 at (2652.99, 3.5, -184.99)"
+					% (wall.get("p", "<none>")))
+		var canopy_top: float = (canopy["p"] as Vector3).y + (canopy["s"] as Vector3).y * 0.5 \
+				if not canopy.is_empty() else -1.0
+		if canopy.is_empty() or absf(canopy_top - 4.0) > 0.05 \
+				or absf((canopy["p"] as Vector3).z - -173.04) > 0.05:
+			bad.append("depot canopy %s != the slot slab at the CORRECTED track face (top 4.0, z -173.04)"
+					% (canopy.get("p", "<none>")))
+		if loft.is_empty() or absf((loft["s"] as Vector3).x - 88.16) > 0.05 \
+				or absf((loft["s"] as Vector3).y - 2.5) > 0.05:
+			bad.append("depot hip loft %s != the slot roof's 88.16 × 2.5 × 16.915 envelope"
+					% (loft.get("s", "<none>")))
+		var north_stray := false
+		for part: Dictionary in parts:
+			if (part["p"] as Vector3).z < -190.0:
+				north_stray = true
+		if north_stray:
+			bad.append("a depot part sits north of z -190 — the retired north-face canopy slot must stay retired")
+
+	## The walk seam: the ridge answers 9.5, the wall 7.0 under it, the
+	## canopy 4.0 at the track face, and the RETIRED north slot answers the
+	## plate (the T-190 retire-the-slot-answers law).
+	var gh_ridge := world.ground_height(world.to_global(Vector3(2652.99, 0.0, -184.99)))
+	var gh_wall := world.ground_height(world.to_global(Vector3(2652.99, 0.0, -191.0)))
+	var gh_canopy := world.ground_height(world.to_global(Vector3(2652.99, 0.0, -173.04)))
+	var gh_retired := world.ground_height(world.to_global(Vector3(2652.99, 0.0, -195.94)))
+	if absf(gh_ridge - 9.5) > 0.05:
+		bad.append("ridge walk answer %.2f != the slot roof top 9.5" % gh_ridge)
+	if absf(gh_wall - 7.0) > 0.05:
+		bad.append("wall walk answer %.2f != 7.0" % gh_wall)
+	if absf(gh_canopy - 4.0) > 0.05:
+		bad.append("canopy walk answer %.2f != 4.0 at the track face" % gh_canopy)
+	if absf(gh_retired) > 0.05:
+		bad.append("retired north-face slot answers %.2f — must answer the plate" % gh_retired)
+
+	## The live meshes + the collision seams (the T-193 probe pattern).
+	var chunk_node := world.get_node_or_null("Chunks/Chunk_10_-1") as Node3D
+	if chunk_node == null:
+		bad.append("chunk Chunk_10_-1 missing")
+	else:
+		var ph_mm := chunk_node.get_node_or_null("Placeholders") as MultiMeshInstance3D
+		if ph_mm != null:
+			bad.append("depot chunk still carries a placeholder family — the gray stack must be fully retired")
+		var hero_root := chunk_node.get_node_or_null("HeroDepot") as Node3D
+		if hero_root == null:
+			bad.append("no HeroDepot under Chunk_10_-1")
+		else:
+			var boxes_mm := hero_root.get_node_or_null("Boxes") as MultiMeshInstance3D
+			if boxes_mm == null or boxes_mm.multimesh.instance_count != 25:
+				bad.append("depot Boxes MM %s != the 25-box schedule" % (
+						boxes_mm.multimesh.instance_count if boxes_mm != null else "<none>"))
+			var loft_mesh := hero_root.get_node_or_null("HipRoof") as MeshInstance3D
+			if loft_mesh == null or not (loft_mesh.mesh is ArrayMesh):
+				bad.append("depot hip loft mesh missing")
+			else:
+				var slope_mat := (loft_mesh.mesh as ArrayMesh).surface_get_material(0) as StandardMaterial3D
+				if slope_mat == null or _color_gap(slope_mat.albedo_color, Color(0.690, 0.290, 0.204)) > 0.02:
+					bad.append("hip loft slope %s != the red tile #B04A34" % (
+							slope_mat.albedo_color if slope_mat != null else "<null>"))
+			for arch_name: String in ["DormerArchEast", "DormerArchWest"]:
+				var arch := hero_root.get_node_or_null(arch_name) as MeshInstance3D
+				if arch == null or not (arch.mesh is CylinderMesh):
+					bad.append("depot %s missing" % arch_name)
+				else:
+					var arch_mat := (arch.mesh as CylinderMesh).material as StandardMaterial3D
+					if arch_mat == null or _color_gap(arch_mat.albedo_color, Color(0.898, 0.875, 0.808)) > 0.02:
+						bad.append("%s albedo %s != the cream trim" % [arch_name,
+								arch_mat.albedo_color if arch_mat != null else "<null>"])
+	var space := get_world_3d().direct_space_state
+	var probe := func(from: Vector3, to: Vector3) -> Dictionary:
+		var ray := PhysicsRayQueryParameters3D.create(world.to_global(from),
+				world.to_global(to))
+		ray.collision_mask = 1
+		return space.intersect_ray(ray)
+	var wall_ray: Dictionary = probe.call(
+			Vector3(2652.99, 2.5, -170.0), Vector3(2652.99, 2.5, -184.99))
+	if wall_ray.is_empty():
+		bad.append("depot wall face ray missed")
+	else:
+		var wall_z: float = world.to_local((wall_ray as Dictionary)["position"]).z
+		if absf(wall_z - -175.04) > 0.1:
+			bad.append("depot south wall face z %.2f != -175.04 (±0.1)" % wall_z)
+	var canopy_ray: Dictionary = probe.call(
+			Vector3(2652.99, 10.0, -173.04), Vector3(2652.99, 0.5, -173.04))
+	if canopy_ray.is_empty():
+		bad.append("canopy slab ray missed")
+	else:
+		var canopy_y: float = world.to_local((canopy_ray as Dictionary)["position"]).y
+		if absf(canopy_y - 4.0) > 0.1:
+			bad.append("canopy top y %.2f != the slab's 4.0 (±0.1)" % canopy_y)
+	var hip_ray: Dictionary = probe.call(
+			Vector3(2652.99, 12.0, -188.0), Vector3(2652.99, 5.0, -188.0))
+	if hip_ray.is_empty():
+		bad.append("hip slope ray missed (the frustum convex must be live)")
+	else:
+		var hip_y: float = world.to_local((hip_ray as Dictionary)["position"]).y
+		if absf(hip_y - 8.704) > 0.15:
+			bad.append("hip north slope at z -188 reads y %.2f != the frustum read 8.704 (±0.15)" % hip_y)
+
+	## --- D. the crossbucks ------------------------------------------------------
+	if world.crossbuck_pins.size() != 9:
+		bad.append("crossbuck pins %d != the 9 at-grade crossings" % world.crossbuck_pins.size())
+	if world._crossbuck_post_xfs.size() != 18 or world._crossbuck_arm_xfs.size() != 36:
+		bad.append("crossbuck hardware %d posts / %d arms != 18 / 36" % [
+				world._crossbuck_post_xfs.size(), world._crossbuck_arm_xfs.size()])
+	for pin: Dictionary in world.crossbuck_pins:
+		var pin_pos: Vector2 = pin["pos"]
+		var matched := {}
+		for c: Dictionary in at_grade:
+			var cpos := Vector2(float((c["pos"] as Array)[0]), float((c["pos"] as Array)[1]))
+			if cpos.distance_to(pin_pos) < 0.5:
+				matched = c
+				break
+		if matched.is_empty():
+			bad.append("crossbuck pin %s matches no pack at-grade crossing" % pin_pos)
+			continue
+		if int(pin["assemblies"]) != 2:
+			bad.append("crossing %s carries %d assemblies != 2" % [pin["road"], int(pin["assemblies"])])
+		## The setback past the matched street's half-width (the road axis
+		## re-derived here from the pack streets).
+		var road := _rail_road_axis(pin_pos, str(matched.get("road_name", "")),
+				str(matched.get("road_class", "")))
+		if road.is_empty():
+			bad.append("no pack street serves %s" % pin["road"])
+			continue
+		var want_setback: float = float(road["width"]) * 0.5 + 2.5
+		var axis: Vector2 = road["axis"]
+		var side := Vector2(-axis.y, axis.x)
+		var pin_pos3 := Vector3(pin_pos.x, 0.0, pin_pos.y)
+		## The assembly siting, in the crossing's own road frame: the along-axis
+		## component at the exact setback, the cross-axis component ~0 (the
+		## band separates the Hazel/Brookridge pair's parallel posts).
+		var hits := 0
+		for xf: Transform3D in world._crossbuck_post_xfs:
+			var rel := Vector2(xf.origin.x, xf.origin.z) - pin_pos
+			var along := rel.dot(axis)
+			var cross := rel.dot(side)
+			if absf(absf(along) - want_setback) < 1.2 and absf(cross) < 0.5:
+				hits += 1
+		if hits != 2:
+			bad.append("crossing %s has %d posts at the setback siting != 2" % [pin["road"], hits])
+		var near_arms := 0
+		for xf: Transform3D in world._crossbuck_arm_xfs:
+			var rel := Vector2(xf.origin.x, xf.origin.z) - pin_pos
+			var along := rel.dot(axis)
+			var cross := rel.dot(side)
+			if absf(absf(along) - want_setback) < 1.2 and absf(cross) < 0.5:
+				near_arms += 1
+				var arm_dir := xf.basis.y.normalized()
+				if absf(absf(arm_dir.y) - 0.7071) > 0.03 \
+						or absf(Vector2(arm_dir.x, arm_dir.z).length() - 0.7071) > 0.03:
+					bad.append("crossing %s arm not at the 45° X read (basis.y %s)" % [
+							pin["road"], xf.basis.y])
+		if near_arms != 4:
+			bad.append("crossing %s has %d arms at the setback siting != 4" % [pin["road"], near_arms])
+	if world.wigwag_parts.size() != 5:
+		bad.append("wigwag parts %d != 4 boxes + the disc" % world.wigwag_parts.size())
+	else:
+		var duff := Vector2.ZERO
+		for c: Dictionary in at_grade:
+			if str(c.get("road_name", "")) == "Duff Avenue":
+				duff = Vector2(float((c["pos"] as Array)[0]), float((c["pos"] as Array)[1]))
+		var wg_pos: Vector3 = world.wigwag_parts[0]["p"]
+		if Vector2(wg_pos.x, wg_pos.z).distance_to(duff) > 16.0:
+			bad.append("wigwag %.1f m off Duff — the museum piece stands at the busiest crossing"
+					% Vector2(wg_pos.x, wg_pos.z).distance_to(duff))
+		var has_disc := false
+		for wp: Dictionary in world.wigwag_parts:
+			if bool(wp.get("mesh", false)) and str(wp["band"]) == "wigwag_red":
+				has_disc = true
+		if not has_disc:
+			bad.append("wigwag disc missing")
+
+	## --- E. the fence -----------------------------------------------------------
+	var post_xfs := world._fence_post_xfs
+	var wire_xfs := world._fence_wire_xfs
+	if post_xfs.size() % 2 != 0 or post_xfs.size() < 440:
+		bad.append("fence posts %d — both sides' 18 m run must survive the crossing gaps" % post_xfs.size())
+	if wire_xfs.size() < 700:
+		bad.append("fence wires %d < 700 — the strand lines are missing" % wire_xfs.size())
+	var wire_lengths_ok := true
+	var wire_heights_ok := true
+	var wire_len_min := INF
+	var wire_len_max := 0.0
+	for xf: Transform3D in wire_xfs:
+		if absf(xf.origin.y - 0.55) > 0.02 and absf(xf.origin.y - 1.05) > 0.02:
+			wire_heights_ok = false
+		wire_len_min = minf(wire_len_min, xf.basis.x.length())
+		wire_len_max = maxf(wire_len_max, xf.basis.x.length())
+		if xf.basis.x.length() > 19.0 or xf.basis.x.length() < 17.0:
+			wire_lengths_ok = false
+	if not wire_heights_ok:
+		bad.append("a wire rides neither the 0.55 nor the 1.05 strand line")
+	if not wire_lengths_ok:
+		bad.append("a wire span outside the 18 m pitch's fence-line chord band [17.0, 19.0] (min %.3f max %.3f)"
+				% [wire_len_min, wire_len_max])
+	var fence_off_south := 0
+	var fence_off_north := 0
+	var gap_violation := false
+	var gap_points: Array[Vector2] = []
+	for c: Dictionary in at_grade:
+		gap_points.append(Vector2(float((c["pos"] as Array)[0]), float((c["pos"] as Array)[1])))
+	for xf: Transform3D in post_xfs:
+		var lp := xf.origin ## The retained queues are world-local already.
+		var dmin := INF
+		for i in route.size() - 1:
+			var a3 := Vector2(route[i].x, route[i].z)
+			var b3 := Vector2(route[i + 1].x, route[i + 1].z)
+			var seg := b3 - a3
+			var l2 := seg.length_squared()
+			var t := 0.0
+			if l2 > 1e-12:
+				t = clampf((Vector2(lp.x, lp.z) - a3).dot(seg) / l2, 0.0, 1.0)
+			dmin = minf(dmin, (a3 + seg * t).distance_to(Vector2(lp.x, lp.z)))
+		if absf(dmin - 5.0) < 0.3:
+			fence_off_north += 1
+		elif absf(dmin - 9.5) < 0.3:
+			fence_off_south += 1
+		for gp: Vector2 in gap_points:
+			if Vector2(lp.x, lp.z).distance_to(gp) < 17.5:
+				gap_violation = true
+	if fence_off_north < 200 or fence_off_south < 200:
+		bad.append("fence sides thin: %d posts at 5.0 / %d at 9.5 — both right-of-way lines must run" % [
+				fence_off_north, fence_off_south])
+	if gap_violation:
+		bad.append("a fence post stands inside an at-grade crossing's 18 m gap")
+
+	## --- F. the no-gating probe -------------------------------------------------
+	Car.traffic_frozen = false ## Clean slate on the static freeze (suite convention).
+	Car._last_fleet_patience_honk = -INF
+	## The probe straddles whichever ROUTE crossing a real graph lane runs
+	## mid-edge (the deterministic first pick among the drag's own 6 — Duff
+	## preferred, the rest as edge geometry allows).
+	if train != null:
+		var graph: AmesTrafficGraph = _city.traffic_graph
+		var probe_pos := Vector2.ZERO
+		var probe_arc := 0.0
+		var probe_edge := -1
+		var probe_hold := 0.0
+		var probe_dir := Vector2.RIGHT
+		for c: Dictionary in at_grade:
+			var cpos := Vector2(float((c["pos"] as Array)[0]), float((c["pos"] as Array)[1]))
+			var c_arc := _rail_arc_of(train.extended_route, cpos)
+			if c_arc < 0.0:
+				continue ## Off the drag's track (the Jewell branch, the abandoned lead).
+			for e in graph.edge_count():
+				if graph.edge_length(e) < 70.0:
+					continue
+				var lane := graph.edge_points(e)
+				for i in lane.size() - 1:
+					var a5 := Vector2(lane[i].x, lane[i].y)
+					var b5 := Vector2(lane[i + 1].x, lane[i + 1].y)
+					var seg3 := b5 - a5
+					var l23 := seg3.length_squared()
+					var t3 := 0.0
+					if l23 > 1e-12:
+						t3 = clampf((cpos - a5).dot(seg3) / l23, 0.0, 1.0)
+					if (a5 + seg3 * t3).distance_to(cpos) > 20.0:
+						continue
+					var acc3 := 0.0
+					for j in i:
+						acc3 += Vector2(lane[j].x, lane[j].y).distance_to(
+								Vector2(lane[j + 1].x, lane[j + 1].y))
+					var proj_arc := acc3 + seg3.length() * t3
+					if proj_arc < 45.0 or proj_arc > graph.edge_length(e) - 35.0:
+						continue ## The crossing sits mid-edge, clear of the end stop's brake.
+					probe_edge = e
+					probe_arc = proj_arc
+					probe_pos = cpos
+					probe_dir = seg3.normalized()
+					probe_hold = train.RUN_START_DELAY_S \
+							+ (c_arc + 110.0
+							- (train.consist_length() - AmesTrain.LOCO_LEN * 0.5)) \
+							/ train.RUN_SPEED_MPS
+					break
+				if probe_edge >= 0:
+					break
+			if probe_edge >= 0:
+				break
+		if probe_edge < 0:
+			bad.append("no graph edge runs a drag crossing mid-edge — the probe cannot stage")
+		else:
+			var probe_global := _city.to_global(Vector3(probe_pos.x, 0.0, probe_pos.y))
+			var spawner := CarSpawner.new()
+			spawner.city = _city
+			spawner.player = _player
+			spawner.target_moving = 0
+			spawner.target_parked = 0
+			spawner.name = "CarSpawner_rail_probe"
+			add_child(spawner)
+			await _wait_frames(2)
+			## Hold the consist straddling the crossing: the loco center 110 m
+			## PAST it puts the crossing mid-consist; the clock re-pins every
+			## frame so the drag stays parked there for the whole pass.
+			if not bool(train.state_at(probe_hold)["visible"]):
+				bad.append("the straddle hold clock parks the drag hidden — the probe proves nothing")
+			var mover := _calm_stage_mover(spawner, probe_edge, probe_arc - 45.0)
+			var mover_pos := mover.position
+			var min_d := INF
+			var crossed := false
+			var last_side := signf((Vector2(mover_pos.x, mover_pos.z)
+					- Vector2(probe_global.x, probe_global.z)).dot(probe_dir))
+			var last_speed := 0.0
+			var last_frame := 0
+			for frame in 1080:
+				train.clock = probe_hold
+				await get_tree().physics_frame
+				if not is_instance_valid(mover):
+					break ## The run ended early — the samples decide below.
+				var mp := mover.position
+				min_d = minf(min_d, Vector2(mp.x, mp.z).distance_to(
+						Vector2(probe_global.x, probe_global.z)))
+				var side := signf((Vector2(mp.x, mp.z)
+						- Vector2(probe_global.x, probe_global.z)).dot(probe_dir))
+				if side != last_side and side != 0.0:
+					crossed = true
+				last_side = side
+				last_speed = mover.velocity.length()
+				last_frame = frame
+				if crossed and frame > 30:
+					break
+			var ok_probe := crossed and min_d < 12.0
+			if not ok_probe:
+				bad.append("the mover did not cross the straddled crossing (crossed=%s min_d=%.1f speed@%d=%.2f) — something gated it" % [
+						crossed, min_d, last_frame, last_speed])
+			mover.queue_free() ## The staged car must not join the fleet the dev_verb_pack reads.
+			spawner.free()
+			await _wait_frames(2)
+
+	print("SIM DATA %s: crossings=%d route=%.1f m parts=%d posts=%d wires=%d wire_span=[%.3f, %.3f] traverse=%.1f s consist=%d boxes train_total=%.1f m" % [
+			S, world.crossbuck_pins.size(), total, parts.size(),
+			post_xfs.size(), wire_xfs.size(), wire_len_min, wire_len_max,
+			train.traverse_time() if train != null else -1.0,
+			train.consist_boxes() if train != null else 0,
+			train.route_length() if train != null else -1.0])
+	_check(S, bad.is_empty(),
+		"crossings=%d route=%.1f m parts=%d posts=%d wires=%d; %s"
+		% [world.crossbuck_pins.size(), total, parts.size(),
+		post_xfs.size(), wire_xfs.size(), "; ".join(bad)])
+	world.queue_free()
+
+
+## (T-194) The pack street axis at a crossing — the scenario-local re-derivation
+## of the road direction (nearest segment of the named street; the unnamed
+## lead falls back to the nearest segment of any class, the world's own law).
+func _rail_road_axis(pos: Vector2, road_name: String, _road_class: String) -> Dictionary:
+	var best: Dictionary = {}
+	var best_d := INF
+	for street: Dictionary in AmesDataPack.streets():
+		if not road_name.is_empty() and str(street.get("name", "")) != road_name:
+			continue
+		var pts: Array = street.get("points", [])
+		for i in range(pts.size() - 1):
+			var a := Vector2(float((pts[i] as Array)[0]), float((pts[i] as Array)[1]))
+			var b := Vector2(float((pts[i + 1] as Array)[0]), float((pts[i + 1] as Array)[1]))
+			var seg := b - a
+			var l2 := seg.length_squared()
+			var t := 0.0
+			if l2 > 1e-12:
+				t = clampf((pos - a).dot(seg) / l2, 0.0, 1.0)
+			var d := (a + seg * t).distance_to(pos)
+			if d < best_d:
+				best_d = d
+				best = {"axis": seg.normalized(), "width": float(street.get("width_m", 8.0))}
+	return best
+
+
+## (T-194) The probe edge's flat travel direction (first→last lane vertex).
+func _rail_edge_dir(graph: AmesTrafficGraph, edge: int) -> Vector2:
+	var lane := graph.edge_points(edge)
+	return (Vector2(lane[lane.size() - 1].x, lane[lane.size() - 1].y)
+			- Vector2(lane[0].x, lane[0].y)).normalized()
+
+
+## (T-194) A position's arc along a route polyline, or −1.0 when the nearest
+## projection sits farther than 5 m off it (the off-track discriminator).
+func _rail_arc_of(route: PackedVector3Array, pos: Vector2) -> float:
+	var acc := 0.0
+	var best_arc := -1.0
+	var best_d := 5.0
+	for i in route.size() - 1:
+		var a := Vector2(route[i].x, route[i].z)
+		var b := Vector2(route[i + 1].x, route[i + 1].z)
+		var seg := b - a
+		var l2 := seg.length_squared()
+		var t := 0.0
+		if l2 > 1e-12:
+			t = clampf((pos - a).dot(seg) / l2, 0.0, 1.0)
+		var d := (a + seg * t).distance_to(pos)
+		if d < best_d:
+			best_d = d
+			best_arc = acc + seg.length() * t
+		acc += seg.length()
+	return best_arc
 
 
 ## (T-187) The lawn cluster's R3 ticket on the resident Ames world, every
