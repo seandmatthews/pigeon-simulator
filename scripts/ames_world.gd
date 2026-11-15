@@ -1989,6 +1989,12 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 			## shapes (the stage deck, the brick piers, the arch chords on
 			## their rotated radial bases); no capture.
 			continue
+		if pid == CITY_TANK_NORTH_HERO_ID or pid == CITY_TANK_EAST_HERO_ID:
+			## (T-193) The civic tank heroes supersede their slots'
+			## stem/bulb/cap placeholder parts the same 1:1 way — their builds
+			## file the shapes (the stem, the mushroom shoulder, the bulb drum
+			## and the roof dome as convex cylinders); no capture.
+			continue
 		var p: Array = e["p"]
 		var s: Array = e["s"]
 		var shape := CollisionShape3D.new()
