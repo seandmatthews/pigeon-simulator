@@ -4474,11 +4474,14 @@ func _build_hilton_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3,
 	shape.transform = Transform3D(Basis(),
 			Vector3(h.x, HILTON_ROOF_Y, h.y) - center)
 	body.add_child(shape)
-	## The roof's ground record: the slab's bbox as the walkable top (the
-	## slot's own 23.0 answer kept).
+	## The roof's ground record: the walkable top filed at the T-175 slot's
+	## OWN roof-box footprint (118 × 90 — the walk answers this swap
+	## inherits, kept byte-identical; the overhang ring is collision, not a
+	## walkable filing, so the drum plan's interior answers stay as the
+	## placeholder left them).
 	var tiles: Dictionary = {}
 	var bytes := _file_ground_box(tiles, [h.x, HILTON_ROOF_Y, h.y],
-			[HILTON_ROOF_RX * 2.0, 3.0, HILTON_ROOF_RZ * 2.0])
+			[HILTON_RING_RX * 2.0 - 20.0, 3.0, HILTON_RING_RZ * 2.0 - 15.0])
 	for key: Vector2i in tiles:
 		var rec: Dictionary = _chunks.get(key, {})
 		var ground: PackedFloat32Array = rec.get("ground", PackedFloat32Array())
