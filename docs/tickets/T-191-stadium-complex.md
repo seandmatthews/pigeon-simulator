@@ -1,6 +1,6 @@
 # T-191 — Ames R3 · Jack Trice Stadium complex: the bowl, the hillside, the drum
 
-- **Status:** proposed · **Category:** visual-design · **Ring:** R3 The Landmarks ·
+- **Status:** doing · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 5 · **Risk (1-5):** 3
 - **Depends on:** T-177
 - **Refs:** `MODELING-SPECS.md` §1 stadium+tailgates · `verification`
