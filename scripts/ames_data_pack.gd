@@ -18,6 +18,12 @@ class_name AmesDataPack
 ## `facing_to_yaw()` converts to a Godot `rotation.y`.
 
 const PACK_PATH := "res://data/ames/ames_core.json"
+## The Central Campus lawn layer (T-187) — the campus walk chains (the two
+## crossing sight axes among them), the path ribbons' data widths and the
+## Four Seasons fountain's data position, distilled from the survey OSM
+## extract (each entry names its ways; see the file's own meta for the
+## provenance and the census §7.3 default-width rule the ribbon widths ride).
+const CAMPUS_LAWN_PATH := "res://data/ames/campus_lawn.json"
 
 ## The ODbL attribution obligation (ODBL-NOTE.md). Surfaces in the README
 ## today; the in-game credits screen lands with T-197 (R4·text-capability).
@@ -33,6 +39,7 @@ const M_PER_DEG_LAT := 111074.0 ## survey standard at 42.02 N
 const M_PER_DEG_LON := 82700.8758 ## 111320 · cos(42.02°)
 
 static var _pack: Dictionary = {}
+static var _campus_lawn: Dictionary = {}
 static var _streets: Array[Dictionary] = []
 static var _buildings: Array[Dictionary] = []
 static var _pois: Array[Dictionary] = []
@@ -86,6 +93,26 @@ static func load_pack() -> Dictionary:
 
 static func meta() -> Dictionary:
 	return load_pack().get("meta", {})
+
+
+## The Central Campus lawn layer (`data/ames/campus_lawn.json`, T-187), parsed
+## once: `{meta, paths: [{id, way, width_m, chain}], fountain: {way, ring,
+## plaza_way, plaza_ring}}` — `{}` on failure (the lawn dress builds empty and
+## the gate fails loudly on the missing layer). Chains are pack-local XZ,
+## the world node IS the pack frame.
+static func campus_lawn() -> Dictionary:
+	if not _campus_lawn.is_empty():
+		return _campus_lawn
+	var text := FileAccess.get_file_as_string(CAMPUS_LAWN_PATH)
+	if text.is_empty():
+		push_error("AmesDataPack: cannot read %s" % CAMPUS_LAWN_PATH)
+		return {}
+	var parsed: Variant = JSON.parse_string(text)
+	if not (parsed is Dictionary) or (parsed as Dictionary).is_empty():
+		push_error("AmesDataPack: %s is not a JSON object" % CAMPUS_LAWN_PATH)
+		return {}
+	_campus_lawn = parsed
+	return _campus_lawn
 
 
 ## WGS84 lon/lat -> local meters. THE transform (the GDScript twin of the

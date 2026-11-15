@@ -233,6 +233,17 @@ var swans: Array[Swan] = []
 ## are not boxes; they file their band and color with s ZERO so the palette
 ## arm sees them while the dims arm ignores them.
 var campanile_hero_parts: Array[Dictionary] = []
+## (T-187) The Central Campus lawn dress, retained for the gates under the
+## same headless-visibility law: `campus_ribbon_xfs` — every path-ribbon box
+## transform (world-local, one per data-chain segment); `campus_slab_tris` /
+## `campus_plaza_tris` — the flat-tri counts (the gate recomputes the
+## ear-clip counts from the pack/lawn polygons); `fountain_parts` — every
+## fountain box `{kind, p, s, color, collide}` (the data-position prop's
+## schedule, with the rim-collider flags).
+var campus_ribbon_xfs: Array[Transform3D] = []
+var campus_slab_tris: int = 0
+var campus_plaza_tris: int = 0
+var fountain_parts: Array[Dictionary] = []
 
 @onready var _box_mesh: BoxMesh = _make_box_mesh()
 @onready var _tri_mesh: ArrayMesh = _make_tri_mesh()
@@ -383,6 +394,10 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	swan_circuit = PackedVector3Array()
 	swans = []
 	campanile_hero_parts = [] ## (T-186) The hero part record rebuilds with the world.
+	campus_ribbon_xfs = [] ## (T-187) The lawn-dress records rebuild with the world.
+	campus_slab_tris = 0
+	campus_plaza_tris = 0
+	fountain_parts = []
 	ped_zones = null
 	parking = null
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
@@ -422,6 +437,7 @@ func generate_step_finish() -> void:
 	_build_parking() ## (T-182) The parking system + the big-lot dressing rows.
 	_build_lake_dress() ## (T-185) The LaVerne shore polish: pale edge + reed hint.
 	_build_swans() ## (T-185) Lancelot & Elaine on their lake circuit.
+	_build_campus_lawn() ## (T-187) The lawn slab, the crossing axes' ribbons, the fountain.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -456,6 +472,10 @@ func generate_step_finish() -> void:
 		"lake_reeds": _reed_xfs.size(),
 		"swans": swans.size(),
 		"campanile_parts": campanile_hero_parts.size(), ## (T-186) The hero swap is live.
+		"campus_ribbons": campus_ribbon_xfs.size(), ## (T-187) The lawn dress is live.
+		"campus_slab_tris": campus_slab_tris,
+		"campus_plaza_tris": campus_plaza_tris,
+		"fountain_parts": fountain_parts.size(),
 	}
 	## Deterministic identity: the bake manifest's total hash — a re-bake that
 	## moves a byte moves the fingerprint, exactly the layout-fingerprint
@@ -1878,6 +1898,338 @@ func _file_ground_box(tiles: Dictionary, p: Array, s: Array) -> int:
 			tiles[key] = arr
 			bytes += entry.size() * 4
 	return bytes
+
+
+## --- T-187 Central Campus: the lawn slab, the axes, the fountain -----------
+## The lawn cluster's R3 ticket. The bake's park polygon already renders the
+## mown-lawn flat (`lawn_tris`, #6F8F4F) — this ticket owns the LAWN READ:
+## the quad-green slab tint, the pale concrete path ribbons over the committed
+## lawn layer's walk chains (the two crossing sight axes among them), and the
+## Four Seasons fountain as the data-position prop. All runtime dressing over
+## the committed bake (the T-180 corner-dress pattern: pure data-derived
+## geometry, zero RNG of any stream — a rebuild reproduces every transform
+## byte-identically; the transform queues are retained for the gate). The
+## dress families live OUTSIDE the bake-derived render metric exactly like
+## the T-180/T-181/T-185 corner dresses.
+
+## The quad lawn green — MODELING-SPECS §1.4's campus-buildings palette row
+## ("Quad lawn #5F7F42"), tinted over the bake's generic mown lawn so the
+## biggest single open shape in town wears its own green.
+const COLOR_QUAD_LAWN := Color(0.373, 0.498, 0.259) ## #5F7F42.
+## The path ribbons' pale concrete — the same palette row ("paths #C9C3B4").
+const COLOR_CAMPUS_PATH := Color(0.788, 0.765, 0.706) ## #C9C3B4.
+## The slab flat rides ABOVE the bake's lawn tris (box top 0.04) — at 30 mm,
+## the clearance the ribbon read proved depth-safe at 200+ m (a 10 mm stack
+## loses the depth fight against the bake flat at range and the tint
+## vanishes; the paths at the old 30 mm stayed crisp). The plaza paving
+## paints one step above the slab it sits IN (the plaza is inside the lawn
+## polygon's south tip), and the ribbon boxes stack their top (center 0.075
+## + half thickness) between the slab and the road paint (top 0.09), so
+## paths paint over the lawn and UNDER the roads they cross.
+const SLAB_TRI_Y := 0.07
+const PLAZA_TRI_Y := 0.08
+const RIBBON_CENTER_Y := 0.075
+
+## The Four Seasons fountain (geometry-hint level; figures = simplified, the
+## ticket's own scope line). Proportions off the data ring's bbox
+## (~11.7 x 5.9 m — a long low basin) and `images/campus/21`/`24`: a
+## knee-height stone rim, water inside, the tall thin center jet, four
+## kneeling-figure blocks standing on the rim coping.
+const FOUNTAIN_RIM_TOP := 0.55
+const FOUNTAIN_RIM_T := 0.5 ## Rim wall thickness (m).
+const FOUNTAIN_WATER_TOP := 0.35
+const FOUNTAIN_JET_SIZE := Vector3(0.35, 1.5, 0.35) ## The thin spray column.
+const FOUNTAIN_FIGURE_SIZE := Vector3(0.55, 0.95, 0.45) ## A kneeling figure block.
+const COLOR_FOUNTAIN_STONE := Color(0.776, 0.753, 0.698) ## #C6C0B2 limestone trim (§1.1).
+const COLOR_FOUNTAIN_WATER := Color(0.275, 0.329, 0.247) ## #46543F olive-brown (§1.2 lake).
+const COLOR_FOUNTAIN_JET := Color(0.82, 0.86, 0.88) ## The spray's pale read (photo 24).
+
+
+## The lawn dress (the finish slice). Everything derives from the committed
+## lawn layer (`AmesDataPack.campus_lawn()`) and the pack's own Central
+## Campus polygon; nothing here reads the world's own constants back.
+func _build_campus_lawn() -> void:
+	var lawn: Dictionary = AmesDataPack.campus_lawn()
+	if lawn.is_empty():
+		return ## The layer is missing — the dress builds empty, the gate fails loudly.
+	var root := Node3D.new()
+	root.name = "CampusLawn"
+	add_child(root)
+	_build_campus_slab(root, lawn)
+	_build_campus_ribbons(root, lawn)
+	_build_campus_fountain(root, lawn)
+
+
+## The quad-green slab: the pack's Central Campus polygon ear-clipped into
+## flat tris one FLAT step above the bake's mown-lawn flat (the tint), plus
+## the fountain plaza's paving flat from the lawn layer's plaza ring.
+func _build_campus_slab(root: Node3D, lawn: Dictionary) -> void:
+	var slab_tris := _campus_flat_tris(root, "SlabTris", _campus_polygon(),
+			COLOR_QUAD_LAWN, SLAB_TRI_Y)
+	campus_slab_tris = slab_tris
+	var ring := _lawn_ring(lawn, "plaza_ring")
+	if ring.size() >= 3:
+		campus_plaza_tris = _campus_flat_tris(root, "PlazaTris", ring,
+				COLOR_CAMPUS_PATH, PLAZA_TRI_Y)
+
+
+## One polygon's flat-tri family: ear-clipped (the baker's own triangulator,
+## the same code the bake used for the parks — fed through the baker's own
+## ring-split first, so the OSM closure duplicate never reaches the clip:
+## a degenerate ring stalls it into the fan fallback and the family paints
+## giant sweep triangles over the lawn), rendered as ONE vertex-colored
+## ArrayMesh on a MeshInstance3D — the T-186 CapRoof's proven runtime
+## pattern (the world's unit-tri MultiMesh path renders the bake's
+## chunk-mounted families but went invisible under this dress's own node;
+## the mesh-carried vertex colors need no instance buffer at all). One node
+## per family, at the family's own stack level.
+func _campus_flat_tris(root: Node3D, node_name: String, poly: PackedVector2Array,
+		color: Color, tri_y: float) -> int:
+	var tris := AmesBaker._triangulate(poly)
+	if tris.is_empty():
+		return 0
+	var verts := PackedVector3Array()
+	var colors := PackedColorArray()
+	for t: Vector3i in tris:
+		for idx: int in [t.x, t.y, t.z]:
+			verts.append(Vector3(poly[idx].x, tri_y, poly[idx].y))
+			## Mesh-carried vertex colors ride the shader as LINEAR values,
+			## while the MultiMesh instance-color families (the bake's flats,
+			## the ribbons, the benches) take their sRGB numbers as-is — the
+			## same hex renders washed-bright through this path otherwise
+			## (the round-1 screenshots: the tint read pale, the district
+			## cells next to it dark). Convert once, at the mesh build.
+			colors.append(_srgb_to_linear(color))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	var normals := PackedVector3Array()
+	normals.resize(verts.size())
+	normals.fill(Vector3.UP)
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_COLOR] = colors
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mat := _make_vertex_color_material()
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.surface_set_material(0, mat)
+	var node := MeshInstance3D.new()
+	node.name = node_name
+	node.mesh = mesh
+	root.add_child(node)
+	return tris.size()
+
+
+## The path ribbons: one pale concrete box per chain segment of every lawn
+## layer chain, extruded to the chain's data width at the pinned stack level
+## (the T-185 pale-edge extrusion, centered). Visual-only — the walks are
+## dressing, not a collision or ground layer.
+func _build_campus_ribbons(root: Node3D, lawn: Dictionary) -> void:
+	var xfs: Array[Transform3D] = []
+	for path: Dictionary in lawn.get("paths", []):
+		var chain_pts := _lawn_chain(path)
+		var width := float(path.get("width_m", 3.0))
+		for i in chain_pts.size() - 1:
+			_queue_ribbon(xfs, chain_pts[i], chain_pts[i + 1], width)
+	campus_ribbon_xfs = xfs
+	if xfs.is_empty():
+		return
+	var mm := _new_multimesh(xfs.size())
+	for i in xfs.size():
+		mm.set_instance_transform(i, xfs[i])
+		mm.set_instance_color(i, COLOR_CAMPUS_PATH)
+	mm.custom_aabb = _queue_aabb(xfs)
+	var node := MultiMeshInstance3D.new()
+	node.name = "PathRibbons"
+	node.multimesh = mm
+	root.add_child(node)
+
+
+## One ribbon segment box: the chain segment extruded symmetric to its
+## centerline (the walk reads as a path of the data width), rendered at the
+## pinned ribbon level above the slab.
+func _queue_ribbon(queue: Array[Transform3D], a: Vector2, b: Vector2,
+		width: float) -> void:
+	var seg := b - a
+	if seg.length_squared() < 1e-10:
+		return
+	var dir := seg / seg.length()
+	var n := Vector2(dir.y, -dir.x)
+	var center := (a + b) * 0.5
+	var seg3 := Vector3(seg.x, 0.0, seg.y)
+	queue.append(Transform3D(
+			Basis(Vector3(n.x, 0.0, n.y) * width, Vector3.UP * FLAT_THICKNESS, seg3),
+			Vector3(center.x, RIBBON_CENTER_Y, center.y)))
+
+
+## The Four Seasons fountain: the data ring's bbox block schedule at the
+## ring's own center (the data position — never a moved or hand-picked one),
+## with a real rim collider (the §1.1 rim-perch note) whose solid boxes file
+## their ground tops (the T-186 hero's walkability law, scoped to the prop).
+func _build_campus_fountain(root: Node3D, lawn: Dictionary) -> void:
+	var ring := _lawn_ring(lawn, "ring")
+	if ring.size() < 3:
+		return
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var acc := Vector2.ZERO
+	for p: Vector2 in ring:
+		lo = lo.min(p)
+		hi = hi.max(p)
+		acc += p
+	var c := acc / float(ring.size()) ## The data position: the ring's vertex mean.
+	var bw := hi.x - lo.x
+	var bd := hi.y - lo.y
+	var parts: Array[Dictionary] = []
+	## The rim: four stone walls hugging the data ring's bbox (the oval's
+	## block-schedule read; the short walls run between the long ones).
+	var dw := bw * 0.5 - FOUNTAIN_RIM_T * 0.5
+	var dd := bd * 0.5 - FOUNTAIN_RIM_T * 0.5
+	var long_len := bw - FOUNTAIN_RIM_T * 2.0
+	var short_len := bd - FOUNTAIN_RIM_T * 2.0
+	_add_fountain_part(parts, "rim", Vector3(c.x, FOUNTAIN_RIM_TOP * 0.5, c.y + dd),
+			Vector3(long_len, FOUNTAIN_RIM_TOP, FOUNTAIN_RIM_T), COLOR_FOUNTAIN_STONE)
+	_add_fountain_part(parts, "rim", Vector3(c.x, FOUNTAIN_RIM_TOP * 0.5, c.y - dd),
+			Vector3(long_len, FOUNTAIN_RIM_TOP, FOUNTAIN_RIM_T), COLOR_FOUNTAIN_STONE)
+	_add_fountain_part(parts, "rim", Vector3(c.x + dw, FOUNTAIN_RIM_TOP * 0.5, c.y),
+			Vector3(FOUNTAIN_RIM_T, FOUNTAIN_RIM_TOP, short_len), COLOR_FOUNTAIN_STONE)
+	_add_fountain_part(parts, "rim", Vector3(c.x - dw, FOUNTAIN_RIM_TOP * 0.5, c.y),
+			Vector3(FOUNTAIN_RIM_T, FOUNTAIN_RIM_TOP, short_len), COLOR_FOUNTAIN_STONE)
+	## The water inside the rim, under the coping.
+	_add_fountain_part(parts, "water",
+			Vector3(c.x, FOUNTAIN_WATER_TOP * 0.5, c.y),
+			Vector3(long_len, FOUNTAIN_WATER_TOP, short_len), COLOR_FOUNTAIN_WATER,
+			false, false)
+	## The center jet: the tall thin spray column (photo 24).
+	_add_fountain_part(parts, "jet",
+			Vector3(c.x, FOUNTAIN_WATER_TOP + FOUNTAIN_JET_SIZE.y * 0.5, c.y),
+			FOUNTAIN_JET_SIZE, COLOR_FOUNTAIN_JET, false, false)
+	## The four kneeling figures (simplified blocks) standing on the rim
+	## coping, one per wall midpoint — the photo's four-station read.
+	_add_fountain_part(parts, "figure",
+			Vector3(c.x, FOUNTAIN_RIM_TOP + FOUNTAIN_FIGURE_SIZE.y * 0.5, c.y + dd),
+			FOUNTAIN_FIGURE_SIZE, COLOR_FOUNTAIN_STONE)
+	_add_fountain_part(parts, "figure",
+			Vector3(c.x, FOUNTAIN_RIM_TOP + FOUNTAIN_FIGURE_SIZE.y * 0.5, c.y - dd),
+			FOUNTAIN_FIGURE_SIZE, COLOR_FOUNTAIN_STONE)
+	_add_fountain_part(parts, "figure",
+			Vector3(c.x + dw, FOUNTAIN_RIM_TOP + FOUNTAIN_FIGURE_SIZE.y * 0.5, c.y),
+			FOUNTAIN_FIGURE_SIZE, COLOR_FOUNTAIN_STONE)
+	_add_fountain_part(parts, "figure",
+			Vector3(c.x - dw, FOUNTAIN_RIM_TOP + FOUNTAIN_FIGURE_SIZE.y * 0.5, c.y),
+			FOUNTAIN_FIGURE_SIZE, COLOR_FOUNTAIN_STONE)
+	fountain_parts = parts
+	## Render + collide: one vertex-color box MM, and the `collide` boxes as
+	## shapes on one layer-1 body (the rim IS the perch).
+	var mm := _new_multimesh(parts.size())
+	var collide_parts: Array[Dictionary] = []
+	for i in parts.size():
+		var b: Dictionary = parts[i]
+		mm.set_instance_transform(i, Transform3D(Basis.from_scale(b["s"]), b["p"]))
+		mm.set_instance_color(i, b["color"])
+		if bool(b["collide"]):
+			collide_parts.append(b)
+	mm.custom_aabb = _queue_aabb_from_dict_parts(parts)
+	var node := MultiMeshInstance3D.new()
+	node.name = "FountainBoxes"
+	node.multimesh = mm
+	root.add_child(node)
+	if collide_parts.is_empty():
+		return
+	var body := StaticBody3D.new()
+	body.name = "FountainRim"
+	body.collision_layer = 1 ## world
+	body.collision_mask = 0
+	root.add_child(body)
+	for b: Dictionary in collide_parts:
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = b["s"]
+		shape.shape = box
+		shape.position = b["p"]
+		body.add_child(shape)
+	## Ground tops: the rim and the figures answer the walkability query (the
+	## bread lattice drops points inside the basin; the staging guards read
+	## the solid prop the same way they read any massing).
+	var tiles: Dictionary = {}
+	var bytes := 0
+	for b: Dictionary in collide_parts:
+		var p: Vector3 = b["p"]
+		var s: Vector3 = b["s"]
+		bytes += _file_ground_box(tiles, [p.x, p.y, p.z], [s.x, s.y, s.z])
+	for key: Vector2i in tiles:
+		var record: Dictionary = _chunks.get(key, {})
+		var ground: PackedFloat32Array = record.get("ground", PackedFloat32Array())
+		ground.append_array(PackedFloat32Array(tiles[key]))
+		record["ground"] = ground
+		_chunks[key] = record
+	_buffer_bytes += bytes
+
+
+## One fountain part record: `{kind, p, s, color, collide}` in world-local
+## (pack) coordinates; `collide` boxes join the rim body; `ground` boxes file
+## their walkability tops.
+func _add_fountain_part(out: Array[Dictionary], kind: String, p: Vector3,
+		s: Vector3, color: Color, collide := true, ground := true) -> void:
+	out.append({"kind": kind, "p": p, "s": s, "color": color,
+			"collide": collide, "ground": ground})
+
+
+## The exact sRGB -> linear transfer (the IEC piecewise curve) — the mesh
+## path's color conversion (`Color` carries no `to_linear` in 4.7).
+func _srgb_to_linear(c: Color) -> Color:
+	var channel := func(v: float) -> float:
+		return v / 12.92 if v <= 0.04045 else pow((v + 0.055) / 1.055, 2.4)
+	return Color(channel.call(c.r), channel.call(c.g), channel.call(c.b), c.a)
+
+
+## The pack's Central Campus polygon, ring-split (the bake's own helpers).
+func _campus_polygon() -> PackedVector2Array:
+	var biggest := PackedVector2Array()
+	for park: Dictionary in AmesDataPack.parks():
+		if str(park.get("name", "")) != "Central Campus":
+			continue
+		for r: PackedVector2Array in AmesBaker._split_rings(
+				AmesBaker._pack_points(park.get("polygon", []))):
+			if r.size() > biggest.size():
+				biggest = r
+	return biggest
+
+
+## One lawn-layer ring by field name, packed and RING-SPLIT (the baker's own
+## dedupe law — the OSM closure duplicate is a degenerate vertex for the
+## ear-clip; the split also handles any self-touching seam the way the bake
+## prepared every stored polygon).
+func _lawn_ring(lawn: Dictionary, field: String) -> PackedVector2Array:
+	var fountain: Dictionary = lawn.get("fountain", {})
+	var raw := PackedVector2Array()
+	for q: Variant in fountain.get(field, []):
+		raw.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	var biggest := PackedVector2Array()
+	for ring: PackedVector2Array in AmesBaker._split_rings(raw):
+		if ring.size() > biggest.size():
+			biggest = ring
+	return biggest
+
+
+## One lawn-layer chain, packed.
+func _lawn_chain(path: Dictionary) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for q: Variant in path.get("chain", []):
+		out.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	return out
+
+
+## The world-local AABB over the fountain part record set.
+func _queue_aabb_from_dict_parts(parts: Array[Dictionary]) -> AABB:
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for b: Dictionary in parts:
+		var p: Vector3 = b["p"]
+		var s: Vector3 = b["s"]
+		lo = lo.min(p - s * 0.5)
+		hi = hi.max(p + s * 0.5)
+	return AABB(lo - Vector3.ONE, (hi - lo) + Vector3.ONE * 2.0)
 
 
 ## --- T-186 the campanile hero ----------------------------------------------
