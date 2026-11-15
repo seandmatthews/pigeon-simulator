@@ -301,6 +301,14 @@ var civic_hero_parts: Array[Dictionary] = []
 ## row's cornice hints, the maroon street furniture (lamp posts, arms,
 ## shades), the blue banner slabs and the neon blade sign seeds.
 var fabric_parts: Array[Dictionary] = []
+## (T-193) The civic water tanks' part record, the T-190 law carried to the
+## city's pair: every box and named mesh the build emitted —
+## `{hero, band, p, s, color, collide, mesh}` in world-local (pack)
+## coordinates, `hero` one of `civic_tank_north` / `civic_tank_east`. The
+## diamond rides the rotated-box path (its record entry files the box's
+## world AABB, the T-192 arch-chord law); the round families file their
+## bounding sizes.
+var civic_tank_hero_parts: Array[Dictionary] = []
 ## (T-192) The frontage-row slots collected while the chunks parse (the
 ## authored downtown massing in the Main/5th frontage bands), consumed by
 ## the step-3 fabric build — the cornice hints ride the bake's own slot
@@ -469,6 +477,7 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	lot_marking_xfs = []
 	bandshell_hero_parts = [] ## (T-192) The downtown records rebuild with the world.
 	civic_hero_parts = []
+	civic_tank_hero_parts = [] ## (T-193) The civic tank record rebuilds with the world.
 	fabric_parts = []
 	_fabric_row_slots = []
 	ped_zones = null
@@ -1738,6 +1747,7 @@ func _build_chunk(entry: Dictionary) -> void:
 	_build_stadium_hero(chunk_root, chunk, center, chunk_body) ## (T-191) the bowl hero rides its carrier chunk.
 	_build_hilton_hero(chunk_root, chunk, center, chunk_body) ## (T-191) the drum hero rides its carrier chunk.
 	_build_downtown_heroes(chunk_root, chunk, center, chunk_body) ## (T-192) the bandshell + civic pair ride their carrier chunks.
+	_build_civic_tank_heroes(chunk_root, chunk, center, chunk_body) ## (T-193) the city tanks ride theirs.
 	_collect_fabric_row_slots(chunk) ## (T-192) the frontage-row walk, while the doc is in hand.
 
 
@@ -2951,7 +2961,9 @@ func _row_band_color(band: String) -> Color:
 ## and the drum's ring/roof parts across (4,0)/(5,0) are the slots the two
 ## heroes re-shape). The Durham Bandshell (T-192: the park POI's seven shell
 ## piers + stage deck in chunk (13,−2) are the slot the hero re-shapes at its
-## true structure position ~35 m north).
+## true structure position ~35 m north). The civic water tanks (T-193: the
+## two municipal bulbs' stem/bulb/cap placeholder stacks — chunk (10,−5)
+## north and (13,2) east — are the slots the bulb-on-stem heroes re-shape).
 ## The placeholder-family passes (render, collision, ground record, roof
 ## spots) skip these ids so a hero never renders twice.
 func _row_superseded_placeholder(id: String) -> bool:
@@ -2959,7 +2971,8 @@ func _row_superseded_placeholder(id: String) -> bool:
 			or id == MU_HERO_ID or id == PARKS_HERO_ID \
 			or id == MARSTON_TOWER_HERO_ID \
 			or id == JACK_TRICE_HERO_ID or id == HILTON_HERO_ID \
-			or id == BANDSHELL_SLOT_ID
+			or id == BANDSHELL_SLOT_ID \
+			or id == CITY_TANK_NORTH_HERO_ID or id == CITY_TANK_EAST_HERO_ID
 
 
 ## Builds the row heroes found in this chunk (Beardshear + Morrill + Marston
@@ -5370,6 +5383,339 @@ func _fabric_main_z_at(pts: Array[Vector2], x: float) -> float:
 			best_d = d
 			best = p.y
 	return best
+
+
+## --- T-193 the civic water tanks (the AMES diamond in the sky) ---------------
+## The town's sky-level signature — the city's municipal bulb-on-stem pair
+## (LANDMARKS T8: BRET the north-skyline tank + one of the "two others" on
+## the east side), swapping the T-175 placeholder slots 1:1 on the T-186 law.
+## The bake ids `city_water_tank_north`/`city_water_tank_east` are the baker's
+## own T8 stand-ins (LANDMARKS T8's "survey-anchored approximations"), NOT
+## manifest `heroes` — placeholder-only slots like the bandshell's — so the
+## skip rides `_row_superseded_placeholder` alone; the two heroes supersede
+## the slots' stem/bulb/cap placeholder stacks (chunk (10,−5) north, (13,2)
+## east) through the T-190 Marston flow.
+##
+## The silhouette is `images/misc/02` (the dusk full tank) read at massing
+## level: the concrete pedestal stem, the mushroom shoulder flaring out to
+## the bulb's diameter, the tall white bulb drum carrying the green/blue
+## banding — the photo's stripe pairs at both edges of the white field, blue
+## outermost — the shallow roof dome with its perimeter railing ring, and the
+## AMES diamond logo AS PAINTED GEOMETRY (the ticket's scope: the diamond
+## SHAPE + the banding land now; the letterforms and the welcome script are
+## R4 text — a dark diamond reads unmistakably Ames from 200 m without a
+## single glyph). The diamond faces the town (the north tank's logo looks
+## south down its own skyline, the east tank's looks west — the game-native
+## read; the photos show one face each). The stack keeps the slot's own
+## spans EXACTLY (the T-190 law): stem part 0..16, bulb part 16..28, cap
+## part 28..30, bulb Ø20 = the slot's 20 m box — the hero re-reads the same
+## spans as the photo's shapes instead of gray boxes, with the stem widened
+## to the photo-02 ratio (bulb dia ≈ 3× stem dia; the slot's 3 m placeholder
+## box is the skinny T-175 guess).
+##
+## NOT landable (the ticket's own line): the superseded slot's placeholder
+## pass used to file walkable tops at 16/28/30 — the swap retires them and
+## the hero files NO ground record and NO roof crumb; the bulb crown stays
+## honest to the photos (dome + railing, no flat perch), solid collision
+## only. Palette: NO survey hex exists (photo 01 is a blue duotone print —
+## every pixel sits near hue 215°; photo 02 is dusk-cast) and the IMAGE_INDEX
+## cluster note pins "green/blue" only, so the colored bands are held by HUE
+## laws (the T-190 dark-law precedent): the diamond + green banding read
+## green (hue 90..170°), the blue banding reads blue (hue 200..250°), the
+## white field reads white (luminance ≥ 0.85, near-neutral), the railing
+## dark. Like every hero: pure pack-derived geometry, zero RNG of any
+## stream — a rebuild reproduces every transform byte-identically — and the
+## part record is retained for the gates (headless runs cannot read
+## MultiMesh instances back).
+
+const CITY_TANK_NORTH_HERO_ID := "city_water_tank_north"
+const CITY_TANK_EAST_HERO_ID := "city_water_tank_east"
+
+## (T-193) The pinned palette. No survey hex (see the section header) — the
+## constants carry this ticket's own pinned literals, the scenario re-pins
+## the same values and holds the hue/luminance laws that make them
+## green/blue rather than arbitrary.
+const TANK_DIAMOND_GREEN := Color(0.075, 0.302, 0.231) ## #134D3B the diamond's dark green (hue ≈ 161°).
+const TANK_BAND_GREEN := Color(0.118, 0.376, 0.263) ## #1E6043 the green stripes (hue ≈ 153°).
+const TANK_BAND_BLUE := Color(0.157, 0.271, 0.447) ## #284572 the blue stripes (hue ≈ 216°).
+const TANK_BULB_WHITE := Color(0.937, 0.933, 0.91) ## #EFEEE8 the bulb's painted field (the town's white-tank convention, warmed a step off Marston's #EDEDEA).
+const TANK_BULB_SHADE := Color(0.847, 0.843, 0.816) ## #D8D7D0 the shoulder's shade (the curved read).
+const TANK_STEM_CONCRETE := Color(0.655, 0.647, 0.635) ## #A7A5A2 the pedestal's concrete gray.
+const TANK_RAILING := Color(0.32, 0.33, 0.32) ## Dark law: luminance ≤ 0.45 (the photo's dark railing band).
+
+## The band -> color table (the record and the render share this one mapping).
+const TANK_BANDS: Dictionary = {
+	"stem": TANK_STEM_CONCRETE,
+	"skirt": TANK_BULB_SHADE,
+	"drum": TANK_BULB_WHITE,
+	"band_green": TANK_BAND_GREEN,
+	"band_blue": TANK_BAND_BLUE,
+	"dome": TANK_BULB_WHITE,
+	"railing": TANK_RAILING,
+	"diamond": TANK_DIAMOND_GREEN,
+}
+
+## (T-193) The pinned dims (m) — the slot stack kept EXACTLY where the bake
+## settled it (stem 0..16, bulb 16..28, cap 28..30; the bulb Ø20 = the slot
+## bulb's 20 m box), the shapes re-read from photo 02.
+const TANK_TOTAL := 30.0 ## The slot cap part's top — the stack's own total.
+const TANK_STEM_TOP := 16.0 ## The slot stem part's top = the bulb part's bottom.
+const TANK_BULB_TOP := 28.0 ## The slot bulb part's top = the cap part's bottom.
+const TANK_BULB_RADIUS := 10.0 ## The slot bulb's 20 m box → the round drum.
+const TANK_STEM_RADIUS := 3.3 ## Photo-02's ratio: bulb dia ≈ 3× stem dia (20 ≈ 3 × 6.6).
+const TANK_SKIRT_TOP := 17.2 ## The mushroom shoulder closes 1.2 m above the stem top.
+const TANK_BAND_RADIUS := 10.09 ## The stripes ride proud of the drum wall.
+const TANK_BAND_H := 0.6 ## Each stripe's height.
+const TANK_DIAMOND_T := 0.07 ## The diamond's proud thickness.
+const TANK_DIAMOND_DIAG := 10.0 ## The on-point square's diagonals (photo-02's ≈ half the bulb dia).
+const TANK_DIAMOND_STANDOFF := 0.12 ## The diamond's center radius beyond the wall (face ≈ 10.16).
+const TANK_DIAMOND_Y := 22.6 ## The white field's mid (18.4..26.8 between the stripe pairs).
+## The stripe centers derived from the skirt line and the bulb top: bottom
+## pair 17.2..18.4 (blue inner at the skirt seam, green above), top pair
+## 26.8..28.0 (green below, blue at the roof edge) — photo-02's mirrored
+## pairs, blue outermost at both extremities.
+const TANK_BAND_BLUE_LO_Y := 17.5 ## Bottom blue stripe center (17.2..17.8).
+const TANK_BAND_GREEN_LO_Y := 18.1 ## Bottom green stripe center (17.8..18.4).
+const TANK_BAND_GREEN_HI_Y := 27.1 ## Top green stripe center (26.8..27.4).
+const TANK_BAND_BLUE_HI_Y := 27.7 ## Top blue stripe center (27.4..28.0).
+
+
+func _civic_tank_band_color(band: String) -> Color:
+	return TANK_BANDS.get(band, TANK_BULB_WHITE)
+
+
+## Builds the heroes found in this chunk — chunk (10,−5) carries the north
+## tank's slot, chunk (13,2) the east tank's. No-op elsewhere.
+func _build_civic_tank_heroes(chunk_root: Node3D, chunk: Dictionary,
+		center: Vector3, chunk_body: StaticBody3D) -> void:
+	for spec: Dictionary in [
+		{"id": CITY_TANK_NORTH_HERO_ID, "hero": "civic_tank_north", "facing": "south"},
+		{"id": CITY_TANK_EAST_HERO_ID, "hero": "civic_tank_east", "facing": "west"},
+	]:
+		var c := Vector2.ZERO
+		var found := false
+		for ph: Dictionary in chunk.get("placeholders", []):
+			if str(ph.get("id", "")) == str(spec["id"]) \
+					and str(ph.get("part", "")) == "bulb":
+				c = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+				found = true
+				break
+		if not found:
+			continue ## Not this chunk's slot.
+		_build_one_civic_tank(chunk_root, center, chunk_body, spec, c)
+
+
+## One tank's mount (the T-190 flow): render — the diamond as one rotated
+## box in a chunk-local MultiMesh (the on-point square reads at any distance
+## the drum does; real basis on the box path) and the round families as
+## named cylinder meshes; collision — the hero's own convexes ride the
+## chunk's placeholder body, same slot, same layer-1 `world` class (the
+## stem, shoulder, drum and dome are solid; the proud stripes, railing and
+## diamond stay visual-only, the drum's convex is the wall behind them);
+## ground record — NOTHING (the not-landable law: the retired slot's 16/28/30
+## walk answers stay retired); roof crumb — none (the slot never filed one —
+## the tanks are not manifest heroes); the retained part record for the
+## gates.
+func _build_one_civic_tank(chunk_root: Node3D, center: Vector3,
+		chunk_body: StaticBody3D, spec: Dictionary, c: Vector2) -> void:
+	var boxes := _civic_tank_diamond_boxes(c, str(spec["facing"]))
+	var extras := _civic_tank_extras(c)
+	var root := Node3D.new()
+	root.name = "HeroCivicTank%s" % str(spec["hero"]).replace("civic_tank_", "").capitalize()
+	chunk_root.add_child(root)
+	var mm := _new_multimesh(boxes.size())
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for i in boxes.size():
+		var b: Dictionary = boxes[i]
+		var basis: Basis = b["basis"]
+		var bp: Vector3 = b["p"]
+		var bs: Vector3 = b["s"]
+		mm.set_instance_transform(i, Transform3D(basis * Basis.from_scale(bs),
+				bp - center))
+		mm.set_instance_color(i, _civic_tank_band_color(str(b["band"])))
+		var ab: Array = _complex_box_aabb(basis, bp, bs)
+		lo = (ab[0] as Vector3).min(lo)
+		hi = (ab[1] as Vector3).max(hi)
+	mm.custom_aabb = AABB(lo - center - Vector3.ONE * 2.0, (hi - lo) + Vector3.ONE * 4.0)
+	var mm_node := MultiMeshInstance3D.new()
+	mm_node.name = "Boxes"
+	mm_node.multimesh = mm
+	root.add_child(mm_node)
+	## Collision: the chunk's placeholder body (created when the chunk had no
+	## other entries — kept for the tank chunks' case).
+	var body := chunk_body
+	if body == null:
+		body = StaticBody3D.new()
+		body.name = "Placeholders"
+		body.collision_layer = 1 ## world
+		body.collision_mask = 0
+		chunk_root.add_child(body)
+	for b2: Dictionary in boxes:
+		if not b2["collide"]:
+			continue
+		var basis2: Basis = b2["basis"]
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = b2["s"]
+		shape.shape = box
+		shape.transform = Transform3D(basis2, (b2["p"] as Vector3) - center)
+		body.add_child(shape)
+	for e: Dictionary in extras:
+		var mesh_node := MeshInstance3D.new()
+		mesh_node.name = str(e["name"])
+		mesh_node.mesh = e["mesh"]
+		mesh_node.position = (e["pos"] as Vector3) - center
+		root.add_child(mesh_node)
+		var pts: PackedVector3Array = e["convex"]
+		if not pts.is_empty():
+			var extra_shape := CollisionShape3D.new()
+			var convex := ConvexPolygonShape3D.new()
+			convex.points = pts
+			extra_shape.shape = convex
+			extra_shape.position = (e["pos"] as Vector3) - center
+			body.add_child(extra_shape)
+	## Retain the part record (world-local bands, positions, sizes, colors);
+	## `mesh` marks the named round families so the gate can count the
+	## diamond box against the render MM separately.
+	for b3: Dictionary in boxes:
+		var ab2: Array = _complex_box_aabb(b3["basis"], b3["p"], b3["s"])
+		civic_tank_hero_parts.append({
+			"hero": str(spec["hero"]), "band": str(b3["band"]),
+			"p": ((ab2[0] as Vector3) + (ab2[1] as Vector3)) * 0.5,
+			"s": (ab2[1] as Vector3) - (ab2[0] as Vector3),
+			"color": _civic_tank_band_color(str(b3["band"])),
+			"collide": b3["collide"], "mesh": false,
+		})
+	for e2: Dictionary in extras:
+		civic_tank_hero_parts.append({
+			"hero": str(spec["hero"]), "band": str(e2["band"]), "p": e2["pos"],
+			"s": e2["size"], "color": _civic_tank_band_color(str(e2["band"])),
+			"collide": not (e2["convex"] as PackedVector3Array).is_empty(),
+			"mesh": true,
+		})
+
+
+## The diamond's box schedule in WORLD-LOCAL coordinates (pack-local — the
+## world node IS the pack frame), one on-point square per tank: `basis` the
+## UNSCALED rotation (the T-191 statue-lean law — the mount scales, collides
+## and files from `s`, never from the basis), `s` the box size in that
+## rotated frame (side = diag/√2 in the logo plane, the thin proud thickness
+## on the face normal), `p` the box center on the tank's town-facing wall.
+## The north tank's logo faces SOUTH (+z — the town lies south of it), the
+## east tank's faces WEST (−x); the in-plane 45° turn reads the square as
+## the diamond at every distance.
+func _civic_tank_diamond_boxes(c: Vector2, facing: String) -> Array[Dictionary]:
+	var side := TANK_DIAMOND_DIAG / sqrt(2.0)
+	var basis := Basis()
+	var pos := Vector3.ZERO
+	if facing == "south":
+		basis = Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(45.0))
+		pos = Vector3(c.x, TANK_DIAMOND_Y, c.y + TANK_BULB_RADIUS + TANK_DIAMOND_STANDOFF)
+	else: ## "west"
+		basis = Basis(Vector3(0.0, 1.0, 0.0), deg_to_rad(-90.0)) \
+				* Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(45.0))
+		pos = Vector3(c.x - TANK_BULB_RADIUS - TANK_DIAMOND_STANDOFF, TANK_DIAMOND_Y, c.y)
+	var out: Array[Dictionary] = []
+	out.append({
+		"band": "diamond", "basis": basis,
+		"p": pos,
+		"s": Vector3(side, side, TANK_DIAMOND_T),
+		"collide": false,
+	})
+	return out
+
+
+## The round families' mesh extras (world-local): the concrete stem, the
+## mushroom shoulder, the white bulb drum, the four banding stripes, the
+## roof dome and the perimeter railing ring. Solid convexes on stem/
+## shoulder/drum/dome; the proud stripes + railing stay visual-only.
+func _civic_tank_extras(c: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = [
+		{
+			"name": "Stem", "mesh": _row_taper_mesh(TANK_STEM_RADIUS,
+					TANK_STEM_RADIUS, TANK_STEM_TOP, TANK_STEM_CONCRETE),
+			"pos": Vector3(c.x, TANK_STEM_TOP * 0.5, c.y), "rot": Basis(),
+			"convex": _row_cylinder_convex(TANK_STEM_RADIUS, TANK_STEM_RADIUS,
+					TANK_STEM_TOP, 8),
+			"band": "stem",
+			"size": Vector3(TANK_STEM_RADIUS * 2.0, TANK_STEM_TOP, TANK_STEM_RADIUS * 2.0),
+		},
+		{
+			"name": "SkirtCone", "mesh": _row_taper_mesh(TANK_BULB_RADIUS,
+					TANK_STEM_RADIUS, TANK_SKIRT_TOP - TANK_STEM_TOP,
+					TANK_BULB_SHADE),
+			"pos": Vector3(c.x, (TANK_STEM_TOP + TANK_SKIRT_TOP) * 0.5, c.y),
+			"rot": Basis(),
+			"convex": _row_cylinder_convex(TANK_STEM_RADIUS, TANK_BULB_RADIUS,
+					TANK_SKIRT_TOP - TANK_STEM_TOP, 8),
+			"band": "skirt",
+			"size": Vector3(TANK_BULB_RADIUS * 2.0, TANK_SKIRT_TOP - TANK_STEM_TOP,
+					TANK_BULB_RADIUS * 2.0),
+		},
+		{
+			"name": "BulbDrum", "mesh": _row_taper_mesh(TANK_BULB_RADIUS,
+					TANK_BULB_RADIUS, TANK_BULB_TOP - TANK_SKIRT_TOP,
+					TANK_BULB_WHITE),
+			"pos": Vector3(c.x, (TANK_SKIRT_TOP + TANK_BULB_TOP) * 0.5, c.y),
+			"rot": Basis(),
+			"convex": _row_cylinder_convex(TANK_BULB_RADIUS, TANK_BULB_RADIUS,
+					TANK_BULB_TOP - TANK_SKIRT_TOP, 10),
+			"band": "drum",
+			"size": Vector3(TANK_BULB_RADIUS * 2.0, TANK_BULB_TOP - TANK_SKIRT_TOP,
+					TANK_BULB_RADIUS * 2.0),
+		},
+		{
+			"name": "BandBlueBottom", "mesh": _row_taper_mesh(TANK_BAND_RADIUS,
+					TANK_BAND_RADIUS, TANK_BAND_H, TANK_BAND_BLUE),
+			"pos": Vector3(c.x, TANK_BAND_BLUE_LO_Y, c.y), "rot": Basis(),
+			"convex": PackedVector3Array(),
+			"band": "band_blue",
+			"size": Vector3(TANK_BAND_RADIUS * 2.0, TANK_BAND_H, TANK_BAND_RADIUS * 2.0),
+		},
+		{
+			"name": "BandGreenBottom", "mesh": _row_taper_mesh(TANK_BAND_RADIUS,
+					TANK_BAND_RADIUS, TANK_BAND_H, TANK_BAND_GREEN),
+			"pos": Vector3(c.x, TANK_BAND_GREEN_LO_Y, c.y), "rot": Basis(),
+			"convex": PackedVector3Array(),
+			"band": "band_green",
+			"size": Vector3(TANK_BAND_RADIUS * 2.0, TANK_BAND_H, TANK_BAND_RADIUS * 2.0),
+		},
+		{
+			"name": "BandGreenTop", "mesh": _row_taper_mesh(TANK_BAND_RADIUS,
+					TANK_BAND_RADIUS, TANK_BAND_H, TANK_BAND_GREEN),
+			"pos": Vector3(c.x, TANK_BAND_GREEN_HI_Y, c.y), "rot": Basis(),
+			"convex": PackedVector3Array(),
+			"band": "band_green",
+			"size": Vector3(TANK_BAND_RADIUS * 2.0, TANK_BAND_H, TANK_BAND_RADIUS * 2.0),
+		},
+		{
+			"name": "BandBlueTop", "mesh": _row_taper_mesh(TANK_BAND_RADIUS,
+					TANK_BAND_RADIUS, TANK_BAND_H, TANK_BAND_BLUE),
+			"pos": Vector3(c.x, TANK_BAND_BLUE_HI_Y, c.y), "rot": Basis(),
+			"convex": PackedVector3Array(),
+			"band": "band_blue",
+			"size": Vector3(TANK_BAND_RADIUS * 2.0, TANK_BAND_H, TANK_BAND_RADIUS * 2.0),
+		},
+		{
+			"name": "RoofDome", "mesh": _row_taper_mesh(1.6, 9.3,
+					TANK_TOTAL - TANK_BULB_TOP, TANK_BULB_WHITE),
+			"pos": Vector3(c.x, (TANK_BULB_TOP + TANK_TOTAL) * 0.5, c.y),
+			"rot": Basis(),
+			"convex": _row_cylinder_convex(9.3, 1.6, TANK_TOTAL - TANK_BULB_TOP, 8),
+			"band": "dome",
+			"size": Vector3(18.6, TANK_TOTAL - TANK_BULB_TOP, 18.6),
+		},
+		{
+			"name": "RailingRing", "mesh": _row_taper_mesh(9.45, 9.45, 0.7,
+					TANK_RAILING),
+			"pos": Vector3(c.x, 28.55, c.y), "rot": Basis(),
+			"convex": PackedVector3Array(),
+			"band": "railing",
+			"size": Vector3(18.9, 0.7, 18.9),
+		},
+	]
+	return out
 
 
 ## One tapered/straight cylinder mesh with its own albedo material — the
