@@ -195,6 +195,7 @@ func _run_scenarios() -> void:
 	await _scenario_campus_row_heroes() ## T-188 — the campus row west heroes: the 1:1 slot swaps (Beardshear's dome, Morrill's turret, Farm House, the Marston hint), the AABB/palette pins, the live seams.
 	await _scenario_mu_parks_heroes() ## T-189 — the MU + Parks heroes: the 1:1 slot swaps at the CORRECT corner (the tower at Lincoln Way & Morrill/Lynn), the zodiac decal at the Gold Star Hall threshold, the tower-estimate pin, the live seams.
 	await _scenario_marston_hero_dims() ## T-190 — the Marston Water Tower hero: the 1:1 slot swap, the 51.2 m survey pin + photo-11 proportions, the white-steel palette pin, the east-facing seal medallion, the live seams.
+	await _scenario_stadium_complex_dims() ## T-191 — the Jack Trice Stadium complex hero: the 1:1 slot swaps, the 183×208 N–S bowl re-pin + the N–S field assertion, the hillside/press/Sukup/statue pins, the Hilton drum re-pin with the arc roof + portico, the tailgate lot dress, the live seams.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -1018,16 +1019,21 @@ func _scenario_ames_world_render_budget() -> void:
 	## already a bake hero — the massing term handles its bbox) plus the
 	## three authored massing slots (Morrill, Farm House, Marston Hall)
 	## joined to the hero set at runtime, all walked from the chunk files.
-	## (T-189) the MU + Parks pair retires its five placeholder parts the
-	## same way (both ids already bake heroes — the massing term handles
-	## their bboxes), walked from the chunk files. (T-190) the Marston
-	## Water Tower hero retires its slot's six placeholder parts the same
-	## way (its id already rides the bake's heroes list), walked too.
+## (T-189) the MU + Parks pair retires its five placeholder parts the
+## same way (both ids already bake heroes — the massing term handles
+## their bboxes), walked from the chunk files. (T-190) the Marston
+## Water Tower hero retires its slot's six placeholder parts the same
+## way (its id already rides the bake's heroes list), walked too.
+## (T-191) the stadium complex retires its slots' 52 placeholder parts
+## the same way (the bowl's ring/berm/pitch across chunks (4,3)/(4,4),
+## the drum's ring/roof across (4,0)/(5,0) — both ids ride the bake's
+## heroes list), walked too.
 	var hero_count := (manifest.get("heroes", []) as Array).size()
 	var campanile_slot_parts := 0
 	var row_slot_parts := 0
 	var mu_parks_slot_parts := 0
 	var marston_slot_parts := 0
+	var complex_slot_parts := 0
 	for entry: Dictionary in manifest.get("chunks", []):
 		var doc_b: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
 		for ph_b: Dictionary in doc_b.get("placeholders", []):
@@ -1040,6 +1046,9 @@ func _scenario_ames_world_render_budget() -> void:
 				mu_parks_slot_parts += 1
 			if str(ph_b.get("id", "")) == "way/861201396":
 				marston_slot_parts += 1
+			if str(ph_b.get("id", "")) == "way/613735866" \
+					or str(ph_b.get("id", "")) == "way/180651868":
+				complex_slot_parts += 1
 		for m_b: Dictionary in doc_b.get("massing", []):
 			if bool(m_b.get("a", false)) and ["way/158023244", "way/158023219",
 					"way/183216666"].has(str(m_b.get("id", ""))):
@@ -1051,7 +1060,8 @@ func _scenario_ames_world_render_budget() -> void:
 			+ int(totals.get("tie_quads", 0)) + int(totals.get("ground_quads", 0)) \
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
 			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
-			- row_slot_parts - mu_parks_slot_parts - marston_slot_parts
+			- row_slot_parts - mu_parks_slot_parts - marston_slot_parts \
+			- complex_slot_parts
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
 	if int(m.instances) != expected_instances:
@@ -7691,6 +7701,603 @@ func _scenario_marston_hero_dims() -> void:
 	_check(S, bad.is_empty(), "parts=%d bands=%d top=%.2f; %s"
 			% [parts.size(), bands_seen.size(), hi.y, "; ".join(bad)])
 	world.queue_free()
+
+
+## --- scenario (T-191 the Jack Trice Stadium complex) -------------------------
+
+
+## (T-191) The stadium complex re-pins its slots onto the HEROES — the
+## T-186 swap law carried to the town's biggest silhouette set (the #1 and
+## #2 from-the-air reads), every expectation re-derived from the COMMITTED
+## bake slots (walked in-scenario from the chunk files) + the pack + the
+## survey docs as verbatim scenario literals:
+## A. THE SWAP — `way/613735866` (the bowl) supersedes its slot's 39 baked
+##    placeholder parts (36 ring segments + 2 berms + the pitch across
+##    chunks (4,3)/(4,4) — walked, not trusted) and `way/180651868` (the
+##    drum) its 13 (12 segments + the roof across (4,0)/(5,0)); every
+##    affected chunk's gray placeholder family shrinks to exactly its
+##    non-superseded remainder and the massing families shrink by the
+##    retired bbox entries.
+## B. THE DIMS (the T-175 rows re-pinned on the heroes' own records) — the
+##    bowl ring union 183 × 208 ±2 (V-09, measured 183.1 × 208.1 on the
+##    bake's chord schedule) and the drum union 138 × 105 ±2 (§1.3);
+##    THE FIELD ORIENTATION assertion: the pitch rides the slot's
+##    53 × 113 with its LONG axis N–S (s.z 113 > s.x 53, z growing
+##    southward — the V-09 ground truth, the Wikipedia misquote
+##    corrected), centered on the bowl; the hillside reach law re-pinned
+##    (the berm union's north edge past the ring's north edge, both NE/NW
+##    sides present); the press tower entirely in the west half, west face
+##    ON the ring face, topping at the 29.0 roof; the Sukup hint south
+##    (top 22.0), the videoboard north at the V-11 24.2 × 11.0 (top 29.0,
+##    on the Jacobson mass); the statue bands at the recorded plaza
+##    offset, pedestal top 1.32, the figure topping ~2.9 (presence, the
+##    simplified dignified read).
+## C. THE PALETTE — §1.3's rows verbatim ±0.02 (cardinal #A6192E, gold
+##    #C9A94E, bowl + press concrete #9C9C94, press glass #6E7B82, Sukup
+##    glass #C9C68F, field grass #4E7A3A, markings #E8E8E2, Hilton
+##    concrete #A69E8F + streaks #8C857A, lot asphalt #56585C) + the
+##    darkness laws where the survey pins no hex (videoboard ≤ 0.25, the
+##    statue bronze/stone ≤ 0.35 — the dignity read, Hilton seal ≤ 0.45 —
+##    the medallion law).
+## D. THE MESHES, LIVE — the Hilton arc-roof slab node + the seal disc
+##    turned to face EAST (the University Blvd approach read), albedos off
+##    the live nodes.
+## E. THE SEAMS, LIVE — layer-1 rays answer the south rim band at x −60
+##    (the landable row's own re-derivation, band ±4), the north wall's
+##    outer face at the ring envelope, the press tower's west face, the
+##    berm crest; `ground_height` answers the pitch 0.6, the berm steps
+##    6.0/10.5, the south deck 16.0, the press roof 29.0, the Sukup top
+##    22.0, the videoboard top 29.0, the statue pedestal 1.32, the drum
+##    wall 20.0, the drum roof 23.0 and the canopy 9.2; the roof crumbs —
+##    the stadium's re-pins at the press-tower roof (the superseded
+##    ring-top read's new anchor, recorded in-ticket), Hilton's
+##    byte-identical at the drum roof top.
+## F. THE TAILGATE LOTS — the flats' ear-clip tri count equals the
+##    in-scenario recount over the census §3 tailgate box (the literals
+##    lat < 42.0225, lon −93.6445…−93.6260 — re-derived from the pack's
+##    parking layer, never through the world's flags), the stall-marking
+##    count equals the recount of the coarse grid over the same polygons,
+##    every marking transform inside the tailgate union, the LotFlats
+##    vertex color the asphalt hex (through the mesh path's linear
+##    conversion) and the marking MM mounted white.
+func _scenario_stadium_complex_dims() -> void:
+	const S := "stadium_complex_dims"
+	var bad: PackedStringArray = PackedStringArray()
+	const JT_ID := "way/613735866"
+	const HI_ID := "way/180651868"
+	const DIM_TOL := 2.0
+	## --- the bake slots, walked independently --------------------------------
+	var jt_center := Vector2.ZERO
+	var hi_center := Vector2.ZERO
+	var jt_parts := {}
+	var hi_parts := {}
+	var chunk_rest: Dictionary = {} ## tile -> the gray family's remainder after the swap
+	var chunk_massing: Dictionary = {} ## tile -> [file massing, non-hero massing]
+	var hero_ids := {}
+	for hid: Variant in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("heroes", []):
+		hero_ids[str(hid)] = true
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var tile := Vector2i(int(entry["cx"]), int(entry["cz"]))
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		var rest := 0
+		for ph: Dictionary in doc.get("placeholders", []):
+			var pid := str(ph.get("id", ""))
+			if pid == JT_ID:
+				jt_parts[str(ph.get("part", ""))] = jt_parts.get(
+						str(ph.get("part", "")), 0) + 1
+				if str(ph.get("part", "")) == "pitch":
+					jt_center = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+			elif pid == HI_ID:
+				hi_parts[str(ph.get("part", ""))] = hi_parts.get(
+						str(ph.get("part", "")), 0) + 1
+				if str(ph.get("part", "")) == "roof":
+					hi_center = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+			if hero_ids.has(pid):
+				continue ## The slot the hero supersedes — off the gray family.
+			rest += 1
+		chunk_rest[tile] = rest ## The gray family's remainder after the swap.
+		var ma_hero := 0
+		for m: Dictionary in doc.get("massing", []):
+			if hero_ids.has(str(m.get("id", ""))):
+				ma_hero += 1
+		chunk_massing[tile] = [doc.get("massing", []).size(), ma_hero]
+	if jt_center == Vector2.ZERO or hi_center == Vector2.ZERO:
+		_check(S, false, "bake slot walk failed: pitch/roof anchors missing")
+		return
+	var jt_file: int = int(jt_parts.get("bowl", 0)) + int(jt_parts.get("berm", 0)) \
+			+ int(jt_parts.get("pitch", 0))
+	var hi_file: int = int(hi_parts.get("drum", 0)) + int(hi_parts.get("roof", 0))
+	if jt_file != 39 or int(jt_parts.get("bowl", 0)) != 36 \
+			or int(jt_parts.get("berm", 0)) != 2 or int(jt_parts.get("pitch", 0)) != 1:
+		bad.append("bake slot walk %s != the bowl's 39 parts (36+2+1)" % str(jt_parts))
+	if hi_file != 13 or int(hi_parts.get("drum", 0)) != 12 \
+			or int(hi_parts.get("roof", 0)) != 1:
+		bad.append("bake slot walk %s != the drum's 13 parts (12+1)" % str(hi_parts))
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var jt_record := world.stadium_hero_parts
+	var hi_record := world.hilton_hero_parts
+	if jt_record.is_empty() or hi_record.is_empty():
+		_check(S, false, "no retained stadium/Hilton hero parts — the hero never built")
+		world.queue_free()
+		return
+
+	## --- A. the swap, per affected chunk --------------------------------------
+	for tile: Vector2i in [Vector2i(4, 3), Vector2i(4, 4), Vector2i(4, 0), Vector2i(5, 0)]:
+		var chunk_node := world.get_node_or_null("Chunks/Chunk_%d_%d" % [tile.x, tile.y]) as Node3D
+		if chunk_node == null:
+			bad.append("chunk %s missing" % tile)
+			continue
+		var rest: int = chunk_rest.get(tile, 0)
+		var ph_mm := chunk_node.get_node_or_null("Placeholders") as MultiMeshInstance3D
+		if rest == 0:
+			if ph_mm != null:
+				bad.append("chunk %s kept a placeholder MM after the full swap" % tile)
+		elif ph_mm == null or ph_mm.multimesh.instance_count != rest:
+			bad.append("chunk %s placeholder MM %d != the non-superseded remainder %d" % [
+					tile, ph_mm.multimesh.instance_count if ph_mm != null else -1, rest])
+		var want_ma: Array = chunk_massing.get(tile, [0, 0])
+		var ma_mm := chunk_node.get_node_or_null("Massing") as MultiMeshInstance3D
+		var want_ma_count := int(want_ma[0]) - int(want_ma[1])
+		if want_ma_count == 0:
+			if ma_mm != null:
+				bad.append("chunk %s kept a massing MM after the hero retirements" % tile)
+		elif ma_mm == null or ma_mm.multimesh.instance_count != want_ma_count:
+			bad.append("chunk %s massing MM %d != file %d - %d hero bbox" % [tile,
+					ma_mm.multimesh.instance_count if ma_mm != null else -1,
+					want_ma[0], want_ma[1]])
+	var hero_root := world.get_node_or_null("Chunks/Chunk_4_3/HeroJackTrice") as Node3D
+	if hero_root == null:
+		bad.append("no HeroJackTrice under chunk (4,3)")
+	var hilton_root := world.get_node_or_null("Chunks/Chunk_4_0/HeroHilton") as Node3D
+	if hilton_root == null:
+		bad.append("no HeroHilton under chunk (4,0)")
+
+	## --- B. the dims (the T-175 rows re-pinned on the heroes' records) --------
+	var bowl_lo := Vector3(INF, INF, INF)
+	var bowl_hi := Vector3(-INF, -INF, -INF)
+	var berm_lo := Vector3(INF, INF, INF)
+	var berm_hi := Vector3(-INF, -INF, -INF)
+	var pitch := {}
+	var deck_gold := 0
+	var press_lo := Vector3(INF, INF, INF)
+	var press_hi := Vector3(-INF, -INF, -INF)
+	var sukup := {}
+	var board := {}
+	var plaza := {}
+	var pedestal := {}
+	var bronze_lo := Vector3(INF, INF, INF)
+	var bronze_hi := Vector3(-INF, -INF, -INF)
+	for part: Dictionary in jt_record:
+		var p: Vector3 = part["p"]
+		var s: Vector3 = part["s"]
+		var band := str(part["band"])
+		if band.begins_with("bowl") or band == "bowl":
+			bowl_lo = bowl_lo.min(p - s * 0.5)
+			bowl_hi = bowl_hi.max(p + s * 0.5)
+			if band == "bowl_gold":
+				deck_gold += 1
+		elif band == "berm":
+			berm_lo = berm_lo.min(p - s * 0.5)
+			berm_hi = berm_hi.max(p + s * 0.5)
+		elif band == "pitch":
+			pitch = part
+		elif band.begins_with("press"):
+			press_lo = press_lo.min(p - s * 0.5)
+			press_hi = press_hi.max(p + s * 0.5)
+		elif band == "sukup":
+			sukup = part
+		elif band == "videoboard":
+			board = part
+		elif band == "statue_plaza":
+			plaza = part
+		elif band == "statue_stone":
+			pedestal = part
+		elif band == "statue_bronze":
+			bronze_lo = bronze_lo.min(p - s * 0.5)
+			bronze_hi = bronze_hi.max(p + s * 0.5)
+	if bowl_hi == Vector3(-INF, -INF, -INF):
+		bad.append("the bowl ring bands are missing from the record")
+	else:
+		var span := bowl_hi - bowl_lo
+		if absf(span.x - 183.0) > DIM_TOL or absf(span.z - 208.0) > DIM_TOL:
+			bad.append("bowl ring %.1fx%.1f != the survey's 183x208 (+-%.0f)" % [
+					span.x, span.z, DIM_TOL])
+	if pitch.is_empty():
+		bad.append("the pitch part is missing from the record")
+	else:
+		## THE FIELD ORIENTATION: the long axis N–S (s.z 113 > s.x 53 —
+		## z grows southward; the V-09 ground truth).
+		var ps: Vector3 = pitch["s"]
+		if absf(ps.x - 53.0) > 0.05 or absf(ps.z - 113.0) > 0.05:
+			bad.append("pitch %s != the V-09 pitch 53x113 (+-0.05)" % ps)
+		if ps.z <= ps.x:
+			bad.append("pitch long axis %s is NOT north-south — the V-09 assertion" % ps)
+		var pp: Vector3 = pitch["p"]
+		if absf(pp.x - jt_center.x) > 0.05 or absf(pp.z - jt_center.y) > 0.05:
+			bad.append("pitch center %s != the slot center %s" % [pp, jt_center])
+	if berm_hi == Vector3(-INF, -INF, -INF):
+		bad.append("the hillside (berm) band is missing from the record")
+	else:
+		if berm_lo.z >= bowl_lo.z:
+			bad.append("hillside does not reach past the north rim (%.1f >= %.1f)" % [
+					berm_lo.z, bowl_lo.z])
+		var east := false
+		var west := false
+		for part2: Dictionary in jt_record:
+			if str(part2["band"]) == "berm":
+				if (part2["p"] as Vector3).x > jt_center.x:
+					east = true
+				else:
+					west = true
+		if not (east and west):
+			bad.append("hillside lacks a NE/NW side (east=%s west=%s)" % [east, west])
+		if absf(berm_hi.y - 10.5) > 0.05:
+			bad.append("hillside crest %.2f != the stepped 10.5" % berm_hi.y)
+	if press_hi == Vector3(-INF, -INF, -INF):
+		bad.append("the press tower band is missing from the record")
+	else:
+		if press_hi.x >= jt_center.x:
+			bad.append("press tower crosses into the east half (hi.x %.1f)" % press_hi.x)
+		if absf(press_lo.x - (jt_center.x - 91.5)) > 0.05:
+			bad.append("press west face %.2f != ON the ring face %.2f" % [
+					press_lo.x, jt_center.x - 91.5])
+		if absf(press_hi.y - 29.0) > 0.05:
+			bad.append("press roof %.2f != the 3-level tower top 29.0" % press_hi.y)
+		if press_hi.y <= bowl_hi.y:
+			bad.append("press roof %.1f does not rise above the decks %.1f" % [
+					press_hi.y, bowl_hi.y])
+	if sukup.is_empty():
+		bad.append("the Sukup hint is missing from the record")
+	else:
+		if _part_min(sukup).z <= jt_center.y:
+			bad.append("Sukup hint is not at the south end")
+		if absf((sukup["p"] as Vector3).y + (sukup["s"] as Vector3).y * 0.5 - 22.0) > 0.05:
+			bad.append("Sukup top %.2f != the club band 22.0" % [
+					(sukup["p"] as Vector3).y + (sukup["s"] as Vector3).y * 0.5])
+	if board.is_empty():
+		bad.append("the videoboard is missing from the record")
+	else:
+		if _part_max(board).z >= jt_center.y:
+			bad.append("videoboard is not at the north end")
+		var bs: Vector3 = board["s"]
+		if absf(bs.x - 24.2) > 0.05 or absf(bs.y - 11.0) > 0.05 or absf(bs.z - 1.2) > 0.05:
+			bad.append("videoboard %s != the V-11 24.2x11.0 slab" % bs)
+	if plaza.is_empty() or pedestal.is_empty() or bronze_hi == Vector3(-INF, -INF, -INF):
+		bad.append("the statue bands are missing from the record (plaza=%s stone=%s bronze=%s)"
+				% [plaza.is_empty(), pedestal.is_empty(),
+				bronze_hi == Vector3(-INF, -INF, -INF)])
+	else:
+		var want_pos := Vector2(jt_center.x + 58.0, jt_center.y - 140.0)
+		var plaza_xz := Vector2((plaza["p"] as Vector3).x, (plaza["p"] as Vector3).z)
+		if plaza_xz.distance_to(want_pos) > 0.05:
+			bad.append("statue plaza %s != the recorded NE-plaza position %s" % [
+					plaza_xz, want_pos])
+		var pt_top: float = (pedestal["p"] as Vector3).y + (pedestal["s"] as Vector3).y * 0.5
+		if absf(pt_top - 1.32) > 0.05:
+			bad.append("statue pedestal top %.2f != the plinth 1.32" % pt_top)
+		if bronze_lo.y < pt_top - 0.05:
+			bad.append("statue figure sinks into the pedestal")
+		if bronze_hi.y < 2.4:
+			bad.append("statue figure top %.2f lacks presence (want >= 2.4)" % bronze_hi.y)
+	## The drum: ring union + roof overhang + portico east.
+	var drum_lo := Vector3(INF, INF, INF)
+	var drum_hi := Vector3(-INF, -INF, -INF)
+	var roof := {}
+	var canopy := {}
+	var streaks := 0
+	for part3: Dictionary in hi_record:
+		var p3: Vector3 = part3["p"]
+		var s3: Vector3 = part3["s"]
+		var band3 := str(part3["band"])
+		if band3 == "drum" or band3 == "drum_streak":
+			drum_lo = drum_lo.min(p3 - s3 * 0.5)
+			drum_hi = drum_hi.max(p3 + s3 * 0.5)
+			if band3 == "drum_streak":
+				streaks += 1
+		elif band3 == "hilton_roof" and bool(part3.get("mesh", false)):
+			roof = part3
+		elif band3 == "hilton_portico" and absf(s3.y - 1.0) < 0.05:
+			canopy = part3
+	if drum_hi == Vector3(-INF, -INF, -INF):
+		bad.append("the drum bands are missing from the record")
+	else:
+		var dspan := drum_hi - drum_lo
+		if absf(dspan.x - 138.0) > DIM_TOL or absf(dspan.z - 105.0) > DIM_TOL:
+			bad.append("drum ring %.1fx%.1f != the survey's 138x105 (+-%.0f)" % [
+					dspan.x, dspan.z, DIM_TOL])
+	if roof.is_empty():
+		bad.append("the arc roof slab is missing from the record")
+	else:
+		if (roof["p"] as Vector3).distance_to(Vector3(hi_center.x, 21.5, hi_center.y)) > 0.05:
+			bad.append("roof slab %s != the drum roof center" % roof["p"])
+		var rs: Vector3 = roof["s"]
+		if rs.x <= drum_hi.x - drum_lo.x or rs.z <= drum_hi.z - drum_lo.z:
+			bad.append("roof %s does not overhang the drum ring" % rs)
+		if absf((roof["p"] as Vector3).y + 1.5 - 23.0) > 0.05:
+			bad.append("roof top %.2f != the slot's own 23.0" % [
+					(roof["p"] as Vector3).y + 1.5])
+	if canopy.is_empty():
+		bad.append("the portico canopy is missing from the record")
+	else:
+		if _part_min(canopy).x <= drum_hi.x - 20.0:
+			bad.append("portico canopy does not project east")
+
+	## --- C. the palette (§1.3's rows, verbatim scenario literals) --------------
+	var hexes: Dictionary = {
+		"bowl_cardinal": Color("a6192e"),
+		"bowl_gold": Color("c9a94e"),
+		"bowl_concrete": Color("9c9c94"),
+		"berm": Color("4e7a3a"),
+		"pitch": Color("4e7a3a"),
+		"field_mark": Color("e8e8e2"),
+		"press_concrete": Color("9c9c94"),
+		"press_glass": Color("6e7b82"),
+		"sukup": Color("c9c68f"),
+		"statue_plaza": Color("9c9c94"),
+		"drum": Color("a69e8f"),
+		"drum_streak": Color("8c857a"),
+		"hilton_roof": Color("a69e8f"),
+		"hilton_portico": Color("a69e8f"),
+	}
+	var bands_seen := {}
+	for record: Array in [jt_record, hi_record]:
+		for part4: Dictionary in record:
+			var band4 := str(part4["band"])
+			bands_seen[band4] = true
+			var got: Color = part4["color"]
+			if band4 == "videoboard":
+				if _luminance(got) > 0.25:
+					bad.append("videoboard luminance %.3f > 0.25 — must read black" % _luminance(got))
+				continue
+			if band4 == "statue_bronze" or band4 == "statue_stone":
+				if _luminance(got) > 0.35:
+					bad.append("%s luminance %.3f > 0.35 — the dignity dark law" % [
+							band4, _luminance(got)])
+				continue
+			if band4 == "hilton_seal":
+				if _luminance(got) > 0.45:
+					bad.append("hilton seal luminance %.3f > 0.45 — the medallion law" % _luminance(got))
+				continue
+			if not hexes.has(band4):
+				bad.append("band %s wears no pinned §1.3 hex" % band4)
+				continue
+			var want: Color = hexes[band4]
+			if _color_gap(got, want) > 0.02:
+				bad.append("band %s color %s != the pinned hex %s" % [band4, got, want])
+	for need: String in ["bowl_cardinal", "bowl_gold", "bowl_concrete", "berm",
+			"pitch", "field_mark", "press_concrete", "press_glass", "sukup",
+			"videoboard", "statue_plaza", "statue_stone", "statue_bronze",
+			"drum", "drum_streak", "hilton_roof", "hilton_portico", "hilton_seal"]:
+		if not bands_seen.has(need):
+			bad.append("band %s never used — the family is missing" % need)
+	if deck_gold < 4:
+		bad.append("gold section accents %d < 4 — the striping read is missing" % deck_gold)
+	if streaks < 2:
+		bad.append("streak panels %d < 2 — the stained-drum read is missing" % streaks)
+
+	## --- D. the meshes, live -----------------------------------------------------
+	if hilton_root != null:
+		var roof_node := hilton_root.get_node_or_null("RoofSlab") as MeshInstance3D
+		var seal_node := hilton_root.get_node_or_null("SealDisc") as MeshInstance3D
+		if roof_node == null or seal_node == null:
+			bad.append("a named Hilton mesh is missing (roof=%s seal=%s)" % [
+					roof_node != null, seal_node != null])
+		else:
+			var roof_mat := (roof_node.mesh as ArrayMesh).surface_get_material(0) as StandardMaterial3D
+			if roof_mat == null or _color_gap(roof_mat.albedo_color, Color("a69e8f")) > 0.02:
+				bad.append("roof slab albedo != the Hilton concrete #A69E8F")
+			var seal_mat := (seal_node.mesh as CylinderMesh).material as StandardMaterial3D
+			if seal_mat == null or _luminance(seal_mat.albedo_color) > 0.45:
+				bad.append("seal disc albedo breaks the medallion dark law")
+			## The seal faces EAST (its local +Y turned onto +x).
+			var face_x: Vector3 = seal_node.transform.basis * Vector3.UP
+			if absf(face_x.x - 1.0) > 0.01 or absf(face_x.y) > 0.01:
+				bad.append("seal faces %s != due east" % face_x)
+
+	## --- E. the seams, live ------------------------------------------------------
+	var space := get_world_3d().direct_space_state
+	var probe := func(from: Vector3, to: Vector3) -> Dictionary:
+		var ray := PhysicsRayQueryParameters3D.create(world.to_global(from),
+				world.to_global(to))
+		ray.collision_mask = 1
+		return space.intersect_ray(ray)
+	## The south rim band at x −60, y 10 (the landable row's own re-derivation).
+	var rim_hit: Dictionary = probe.call(Vector3(jt_center.x - 60.0, 10.0, jt_center.y + 140.0),
+			Vector3(jt_center.x - 60.0, 10.0, jt_center.y))
+	if rim_hit.is_empty():
+		bad.append("south rim ray missed — no collider in the decked south rim")
+	else:
+		var rim_z: float = world.to_local((rim_hit as Dictionary)["position"]).z
+		if rim_z < jt_center.y + 87.55 or rim_z > jt_center.y + 95.55:
+			bad.append("south rim ray hit z %.2f outside the band (want %.1f ±4)" % [
+					rim_z, jt_center.y + 91.55])
+	## The north wall's outer face at the ring envelope (y 3, under the 6 m wall).
+	var wall_hit: Dictionary = probe.call(Vector3(jt_center.x, 3.0, jt_center.y - 140.0),
+			Vector3(jt_center.x, 3.0, jt_center.y))
+	if wall_hit.is_empty():
+		bad.append("north wall ray missed")
+	else:
+		var wall_z: float = world.to_local((wall_hit as Dictionary)["position"]).z
+		if absf(wall_z - (jt_center.y - 103.59)) > 2.0:
+			bad.append("north wall face z %.2f != the ring envelope read %.2f (±2)" % [
+					wall_z, jt_center.y - 103.59])
+	## The press tower's west face ON the ring face (y 15 — the glass level).
+	var press_hit: Dictionary = probe.call(Vector3(jt_center.x - 130.0, 15.0, jt_center.y),
+			Vector3(jt_center.x, 15.0, jt_center.y))
+	if press_hit.is_empty():
+		bad.append("press tower ray missed")
+	else:
+		var press_x: float = world.to_local((press_hit as Dictionary)["position"]).x
+		if absf(press_x - (jt_center.x - 91.5)) > 0.3:
+			bad.append("press west face x %.2f != the ring face %.2f (±0.3)" % [
+					press_x, jt_center.x - 91.5])
+	## The ground record (the walkability query). The berm step-1 point sits
+	## under the crest box's own reach (z −115 is inside step 1's z band
+	## −120..−96 but outside step 2's −112..−97); the drum wall point sits
+	## outside the roof's walkable filing (the T-175 slot's own 118 × 90
+	## box, kept byte-identical) on the ring band.
+	var queries := [
+		[Vector3(jt_center.x, 0.0, jt_center.y), 0.6, "pitch"],
+		[Vector3(jt_center.x + 52.0, 0.0, jt_center.y - 115.0), 6.0, "berm step 1"],
+		[Vector3(jt_center.x + 52.0, 0.0, jt_center.y - 104.5), 10.5, "berm crest"],
+		[Vector3(jt_center.x, 0.0, jt_center.y + 95.0), 16.0, "south deck"],
+		[Vector3(jt_center.x - 79.0, 0.0, jt_center.y), 29.0, "press roof"],
+		[Vector3(jt_center.x, 0.0, jt_center.y + 86.0), 22.0, "Sukup top"],
+		[Vector3(jt_center.x, 0.0, jt_center.y - 105.0), 29.0, "videoboard top"],
+		[Vector3(jt_center.x + 58.0, 0.0, jt_center.y - 140.0), 1.32, "statue pedestal"],
+		[Vector3(hi_center.x, 0.0, hi_center.y - 50.0), 20.0, "drum wall"],
+		[Vector3(hi_center.x, 0.0, hi_center.y), 23.0, "drum roof"],
+		[Vector3(hi_center.x + 72.0, 0.0, hi_center.y), 9.2, "portico canopy"],
+	]
+	for q: Array in queries:
+		var got_h := world.ground_height(world.to_global(q[0] as Vector3))
+		if absf(got_h - float(q[1])) > 0.05:
+			bad.append("ground record at %s answers %.3f != the %s %.1f" % [
+					q[2], got_h, q[2], float(q[1])])
+	## The roof crumbs: the stadium's at the press-tower roof (the re-pin
+	## this swap makes — the superseded ring-top read re-anchors), Hilton's
+	## byte-identical at the drum roof top.
+	var lift: float = AmesWorld.SPOT_LIFT
+	for crumb: Array in [[Vector3(jt_center.x - 79.0, 29.0 + lift, jt_center.y), "press tower"],
+			[Vector3(hi_center.x, 23.0 + lift, hi_center.y), "drum roof"]]:
+		var crumb_ok := false
+		for i: int in world.bread_spots.size():
+			if world.bread_spots[i].distance_to(crumb[0]) < 0.005 \
+					and i < world.bread_spot_kinds.size() \
+					and world.bread_spot_kinds[i] == City.BreadKind.ROOF:
+				crumb_ok = true
+				break
+		if not crumb_ok:
+			bad.append("no roof crumb at the %s %s" % [crumb[1], crumb[0]])
+
+	## --- F. the tailgate lots (the census §3 box, re-derived here) --------------
+	var lot_polys: Array[PackedVector2Array] = []
+	var union := Rect2()
+	for lot: Dictionary in AmesDataPack.parking():
+		var poly_arr: Array = lot.get("polygon", [])
+		var wgs: Array = lot.get("wgs84", [])
+		if poly_arr.size() < 3 or wgs.size() < 2:
+			continue
+		var lon := float(wgs[0])
+		var lat := float(wgs[1])
+		if not (lat < 42.0225 and lon > -93.6445 and lon < -93.6260):
+			continue
+		var poly := PackedVector2Array()
+		var min_x := INF
+		var min_z := INF
+		var max_x := -INF
+		var max_z := -INF
+		for q2: Variant in poly_arr:
+			var v := Vector2(float((q2 as Array)[0]), float((q2 as Array)[1]))
+			poly.append(v)
+			min_x = minf(min_x, v.x)
+			min_z = minf(min_z, v.y)
+			max_x = maxf(max_x, v.x)
+			max_z = maxf(max_z, v.y)
+		lot_polys.append(poly)
+		union = union.merge(Rect2(min_x, min_z, max_x - min_x, max_z - min_z))
+	if lot_polys.is_empty():
+		bad.append("the tailgate recount found no lots — the census §3 box is broken")
+	else:
+		var tris := 0
+		var marks := 0
+		for poly2: PackedVector2Array in lot_polys:
+			for ring: PackedVector2Array in AmesBaker._split_rings(poly2):
+				tris += AmesBaker._triangulate(ring).size()
+			var min_x2 := INF
+			var min_z2 := INF
+			var max_x2 := -INF
+			var max_z2 := -INF
+			for p5: Vector2 in poly2:
+				min_x2 = minf(min_x2, p5.x)
+				min_z2 = minf(min_z2, p5.y)
+				max_x2 = maxf(max_x2, p5.x)
+				max_z2 = maxf(max_z2, p5.y)
+			var long_x := (max_x2 - min_x2) >= (max_z2 - min_z2)
+			var a_lo := min_x2 if long_x else min_z2
+			var a_hi := max_x2 if long_x else max_z2
+			var b_lo := min_z2 if long_x else min_x2
+			var b_hi := max_z2 if long_x else max_x2
+			var row := b_lo + 2.5
+			while row <= b_hi:
+				var stall := a_lo + 1.375
+				while stall <= a_hi:
+					var pa := Vector2(stall, row - 2.5)
+					var pb := Vector2(stall, row + 2.5)
+					var pc := Vector2(stall, row)
+					if not long_x:
+						pa = Vector2(row - 2.5, stall)
+						pb = Vector2(row + 2.5, stall)
+						pc = Vector2(row, stall)
+					if Geometry2D.is_point_in_polygon(pa, poly2) \
+							and Geometry2D.is_point_in_polygon(pb, poly2) \
+							and Geometry2D.is_point_in_polygon(pc, poly2):
+						marks += 1
+					stall += 2.75
+				row += 6.0
+		if world.lot_flat_tris != tris:
+			bad.append("lot flat tris %d != the ear-clip recount %d" % [
+					world.lot_flat_tris, tris])
+		if world.lot_marking_xfs.size() != marks:
+			bad.append("lot markings %d != the grid recount %d" % [
+					world.lot_marking_xfs.size(), marks])
+		if marks < 1000:
+			bad.append("lot markings %d < 1000 — the 8.9 ha hint read is missing" % marks)
+		for xf: Transform3D in world.lot_marking_xfs:
+			var pos: Vector3 = xf.origin
+			if pos.x < union.position.x or pos.x > union.end.x \
+					or pos.z < union.position.y or pos.z > union.end.y:
+				bad.append("lot marking at %s outside the tailgate union" % pos)
+				break
+		var lots_root := world.get_node_or_null("StadiumLots") as Node3D
+		var flats: MeshInstance3D = null
+		var marks_node: MultiMeshInstance3D = null
+		if lots_root != null:
+			flats = lots_root.get_node_or_null("LotFlats") as MeshInstance3D
+			marks_node = lots_root.get_node_or_null("LotMarkings") as MultiMeshInstance3D
+		if lots_root == null or flats == null or marks_node == null:
+			bad.append("the StadiumLots family is not mounted (root=%s flats=%s marks=%s)" % [
+					lots_root != null, flats != null, marks_node != null])
+		else:
+			var arrays: Array = (flats.mesh as ArrayMesh).surface_get_arrays(0)
+			var cols: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+			if cols.is_empty() or _color_gap(_linear_to_srgb(cols[0]), Color("56585c")) > 0.02:
+				bad.append("lot flats vertex color != the asphalt #56585C (linear-space)")
+			if marks_node.multimesh.instance_count != world.lot_marking_xfs.size():
+				bad.append("marking MM %d != the retained record %d" % [
+						marks_node.multimesh.instance_count, world.lot_marking_xfs.size()])
+	_check(S, bad.is_empty(), "jt=%d hi=%d bowl=%.1fx%.1f drum=%.1fx%.1f lots=%d/%d; %s"
+			% [jt_record.size(), hi_record.size(),
+			bowl_hi.x - bowl_lo.x if bowl_hi.x > -INF else -1.0,
+			bowl_hi.z - bowl_lo.z if bowl_hi.z > -INF else -1.0,
+			drum_hi.x - drum_lo.x if drum_hi.x > -INF else -1.0,
+			drum_hi.z - drum_lo.z if drum_hi.z > -INF else -1.0,
+			world.lot_flat_tris, world.lot_marking_xfs.size(), "; ".join(bad)])
+	world.queue_free()
+
+
+## One record entry's min/max corners (p ∓ s·0.5), the dims arms' helpers.
+func _part_min(part: Dictionary) -> Vector3:
+	return (part["p"] as Vector3) - (part["s"] as Vector3) * 0.5
+
+
+func _part_max(part: Dictionary) -> Vector3:
+	return (part["p"] as Vector3) + (part["s"] as Vector3) * 0.5
+
+
+## The rec.709 luminance the darkness laws walk.
+func _luminance(c: Color) -> float:
+	return c.r * 0.299 + c.g * 0.587 + c.b * 0.114
+
+
+## The mesh path's linear vertex colors back to sRGB for the palette arms.
+func _linear_to_srgb(c: Color) -> Color:
+	var f := func(v: float) -> float:
+		return v * 12.92 if v <= 0.0031308 else 1.055 * pow(v, 1.0 / 2.4) - 0.055
+	return Color(f.call(c.r), f.call(c.g), f.call(c.b), c.a)
 
 
 ## --- scenario (T-187 the Central Campus lawn) -------------------------------
