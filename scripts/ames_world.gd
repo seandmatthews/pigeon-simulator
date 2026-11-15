@@ -5476,6 +5476,7 @@ const TANK_DIAMOND_T := 0.07 ## The diamond's proud thickness.
 const TANK_DIAMOND_DIAG := 10.0 ## The on-point square's diagonals (photo-02's ≈ half the bulb dia).
 const TANK_DIAMOND_STANDOFF := 0.12 ## The diamond's center radius beyond the wall (face ≈ 10.16).
 const TANK_DIAMOND_Y := 22.6 ## The white field's mid (18.4..26.8 between the stripe pairs).
+const TANK_RAILING_POSTS := 16 ## The dome rim's post count (photo-02's railing line).
 ## The stripe centers derived from the skirt line and the bulb top: bottom
 ## pair 17.2..18.4 (blue inner at the skirt seam, green above), top pair
 ## 26.8..28.0 (green below, blue at the roof edge) — photo-02's mirrored
@@ -5602,15 +5603,20 @@ func _build_one_civic_tank(chunk_root: Node3D, center: Vector3,
 		})
 
 
-## The diamond's box schedule in WORLD-LOCAL coordinates (pack-local — the
-## world node IS the pack frame), one on-point square per tank: `basis` the
-## UNSCALED rotation (the T-191 statue-lean law — the mount scales, collides
-## and files from `s`, never from the basis), `s` the box size in that
-## rotated frame (side = diag/√2 in the logo plane, the thin proud thickness
-## on the face normal), `p` the box center on the tank's town-facing wall.
-## The north tank's logo faces SOUTH (+z — the town lies south of it), the
-## east tank's faces WEST (−x); the in-plane 45° turn reads the square as
-## the diamond at every distance.
+## The box schedule in WORLD-LOCAL coordinates (pack-local — the world node
+## IS the pack frame): the on-point diamond square plus the roof railing's
+## perimeter posts. The diamond: `basis` the UNSCALED rotation (the T-191
+## statue-lean law — the mount scales, collides and files from `s`, never
+## from the basis), `s` the box size in that rotated frame (side = diag/√2
+## in the logo plane, the thin proud thickness on the face normal), `p` the
+## box center on the tank's town-facing wall. The north tank's logo faces
+## SOUTH (+z — the town lies south of it), the east tank's faces WEST (−x);
+## the in-plane 45° turn reads the square as the diamond at every distance.
+## The railing: sixteen dark posts standing on the dome's rim (r 9.5,
+## y 28.3..29.1) — POSTS, not a ring cylinder: a solid ring's top disc reads
+## as a fat dark roof from the air (the round-1 shot review), while the
+## photo's railing is a thin post line over a white dome. At skyline
+## distances the posts merge into the band the photo carries.
 func _civic_tank_diamond_boxes(c: Vector2, facing: String) -> Array[Dictionary]:
 	var side := TANK_DIAMOND_DIAG / sqrt(2.0)
 	var basis := Basis()
@@ -5629,13 +5635,22 @@ func _civic_tank_diamond_boxes(c: Vector2, facing: String) -> Array[Dictionary]:
 		"s": Vector3(side, side, TANK_DIAMOND_T),
 		"collide": false,
 	})
+	for k in TANK_RAILING_POSTS:
+		var a := TAU * float(k) / float(TANK_RAILING_POSTS)
+		out.append({
+			"band": "railing", "basis": Basis(),
+			"p": Vector3(c.x + cos(a) * 9.5, 28.7, c.y + sin(a) * 9.5),
+			"s": Vector3(0.18, 0.8, 0.18), "collide": false,
+		})
 	return out
 
 
 ## The round families' mesh extras (world-local): the concrete stem, the
-## mushroom shoulder, the white bulb drum, the four banding stripes, the
-## roof dome and the perimeter railing ring. Solid convexes on stem/
-## shoulder/drum/dome; the proud stripes + railing stay visual-only.
+## mushroom shoulder, the white bulb drum, the four banding stripes and the
+## roof dome — the railing rides the box schedule as perimeter posts (the
+## round-1 shot review: a solid ring's top disc reads as a fat dark roof
+## from the air). Solid convexes on stem/shoulder/drum/dome; the proud
+## stripes stay visual-only.
 func _civic_tank_extras(c: Vector2) -> Array[Dictionary]:
 	var out: Array[Dictionary] = [
 		{
@@ -5711,14 +5726,6 @@ func _civic_tank_extras(c: Vector2) -> Array[Dictionary]:
 			"convex": _row_cylinder_convex(9.3, 1.6, TANK_TOTAL - TANK_BULB_TOP, 8),
 			"band": "dome",
 			"size": Vector3(18.6, TANK_TOTAL - TANK_BULB_TOP, 18.6),
-		},
-		{
-			"name": "RailingRing", "mesh": _row_taper_mesh(9.45, 9.45, 0.7,
-					TANK_RAILING),
-			"pos": Vector3(c.x, 28.55, c.y), "rot": Basis(),
-			"convex": PackedVector3Array(),
-			"band": "railing",
-			"size": Vector3(18.9, 0.7, 18.9),
 		},
 	]
 	return out

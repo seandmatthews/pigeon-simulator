@@ -9008,9 +9008,9 @@ func _scenario_civic_tanks_dims() -> void:
 		_check(S, false, "no retained civic tank parts — the heroes never built")
 		world.queue_free()
 		return
-	if parts.size() != 20:
-		bad.append("record %d != the 2 × 10 schedule (1 diamond box + 9 round families each)"
-				% parts.size())
+	if parts.size() != 50:
+		bad.append("record %d != the 2 × 25 schedule (1 diamond box + 8 round families "
+				+ "+ 16 railing posts each)" % parts.size())
 
 	## --- A+B+C. per-tank: the swap, the dims, the palette ---------------------
 	var north_diamond := {}
@@ -9102,19 +9102,32 @@ func _scenario_civic_tanks_dims() -> void:
 					or absf(ys[1] - float(want[1])) > 0.05:
 				bad.append("%s %s stripes %s != the pinned pair %s" % [
 						key, band, ys, want])
-		## The railing band on the dome's perimeter, dark.
+		## The railing: sixteen dark posts on the dome's rim (the round-1 shot
+		## review law — POSTS, never a solid ring: its top disc paints a fat
+		## dark roof from the air).
 		var rail_count := int(band_counts.get("railing", 0))
-		if rail_count != 1:
-			bad.append("%s railing bands %d != 1" % [key, rail_count])
+		if rail_count != 16:
+			bad.append("%s railing posts %d != 16" % [key, rail_count])
 		else:
+			var posts_on_rim := 0
 			for part3: Dictionary in parts:
-				if str(part3["hero"]) == key and str(part3["band"]) == "railing":
-					var wl: float = (part3["color"] as Color).r * 0.299 \
-							+ (part3["color"] as Color).g * 0.587 \
-							+ (part3["color"] as Color).b * 0.114
-					if wl > 0.45:
-						bad.append("%s railing luminance %.3f > 0.45 — must read dark"
-								% [key, wl])
+				if str(part3["hero"]) != key or str(part3["band"]) != "railing":
+					continue
+				var wl: float = (part3["color"] as Color).r * 0.299 \
+						+ (part3["color"] as Color).g * 0.587 \
+						+ (part3["color"] as Color).b * 0.114
+				if wl > 0.45:
+					bad.append("%s railing post luminance %.3f > 0.45 — must read dark"
+							% [key, wl])
+				var pp: Vector3 = part3["p"]
+				var ps: Vector3 = part3["s"]
+				if absf(Vector2(pp.x - c.x, pp.z - c.y).length() - 9.5) < 0.05 \
+						and absf(pp.y - 28.7) < 0.05 \
+						and absf(ps.x - 0.18) < 0.005 and absf(ps.y - 0.8) < 0.005 \
+						and absf(ps.z - 0.18) < 0.005:
+					posts_on_rim += 1
+			if posts_on_rim != 16:
+				bad.append("%s railing posts on the dome rim %d != 16" % [key, posts_on_rim])
 		## C. the palette: every band at its scenario literal ±0.02, the hue
 		## laws holding the green/blue read.
 		var literals := {
@@ -9217,8 +9230,9 @@ func _scenario_civic_tanks_dims() -> void:
 			bad.append("no %s under %s" % [rig["root"], rig["chunk"]])
 			continue
 		var boxes_mm := hero_root.get_node_or_null("Boxes") as MultiMeshInstance3D
-		if boxes_mm == null or boxes_mm.multimesh.instance_count != 1:
-			bad.append("%s carries no single-diamond Boxes MM" % rig["root"])
+		if boxes_mm == null or boxes_mm.multimesh.instance_count != 17:
+			bad.append("%s Boxes MM %s != the diamond + 16 posts" % [rig["root"],
+					boxes_mm.multimesh.instance_count if boxes_mm != null else -1])
 		var want_albedo := {
 			"Stem": Color(0.655, 0.647, 0.635),
 			"SkirtCone": Color(0.847, 0.843, 0.816),
@@ -9240,14 +9254,9 @@ func _scenario_civic_tanks_dims() -> void:
 						mesh_node.name if mesh_node != null else mesh_name,
 						mesh_name, mat.albedo_color if mat != null else "<null>"])
 		var rail_node := hero_root.get_node_or_null("RailingRing") as MeshInstance3D
-		if rail_node == null or not (rail_node.mesh is CylinderMesh):
-			bad.append("%s named mesh RailingRing missing" % rig["root"])
-		else:
-			var rail_mat := (rail_node.mesh as CylinderMesh).material as StandardMaterial3D
-			var rail_col := rail_mat.albedo_color if rail_mat != null else Color(1, 1, 1)
-			var rail_wl: float = rail_col.r * 0.299 + rail_col.g * 0.587 + rail_col.b * 0.114
-			if rail_wl > 0.45:
-				bad.append("%s RailingRing luminance %.3f > 0.45" % [rig["root"], rail_wl])
+		if rail_node != null:
+			bad.append("%s still carries a solid RailingRing — the posts law removed it"
+					% rig["root"])
 
 	## --- E. the seams, live ------------------------------------------------------
 	var space := get_world_3d().direct_space_state
