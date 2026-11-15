@@ -252,6 +252,14 @@ var fountain_parts: Array[Dictionary] = []
 ## bounding `s` at their mesh centers so the dims and palette arms walk one
 ## record; the LIVE material arms re-prove the meshes themselves.
 var campus_row_hero_parts: Array[Dictionary] = []
+## (T-189) The MU + Parks hero part record, retained on the same law: every
+## box and mesh-bounding extra the two builds emitted —
+## `{hero, band, p, s, color, collide}` in world-local (pack) coordinates,
+## `hero` one of `memorial_union` / `parks_library`. The tower crown, the
+## zodiac disc and its ring file their band and bounding `s` at their mesh
+## centers so the dims and palette arms walk one record; the LIVE material
+## arms re-prove the meshes themselves.
+var mu_parks_hero_parts: Array[Dictionary] = []
 
 @onready var _box_mesh: BoxMesh = _make_box_mesh()
 @onready var _tri_mesh: ArrayMesh = _make_tri_mesh()
@@ -407,6 +415,7 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	campus_plaza_tris = 0
 	fountain_parts = []
 	campus_row_hero_parts = [] ## (T-188) The row-hero record rebuilds with the world.
+	mu_parks_hero_parts = [] ## (T-189) The MU + Parks hero record rebuilds with it.
 	ped_zones = null
 	parking = null
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
@@ -490,6 +499,7 @@ func generate_step_finish() -> void:
 		"swans": swans.size(),
 		"campanile_parts": campanile_hero_parts.size(), ## (T-186) The hero swap is live.
 		"campus_row_parts": campus_row_hero_parts.size(), ## (T-188) The row heroes are live.
+		"mu_parks_parts": mu_parks_hero_parts.size(), ## (T-189) The MU + Parks pair is live.
 		"campus_ribbons": campus_ribbon_xfs.size(), ## (T-187) The lawn dress is live.
 		"campus_slab_tris": campus_slab_tris,
 		"campus_plaza_tris": campus_plaza_tris,
@@ -1521,9 +1531,10 @@ func _collect_roof_spots(chunk: Dictionary) -> void:
 	for ph: Dictionary in chunk.get("placeholders", []):
 		var hero_id := str(ph.get("id", ""))
 		if not _hero_ids.has(hero_id) or hero_id == CAMPANILE_HERO_ID \
-				or hero_id == BEARDSHEAR_HERO_ID:
-			continue ## (T-186/T-188) the campanile's cap crumb is pinned; the
-			## Beardshear hero files its own dome-top spot in its build below.
+				or hero_id == BEARDSHEAR_HERO_ID \
+				or hero_id == MU_HERO_ID or hero_id == PARKS_HERO_ID:
+			continue ## (T-186/T-188/T-189) the campanile's cap crumb is pinned;
+			## the other heroes file their own true-top spots in their builds.
 		var top := float(ph["p"][1]) + float(ph["s"][1]) * 0.5
 		var pos := Vector3(float(ph["p"][0]), top, float(ph["p"][2]))
 		var current: Variant = _hero_roof_tops.get(hero_id)
@@ -1642,6 +1653,7 @@ func _build_chunk(entry: Dictionary) -> void:
 	_collect_roof_spots(chunk) ## (T-176) the roof-crumb hosts, while the doc is in hand.
 	_build_campanile_hero(chunk_root, chunk, center, chunk_body) ## (T-186) the hero swap rides its own chunk.
 	_build_campus_row_heroes(chunk_root, chunk, center, chunk_body) ## (T-188) the row heroes ride theirs.
+	_build_mu_parks_heroes(chunk_root, chunk, center, chunk_body) ## (T-189) the MU + Parks pair rides theirs.
 
 
 ## One vertex-color unit-box MultiMesh from the chunk's massing entries
@@ -1856,6 +1868,11 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 			## block/dome/dome_cap placeholder parts the same 1:1 way — its
 			## build files the shapes; the dome-top crumb comes from the hero's
 			## own schedule, so no capture is needed here.
+			continue
+		if pid == MU_HERO_ID or pid == PARKS_HERO_ID:
+			## (T-189) The MU + Parks heroes supersede their slots' placeholder
+			## parts the same 1:1 way (MU block/tower/tower_cap; Parks
+			## block/addition) — their builds file the shapes; no capture.
 			continue
 		var p: Array = e["p"]
 		var s: Array = e["s"]
@@ -2740,16 +2757,94 @@ const FARMHOUSE_RIDGE := 12.9
 const MARSTON_HALL_TOP := 12.0 ## The pack's own tagged height (the slot stays exact).
 
 
+## --- T-189 the MU + Parks heroes -------------------------------------------
+## The corner block at Lincoln Way & Morrill Rd/Lynn (F-06's corrected corner)
+## and the library block closing the lawn's east read. Both ids ALREADY ride
+## the bake manifest's `heroes` list (the T-175 hero set), so their bbox
+## massing is skipped by every massing family; the heroes supersede the
+## slots' PLACEHOLDER parts at runtime (MU block/tower/tower_cap in chunk
+## (1,−1); Parks block/addition in chunk (0,−3)) through
+## `_row_superseded_placeholder`, the T-186/T-188 law.
+
+const MU_HERO_ID := "way/183224150"
+const PARKS_HERO_ID := "way/33725897"
+
+## (T-189) The pinned palette — MODELING-SPECS §1.4's rows, verbatim, shared
+## with the T-188 consts where the row is the same (the limestone pair); the
+## additions' curtain-wall glass is the table's own "MU/parks 1950s–80s
+## addition glass" row, the white spandrel panels the survey's pinned white
+## (the §1.4 Marston-tank row — the table's only white estimate); the MU's
+## dark slate hip borrows the table's slate row (shared with Morrill — the
+## survey pins one town slate). The zodiac bronze carries NO survey hex —
+## TRADITIONS §9.5 pins the WORD ("raised bronze"), so the band is held by
+## the bronze-ordering law (r > g > b, dark against the limestone), the
+## campanile `hand` / row `window` precedent.
+const MU_SLATE := Color(0.247, 0.267, 0.298) ## #3F444C the §1.4 slate row (shared with Morrill).
+const ADDITION_GLASS := Color(0.243, 0.29, 0.314) ## #3E4A50 the 1950s–80s addition glass row.
+const ADDITION_PANEL := Color(0.929, 0.929, 0.918) ## #EDEDEA the survey's pinned white (the spandrel panels).
+const ZODIAC_BRONZE := Color(0.43, 0.35, 0.2) ## #6E5933 — no survey hex; bronze-ordering law (r>g>b), luminance ≤ 0.45.
+
+## The band -> color table (the record and the render share this one mapping;
+## the limestone pair reuses the T-188 consts — one §1.4 table).
+const MU_PARKS_BANDS: Dictionary = {
+	"limestone": ROW_LIMESTONE,
+	"limestone_shade": ROW_LIMESTONE_SHADE,
+	"mu_slate": MU_SLATE,
+	"addition_glass": ADDITION_GLASS,
+	"addition_panel": ADDITION_PANEL,
+	"zodiac_bronze": ZODIAC_BRONZE,
+	"window": ROW_WINDOW,
+}
+
+## (T-189) The pinned heights (m). MU: the slot's OWN block top stays 20.0
+## (the bake block part's settled stack — byte continuity); the photo-18
+## dress adds the arcade apron (13.0), the dark slate hip (eave 20.0 → ridge
+## 24.0) and the squat square corner tower. THE TOWER IS THE TICKET'S
+## ESTIMATE: survey VERIFICATION "Memorial Union tower height — UNKNOWABLE…
+## if a number is needed for tooling, use ≈35–45 m, UNVERIFIED"; this build
+## pins 36.0 (just inside that band, the photo-19 squat read) — the estimate
+## and its source uncertainty are recorded in the ticket; the ~148 ft
+## circulating figure stays UNBAKED (LANDMARKS C5's caveat). Parks: the 1925
+## core tops the composition at 24.0 (the slot's own block read — 5 census
+## floors), the 1961/1983 additions band at 20.0 (the photo-22 blocky read).
+const MU_BLOCK_TOP := 20.0
+const MU_APRON_TOP := 13.0
+const MU_HIP_RIDGE := 24.0
+const MU_TOWER_SHAFT_TOP := 34.2
+const MU_TOWER_TOP := 36.0
+const PARKS_CORE_TOP := 24.0
+const PARKS_ADDITION_TOP := 20.0
+## The 1925 core's footprint (LANDMARKS C4's original block, 53.6 × 39.6 m —
+## [x, z] here: the long axis runs N–S along the lawn's east edge).
+const PARKS_CORE_SIZE := Vector2(39.6, 53.6)
+## The MU corner tower's slot position — the bake's own tower part, i.e. the
+## block's southwest corner: 5.0 in from the west edge (the Morrill Rd/Lynn
+## corridor), 5.0 in from the south edge (Lincoln Way). F-06's corrected
+## corner, kept from the bake (the ledger item).
+const MU_TOWER_SLOT_INSET := 5.0
+## The zodiac decal: the Gold Star Hall threshold read — one bay east of the
+## tower bay on the SOUTH (Lincoln Way) face, just outside the wall line (a
+## survey-anchored approximation: the tradition pins the HALL, the sources
+## pin no door survey; recorded in the ticket). Visual-only — no collision,
+## no ground record (students walk AROUND it; the walkability query answers
+## the plate through the decal).
+const ZODIAC_X_FROM_TOWER := 8.0
+const ZODIAC_SOUTH_OUTSET := 2.2
+
+
 func _row_band_color(band: String) -> Color:
 	return CAMPUS_ROW_BANDS.get(band, ROW_LIMESTONE)
 
 
 ## (T-188) TRUE when a baked placeholder entry belongs to a hero that
-## supersedes its slot at runtime — the campanile (T-186) and Beardshear
-## (T-188, this ticket). The placeholder-family passes (render, collision,
-## ground record, roof spots) skip these ids so a hero never renders twice.
+## supersedes its slot at runtime — the campanile (T-186), Beardshear (T-188)
+## and the MU + Parks pair (T-189; both ids already ride the bake manifest's
+## `heroes` list, so only their PLACEHOLDER parts need the runtime skip).
+## The placeholder-family passes (render, collision, ground record, roof
+## spots) skip these ids so a hero never renders twice.
 func _row_superseded_placeholder(id: String) -> bool:
-	return id == CAMPANILE_HERO_ID or id == BEARDSHEAR_HERO_ID
+	return id == CAMPANILE_HERO_ID or id == BEARDSHEAR_HERO_ID \
+			or id == MU_HERO_ID or id == PARKS_HERO_ID
 
 
 ## Builds the row heroes found in this chunk (Beardshear + Morrill + Marston
@@ -2777,12 +2872,14 @@ func _build_campus_row_heroes(chunk_root: Node3D, chunk: Dictionary,
 		_row_commit(chunk_root, center, "Beardshear", BEARDSHEAR_HERO_ID,
 				_beardshear_hero_boxes(beardshear),
 				Vector3(bx, BEARDSHEAR_DOME_TOP, beardshear.y), chunk_body,
-				_beardshear_hero_extras(beardshear))
+				_beardshear_hero_extras(beardshear),
+				campus_row_hero_parts, CAMPUS_ROW_BANDS)
 	if morrill != Vector2.ZERO:
 		_row_commit(chunk_root, center, "Morrill", MORRILL_HERO_ID,
 				_morrill_hero_boxes(morrill),
 				Vector3(morrill.x, MORRILL_RIDGE, morrill.y), chunk_body,
 				_morrill_hero_extras(morrill),
+				campus_row_hero_parts, CAMPUS_ROW_BANDS,
 				[{"p": Vector3(morrill.x, 13.05, morrill.y),
 					"s": Vector3(2.0, 3.9, 28.0)}] as Array[Dictionary])
 	if farm != Vector2.ZERO:
@@ -2790,29 +2887,39 @@ func _build_campus_row_heroes(chunk_root: Node3D, chunk: Dictionary,
 				_farmhouse_hero_boxes(farm),
 				Vector3(farm.x, FARMHOUSE_RIDGE, farm.y - 3.75), chunk_body,
 				_farmhouse_hero_extras(farm),
+				campus_row_hero_parts, CAMPUS_ROW_BANDS,
 				[{"p": Vector3(farm.x, 11.15, farm.y - 3.75),
 					"s": Vector3(19.6, 3.5, 0.9)}] as Array[Dictionary])
 	if marston != Vector2.ZERO:
 		_row_commit(chunk_root, center, "MarstonHall", MARSTON_HALL_HERO_ID,
 				_marston_hero_boxes(marston),
 				Vector3(marston.x, MARSTON_HALL_TOP, marston.y), chunk_body,
-				[] as Array[Dictionary])
+				[] as Array[Dictionary],
+				campus_row_hero_parts, CAMPUS_ROW_BANDS)
 
 
-## One hero's commit — the T-186 pipeline shared by the four: render (the box
-## MultiMesh + every named mesh extra), collision (the hero's own shapes ride
-## the chunk's placeholder body — same slot, same layer-1 `world` class),
-## ground-record tops, the roof-crumb host (`_hero_roof_tops`, consumed by
-## `_append_roof_spots`), and the retained part record. Each extra is
-## `{name, mesh, pos, convex, band, size}`: the mesh mounts at `pos`
-## (chunk-local); a non-empty `convex` becomes one CollisionShape3D at the
-## same spot; `band`/`size` file the record.
+## One hero's commit — the T-186 pipeline shared by the six (the T-188 four
+## + the T-189 MU/Parks pair): render (the box MultiMesh + every named mesh
+## extra), collision (the hero's own shapes ride the chunk's placeholder
+## body — same slot, same layer-1 `world` class), ground-record tops, the
+## roof-crumb host (`_hero_roof_tops`, consumed by `_append_roof_spots`), and
+## the retained part record. Each extra is `{name, mesh, pos, convex, band,
+## size}`: the mesh mounts at `pos` (chunk-local); a non-empty `convex`
+## becomes one CollisionShape3D at the same spot; `band`/`size` file the
+## record. `record` + `bands` name the retained array and the band->color
+## table the hero wears (the T-188 record/`CAMPUS_ROW_BANDS` for the row, the
+## T-189 record/`MU_PARKS_BANDS` for the pair).
 func _row_commit(chunk_root: Node3D, center: Vector3, hero_name: String,
 		hero_id: String, boxes: Array[Dictionary], crumb: Vector3,
 		chunk_body: StaticBody3D, extras: Array[Dictionary],
+		record: Array[Dictionary], bands: Dictionary,
 		record_only: Array[Dictionary] = []) -> void:
 	var hero_key: String = hero_name.to_lower().replace("farmhouse", "farm_house") \
-			.replace("marstonhall", "marston_hall") ## The record's lowercase key.
+			.replace("marstonhall", "marston_hall") \
+			.replace("memorialunion", "memorial_union") \
+			.replace("parkslibrary", "parks_library") ## The record's lowercase key.
+	var band_color := func(band: String) -> Color:
+		return bands.get(band, ROW_LIMESTONE)
 	var root := Node3D.new()
 	root.name = "HeroRow%s" % hero_name
 	chunk_root.add_child(root)
@@ -2822,7 +2929,7 @@ func _row_commit(chunk_root: Node3D, center: Vector3, hero_name: String,
 		var p: Vector3 = b["p"]
 		var s: Vector3 = b["s"]
 		mm.set_instance_transform(i, Transform3D(Basis.from_scale(s), p - center))
-		mm.set_instance_color(i, _row_band_color(str(b["band"])))
+		mm.set_instance_color(i, band_color.call(str(b["band"])))
 	mm.custom_aabb = _campanile_hero_aabb(boxes, center)
 	var mm_node := MultiMeshInstance3D.new()
 	mm_node.name = "Boxes"
@@ -2883,11 +2990,11 @@ func _row_commit(chunk_root: Node3D, center: Vector3, hero_name: String,
 		var rs: Vector3 = r["s"]
 		bytes += _file_ground_box(tiles, [rp.x, rp.y, rp.z], [rs.x, rs.y, rs.z])
 	for key: Vector2i in tiles:
-		var record: Dictionary = _chunks.get(key, {})
-		var ground: PackedFloat32Array = record.get("ground", PackedFloat32Array())
+		var tile_record: Dictionary = _chunks.get(key, {})
+		var ground: PackedFloat32Array = tile_record.get("ground", PackedFloat32Array())
 		ground.append_array(PackedFloat32Array(tiles[key]))
-		record["ground"] = ground
-		_chunks[key] = record
+		tile_record["ground"] = ground
+		_chunks[key] = tile_record
 	_buffer_bytes += bytes
 	## The roof-crumb host: one ROOF spot at the hero's true top (the T-176
 	## convention — the superseded bake entries stopped filing in
@@ -2897,15 +3004,15 @@ func _row_commit(chunk_root: Node3D, center: Vector3, hero_name: String,
 	## `mesh` marks the named mesh extras so the gate can count the box
 	## schedule against the render MM separately.
 	for b4: Dictionary in boxes:
-		campus_row_hero_parts.append({
+		record.append({
 			"hero": hero_key, "band": str(b4["band"]), "p": b4["p"],
-			"s": b4["s"], "color": _row_band_color(str(b4["band"])),
+			"s": b4["s"], "color": band_color.call(str(b4["band"])),
 			"collide": b4["collide"], "mesh": false,
 		})
 	for e3: Dictionary in extras:
-		campus_row_hero_parts.append({
+		record.append({
 			"hero": hero_key, "band": str(e3["band"]), "p": e3["pos"],
-			"s": e3["size"], "color": _row_band_color(str(e3["band"])),
+			"s": e3["size"], "color": band_color.call(str(e3["band"])),
 			"collide": false, "mesh": true,
 		})
 
@@ -3157,6 +3264,268 @@ func _marston_hero_boxes(s: Vector2) -> Array[Dictionary]:
 			Vector3(5.2, 0.35, 12.0), true, true)
 	_add_row_box(out, "limestone_shade", Vector3(ex + 3.0, 0.525, s.y),
 			Vector3(3.6, 0.35, 10.4), true, true)
+	return out
+
+
+## --- Memorial Union + Parks Library (T-189) ----------------------------------
+## The corner block at Lincoln Way & Morrill Rd/Lynn (F-06's CORRECTED corner
+## — the bake's own tower part sits at the block's southwest corner, 5.0 m in
+## from each edge, exactly the Lincoln Way + Morrill/Lynn read) and the
+## library block closing the lawn's east read. Both supersede their slots'
+## placeholder parts 1:1 through `_row_commit` (the T-188 pipeline, now
+## parameterized over the record + band table).
+##
+## MU (F-02: PALE GRAY LIMESTONE, NOT dark brick; photo 18's north-lawn read):
+## the slot-exact 20.0 block carries the collision class; the north face
+## wears the long arcade apron (13.0) with the round-arch rhythm, the central
+## arched entry pavilion, the stone balustrade and the two corner pavilions;
+## the dark slate hip (the §1.4 slate row) rides the extras from the 20.0
+## eave to the 24.0 ridge; the squat square corner TOWER rises at the bake's
+## own slot to MU_TOWER_TOP — the ticket's ESTIMATE (survey band ≈35–45 m
+## UNVERIFIED; see the ticket for the uncertainty note). The zodiac (F-13:
+## the Gold Star Hall floor bronze, students never step on it) is a
+## visual-only disc + ring at the south entry threshold read — no collision,
+## no ground record (the walkability query answers the plate through it).
+##
+## Parks (the massing read; facade detail CAPPED at what the refs support —
+## the 1925 street facade has NO usable photo, the CREDITS.md gap carried
+## forward): the 1925 Bedford-limestone core (39.6 × 53.6, the LANDMARKS C4
+## block, topping the composition at 24.0) at the lawn (east) frontage, the
+## 1961 north wing and the 1983 west + south-leg additions (the photo-22
+## blocky read, tiled to the slot's exact 95.5 × 122.9 envelope) in the
+## §1.4 shade row (the pale-concrete masses), with the dark curtain-wall
+## glass + white spandrel ribbon reads and the big west portal frame (piers
+## + lintel — the opening between them stays fly-through clear).
+func _build_mu_parks_heroes(chunk_root: Node3D, chunk: Dictionary,
+		center: Vector3, chunk_body: StaticBody3D) -> void:
+	var mu := Vector2.ZERO
+	var mu_tower := Vector2.ZERO
+	var parks := Vector2.ZERO
+	var parks_box := Vector2.ZERO
+	for ph: Dictionary in chunk.get("placeholders", []):
+		var pid := str(ph.get("id", ""))
+		if pid != MU_HERO_ID and pid != PARKS_HERO_ID:
+			continue
+		var part := str(ph.get("part", ""))
+		if pid == MU_HERO_ID and part == "block":
+			mu = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+		elif pid == MU_HERO_ID and part == "tower":
+			mu_tower = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+		elif pid == PARKS_HERO_ID and part == "block":
+			parks = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+			parks_box = Vector2(float(ph["s"][0]), float(ph["s"][2]))
+	if mu != Vector2.ZERO and mu_tower != Vector2.ZERO:
+		_row_commit(chunk_root, center, "MemorialUnion", MU_HERO_ID,
+				_mu_hero_boxes(mu, mu_tower),
+				Vector3(mu_tower.x, MU_TOWER_TOP, mu_tower.y), chunk_body,
+				_mu_hero_extras(mu, mu_tower),
+				mu_parks_hero_parts, MU_PARKS_BANDS,
+				[{"p": Vector3(mu.x, (MU_BLOCK_TOP + MU_HIP_RIDGE) * 0.5, mu.y),
+					"s": Vector3(30.0, MU_HIP_RIDGE - MU_BLOCK_TOP, 30.0)}]
+					as Array[Dictionary])
+	if parks != Vector2.ZERO:
+		var core_x := parks.x + parks_box.x * 0.5 - PARKS_CORE_SIZE.x * 0.5
+		_row_commit(chunk_root, center, "ParksLibrary", PARKS_HERO_ID,
+				_parks_hero_boxes(parks),
+				Vector3(core_x, PARKS_CORE_TOP, parks.y), chunk_body,
+				[] as Array[Dictionary],
+				mu_parks_hero_parts, MU_PARKS_BANDS)
+
+
+## The MU box schedule in world-local coordinates (pack frame). The body keeps
+## the bake block part's slot dims EXACT (the 109.8 × 20.0 × 109.9 envelope at
+## the block center — the 1:1 collision class); every dress rides the faces.
+func _mu_hero_boxes(c: Vector2, t: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var nz := c.y - 54.95 ## North face — the lawn/Union Dr read (photo 18).
+	## --- the slot-exact body + its courses -----------------------------------
+	_add_row_box(out, "limestone", Vector3(c.x, MU_BLOCK_TOP * 0.5, c.y),
+			Vector3(109.8, MU_BLOCK_TOP, 109.9), true, true)
+	_add_row_box(out, "limestone_shade", Vector3(c.x, 0.5, c.y),
+			Vector3(109.8, 1.0, 109.9), false, false) ## The base course.
+	_add_row_box(out, "limestone_shade", Vector3(c.x, MU_BLOCK_TOP - 0.4, c.y),
+			Vector3(110.4, 0.8, 110.5), true, false) ## The cornice ring.
+	## --- the north arcade apron (photo 18's long lower wing) ------------------
+	var az := nz - 3.0 ## The apron center z (6.0 deep, fully proud).
+	var af := nz - 6.0 ## The apron front face plane.
+	_add_row_box(out, "limestone", Vector3(c.x, MU_APRON_TOP * 0.5, az),
+			Vector3(100.0, MU_APRON_TOP, 6.0), true, true)
+	_add_row_box(out, "limestone_shade", Vector3(c.x, MU_APRON_TOP + 0.45, af + 0.5),
+			Vector3(100.0, 0.9, 0.4), false, false) ## The balustrade rail.
+	for sgn: int in [-1, 1]: ## The corner pavilions (the balustrade's ends).
+		_add_row_box(out, "limestone",
+				Vector3(c.x + float(sgn) * 48.0, 7.4, az),
+				Vector3(4.0, 14.8, 6.4), true, true)
+	## The central arched entry pavilion (photo 18's center read) — proud of
+	## the APRON front face (proud = northward, more negative z).
+	var pz := af - 1.2 ## The pavilion center z (2.4 deep past the apron face).
+	var pf := af - 2.4 ## The pavilion front face plane.
+	_add_row_box(out, "limestone", Vector3(c.x, MU_APRON_TOP * 0.5, pz),
+			Vector3(14.0, MU_APRON_TOP, 2.4), true, true)
+	_add_row_box(out, "limestone_shade", Vector3(c.x, MU_APRON_TOP - 0.3, pz),
+			Vector3(14.6, 0.8, 3.0), false, false) ## The pavilion cornice.
+	_add_row_box(out, "limestone_shade", Vector3(c.x, 3.4, pf - 0.1),
+			Vector3(4.8, 6.8, 0.28), false, false) ## The entry surround.
+	_add_row_box(out, "window", Vector3(c.x, 3.2, pf - 0.14),
+			Vector3(3.8, 6.0, 0.36), false, false) ## The arched entry opening.
+	_add_row_box(out, "limestone_shade", Vector3(c.x, 6.9, pf - 0.14),
+			Vector3(5.4, 0.8, 0.28), false, false) ## The arch head band.
+	## The round-arch rhythm: five bays each side of the pavilion, every
+	## opening proud of its plane (the face-coincident z-fight law).
+	for off: float in [-42.5, -34.5, -26.5, -18.5, -10.5, 10.5, 18.5, 26.5, 34.5, 42.5]:
+		_add_row_box(out, "window", Vector3(c.x + off, 2.8, af - 0.06),
+				Vector3(1.9, 4.0, 0.16), false, false)
+		_add_row_box(out, "limestone_shade", Vector3(c.x + off, 5.15, af - 0.07),
+				Vector3(2.5, 0.7, 0.2), false, false)
+	## The tall block's upper window row, over the apron roofline.
+	for off2: float in [-42.5, -34.5, -26.5, -18.5, -10.5, 10.5, 18.5, 26.5, 34.5, 42.5]:
+		_add_row_box(out, "window", Vector3(c.x + off2, 16.0, nz - 0.04),
+				Vector3(1.6, 2.6, 0.12), false, false)
+	## The ridge chimneys (photo 18's roofline stacks; collide, ground rides
+	## the hip's record-only ridge strip — the Farm House chimney law).
+	for coff: float in [-18.0, 18.0]:
+		_add_row_box(out, "limestone_shade", Vector3(c.x + coff, 23.6, c.y),
+				Vector3(1.6, 3.2, 1.6), true, false)
+	## --- the corner tower at the bake's own slot (the CORRECT corner) --------
+	_add_row_box(out, "limestone", Vector3(t.x, MU_TOWER_SHAFT_TOP * 0.5, t.y),
+			Vector3(10.0, MU_TOWER_SHAFT_TOP, 10.0), true, true) ## 0..34.2.
+	_add_row_box(out, "limestone_shade", Vector3(t.x, MU_TOWER_SHAFT_TOP + 0.3, t.y),
+			Vector3(10.8, 0.6, 10.8), false, false) ## The stringcourse.
+	_add_row_box(out, "limestone", Vector3(t.x, MU_TOWER_TOP - 0.6, t.y),
+			Vector3(9.0, 1.2, 9.0), true, true) ## The crown 34.8..36.0.
+	## The tower's tall arched pair, high on the street faces (photo 19), plus
+	## the corner entry at its base — south (Lincoln Way) + west (Morrill Rd).
+	for toff: float in [-1.7, 1.7]:
+		_add_row_box(out, "window",
+				Vector3(t.x + toff, 28.0, t.y + 5.0 - 0.04),
+				Vector3(1.9, 4.6, 0.12), false, false)
+		_add_row_box(out, "window",
+				Vector3(t.x - 5.0 + 0.04, 28.0, t.y + toff),
+				Vector3(0.12, 4.6, 1.9), false, false)
+	_add_row_box(out, "limestone_shade", Vector3(t.x, 2.2, t.y + 5.0 - 0.1),
+			Vector3(3.0, 4.8, 0.24), false, false) ## The entry surround.
+	_add_row_box(out, "window", Vector3(t.x, 2.1, t.y + 5.0 - 0.04),
+			Vector3(2.4, 4.2, 0.12), false, false) ## The corner entry opening.
+	return out
+
+
+## The MU mesh extras: the dark slate hip (the §1.4 slate row — eave 20.0 →
+## ridge 24.0, a full hip shrinking both axes) and the ZODIAC — the Gold Star
+## Hall threshold read as two flat bronze cylinders (ring + proud disc) on the
+## approach just south of the wall line, one bay east of the tower bay.
+## Visual-only: empty convex, no ground record — students walk AROUND it.
+func _mu_hero_extras(c: Vector2, t: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = [{
+		"name": "SlateHip",
+		"mesh": _row_loft_mesh(Vector2(110.6, 110.7), Vector2(30.0, 30.0), 4.0,
+				MU_SLATE, MU_SLATE),
+		"pos": Vector3(c.x, (MU_BLOCK_TOP + MU_HIP_RIDGE) * 0.5, c.y),
+		"convex": _row_frustum_convex(Vector2(110.6, 110.7), Vector2(30.0, 30.0), 4.0),
+		"band": "mu_slate", "size": Vector3(110.6, MU_HIP_RIDGE - MU_BLOCK_TOP, 110.7),
+	}]
+	var zx := t.x + ZODIAC_X_FROM_TOWER
+	var zz := c.y + 54.95 + ZODIAC_SOUTH_OUTSET
+	out.append({
+		"name": "ZodiacRing", "mesh": _row_taper_mesh(3.1, 3.1, 0.03, ZODIAC_BRONZE),
+		"pos": Vector3(zx, 0.03, zz), "convex": PackedVector3Array(),
+		"band": "zodiac_bronze", "size": Vector3(6.2, 0.03, 6.2),
+	})
+	out.append({
+		"name": "ZodiacDisc", "mesh": _row_taper_mesh(2.6, 2.6, 0.05, ZODIAC_BRONZE),
+		"pos": Vector3(zx, 0.04, zz), "convex": PackedVector3Array(),
+		"band": "zodiac_bronze", "size": Vector3(5.2, 0.05, 5.2),
+	})
+	return out
+
+
+## The Parks box schedule (world-local). The slot's exact 95.5 × 122.9
+## envelope tiles into the massing read: the 1925 limestone core (39.6 × 53.6,
+## LANDMARKS C4's block) at the east (lawn) frontage topping 24.0, the 1961
+## north wing, and the 1983 west band + south leg — the three additions at
+## 20.0. All offsets derive from the slot center + box so a re-bake that
+## moves the slot moves the hero.
+func _parks_hero_boxes(p: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var ex := p.x + 47.75 ## The slot's east face — the lawn frontage.
+	var wx := p.x - 47.75 ## The slot's west face.
+	var nz := p.y - 61.45 ## The slot's north face.
+	var sz := p.y + 61.45 ## The slot's south face.
+	var core_x := ex - PARKS_CORE_SIZE.x * 0.5
+	var core_nz := p.y - PARKS_CORE_SIZE.y * 0.5
+	var core_sz := p.y + PARKS_CORE_SIZE.y * 0.5
+	## --- the 1925 core --------------------------------------------------------
+	_add_row_box(out, "limestone", Vector3(core_x, PARKS_CORE_TOP * 0.5, p.y),
+			Vector3(PARKS_CORE_SIZE.x, PARKS_CORE_TOP, PARKS_CORE_SIZE.y),
+			true, true)
+	_add_row_box(out, "limestone_shade", Vector3(core_x, PARKS_CORE_TOP - 0.35, p.y),
+			Vector3(PARKS_CORE_SIZE.x + 0.6, 0.7, PARKS_CORE_SIZE.y + 0.6),
+			false, false) ## The cornice.
+	## The lawn-facing entry + two window rows — facade detail CAPPED here
+	## (the 1925 street facade's documented gap; the east read is the
+	## composition, not ornament).
+	_add_row_box(out, "limestone_shade", Vector3(ex + 0.1, 3.0, p.y),
+			Vector3(0.28, 6.0, 3.4), false, false) ## The entry surround.
+	_add_row_box(out, "window", Vector3(ex + 0.14, 2.9, p.y),
+			Vector3(0.36, 5.2, 2.6), false, false) ## The entry opening.
+	for woff: float in [-23.0, -15.5, -8.0, 8.0, 15.5, 23.0]:
+		for wy: float in [6.5, 12.5]:
+			_add_row_box(out, "window", Vector3(ex + 0.04, wy, p.y + woff),
+					Vector3(0.12, 3.0, 1.7), false, false)
+	## --- the 1961 north wing ---------------------------------------------------
+	var wing_cz := (nz + core_nz) * 0.5
+	var wing_d := core_nz - nz
+	_add_row_box(out, "limestone_shade",
+			Vector3(p.x, PARKS_ADDITION_TOP * 0.5, wing_cz),
+			Vector3(95.5, PARKS_ADDITION_TOP, wing_d), true, true)
+	_add_row_box(out, "limestone_shade",
+			Vector3(p.x, PARKS_ADDITION_TOP - 0.3, wing_cz),
+			Vector3(95.9, 0.6, wing_d + 0.4), false, false) ## Its cornice.
+	_add_row_box(out, "addition_glass", Vector3(p.x, 6.6, nz - 0.04),
+			Vector3(91.0, 2.6, 0.14), false, false) ## The curtain wall.
+	_add_row_box(out, "addition_panel", Vector3(p.x, 4.6, nz - 0.03),
+			Vector3(91.0, 1.2, 0.12), false, false) ## The spandrel strip.
+	_add_row_box(out, "addition_glass", Vector3(p.x, 13.4, nz - 0.04),
+			Vector3(91.0, 2.6, 0.14), false, false)
+	_add_row_box(out, "addition_panel", Vector3(p.x, 10.4, nz - 0.03),
+			Vector3(91.0, 1.2, 0.12), false, false)
+	## --- the 1983 west band + south leg ----------------------------------------
+	var band_w := core_x - PARKS_CORE_SIZE.x * 0.5 - wx
+	var band_cz := (core_nz + sz) * 0.5
+	var band_d := sz - core_nz
+	_add_row_box(out, "limestone_shade",
+			Vector3(wx + band_w * 0.5, PARKS_ADDITION_TOP * 0.5, band_cz),
+			Vector3(band_w, PARKS_ADDITION_TOP, band_d), true, true)
+	_add_row_box(out, "limestone_shade",
+			Vector3(wx + band_w * 0.5, PARKS_ADDITION_TOP - 0.3, band_cz),
+			Vector3(band_w + 0.4, 0.6, band_d + 0.4), false, false)
+	var leg_cz := (core_sz + sz) * 0.5
+	var leg_d := sz - core_sz
+	var leg_cx := core_x
+	_add_row_box(out, "limestone_shade",
+			Vector3(leg_cx, PARKS_ADDITION_TOP * 0.5, leg_cz),
+			Vector3(PARKS_CORE_SIZE.x, PARKS_ADDITION_TOP, leg_d), true, true)
+	_add_row_box(out, "limestone_shade",
+			Vector3(leg_cx, PARKS_ADDITION_TOP - 0.3, leg_cz),
+			Vector3(PARKS_CORE_SIZE.x + 0.4, 0.6, leg_d + 0.4), false, false)
+	## The west face's curtain-wall ribbons + spandrels (the photo-22 skin).
+	for gy: float in [6.6, 13.4]:
+		_add_row_box(out, "addition_glass", Vector3(wx - 0.04, gy, band_cz),
+				Vector3(0.14, 2.6, band_d - 4.0), false, false)
+	for py: float in [4.6, 10.4, 17.2]:
+		_add_row_box(out, "addition_panel", Vector3(wx - 0.03, py, band_cz),
+				Vector3(0.12, 1.2, band_d - 4.0), false, false)
+	_add_row_box(out, "addition_glass", Vector3(leg_cx, 6.6, sz + 0.04),
+			Vector3(PARKS_CORE_SIZE.x - 4.0, 2.6, 0.14), false, false)
+	_add_row_box(out, "addition_panel", Vector3(leg_cx, 4.6, sz + 0.03),
+			Vector3(PARKS_CORE_SIZE.x - 4.0, 1.2, 0.12), false, false)
+	## The big west portal frame (photo 22's gate): two proud piers + the
+	## lintel — the 14 m opening between them stays fly-through clear.
+	for poff: float in [-9.0, 9.0]:
+		_add_row_box(out, "limestone_shade",
+				Vector3(wx - 1.2, 9.0, band_cz + poff),
+				Vector3(2.4, 18.0, 4.0), true, false)
+	_add_row_box(out, "limestone_shade", Vector3(wx - 1.2, 16.0, band_cz),
+			Vector3(2.4, 4.0, 18.0), true, false) ## The portal lintel.
 	return out
 
 
