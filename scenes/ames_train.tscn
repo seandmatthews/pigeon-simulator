@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ames_train.gd" id="1_train"]
+
+; T-194: the daily coal drag (the world stages exactly one on the chained
+; south track). The primitive rig is built in the script's setup (the
+; consist schedule + one unit-box MultiMesh; rotations stay in code per the
+; scene-file convention); the world hands the train its route before the
+; physics ticks advance the loop clock. No physics body on purpose — the
+; T-194 scope guard: the train is dressing that moves, it gates nothing.
+
+[node name="CoalDrag" type="Node3D"]
+script = ExtResource("1_train")

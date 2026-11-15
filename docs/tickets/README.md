@@ -375,7 +375,7 @@ scan (T-170 was max; no workflows in flight).
 | T-191 | [Jack Trice Stadium complex](T-191-stadium-complex.md) | R3 The Landmarks | T-177 | done |
 | T-192 | [Downtown heroes](T-192-downtown-heroes.md) | R3 The Landmarks | T-177 | done |
 | T-193 | [Civic water towers](T-193-civic-water-towers.md) | R3 The Landmarks | T-177 | done |
-| T-194 | [Rail corridor dressing](T-194-rail-corridor-dressing.md) | R3 The Landmarks | T-177, T-180 | proposed |
+| T-194 | [Rail corridor dressing](T-194-rail-corridor-dressing.md) | R3 The Landmarks | T-177, T-180 | doing |
 | T-195 | [Grain elevators](T-195-grain-elevators.md) | R3 The Landmarks | T-177 | proposed |
 | T-196 | [R3 cutover](T-196-ames-r3-cutover.md) | R3 The Landmarks | T-185..T-195 | proposed |
 | T-197 | [Text capability](T-197-ames-text-capability.md) | R4 The Names | T-196 | proposed |
