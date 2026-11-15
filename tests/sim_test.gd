@@ -189,6 +189,8 @@ func _run_scenarios() -> void:
 	await _scenario_ames_parking_census() ## T-182 — the parking census: the lot stock matches the data, the curb re-target, the dressing at its caps, the fleet's lot staging, the blinker reach, the T-147 probe.
 	await _scenario_ames_economy_pins() ## T-183 — the economy scale: the M2 favor pins diff-proven across the build, the favor benches live at their pack-derived positions with the share loop closing, the reach gate at the spend targets.
 	await _scenario_laverne_swans() ## T-185 — the LaVerne shore read + the two ambient swans: exactly 2, always in the water, the yield law, the shore polish, the dims re-pin.
+	await _scenario_campanile_hero_dims() ## T-186 — the campanile hero: the 1:1 slot swap, the 33.5 m stack, the live collision class + open arcades, the pinned crumb.
+	await _scenario_campanile_palette() ## T-186 — the photo-corrected buff/tan palette: every band at its pinned hex, the F-01 not-red law, the live cap/dial reads.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -1003,14 +1005,25 @@ func _scenario_ames_world_render_budget() -> void:
 	## every entry) while the heroes' superseded bbox boxes LEFT it — the
 	## manifest's `heroes` ids are skipped by the massing MultiMesh, so the
 	## honest expectation is massing − heroes + placeholders + the flats.
+	## (T-186) the campanile hero retires its slot's four placeholder parts
+	## (walked from the chunk files here, not trusted) and mounts its OWN
+	## runtime family — a corner dress like the T-180/T-181/T-185 families,
+	## which all live OUTSIDE this bake-derived metric — so the expectation
+	## subtracts exactly those four.
 	var hero_count := (manifest.get("heroes", []) as Array).size()
+	var campanile_slot_parts := 0
+	for entry: Dictionary in manifest.get("chunks", []):
+		var doc_b: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for ph_b: Dictionary in doc_b.get("placeholders", []):
+			if str(ph_b.get("id", "")) == "way/183041212":
+				campanile_slot_parts += 1
 	var expected_instances := int(totals.get("massing", 0)) - hero_count \
 			+ int(totals.get("ribbons", 0)) \
 			+ int(totals.get("lane_quads", 0)) + int(totals.get("shore_quads", 0)) \
 			+ int(totals.get("creek_quads", 0)) + int(totals.get("ballast_quads", 0)) \
 			+ int(totals.get("tie_quads", 0)) + int(totals.get("ground_quads", 0)) \
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
-			+ int(totals.get("placeholders", 0))
+			+ int(totals.get("placeholders", 0)) - campanile_slot_parts
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
 	if int(m.instances) != expected_instances:
@@ -5775,7 +5788,398 @@ func _scenario_laverne_swans() -> void:
 			wing_hi - wing_lo, "; ".join(bad)])
 
 
-## --- scenarios (T-001 flight model) --------------------------------------
+## --- scenarios (T-186 the campanile hero) ----------------------------------
+
+
+## (T-186) The campanile hero re-pins T-175's dims row onto the HERO. The bake
+## slot is read independently (the four placeholder parts — the 1:1 anchor:
+## same id `way/183041212`, same chunk, same position), then the hero is
+## proved on a live world through four arms:
+## A. THE SCHEDULE — the retained part record: the stack tops out at the
+##    survey's settled 33.5 m (the AC bar ±2 m), the plinth rides the bake
+##    slot's exact center (6.8 × 6.7), the shaft is the slender 4.9 m needle,
+##    THREE arcade crowns stack in the head band (28.4 / 29.5 / 30.9 — the
+##    three open-arcade tiers) and the landable deck closes at 33.5;
+## B. THE COLLISION CLASS, live — the hero's own shapes answer the T-175
+##    probe set on the REAL physics space: the shaft's west-face ray hits at
+##    the 4.9 m face (±0.3), a vertical ray at the slot center lands on the
+##    deck at 33.5 ± 0.05, and the chunk body stays layer-1 `world`;
+## C. THE OPEN ARCADES, live — at each tier's opening height a ray through
+##    the openings MISSES (perch-through: only piers/mullions/crowns collide)
+##    while the same-height pier rays HIT at each tier's own face;
+## D. THE SWAP, 1:1 — the chunk's gray `Placeholders` MultiMesh lost exactly
+##    the four campanile parts (its instance_count == the file's count − 4,
+##    both walked independently), the `HeroCampanile` family is mounted under
+##    that same chunk node, the superseded slots file NO ground tops anymore
+##    (the hero's own tops answer: the center queries the 33.5 deck, a point
+##    5 m east queries the plate) and the anchor-cap crumb stays pinned at
+##    the cap top + `City.ANCHOR_CRUMB_LIFT` (±0.005).
+func _scenario_campanile_hero_dims() -> void:
+	const S := "campanile_hero_dims"
+	const CAM_ID := "way/183041212"
+	var bad: PackedStringArray = PackedStringArray()
+	## The bake slot, walked independently (the no-self-test rule).
+	var cap_top := 0.0
+	var slot_center := Vector2.ZERO
+	var baked_parts := 0
+	var slot_chunk := Vector2i(10, 10)
+	var slot_chunk_ph_count := 0
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		var carries := false
+		for ph: Dictionary in doc.get("placeholders", []):
+			if str(ph.get("id", "")) != CAM_ID:
+				continue
+			carries = true
+			baked_parts += 1
+			if str(ph.get("part", "")) == "cap":
+				cap_top = float(ph["p"][1]) + float(ph["s"][1]) * 0.5
+			elif str(ph.get("part", "")) == "shaft":
+				slot_center = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+		if carries:
+			slot_chunk = Vector2i(int(entry["cx"]), int(entry["cz"]))
+			slot_chunk_ph_count = (doc.get("placeholders", []) as Array).size()
+	if baked_parts != 4 or slot_center == Vector2.ZERO or absf(cap_top - 33.5) > 0.01 \
+			or slot_chunk_ph_count < 4:
+		_check(S, false, "bake slot mismatch: parts=%d cap_top=%.2f center=%s chunk=%s(%d)"
+				% [baked_parts, cap_top, slot_center, slot_chunk, slot_chunk_ph_count])
+		return
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	## --- A. the retained schedule (world-local == pack-local) ---------------
+	var parts := world.campanile_hero_parts
+	var stack_top := -1.0
+	if parts.is_empty():
+		bad.append("no retained hero parts — the hero never built")
+	else:
+		var lo := Vector3(INF, INF, INF)
+		var hi := Vector3(-INF, -INF, -INF)
+		var plinth_seen := false
+		var shaft_seen := false
+		var deck_seen := false
+		var crowns: Array[float] = []
+		for part: Dictionary in parts:
+			var p: Vector3 = part["p"]
+			var s: Vector3 = part["s"]
+			lo = lo.min(p - s * 0.5)
+			hi = hi.max(p + s * 0.5)
+			if s.is_equal_approx(Vector3(6.8, 2.0, 6.7)):
+				plinth_seen = true
+				if Vector2(p.x, p.z).distance_to(slot_center) > 0.01:
+					bad.append("plinth %s off the bake slot %s" % [p, slot_center])
+			elif s.is_equal_approx(Vector3(4.9, 24.4, 4.9)):
+				shaft_seen = true
+				if Vector2(p.x, p.z).distance_to(slot_center) > 0.01:
+					bad.append("shaft %s off the bake slot %s" % [p, slot_center])
+			elif s.is_equal_approx(Vector3(2.5, 0.2, 2.45)):
+				deck_seen = true
+				if absf((p.y + s.y * 0.5) - 33.5) > 0.005:
+					bad.append("deck top %.3f != the settled 33.5" % (p.y + s.y * 0.5))
+			elif s.y > 0.25 and s.y < 0.4 and p.y > 26.4 and p.y < 30.9 \
+					and s.x > 4.0:
+				crowns.append(snappedf(p.y + s.y * 0.5, 0.01)) ## A tier crown's top.
+		if not plinth_seen:
+			bad.append("no 6.8x2.0x6.7 plinth in the schedule")
+		if not shaft_seen:
+			bad.append("no 4.9x24.4x4.9 shaft in the schedule")
+		if not deck_seen:
+			bad.append("no 2.5x0.2x2.45 deck in the schedule")
+		crowns.sort()
+		if crowns.size() != 3:
+			bad.append("arcade crowns %d != the three tiers (found %s)" % [crowns.size(), crowns])
+		for want: float in [28.4, 29.5, 30.9]:
+			var hit := false
+			for got: float in crowns:
+				if absf(got - want) <= 0.02:
+					hit = true
+					break
+			if not hit:
+				bad.append("tier crown %.1f missing from %s" % [want, crowns])
+		stack_top = hi.y
+		if absf(hi.y - 33.5) > 2.0:
+			bad.append("hero top %.2f outside the AC bar 33.5 ±2" % hi.y)
+		if absf(lo.y) > 0.01:
+			bad.append("hero base %.2f off the plate" % lo.y)
+	## --- B. the collision class, live ---------------------------------------
+	var space := get_world_3d().direct_space_state
+	var shaft_from := world.to_global(Vector3(slot_center.x - 20.0, 15.0, slot_center.y))
+	var shaft_to := world.to_global(Vector3(slot_center.x, 15.0, slot_center.y))
+	var shaft_ray := PhysicsRayQueryParameters3D.create(shaft_from, shaft_to)
+	shaft_ray.collision_mask = 1
+	var shaft_hit := space.intersect_ray(shaft_ray)
+	if shaft_hit.is_empty():
+		bad.append("shaft ray missed — the hero carries no layer-1 collider")
+	else:
+		var face_x: float = world.to_local(shaft_hit["position"]).x
+		if absf(face_x - (slot_center.x - 2.45)) > 0.3:
+			bad.append("shaft ray hit x %.2f != the 4.9 face %.2f (+-0.3)"
+					% [face_x, slot_center.x - 2.45])
+	var deck_from := world.to_global(Vector3(slot_center.x, 40.0, slot_center.y))
+	var deck_to := world.to_global(Vector3(slot_center.x, 30.0, slot_center.y))
+	var deck_ray := PhysicsRayQueryParameters3D.create(deck_from, deck_to)
+	deck_ray.collision_mask = 1
+	var deck_hit := space.intersect_ray(deck_ray)
+	if deck_hit.is_empty():
+		bad.append("deck ray missed — the landable pad is gone")
+	else:
+		var deck_y: float = world.to_local(deck_hit["position"]).y
+		if absf(deck_y - 33.5) > 0.05:
+			bad.append("deck ray hit y %.3f != the pad 33.5 (+-0.05)" % deck_y)
+	var chunk_node := world.get_node_or_null(
+			"Chunks/Chunk_%d_%d" % [slot_chunk.x, slot_chunk.y]) as Node3D
+	if chunk_node == null:
+		bad.append("chunk %s missing" % slot_chunk)
+	else:
+		## The name lookup cannot serve here — the gray MM took the
+		## "Placeholders" name first, so Godot auto-renamed the body. Scan.
+		var bodies: Array[StaticBody3D] = []
+		for child: Node in chunk_node.get_children():
+			if child is StaticBody3D:
+				bodies.append(child)
+		if bodies.is_empty():
+			bad.append("chunk carries no static bodies — the collision class moved")
+		for b: StaticBody3D in bodies:
+			if b.collision_layer != 1:
+				bad.append("body %s layer %d != 1 (world)" % [b.name, b.collision_layer])
+	## --- C. the open arcades, live ------------------------------------------
+	## [ray y, opening z-offsets (miss), pier z-offset, expected pier face x]
+	var probes := [
+		[27.2, [-0.95, 0.95], 2.075, slot_center.x - 2.45], ## Tier 1.
+		[28.85, [-0.96, 0.96], 2.05, slot_center.x - 2.35], ## Tier 2.
+		[30.025, [0.0], 1.975, slot_center.x - 2.25], ## Tier 3.
+	]
+	for probe: Array in probes:
+		for off: float in probe[1]:
+			var miss_from := world.to_global(Vector3(slot_center.x - 10.0, probe[0],
+					slot_center.y + off))
+			var miss_to := world.to_global(Vector3(slot_center.x + 10.0, probe[0],
+					slot_center.y + off))
+			var miss_ray := PhysicsRayQueryParameters3D.create(miss_from, miss_to)
+			miss_ray.collision_mask = 1
+			if not space.intersect_ray(miss_ray).is_empty():
+				bad.append("tier y %.2f opening blocked at z%+.2f — the arcade is not open" % [
+						probe[0], off])
+		var pier_from := world.to_global(Vector3(slot_center.x - 10.0, probe[0],
+				slot_center.y + float(probe[2])))
+		var pier_to := world.to_global(Vector3(slot_center.x, probe[0],
+				slot_center.y + float(probe[2])))
+		var pier_ray := PhysicsRayQueryParameters3D.create(pier_from, pier_to)
+		pier_ray.collision_mask = 1
+		var pier_hit := space.intersect_ray(pier_ray)
+		if pier_hit.is_empty():
+			bad.append("tier y %.2f pier ray missed — no pier collider" % probe[0])
+		else:
+			var pier_x: float = world.to_local(pier_hit["position"]).x
+			if absf(pier_x - float(probe[3])) > 0.3:
+				bad.append("tier y %.2f pier hit x %.2f != face %.2f (+-0.3)" % [
+						probe[0], pier_x, float(probe[3])])
+	## --- D. the swap, 1:1 ----------------------------------------------------
+	if chunk_node != null:
+		## The gray family's MM lives on the chunk ROOT (its "Placeholders"
+		## name is why the BODY got auto-renamed — scan by type + name).
+		var found_mm := false
+		var mm_count := -1
+		for child: Node in chunk_node.get_children():
+			if child is MultiMeshInstance3D and (child as MultiMeshInstance3D).name == "Placeholders":
+				found_mm = true
+				mm_count = (child as MultiMeshInstance3D).multimesh.instance_count
+				break
+		if not found_mm:
+			## The family may legitimately VANISH: when the chunk's whole gray
+			## family WAS the slot (chunk_1_-2 carries exactly the campanile's
+			## four parts), the renderer builds no Placeholders MM at all —
+			## the honest 1:1 for a single-hero chunk.
+			if slot_chunk_ph_count != 4:
+				bad.append("chunk has no gray Placeholders MM and %d other parts — the family vanished, not swapped"
+						% (slot_chunk_ph_count - 4))
+		elif mm_count != slot_chunk_ph_count - 4:
+			bad.append("gray MM instances %d != file %d - 4 (the slot did not swap 1:1)" % [
+					mm_count, slot_chunk_ph_count])
+		var hero := chunk_node.get_node_or_null("HeroCampanile") as Node3D
+		if hero == null:
+			bad.append("no HeroCampanile family under the chunk")
+		else:
+			var hero_boxes := hero.get_node_or_null("Boxes") as MultiMeshInstance3D
+			if hero_boxes == null:
+				bad.append("HeroCampanile carries no Boxes MM")
+			elif hero_boxes.multimesh.instance_count != world.campanile_hero_parts.size():
+				bad.append("hero MM instances %d != record %d" % [
+						hero_boxes.multimesh.instance_count, world.campanile_hero_parts.size()])
+	## The ground record: the hero files its own true tops.
+	var deck_query := world.ground_height(world.to_global(Vector3(slot_center.x, 0.0, slot_center.y)))
+	if absf(deck_query - 33.5) > 0.005:
+		bad.append("ground record at the slot center answers %.3f != the deck 33.5" % deck_query)
+	var plate_query := world.ground_height(world.to_global(Vector3(slot_center.x + 5.0, 0.0, slot_center.y)))
+	if absf(plate_query) > 0.001:
+		bad.append("ground record 5 m east answers %.3f — the hero over-files the plate" % plate_query)
+	## The anchor-cap crumb stays pinned (the T-175 rule carries through the swap).
+	var want_crumb := Vector3(slot_center.x, cap_top + City.ANCHOR_CRUMB_LIFT, slot_center.y)
+	var crumb_ok := false
+	for i: int in world.bread_spots.size():
+		if world.bread_spots[i].distance_to(want_crumb) < 0.005 \
+				and i < world.bread_spot_kinds.size() \
+				and world.bread_spot_kinds[i] == City.BreadKind.ROOF:
+			crumb_ok = true
+			break
+	if not crumb_ok:
+		bad.append("no cap crumb at %s (world.bread_spots %d)" % [want_crumb, world.bread_spots.size()])
+	_check(S, bad.is_empty(), "parts=%d top=%.2f; %s"
+			% [parts.size(), stack_top, "; ".join(bad)])
+	world.queue_free()
+
+
+## (T-186) The hero wears the survey's photo-corrected palette. The hexes are
+## re-derived here from MODELING-SPECS §1.1's estimates (never from the
+## world's own constants), then held against the retained part record — the
+## queue the exact render consumed — plus the LIVE reads headless can make
+## (the cap mesh's vertex colors and the clock dials' material). The F-01
+## correction is the point: the brick family must read BUFF/TAN (warm
+## r>g>b ordering, red-dominance capped) — the dossier's red needle fails
+## here by construction — and must not be the T-175 placeholder gray either:
+## the swap actually re-colored the slot. Every pinned band must be present,
+## the cap family must sit DARK against the shaft, and the dial white pops.
+func _scenario_campanile_palette() -> void:
+	const S := "campanile_palette"
+	var bad: PackedStringArray = PackedStringArray()
+	## MODELING-SPECS §1.1's hex estimates, verbatim. The clock white is NOT
+	## in this table: the dials are CylinderMeshes (not record boxes), so
+	## their pin is held by the LIVE material arm below — stronger than a
+	## record read.
+	var hexes: Dictionary = {
+		"brick": Color("c9a56a"), ## Brick, sunlit.
+		"brick_shade": Color("8a6d3f"), ## Brick, mid/shaded.
+		"slot": Color("6e5533"), ## Recessed slots / deep shadow.
+		"slate": Color("3f444d"), ## Pyramidal cap (dark slate).
+		"trim": Color("c6c0b2"), ## Base trim / limestone accents.
+	}
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var parts := world.campanile_hero_parts
+	if parts.is_empty():
+		_check(S, false, "no retained hero parts — the hero never built")
+		world.queue_free()
+		return
+	var bands_seen: Dictionary = {}
+	var brick_color := Color(0.0, 0.0, 0.0, 0.0)
+	for part: Dictionary in parts:
+		var band := str(part["band"])
+		bands_seen[band] = true
+		if band == "hand":
+			## The dial hands: the doc pins "black numerals" descriptively,
+			## not a hex — the law here is darkness (the black-numerals read).
+			var hc: Color = part["color"]
+			var hl: float = hc.r * 0.299 + hc.g * 0.587 + hc.b * 0.114
+			if hl > 0.25:
+				bad.append("hand color %s luminance %.3f > 0.25 — not the black-numerals read"
+						% [hc, hl])
+			continue
+		if not hexes.has(band):
+			bad.append("band %s wears no pinned hex" % band)
+			continue
+		var want: Color = hexes[band]
+		var got: Color = part["color"]
+		if absf(got.r - want.r) > 0.02 or absf(got.g - want.g) > 0.02 \
+				or absf(got.b - want.b) > 0.02:
+			bad.append("band %s color %s != the pinned hex %s" % [band, got, want])
+		if band == "brick":
+			brick_color = got
+	## Every pinned band present (a vestigial or missing family fails); the
+	## hand band must appear too (the clock band is the live dials' duty).
+	for band: String in hexes:
+		if not bands_seen.has(band):
+			bad.append("band %s never used — the family is missing" % band)
+	if not bands_seen.has("hand"):
+		bad.append("band hand never used — the dials carry no hands")
+	## THE F-01 LAW: the brick family reads BUFF/TAN, not red. (Color carries
+	## no distance_to in Godot 4 — the channels' Euclidean gap, the
+	## skeleton-palette scenario's own subtraction form.)
+	if brick_color.a > 0.0:
+		var gray_gap := Color(0.78, 0.76, 0.70) - brick_color ## The T-175 slot gray.
+		var not_gray: float = sqrt(gray_gap.r * gray_gap.r + gray_gap.g * gray_gap.g
+				+ gray_gap.b * gray_gap.b)
+		if not_gray < 0.05:
+			bad.append("brick %.3f is the placeholder gray — the swap did not re-color" % not_gray)
+		var red_dominance := brick_color.r - brick_color.g
+		if red_dominance > 0.18:
+			bad.append("brick red-dominance %.3f > 0.18 — that is the red needle F-01 corrected" % red_dominance)
+		if not (brick_color.r > brick_color.g and brick_color.g > brick_color.b):
+			bad.append("brick %s is not the warm r>g>b buff order" % brick_color)
+		if brick_color.g - brick_color.b < 0.12:
+			bad.append("brick tan depth %.3f < 0.12" % (brick_color.g - brick_color.b))
+		## The dark hat: the cap family must sit clearly darker than the shaft.
+		var slate: Color = hexes["slate"]
+		var lum := func(col: Color) -> float:
+			return col.r * 0.299 + col.g * 0.587 + col.b * 0.114
+		if lum.call(slate) + 0.25 > lum.call(brick_color):
+			bad.append("cap slate not dark against the shaft (slate %.3f vs brick %.3f)" % [
+					lum.call(slate), lum.call(brick_color)])
+	else:
+		bad.append("no brick part in the record")
+	## The LIVE reads: the cap roof's vertex colors are the slate hex, the
+	## dial material is the white hex — both round-trip headless.
+	for chunk_entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(chunk_entry["file"]))
+		var carries := false
+		for ph: Dictionary in doc.get("placeholders", []):
+			if str(ph.get("id", "")) == "way/183041212":
+				carries = true
+				break
+		if not carries:
+			continue
+		var tile := Vector2i(int(chunk_entry["cx"]), int(chunk_entry["cz"]))
+		var chunk_node := world.get_node_or_null(
+				"Chunks/Chunk_%d_%d" % [tile.x, tile.y]) as Node3D
+		if chunk_node == null:
+			bad.append("chunk %s missing" % tile)
+			break
+		var hero := chunk_node.get_node_or_null("HeroCampanile") as Node3D
+		if hero == null:
+			bad.append("no HeroCampanile under %s" % tile)
+			break
+		var roof := hero.get_node_or_null("CapRoof") as MeshInstance3D
+		if roof == null or roof.mesh == null:
+			bad.append("no CapRoof mesh — the pyramid is missing")
+		else:
+			var mesh := roof.mesh as ArrayMesh
+			var colors := mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR] as PackedColorArray
+			var want_slate: Color = hexes["slate"]
+			if colors.is_empty():
+				bad.append("CapRoof carries no vertex colors")
+			else:
+				for col: Color in colors:
+					if absf(col.r - want_slate.r) > 0.02 or absf(col.g - want_slate.g) > 0.02 \
+							or absf(col.b - want_slate.b) > 0.02:
+						bad.append("CapRoof vertex %s != the slate hex %s" % [col, want_slate])
+						break
+		var dials := 0
+		for child: Node in hero.get_children():
+			var dial := child as MeshInstance3D
+			if child.name.begins_with("Clock") and dial != null and dial.mesh is CylinderMesh:
+				dials += 1
+				var mat := (dial.mesh as CylinderMesh).material as StandardMaterial3D
+				if mat == null:
+					bad.append("%s carries no material" % child.name)
+				else:
+					var want_clock := Color("f1eee7") ## Clock dial (white), the doc's hex.
+					var dial_gap: Color = mat.albedo_color - want_clock
+					var dial_dist: float = sqrt(dial_gap.r * dial_gap.r
+							+ dial_gap.g * dial_gap.g + dial_gap.b * dial_gap.b)
+					if dial_dist > 0.02:
+						bad.append("%s albedo %s != the dial white %s (gap %.3f)" % [
+								child.name, mat.albedo_color, want_clock, dial_dist])
+		if dials != 4:
+			bad.append("clock dials %d != 4" % dials)
+		break
+	_check(S, bad.is_empty(), "parts=%d bands=%d; %s"
+			% [parts.size(), bands_seen.size(), "; ".join(bad)])
+	world.queue_free()
+
+
+## --- scenarios (T-001 flight model) ----------------------------------------
 
 
 ## Two–three paced flaps from the ground must reach climbing flight.
