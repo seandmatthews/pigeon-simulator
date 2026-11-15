@@ -197,6 +197,7 @@ func _run_scenarios() -> void:
 	await _scenario_marston_hero_dims() ## T-190 — the Marston Water Tower hero: the 1:1 slot swap, the 51.2 m survey pin + photo-11 proportions, the white-steel palette pin, the east-facing seal medallion, the live seams.
 	await _scenario_stadium_complex_dims() ## T-191 — the Jack Trice Stadium complex hero: the 1:1 slot swaps, the 183×208 N–S bowl re-pin + the N–S field assertion, the hillside/press/Sukup/statue pins, the Hilton drum re-pin with the arc roof + portico, the tailgate lot dress, the live seams.
 	await _scenario_downtown_heroes() ## T-192 — the downtown heroes: the bandshell at its true OSM position (the copper arch over the mint shells), the City Hall + Municipal civic pair's 1:1 slot swaps with the photo-02 cartouche stone, the Main Street fabric (cornices, the maroon furniture run, the blue banners, the neon blade seeds), the live seams.
+	await _scenario_civic_tanks_dims() ## T-193 — the civic water tanks: the bulb-on-stem pair's 1:1 slot swaps at the data positions, the photo-02 mushroom shoulder + banding pairs + roof dome, the diamond logo as painted geometry on the town-facing walls (the hue-law palette), the solid-but-not-landable crown, the live seams.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -1031,7 +1032,10 @@ func _scenario_ames_world_render_budget() -> void:
 ## heroes list), walked too. (T-192) the downtown heroes retire the
 ## bandshell's eight placeholder parts (chunk (13,−2)) plus the civic
 ## pair's two authored massing slots (chunks (10,−2)/(11,−2) — the T-188
-## runtime-merge law), walked too.
+## runtime-merge law), walked too. (T-193) the civic water tanks retire
+## their slots' six placeholder parts (stem/bulb/cap ×2 — chunk (10,−5)
+## north, (13,2) east; placeholder-only slots like the bandshell's, so no
+## massing term), walked too.
 	var hero_count := (manifest.get("heroes", []) as Array).size()
 	var campanile_slot_parts := 0
 	var row_slot_parts := 0
@@ -1039,6 +1043,7 @@ func _scenario_ames_world_render_budget() -> void:
 	var marston_slot_parts := 0
 	var complex_slot_parts := 0
 	var downtown_slot_parts := 0
+	var civic_tank_slot_parts := 0
 	for entry: Dictionary in manifest.get("chunks", []):
 		var doc_b: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
 		for ph_b: Dictionary in doc_b.get("placeholders", []):
@@ -1056,6 +1061,9 @@ func _scenario_ames_world_render_budget() -> void:
 				complex_slot_parts += 1
 			if str(ph_b.get("id", "")) == "downtown_bandshell":
 				downtown_slot_parts += 1
+			if str(ph_b.get("id", "")) == "city_water_tank_north" \
+					or str(ph_b.get("id", "")) == "city_water_tank_east":
+				civic_tank_slot_parts += 1
 		for m_b: Dictionary in doc_b.get("massing", []):
 			if bool(m_b.get("a", false)) and ["way/158023244", "way/158023219",
 					"way/183216666"].has(str(m_b.get("id", ""))):
@@ -1071,7 +1079,7 @@ func _scenario_ames_world_render_budget() -> void:
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
 			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
 			- row_slot_parts - mu_parks_slot_parts - marston_slot_parts \
-			- complex_slot_parts - downtown_slot_parts
+			- complex_slot_parts - downtown_slot_parts - civic_tank_slot_parts
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
 	if int(m.instances) != expected_instances:
@@ -6238,6 +6246,26 @@ func _color_gap(a: Color, b: Color) -> float:
 	return sqrt(gap.r * gap.r + gap.g * gap.g + gap.b * gap.b)
 
 
+## The hue in degrees [0, 360) — Color.get_h() exists but the scenario keeps
+## the arithmetic explicit where a hue law is asserted on it (the T-193
+## green/blue banding arms; −1.0 for the achromatic case).
+func _hue_deg(c: Color) -> float:
+	var mx := maxf(c.r, maxf(c.g, c.b))
+	var mn := minf(c.r, minf(c.g, c.b))
+	if mx - mn < 1e-6:
+		return -1.0
+	var d := mx - mn
+	var h := 0.0
+	if mx == c.r:
+		h = fposmod((c.g - c.b) / d, 6.0)
+	elif mx == c.g:
+		h = (c.b - c.r) / d + 2.0
+	else:
+		h = (c.r - c.g) / d + 4.0
+	h *= 60.0
+	return fposmod(h, 360.0)
+
+
 ## (T-188) The west classical row re-pins its slots onto the HEROES — the
 ## T-186 swap law generalized to Beardshear (placeholder slot), Morrill /
 ## Farm House / Marston Hall (authored massing slots). Every expectation is
@@ -8896,6 +8924,426 @@ func _scenario_downtown_heroes() -> void:
 			bs_hi.z - bs_lo.z if bs_hi.z > -INF else -1.0,
 			cornices, lamps, blades, "; ".join(bad)])
 	world.queue_free()
+
+
+## --- scenario (T-193 the civic water tanks) ----------------------------------
+
+
+## (T-193) The city's bulb-on-stem pair re-pins its slots onto the HEROES —
+## the T-190 swap law carried to the town's sky-level signature (LANDMARKS
+## T8: the BRET stand-in anchoring north Ames + one of the "two others" on
+## the east side) — every expectation re-derived from the COMMITTED bake
+## slots (walked in-scenario from the chunk files) + the `images/misc/02`
+## photo read as verbatim scenario literals:
+## A. THE SWAP — `city_water_tank_north` supersedes its slot's three
+##    placeholder parts (stem/bulb/cap — chunk (10,−5)'s gray tank stack)
+##    and `city_water_tank_east` its three (chunk (13,2)); each affected
+##    chunk's gray placeholder family shrinks to exactly its non-superseded
+##    remainder and the heroes mount through their own roots with their
+##    diamond boxes as the only MM members;
+## B. THE DIMS (photo 02 on the slot stack's own spans) — each tank's union
+##    tops at the slot total 30.0 and bases on the plate, the stem at the
+##    photo's ≈3× ratio (Ø6.6 on 0..16), the mushroom shoulder flaring
+##    Ø6.6→Ø20 over 16..17.2, the white drum Ø20 spanning 17.2..28.0 (the
+##    slot bulb's own box, round), the four banding stripes 0.6 m tall at
+##    17.5/18.1/27.1/27.7 — blue inner at the skirt seam, green above,
+##    mirrored at the roof edge — the roof dome closing at 30.0 with the
+##    dark railing band on its perimeter, and the DIAMOND a Ø10 on-point
+##    square proud of the town-facing wall (the north tank's logo looks
+##    south, the east tank's west — the record files the box's world AABB
+##    10.0 × 10.0 × 0.07 on the face normal, the T-192 rotated-chord law);
+## C. THE PALETTE (no survey hex: photo 01 is a blue duotone print — every
+##    pixel near hue 215° — and photo 02 is dusk-cast, so this scenario
+##    pins its own literals and holds the hue/luminance laws that make them
+##    green/blue) — the diamond + green stripes read green (hue 90..170°,
+##    saturated), the blue stripes read blue (hue 200..250°), the white
+##    field reads white (luminance ≥ 0.85, near-neutral), the stem wears the
+##    concrete-gray literal, the railing stays dark (luminance ≤ 0.45 — the
+##    T-190 dark-law precedent);
+## D. THE MESHES, LIVE — the stem/shoulder/drum/dome albedos off the live
+##    nodes at their literals, the four stripes' exact values, the railing
+##    dark;
+## E. THE SEAMS, LIVE — layer-1 rays answer the drum wall at Ø20 on the east
+##    axis, the town-facing wall behind the VISUAL-ONLY diamond (the
+##    medallion convention — the proud face itself is proven by its record
+##    entry + the single-diamond Boxes MM, not by a ray: the 10-gon's chord
+##    face at the apothem 9.5106 from the south, the vertex at 10.0 from the
+##    west), the stem at Ø6.6, and the dome slope over the frustum read;
+##    `ground_height` answers the PLATE at both tank centers (the
+##    not-landable law — the retired slot's 16/28/30 walk answers stay
+##    retired, the dome files no walkable top); and the render budget's
+##    bake-derived expectation re-derived in-row (−6 more placeholder parts
+##    — the T-186 law).
+func _scenario_civic_tanks_dims() -> void:
+	const S := "civic_tanks_dims"
+	var bad: PackedStringArray = PackedStringArray()
+	const NORTH_ID := "city_water_tank_north"
+	const EAST_ID := "city_water_tank_east"
+	## --- the bake slots, walked independently --------------------------------
+	var centers := {NORTH_ID: Vector2.ZERO, EAST_ID: Vector2.ZERO}
+	var slot_parts := {NORTH_ID: 0, EAST_ID: 0}
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for ph: Dictionary in doc.get("placeholders", []):
+			var pid := str(ph.get("id", ""))
+			if not centers.has(pid):
+				continue
+			slot_parts[pid] = int(slot_parts[pid]) + 1
+			if str(ph.get("part", "")) == "bulb":
+				centers[pid] = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+	if (centers[NORTH_ID] as Vector2) == Vector2.ZERO \
+			or (centers[EAST_ID] as Vector2) == Vector2.ZERO:
+		_check(S, false, "bake slot walk failed: a tank bulb part is missing")
+		return
+	for pid: String in [NORTH_ID, EAST_ID]:
+		if int(slot_parts[pid]) != 3:
+			bad.append("%s slot walk %d != the stack's three parts (stem/bulb/cap)"
+					% [pid, int(slot_parts[pid])])
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var parts := world.civic_tank_hero_parts
+	if parts.is_empty():
+		_check(S, false, "no retained civic tank parts — the heroes never built")
+		world.queue_free()
+		return
+	if parts.size() != 50:
+		bad.append("record %d != the 2 × 25 schedule (1 diamond box + 8 round families "
+				+ "+ 16 railing posts each)" % parts.size())
+
+	## --- A+B+C. per-tank: the swap, the dims, the palette ---------------------
+	var north_diamond := {}
+	var east_diamond := {}
+	for tank_id: String in [NORTH_ID, EAST_ID]:
+		var key := "civic_tank_north" if tank_id == NORTH_ID else "civic_tank_east"
+		var c: Vector2 = centers[tank_id]
+		var lo := Vector3(INF, INF, INF)
+		var hi := Vector3(-INF, -INF, -INF)
+		var stem := {}
+		var skirt := {}
+		var drum := {}
+		var dome := {}
+		var diamond := {}
+		var band_counts := {}
+		for part: Dictionary in parts:
+			if str(part["hero"]) != key:
+				continue
+			var p: Vector3 = part["p"]
+			var s: Vector3 = part["s"]
+			lo = lo.min(p - s * 0.5)
+			hi = hi.max(p + s * 0.5)
+			var band := str(part["band"])
+			band_counts[band] = int(band_counts.get(band, 0)) + 1
+			match band:
+				"stem":
+					stem = part
+				"skirt":
+					skirt = part
+				"drum":
+					drum = part
+				"dome":
+					dome = part
+				"diamond":
+					diamond = part
+		if stem.is_empty() or skirt.is_empty() or drum.is_empty() or dome.is_empty() \
+				or diamond.is_empty():
+			bad.append("%s record misses a family (stem=%s skirt=%s drum=%s dome=%s diamond=%s)"
+					% [key, stem.is_empty(), skirt.is_empty(), drum.is_empty(),
+					dome.is_empty(), diamond.is_empty()])
+			continue
+		if tank_id == NORTH_ID:
+			north_diamond = diamond
+		else:
+			east_diamond = diamond
+		## The dims: the slot stack's own spans, the photo-02 shapes.
+		if absf(hi.y - 30.0) > 0.05:
+			bad.append("%s top %.3f != the slot total 30.0" % [key, hi.y])
+		if lo.y < -0.05:
+			bad.append("%s base %.3f sinks past the plate" % [key, lo.y])
+		var ss: Vector3 = stem["s"]
+		if absf(ss.x - 6.6) > 0.05 or absf(ss.y - 16.0) > 0.05:
+			bad.append("%s stem %.1fx%.1f != the photo-02 ratio Ø6.6 on 0..16"
+					% [key, ss.x, ss.y])
+		var sk: Dictionary = skirt
+		var skirt_top: float = (sk["p"] as Vector3).y + (sk["s"] as Vector3).y * 0.5
+		if absf(skirt_top - 17.2) > 0.05:
+			bad.append("%s shoulder top %.3f != the flare's close 17.2" % [key, skirt_top])
+		var ds: Vector3 = drum["s"]
+		var dp: Vector3 = drum["p"]
+		if absf(ds.x - 20.0) > 0.05 or absf(ds.z - 20.0) > 0.05 \
+				or absf(ds.y - 10.8) > 0.05:
+			bad.append("%s drum %.1fx%.1fx%.1f != the slot bulb's Ø20 on 17.2..28.0"
+					% [key, ds.x, ds.y, ds.z])
+		elif absf((dp.y - ds.y * 0.5) - 17.2) > 0.05:
+			bad.append("%s drum bottom %.3f != the shoulder seam 17.2"
+					% [key, dp.y - ds.y * 0.5])
+		var dome_top: float = (dome["p"] as Vector3).y + (dome["s"] as Vector3).y * 0.5
+		if absf(dome_top - 30.0) > 0.05:
+			bad.append("%s dome top %.3f != the slot cap top 30.0" % [key, dome_top])
+		## The banding: four stripes at the pinned centers, blue inner at the
+		## skirt seam / green above / mirrored at the roof edge.
+		var want_stripes := {
+			"band_blue": [17.5, 27.7],
+			"band_green": [18.1, 27.1],
+		}
+		for band: String in ["band_blue", "band_green"]:
+			var ys: Array[float] = []
+			for part2: Dictionary in parts:
+				if str(part2["hero"]) == key and str(part2["band"]) == band:
+					ys.append((part2["p"] as Vector3).y)
+					var s2: Vector3 = part2["s"]
+					if absf(s2.y - 0.6) > 0.01 or absf(s2.x - 20.18) > 0.01:
+						bad.append("%s %s stripe %.2fx%.2f != the 0.6 m band on Ø20.18"
+								% [key, band, s2.x, s2.y])
+			ys.sort()
+			var want: Array = want_stripes[band]
+			if ys.size() != 2 or absf(ys[0] - float(want[0])) > 0.05 \
+					or absf(ys[1] - float(want[1])) > 0.05:
+				bad.append("%s %s stripes %s != the pinned pair %s" % [
+						key, band, ys, want])
+		## The railing: sixteen dark posts on the dome's rim (the round-1 shot
+		## review law — POSTS, never a solid ring: its top disc paints a fat
+		## dark roof from the air).
+		var rail_count := int(band_counts.get("railing", 0))
+		if rail_count != 16:
+			bad.append("%s railing posts %d != 16" % [key, rail_count])
+		else:
+			var posts_on_rim := 0
+			for part3: Dictionary in parts:
+				if str(part3["hero"]) != key or str(part3["band"]) != "railing":
+					continue
+				var wl: float = (part3["color"] as Color).r * 0.299 \
+						+ (part3["color"] as Color).g * 0.587 \
+						+ (part3["color"] as Color).b * 0.114
+				if wl > 0.45:
+					bad.append("%s railing post luminance %.3f > 0.45 — must read dark"
+							% [key, wl])
+				var pp: Vector3 = part3["p"]
+				var ps: Vector3 = part3["s"]
+				if absf(Vector2(pp.x - c.x, pp.z - c.y).length() - 9.5) < 0.05 \
+						and absf(pp.y - 28.7) < 0.05 \
+						and absf(ps.x - 0.18) < 0.005 and absf(ps.y - 0.8) < 0.005 \
+						and absf(ps.z - 0.18) < 0.005:
+					posts_on_rim += 1
+			if posts_on_rim != 16:
+				bad.append("%s railing posts on the dome rim %d != 16" % [key, posts_on_rim])
+		## C. the palette: every band at its scenario literal ±0.02, the hue
+		## laws holding the green/blue read.
+		var literals := {
+			"stem": Color(0.655, 0.647, 0.635),
+			"skirt": Color(0.847, 0.843, 0.816),
+			"drum": Color(0.937, 0.933, 0.91),
+			"dome": Color(0.937, 0.933, 0.91),
+			"band_green": Color(0.118, 0.376, 0.263),
+			"band_blue": Color(0.157, 0.271, 0.447),
+			"diamond": Color(0.075, 0.302, 0.231),
+		}
+		var seen_bands := {}
+		for part4: Dictionary in parts:
+			if str(part4["hero"]) != key:
+				continue
+			var band4 := str(part4["band"])
+			seen_bands[band4] = true
+			var got: Color = part4["color"]
+			if literals.has(band4):
+				if _color_gap(got, literals[band4]) > 0.02:
+					bad.append("%s band %s color %s != the pinned literal %s"
+							% [key, band4, got, literals[band4]])
+			if band4 == "diamond" or band4 == "band_green":
+				var hue := _hue_deg(got)
+				var sat := (maxf(got.r, maxf(got.g, got.b))
+						- minf(got.r, minf(got.g, got.b))) \
+						/ maxf(maxf(got.r, maxf(got.g, got.b)), 1e-6)
+				if hue < 90.0 or hue > 170.0:
+					bad.append("%s %s hue %.0f outside the green law 90..170" % [key, band4, hue])
+				if sat < 0.25:
+					bad.append("%s %s saturation %.2f < 0.25 — must read colored" % [key, band4, sat])
+			elif band4 == "band_blue":
+				var hue2 := _hue_deg(got)
+				if hue2 < 200.0 or hue2 > 250.0:
+					bad.append("%s band_blue hue %.0f outside the blue law 200..250" % [key, hue2])
+			elif band4 == "drum" or band4 == "dome":
+				var wl2: float = got.r * 0.299 + got.g * 0.587 + got.b * 0.114
+				if wl2 < 0.85:
+					bad.append("%s %s luminance %.3f < 0.85 — the field must read white" % [key, band4, wl2])
+				var sat2: float = (maxf(got.r, maxf(got.g, got.b))
+						- minf(got.r, minf(got.g, got.b))) / maxf(maxf(got.r, maxf(got.g, got.b)), 1e-6)
+				if sat2 > 0.12:
+					bad.append("%s %s saturation %.2f > 0.12 — too tinted for the white read" % [key, band4, sat2])
+		for want_band: String in ["stem", "skirt", "drum", "dome", "band_green",
+				"band_blue", "railing", "diamond"]:
+			if not seen_bands.has(want_band):
+				bad.append("%s band %s never used — the family is missing" % [key, want_band])
+		## B. the diamond: the Ø10 on-point square on the town-facing wall.
+		var dpos: Vector3 = diamond["p"]
+		var dsize: Vector3 = diamond["s"]
+		if tank_id == NORTH_ID:
+			if absf(dsize.x - 10.0) > 0.05 or absf(dsize.y - 10.0) > 0.05 \
+					or absf(dsize.z - 0.07) > 0.01:
+				bad.append("north diamond AABB %s != the 10.0 × 10.0 × 0.07 on-point read" % dsize)
+			if absf(dpos.x - c.x) > 0.05 or absf(dpos.z - (c.y + 10.12)) > 0.05 \
+					or absf(dpos.y - 22.6) > 0.05:
+				bad.append("north diamond %s != the SOUTH town-facing wall (z %+.2f, mid-drum)"
+						% [dpos, c.y + 10.12])
+		else:
+			if absf(dsize.z - 10.0) > 0.05 or absf(dsize.y - 10.0) > 0.05 \
+					or absf(dsize.x - 0.07) > 0.01:
+				bad.append("east diamond AABB %s != the 10.0 × 10.0 × 0.07 on-point read" % dsize)
+			if absf(dpos.z - c.y) > 0.05 or absf(dpos.x - (c.x - 10.12)) > 0.05 \
+					or absf(dpos.y - 22.6) > 0.05:
+				bad.append("east diamond %s != the WEST town-facing wall (x −10.12, mid-drum)"
+						% dpos)
+
+	## --- D. the meshes, live ---------------------------------------------------
+	for rig: Dictionary in [
+		{"chunk": "Chunk_10_-5", "root": "HeroCivicTankNorth", "id": NORTH_ID},
+		{"chunk": "Chunk_13_2", "root": "HeroCivicTankEast", "id": EAST_ID},
+	]:
+		var chunk_node := world.get_node_or_null("Chunks/%s" % str(rig["chunk"])) as Node3D
+		if chunk_node == null:
+			bad.append("chunk %s missing" % rig["chunk"])
+			continue
+		## The gray family shrank to exactly its non-superseded remainder
+		## (the chunk file walked by its tile — the chunk node sits at the
+		## tile center, the file grid's own key).
+		var ph_mm := chunk_node.get_node_or_null("Placeholders") as MultiMeshInstance3D
+		var want_remainder := 0
+		for entry3: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+			var tile := Vector2i(int(entry3["cx"]), int(entry3["cz"]))
+			var tile_center := Vector3(tile.x * 256.0 + 128.0, 0.0, tile.y * 256.0 + 128.0)
+			if (chunk_node as Node3D).position.distance_to(tile_center) > 0.5:
+				continue
+			var doc3: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry3["file"]))
+			for ph: Dictionary in doc3.get("placeholders", []):
+				if not _is_superseded_t193(str(ph.get("id", ""))):
+					want_remainder += 1
+		if ph_mm == null:
+			if want_remainder > 0:
+				bad.append("%s lost its placeholder family (%d non-superseded remain)"
+						% [rig["chunk"], want_remainder])
+		elif ph_mm.multimesh.instance_count != want_remainder:
+			bad.append("%s placeholder MM %d != the non-superseded remainder %d" % [
+					rig["chunk"], ph_mm.multimesh.instance_count, want_remainder])
+		var hero_root := chunk_node.get_node_or_null(str(rig["root"])) as Node3D
+		if hero_root == null:
+			bad.append("no %s under %s" % [rig["root"], rig["chunk"]])
+			continue
+		var boxes_mm := hero_root.get_node_or_null("Boxes") as MultiMeshInstance3D
+		if boxes_mm == null or boxes_mm.multimesh.instance_count != 17:
+			bad.append("%s Boxes MM %s != the diamond + 16 posts" % [rig["root"],
+					boxes_mm.multimesh.instance_count if boxes_mm != null else -1])
+		var want_albedo := {
+			"Stem": Color(0.655, 0.647, 0.635),
+			"SkirtCone": Color(0.847, 0.843, 0.816),
+			"BulbDrum": Color(0.937, 0.933, 0.91),
+			"RoofDome": Color(0.937, 0.933, 0.91),
+			"BandBlueBottom": Color(0.157, 0.271, 0.447),
+			"BandGreenBottom": Color(0.118, 0.376, 0.263),
+			"BandGreenTop": Color(0.118, 0.376, 0.263),
+			"BandBlueTop": Color(0.157, 0.271, 0.447),
+		}
+		for mesh_name: String in want_albedo:
+			var mesh_node := hero_root.get_node_or_null(mesh_name) as MeshInstance3D
+			if mesh_node == null or not (mesh_node.mesh is CylinderMesh):
+				bad.append("%s named mesh %s missing" % [rig["root"], mesh_name])
+				continue
+			var mat := (mesh_node.mesh as CylinderMesh).material as StandardMaterial3D
+			if mat == null or _color_gap(mat.albedo_color, want_albedo[mesh_name]) > 0.02:
+				bad.append("%s %s albedo %s != the pinned literal" % [
+						mesh_node.name if mesh_node != null else mesh_name,
+						mesh_name, mat.albedo_color if mat != null else "<null>"])
+		var rail_node := hero_root.get_node_or_null("RailingRing") as MeshInstance3D
+		if rail_node != null:
+			bad.append("%s still carries a solid RailingRing — the posts law removed it"
+					% rig["root"])
+
+	## --- E. the seams, live ------------------------------------------------------
+	var space := get_world_3d().direct_space_state
+	var probe := func(from: Vector3, to: Vector3) -> Dictionary:
+		var ray := PhysicsRayQueryParameters3D.create(world.to_global(from),
+				world.to_global(to))
+		ray.collision_mask = 1
+		return space.intersect_ray(ray)
+	for seam: Dictionary in [
+		{"id": NORTH_ID, "key": "civic_tank_north"},
+		{"id": EAST_ID, "key": "civic_tank_east"},
+	]:
+		var c2: Vector2 = centers[str(seam["id"])]
+		## The drum wall at Ø20 on the east axis (the 10-gon's vertex plane).
+		var drum_ray: Dictionary = probe.call(
+				Vector3(c2.x + 30.0, 22.6, c2.y), Vector3(c2.x, 22.6, c2.y))
+		if drum_ray.is_empty():
+			bad.append("%s drum ray missed" % seam["key"])
+		else:
+			var dx: float = world.to_local((drum_ray as Dictionary)["position"]).x
+			if absf(dx - (c2.x + 10.0)) > 0.15:
+				bad.append("%s drum wall x %.2f != Ø20 (±0.15)" % [seam["key"], dx])
+		## The town-facing wall behind the visual-only diamond (the medallion
+		## convention — the diamond's proud geometry is proven by its record
+		## entry + the single-diamond Boxes MM, not by a ray): from the south
+		## the 10-gon's chord face answers the apothem 9.5106, from the west
+		## the vertex answers the full 10.0.
+		if str(seam["id"]) == NORTH_ID:
+			var face_ray: Dictionary = probe.call(
+					Vector3(c2.x, 22.6, c2.y + 30.0), Vector3(c2.x, 22.6, c2.y))
+			if face_ray.is_empty():
+				bad.append("north town-facing wall ray missed")
+			else:
+				var fz: float = world.to_local((face_ray as Dictionary)["position"]).z
+				if absf(fz - (c2.y + 9.5106)) > 0.1:
+					bad.append("north town-facing wall z %.2f != the 10-gon apothem %.2f (±0.1)"
+							% [fz, c2.y + 9.5106])
+		else:
+			var face_ray2: Dictionary = probe.call(
+					Vector3(c2.x - 30.0, 22.6, c2.y), Vector3(c2.x, 22.6, c2.y))
+			if face_ray2.is_empty():
+				bad.append("east town-facing wall ray missed")
+			else:
+				var fx: float = world.to_local((face_ray2 as Dictionary)["position"]).x
+				if absf(fx - (c2.x - 10.0)) > 0.1:
+					bad.append("east town-facing wall x %.2f != Ø20 (±0.1)" % fx)
+		## The stem at Ø6.6.
+		var stem_ray: Dictionary = probe.call(
+				Vector3(c2.x + 20.0, 8.0, c2.y), Vector3(c2.x, 8.0, c2.y))
+		if stem_ray.is_empty():
+			bad.append("%s stem ray missed" % seam["key"])
+		else:
+			var sx: float = world.to_local((stem_ray as Dictionary)["position"]).x
+			if absf(sx - (c2.x + 3.3)) > 0.15:
+				bad.append("%s stem face x %.2f != Ø6.6 (±0.15)" % [seam["key"], sx])
+		## The dome slope over the frustum read (down at r 9.0: the taper
+		## 9.3→1.6 over 28..30 lands the surface at y 28.078).
+		var dome_ray: Dictionary = probe.call(
+				Vector3(c2.x + 9.0, 40.0, c2.y), Vector3(c2.x + 9.0, 20.0, c2.y))
+		if dome_ray.is_empty():
+			bad.append("%s dome ray missed" % seam["key"])
+		else:
+			var dy: float = world.to_local((dome_ray as Dictionary)["position"]).y
+			if absf(dy - 28.078) > 0.1:
+				bad.append("%s dome slope y %.2f != the frustum read 28.078 (±0.1)"
+						% [seam["key"], dy])
+		## The not-landable law: the plate answers at the tank centers —
+		## the retired slot's 16/28/30 walk answers stay retired, the dome
+		## files no walkable top.
+		var gh := world.ground_height(world.to_global(Vector3(c2.x, 0.0, c2.y)))
+		if absf(gh) > 0.05:
+			bad.append("%s ground record answers %.3f at the center — the crown must file nothing"
+					% [seam["key"], gh])
+	_check(S, bad.is_empty(),
+		"parts=%d north=%.0f,%.0f east=%.0f,%.0f; %s"
+		% [parts.size(), (centers[NORTH_ID] as Vector2).x, (centers[NORTH_ID] as Vector2).y,
+		(centers[EAST_ID] as Vector2).x, (centers[EAST_ID] as Vector2).y,
+		"; ".join(bad)])
+	world.queue_free()
+
+
+## (T-193) The scenario-local supersede mirror — the ids the tanks' heroes
+## retire, walked against the runtime placeholder MMs (the world's own
+## `_row_superseded_placeholder` covers the other heroes too; the remainder
+## arm here counts only the tank slots so the chunk file walk stays local).
+func _is_superseded_t193(id: String) -> bool:
+	return id == "city_water_tank_north" or id == "city_water_tank_east"
 
 
 ## --- scenario (T-187 the Central Campus lawn) -------------------------------
