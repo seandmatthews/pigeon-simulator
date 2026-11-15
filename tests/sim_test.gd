@@ -192,6 +192,7 @@ func _run_scenarios() -> void:
 	await _scenario_campanile_hero_dims() ## T-186 — the campanile hero: the 1:1 slot swap, the 33.5 m stack, the live collision class + open arcades, the pinned crumb.
 	await _scenario_campanile_palette() ## T-186 — the photo-corrected buff/tan palette: every band at its pinned hex, the F-01 not-red law, the live cap/dial reads.
 	await _scenario_central_campus_layout() ## T-187 — the lawn slab + the crossing axes + the fountain at its data position + the campus sit benches, all re-derived from the committed lawn layer.
+	await _scenario_campus_row_heroes() ## T-188 — the campus row west heroes: the 1:1 slot swaps (Beardshear's dome, Morrill's turret, Farm House, the Marston hint), the AABB/palette pins, the live seams.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -1010,21 +1011,33 @@ func _scenario_ames_world_render_budget() -> void:
 	## (walked from the chunk files here, not trusted) and mounts its OWN
 	## runtime family — a corner dress like the T-180/T-181/T-185 families,
 	## which all live OUTSIDE this bake-derived metric — so the expectation
-	## subtracts exactly those four.
+	## subtracts exactly those four. (T-188) the campus row heroes retire
+	## theirs the same way: Beardshear's three placeholder parts (its id is
+	## already a bake hero — the massing term handles its bbox) plus the
+	## three authored massing slots (Morrill, Farm House, Marston Hall)
+	## joined to the hero set at runtime, all walked from the chunk files.
 	var hero_count := (manifest.get("heroes", []) as Array).size()
 	var campanile_slot_parts := 0
+	var row_slot_parts := 0
 	for entry: Dictionary in manifest.get("chunks", []):
 		var doc_b: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
 		for ph_b: Dictionary in doc_b.get("placeholders", []):
 			if str(ph_b.get("id", "")) == "way/183041212":
 				campanile_slot_parts += 1
+			if str(ph_b.get("id", "")) == "way/33725619":
+				row_slot_parts += 1
+		for m_b: Dictionary in doc_b.get("massing", []):
+			if bool(m_b.get("a", false)) and ["way/158023244", "way/158023219",
+					"way/183216666"].has(str(m_b.get("id", ""))):
+				row_slot_parts += 1
 	var expected_instances := int(totals.get("massing", 0)) - hero_count \
 			+ int(totals.get("ribbons", 0)) \
 			+ int(totals.get("lane_quads", 0)) + int(totals.get("shore_quads", 0)) \
 			+ int(totals.get("creek_quads", 0)) + int(totals.get("ballast_quads", 0)) \
 			+ int(totals.get("tie_quads", 0)) + int(totals.get("ground_quads", 0)) \
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
-			+ int(totals.get("placeholders", 0)) - campanile_slot_parts
+			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
+			- row_slot_parts
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
 	if int(m.instances) != expected_instances:
@@ -6177,6 +6190,603 @@ func _scenario_campanile_palette() -> void:
 		break
 	_check(S, bad.is_empty(), "parts=%d bands=%d; %s"
 			% [parts.size(), bands_seen.size(), "; ".join(bad)])
+	world.queue_free()
+
+
+## --- scenario (T-188 the campus row west heroes) -----------------------------
+
+
+## The channels' Euclidean gap — Color carries no distance_to in Godot 4
+## (the campanile palette scenario's subtraction form, hoisted for the row's
+## five live material arms).
+func _color_gap(a: Color, b: Color) -> float:
+	var gap := a - b
+	return sqrt(gap.r * gap.r + gap.g * gap.g + gap.b * gap.b)
+
+
+## (T-188) The west classical row re-pins its slots onto the HEROES — the
+## T-186 swap law generalized to Beardshear (placeholder slot), Morrill /
+## Farm House / Marston Hall (authored massing slots). Every expectation is
+## re-derived from the COMMITTED DATA (the no-self-test rule): the bake's own
+## placeholder/massing entries walked here for the slot geometry and the gray
+## families' file counts, the pack's building records for the envelopes, and
+## MODELING-SPECS §1.4's palette table as verbatim scenario literals — never
+## through the world's own constants:
+## A. THE SWAP — each hero's retained record exists with the slot-exact body
+##    (Beardshear's 41.1 × 14 × 66 at the placeholder block part's center,
+##    the dome drum 9 × 4 × 9 at the slot's own +12 x; Morrill 27.7 × 40.3
+##    walls, Marston 31.4 × 12 × 64.2 body at their massing centroids; Farm
+##    House's main block + wing spanning exactly the slot's 18.8 × 21.5
+##    envelope), and the gray families shrank by exactly the superseded
+##    entries (chunk (0,−2): the whole placeholder family WAS Beardshear's —
+##    the MM legitimately vanishes, the campanile-chunk precedent — and its
+##    massing MM loses Morrill + Marston; chunk (1,−2): −1 for Farm House);
+## B. THE DIMS — Beardshear top exactly the slot's settled 20.0 with the
+##    dome stack on it; Morrill's walls top within ±2 of the census §3
+##    3-level ladder (11.0 — the bake's 30.0 `height_m` is the bogus OSM
+##    default class the census records and the baker's own hero law
+##    overrides), ridge 15.0 + cone 16.8, the AABB carrying the turret's
+##    projection; Farm House walls-above-knoll exactly the 2-level ladder
+##    (8.0), knoll 1.4, ridge 12.9; Marston keeps the pack's tagged 12.0;
+## C. THE PALETTE — every band at its §1.4 hex ±0.02, the dome trio
+##    GREEN-dominant (F-03: g > r and g > b — the only green dome in town;
+##    no brick/stone band is), the window band's luminance ≤ 0.25 (the
+##    campanile `hand` darkness-law precedent — the survey pins no window
+##    hex), every pinned band used;
+## D. THE MESHES, LIVE — the dome cap's material is dome_mid, the Morrill
+##    hip a single slate surface (a full hip), the Farm House gable two
+##    surfaces (shingle slopes + brick ends), the turret drum brick + cone
+##    slate;
+## E. THE SEAMS, LIVE — layer-1 rays answer the heroes' faces (the
+##    Beardshear body face + a portico column, the dome top at 20.0, the
+##    Morrill wall face + ridge 15.0 + the turret drum's round cardinal at
+##    r 2.6 + the cone tip 16.8, the Farm House wall + Marston body and
+##    pavilion faces); `ground_height` answers dome 20.0 (the bake slot's
+##    old crumb height — byte continuity), Morrill ridge 15.0, Farm House
+##    knoll 1.4 and attic top 10.6, Marston 12.0; the four roof crumbs ride
+##    the pinned tops as ROOF spots (Beardshear's byte-identical to the
+##    pre-swap bake-derived pin).
+func _scenario_campus_row_heroes() -> void:
+	const S := "campus_row_heroes"
+	var bad: PackedStringArray = PackedStringArray()
+	const BE_ID := "way/33725619"
+	const MO_ID := "way/158023244"
+	const FH_ID := "way/158023219"
+	const MA_ID := "way/183216666"
+	## --- the bake slots, walked independently --------------------------------
+	var be_center := Vector2.ZERO
+	var mo_center := Vector2.ZERO
+	var fh_center := Vector2.ZERO
+	var ma_center := Vector2.ZERO
+	var mo_box := Vector2.ZERO
+	var fh_box := Vector2.ZERO
+	var ma_box := Vector2.ZERO
+	var be_chunk := Vector2i(99, 99)
+	var mo_chunk := Vector2i(99, 99)
+	var fh_chunk := Vector2i(99, 99)
+	var ma_chunk := Vector2i(99, 99)
+	## The two row chunks' file walks: totals AND retired counts — the
+	## placeholders wearing a superseded hero id (the campanile's four in
+	## (1,−2), Beardshear's three in (0,−2) — in these two chunks every
+	## hero-id placeholder IS one of the two superseded slots) and the
+	## massing wearing ANY hero id (the manifest set + the three runtime
+	## joins — Beardshear's own bbox massing and the campanile's were
+	## retired since T-175).
+	var hero_ids := {}
+	for hid: Variant in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("heroes", []):
+		hero_ids[str(hid)] = true
+	hero_ids[MO_ID] = true
+	hero_ids[FH_ID] = true
+	hero_ids[MA_ID] = true
+	var chunk_walks := {}
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		var tile := Vector2i(int(entry["cx"]), int(entry["cz"]))
+		if tile != Vector2i(0, -2) and tile != Vector2i(1, -2):
+			continue
+		var walk: Dictionary = chunk_walks.get(tile, {
+			"ph_file": 0, "ph_retired": 0, "ma_file": 0, "ma_retired": 0 })
+		for ph: Dictionary in doc.get("placeholders", []):
+			walk["ph_file"] += 1
+			if hero_ids.has(str(ph.get("id", ""))):
+				walk["ph_retired"] += 1
+			if str(ph.get("id", "")) == BE_ID:
+				be_chunk = tile
+				if str(ph.get("part", "")) == "block":
+					be_center = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+		for m: Dictionary in doc.get("massing", []):
+			var mid := str(m.get("id", ""))
+			if bool(m.get("a", false)):
+				walk["ma_file"] += 1
+				if hero_ids.has(mid):
+					walk["ma_retired"] += 1
+			if mid == MO_ID:
+				mo_chunk = tile
+				mo_center = Vector2(float(m["p"][0]), float(m["p"][2]))
+				mo_box = Vector2(float(m["s"][0]), float(m["s"][2]))
+			elif mid == FH_ID:
+				fh_chunk = tile
+				fh_center = Vector2(float(m["p"][0]), float(m["p"][2]))
+				fh_box = Vector2(float(m["s"][0]), float(m["s"][2]))
+			elif mid == MA_ID:
+				ma_chunk = tile
+				ma_center = Vector2(float(m["p"][0]), float(m["p"][2]))
+				ma_box = Vector2(float(m["s"][0]), float(m["s"][2]))
+		chunk_walks[tile] = walk
+	var ph0: int = chunk_walks[Vector2i(0, -2)]["ph_file"]
+	var ph0r: int = chunk_walks[Vector2i(0, -2)]["ph_retired"]
+	var ma0: int = chunk_walks[Vector2i(0, -2)]["ma_file"]
+	var ma0r: int = chunk_walks[Vector2i(0, -2)]["ma_retired"]
+	var ph1: int = chunk_walks[Vector2i(1, -2)]["ph_file"]
+	var ph1r: int = chunk_walks[Vector2i(1, -2)]["ph_retired"]
+	var ma1: int = chunk_walks[Vector2i(1, -2)]["ma_file"]
+	var ma1r: int = chunk_walks[Vector2i(1, -2)]["ma_retired"]
+	if be_center == Vector2.ZERO or mo_center == Vector2.ZERO \
+			or fh_center == Vector2.ZERO or ma_center == Vector2.ZERO:
+		_check(S, false, "bake slot walk failed: be=%s mo=%s fh=%s ma=%s" % [
+				be_center, mo_center, fh_center, ma_center])
+		return
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var parts := world.campus_row_hero_parts
+	if parts.is_empty():
+		_check(S, false, "no retained row-hero parts — the heroes never built")
+		world.queue_free()
+		return
+
+	## --- A. the swap: slot-exact bodies + the gray families' shrinkage -------
+	var be_body: Dictionary = {}
+	var be_drum: Dictionary = {}
+	var mo_body: Dictionary = {}
+	var fh_main: Dictionary = {}
+	var fh_wing: Dictionary = {}
+	var ma_body: Dictionary = {}
+	for part: Dictionary in parts:
+		var s: Vector3 = part["s"]
+		var p: Vector3 = part["p"]
+		var hero: String = part["hero"]
+		if hero == "beardshear" and s.is_equal_approx(Vector3(41.1, 14.0, 66.0)):
+			be_body = part
+		elif hero == "beardshear" and s.is_equal_approx(Vector3(9.0, 4.0, 9.0)):
+			be_drum = part
+		elif hero == "morrill" and s.is_equal_approx(Vector3(mo_box.x, 9.6, mo_box.y)):
+			mo_body = part
+		elif hero == "farm_house" and s.is_equal_approx(Vector3(fh_box.x, 8.0, 14.0)):
+			fh_main = part
+		elif hero == "farm_house" and s.is_equal_approx(Vector3(13.0, 5.5, 7.5)):
+			fh_wing = part
+		elif hero == "marston_hall" and s.is_equal_approx(
+				Vector3(ma_box.x, 12.0, ma_box.y)):
+			ma_body = part
+	if be_body.is_empty():
+		bad.append("Beardshear's slot-exact body 41.1x14x66 missing from the record")
+	else:
+		var bp: Vector3 = be_body["p"]
+		if Vector2(bp.x, bp.z).distance_to(be_center) > 0.01:
+			bad.append("Beardshear body %s off the bake slot %s" % [bp, be_center])
+	if be_drum.is_empty():
+		bad.append("Beardshear's dome drum 9x4x9 missing from the record")
+	else:
+		var dp: Vector3 = be_drum["p"]
+		if absf(dp.x - (be_center.x + 12.0)) > 0.01 \
+				or absf(dp.z - be_center.y) > 0.01:
+			bad.append("dome drum %s off the slot's +12 x offset" % dp)
+	if mo_body.is_empty():
+		bad.append("Morrill's walls %s x 9.6 missing (want the slot %s)" % [
+				mo_box, mo_center])
+	else:
+		var mp: Vector3 = mo_body["p"]
+		if Vector2(mp.x, mp.z).distance_to(mo_center) > 0.01:
+			bad.append("Morrill walls %s off the massing slot %s" % [mp, mo_center])
+	if ma_body.is_empty():
+		bad.append("Marston's body %s x 12 missing (want the slot %s)" % [
+				ma_box, ma_center])
+	if fh_main.is_empty() or fh_wing.is_empty():
+		bad.append("Farm House main block or wing missing from the record")
+	else:
+		## The envelope: main + wing flush span exactly the slot's z extent.
+		var fz: float = (fh_main["s"] as Vector3).z + (fh_wing["s"] as Vector3).z
+		if absf(fz - fh_box.y) > 0.01:
+			bad.append("Farm House z envelope %.2f != the slot %.2f" % [fz, fh_box.y])
+		if absf((fh_main["s"] as Vector3).x - fh_box.x) > 0.01:
+			bad.append("Farm House x envelope %.2f != the slot %.2f" % [
+					(fh_main["s"] as Vector3).x, fh_box.x])
+	## The gray families: walked file counts vs the live MMs.
+	var hero_chunk := {
+		"beardshear": be_chunk, "morrill": mo_chunk, "farm_house": fh_chunk,
+		"marston_hall": ma_chunk,
+	}
+	var record_counts := {}
+	var box_counts := {}
+	for part: Dictionary in parts:
+		var hero: String = part["hero"]
+		record_counts[hero] = int(record_counts.get(hero, 0)) + 1
+		if not bool(part.get("mesh", false)):
+			box_counts[hero] = int(box_counts.get(hero, 0)) + 1
+	for hero: String in ["beardshear", "morrill", "farm_house", "marston_hall"]:
+		if not record_counts.has(hero):
+			bad.append("hero %s carries no record parts" % hero)
+			continue
+		var tile: Vector2i = hero_chunk[hero]
+		var chunk_node := world.get_node_or_null(
+				"Chunks/Chunk_%d_%d" % [tile.x, tile.y]) as Node3D
+		if chunk_node == null:
+			bad.append("chunk %s missing" % tile)
+			continue
+		var row_root := chunk_node.get_node_or_null("HeroRowBeardshear") as Node3D
+		if hero == "morrill":
+			row_root = chunk_node.get_node_or_null("HeroRowMorrill") as Node3D
+		elif hero == "farm_house":
+			row_root = chunk_node.get_node_or_null("HeroRowFarmHouse") as Node3D
+		elif hero == "marston_hall":
+			row_root = chunk_node.get_node_or_null("HeroRowMarstonHall") as Node3D
+		if row_root == null:
+			bad.append("no HeroRow family for %s under %s" % [hero, tile])
+		else:
+			var boxes_mm := row_root.get_node_or_null("Boxes") as MultiMeshInstance3D
+			if boxes_mm == null:
+				bad.append("%s carries no Boxes MM" % row_root.name)
+			elif boxes_mm.multimesh.instance_count != int(box_counts.get(hero, 0)):
+				bad.append("%s box MM %d != the record's box count %d" % [hero,
+						boxes_mm.multimesh.instance_count, int(box_counts.get(hero, 0))])
+	var c0 := world.get_node_or_null("Chunks/Chunk_0_-2") as Node3D
+	var c1 := world.get_node_or_null("Chunks/Chunk_1_-2") as Node3D
+	if c0 == null or c1 == null:
+		_check(S, false, "chunk nodes missing: c0=%s c1=%s" % [c0 != null, c1 != null])
+		world.queue_free()
+		return
+	for pair: Array in [[c0, Vector2i(0, -2), ph0, ph0r, ma0, ma0r],
+			[c1, Vector2i(1, -2), ph1, ph1r, ma1, ma1r]]:
+		var node: Node3D = pair[0]
+		var tile: Vector2i = pair[1]
+		var ph_file: int = pair[2]
+		var ph_retired: int = pair[3]
+		var ma_file: int = pair[4]
+		var ma_retired: int = pair[5]
+		if node == null:
+			bad.append("chunk %s missing" % tile)
+			continue
+		var found_ph := false
+		var found_ma := false
+		var ma_count := -1
+		for child: Node in node.get_children():
+			if child is MultiMeshInstance3D:
+				var mm3 := (child as MultiMeshInstance3D).multimesh
+				if (child as MultiMeshInstance3D).name == "Placeholders":
+					found_ph = true
+				elif (child as MultiMeshInstance3D).name == "Massing":
+					found_ma = true
+					ma_count = mm3.instance_count
+		## Beardshear's 3 parts ARE chunk (0,−2)'s whole placeholder family —
+		## the family legitimately vanishes (the campanile-chunk precedent);
+		## any other leftover count is a swap failure.
+		if ph_file - ph_retired > 0:
+			if not found_ph:
+				bad.append("chunk %s lost its placeholder family (%d - %d remain)"
+						% [tile, ph_file, ph_retired])
+		elif found_ph:
+			bad.append("chunk %s kept a placeholder MM after the full swap" % tile)
+		if not found_ma or ma_count != ma_file - ma_retired:
+			bad.append("chunk %s massing MM %d != file %d - %d retired" % [
+					tile, ma_count, ma_file, ma_retired])
+
+	## --- B. the dims ----------------------------------------------------------
+	var per_lo := {}
+	var per_hi := {}
+	for part: Dictionary in parts:
+		var p: Vector3 = part["p"]
+		var s: Vector3 = part["s"]
+		var hero: String = part["hero"]
+		var plo: Vector3 = per_lo.get(hero, Vector3(INF, INF, INF))
+		var phi: Vector3 = per_hi.get(hero, Vector3(-INF, -INF, -INF))
+		per_lo[hero] = plo.min(p - s * 0.5)
+		per_hi[hero] = phi.max(p + s * 0.5)
+	for hero: String in ["beardshear", "morrill", "farm_house", "marston_hall"]:
+		if not per_hi.has(hero):
+			_check(S, false, "hero %s absent from the record — the arms cannot run" % hero)
+			world.queue_free()
+			return
+	## Beardshear: the settled slot total on the dome, AABB with the portico
+	## steps' projection (body 41.1 + 2.2 pavilion + 1.0 column run + 5.2
+	## step reach east of the face; 41.5/66.4 cornice west/north-south).
+	var be_span := (per_hi["beardshear"] as Vector3) - (per_lo["beardshear"] as Vector3)
+	if absf((per_hi["beardshear"] as Vector3).y - 20.0) > 0.05:
+		bad.append("Beardshear top %.3f != the slot's settled 20.0" % (per_hi["beardshear"] as Vector3).y)
+	if absf(be_span.x - 47.5) > 0.5 or absf(be_span.z - 66.4) > 0.5:
+		bad.append("Beardshear AABB %.1fx%.1f != the pinned 47.5x66.4 (±0.5)" % [be_span.x, be_span.z])
+	## Morrill: the census ladder on the WALLS (9.6 within 11.0 ±2 — the bake
+	## slot's 30.0 was the bogus OSM default), the ridge + cone pins, the
+	## turret-projected AABB.
+	var mo_span := (per_hi["morrill"] as Vector3) - (per_lo["morrill"] as Vector3)
+	if absf((per_hi["morrill"] as Vector3).y - 16.8) > 0.05:
+		bad.append("Morrill top %.3f != the cone tip 16.8" % (per_hi["morrill"] as Vector3).y)
+	if not mo_body.is_empty() and absf((mo_body["s"] as Vector3).y) > 0.01:
+		var wall_h := (mo_body["s"] as Vector3).y
+		if absf(wall_h - 11.0) > 2.0:
+			bad.append("Morrill wall height %.2f outside the census 3-level ladder 11.0 (±2)"
+					% wall_h)
+	if absf(mo_span.x - 30.0) > 0.5 or absf(mo_span.z - 42.6) > 0.5:
+		bad.append("Morrill AABB %.1fx%.1f != the pinned 30.0x42.6 (±0.5)" % [mo_span.x, mo_span.z])
+	## Farm House: knoll top, the 2-level ladder on the walls-above-knoll
+	## (8.0 = the census §7.4 ladder's 2-level row, ±2), the ridge, the
+	## chimney-topped AABB over the knoll.
+	var fh_span := (per_hi["farm_house"] as Vector3) - (per_lo["farm_house"] as Vector3)
+	if absf((per_hi["farm_house"] as Vector3).y - 14.3) > 0.05:
+		bad.append("Farm House top %.3f != the chimneys' 14.3" % (per_hi["farm_house"] as Vector3).y)
+	if not fh_main.is_empty():
+		var fh_wall_h := (fh_main["s"] as Vector3).y
+		if absf(fh_wall_h - 8.0) > 2.0:
+			bad.append("Farm House wall height %.2f outside the 2-level ladder 8.0 (±2)"
+					% fh_wall_h)
+		var fh_base := (fh_main["p"] as Vector3).y - fh_wall_h * 0.5
+		if absf(fh_base - 1.4) > 0.05:
+			bad.append("Farm House walls stand at %.2f, not on the 1.4 knoll" % fh_base)
+	if absf(fh_span.x - 26.3) > 0.5 or absf(fh_span.z - 29.0) > 0.5:
+		bad.append("Farm House AABB %.1fx%.1f != the pinned 26.3x29.0 (±0.5)" % [fh_span.x, fh_span.z])
+	## Marston: the pack's tagged height, the slot-exact envelope.
+	var ma_span := (per_hi["marston_hall"] as Vector3) - (per_lo["marston_hall"] as Vector3)
+	if absf((per_hi["marston_hall"] as Vector3).y - 12.0) > 0.05:
+		bad.append("Marston top %.3f != the pack's tagged 12.0" % (per_hi["marston_hall"] as Vector3).y)
+	if absf(ma_span.x - 37.8) > 0.5 or absf(ma_span.z - 64.6) > 0.5:
+		bad.append("Marston AABB %.1fx%.1f != the pinned 37.8x64.6 (±0.5)" % [ma_span.x, ma_span.z])
+
+	## --- C. the palette (§1.4's rows, verbatim scenario literals) ------------
+	var hexes: Dictionary = {
+		"limestone": Color("c8c1ae"),
+		"limestone_shade": Color("a29b8b"),
+		"dome_light": Color("8fb98f"),
+		"dome_mid": Color("5e8f68"),
+		"dome_dark": Color("4a7055"),
+		"morrill_brick": Color("a8503a"),
+		"morrill_shade": Color("7c3a2b"),
+		"morrill_slate": Color("3f444c"),
+		"morrill_banding": Color("8c4a3c"),
+		"farm_brick": Color("9a4a34"),
+		"farm_trim": Color("edeae2"),
+		"farm_roof": Color("4e4e52"),
+		"knoll": Color("5f7f42"),
+	}
+	var bands_seen := {}
+	var dome_seen := {}
+	for part: Dictionary in parts:
+		var band := str(part["band"])
+		bands_seen[band] = true
+		var got: Color = part["color"]
+		if band == "window":
+			var wl: float = got.r * 0.299 + got.g * 0.587 + got.b * 0.114
+			if wl > 0.25:
+				bad.append("window band %s luminance %.3f > 0.25 — openings must read dark"
+						% [got, wl])
+			continue
+		if not hexes.has(band):
+			bad.append("band %s wears no pinned §1.4 hex" % band)
+			continue
+		var want: Color = hexes[band]
+		if absf(got.r - want.r) > 0.02 or absf(got.g - want.g) > 0.02 \
+				or absf(got.b - want.b) > 0.02:
+			bad.append("band %s color %s != the pinned hex %s" % [band, got, want])
+		if band.begins_with("dome_"):
+			dome_seen[band] = true
+			if not (got.g > got.r and got.g > got.b):
+				bad.append("dome band %s %s is not green-dominant — F-03's only-green-dome law" % [band, got])
+		elif got.g > got.r and got.g > got.b and band != "knoll":
+			bad.append("band %s %s is green-dominant outside the dome family + the knoll" % [band, got])
+	for band: String in hexes:
+		if not bands_seen.has(band):
+			bad.append("band %s never used — the family is missing" % band)
+	for band: String in ["dome_light", "dome_mid", "dome_dark"]:
+		if not dome_seen.has(band):
+			bad.append("dome band %s never used — the estimate trio is incomplete" % band)
+	if not bands_seen.has("window"):
+		bad.append("band window never used — the openings are missing")
+
+	## --- D. the meshes, live --------------------------------------------------
+	var be_node := (c0 as Node3D).get_node_or_null("HeroRowBeardshear") as Node3D
+	var mo_node := (c0 as Node3D).get_node_or_null("HeroRowMorrill") as Node3D
+	var fh_node := (c1 as Node3D).get_node_or_null("HeroRowFarmHouse") as Node3D
+	if be_node == null or mo_node == null or fh_node == null:
+		bad.append("a hero row node is missing (be=%s mo=%s fh=%s)" % [
+				be_node != null, mo_node != null, fh_node != null])
+	else:
+		var dome := be_node.get_node_or_null("DomeCap") as MeshInstance3D
+		if dome == null or dome.mesh == null:
+			bad.append("no DomeCap mesh — the green dome is missing")
+		else:
+			var want_mid := Color("5e8f68")
+			var dm := (dome.mesh as CylinderMesh).material as StandardMaterial3D
+			if dm == null or absf(dm.albedo_color.r - want_mid.r) > 0.02 \
+					or absf(dm.albedo_color.g - want_mid.g) > 0.02 \
+					or absf(dm.albedo_color.b - want_mid.b) > 0.02:
+				bad.append("DomeCap albedo %s != the F-03 estimate #5E8F68" % [
+						dm.albedo_color if dm != null else "<null>"])
+		var hip := mo_node.get_node_or_null("HipRoof") as MeshInstance3D
+		if hip == null or hip.mesh == null:
+			bad.append("no HipRoof mesh — the slate hip is missing")
+		else:
+			var hip_mesh := hip.mesh as ArrayMesh
+			if hip_mesh.get_surface_count() != 1:
+				bad.append("HipRoof surfaces %d != 1 (a full hip has no gable ends)" % hip_mesh.get_surface_count())
+			else:
+				var want_slate := Color("3f444c")
+				var hm := hip_mesh.surface_get_material(0) as StandardMaterial3D
+				if hm == null or _color_gap(hm.albedo_color, want_slate) > 0.02:
+					bad.append("HipRoof albedo %s != the Morrill slate #3F444C" % [
+							hm.albedo_color if hm != null else "<null>"])
+		var drum := mo_node.get_node_or_null("TurretDrum") as MeshInstance3D
+		if drum == null or drum.mesh == null:
+			bad.append("no TurretDrum mesh — the corner turret is missing")
+		else:
+			var want_brick := Color("a8503a")
+			var dm2 := (drum.mesh as CylinderMesh).material as StandardMaterial3D
+			if dm2 == null or _color_gap(dm2.albedo_color, want_brick) > 0.02:
+				bad.append("TurretDrum albedo %s != the Morrill brick #A8503A" % [
+						dm2.albedo_color if dm2 != null else "<null>"])
+		var cone := mo_node.get_node_or_null("TurretCone") as MeshInstance3D
+		if cone == null or cone.mesh == null:
+			bad.append("no TurretCone mesh — the conical roof is missing")
+		else:
+			var want_slate2 := Color("3f444c")
+			var cm := (cone.mesh as CylinderMesh).material as StandardMaterial3D
+			if cm == null or _color_gap(cm.albedo_color, want_slate2) > 0.02:
+				bad.append("TurretCone albedo %s != the Morrill slate #3F444C" % [
+						cm.albedo_color if cm != null else "<null>"])
+		var gable := fh_node.get_node_or_null("GableRoof") as MeshInstance3D
+		if gable == null or gable.mesh == null:
+			bad.append("no GableRoof mesh — the farmhouse gable is missing")
+		else:
+			var gable_mesh := gable.mesh as ArrayMesh
+			if gable_mesh.get_surface_count() != 2:
+				bad.append("GableRoof surfaces %d != 2 (shingle slopes + brick ends)" % gable_mesh.get_surface_count())
+			else:
+				var want_roof := Color("4e4e52")
+				var want_end := Color("9a4a34")
+				var gm0 := gable_mesh.surface_get_material(0) as StandardMaterial3D
+				var gm1 := gable_mesh.surface_get_material(1) as StandardMaterial3D
+				if gm0 == null or _color_gap(gm0.albedo_color, want_roof) > 0.02:
+					bad.append("GableRoof slope albedo %s != the weathered shingle #4E4E52" % [
+							gm0.albedo_color if gm0 != null else "<null>"])
+				if gm1 == null or _color_gap(gm1.albedo_color, want_end) > 0.02:
+					bad.append("GableRoof end albedo %s != the Farm House brick #9A4A34" % [
+							gm1.albedo_color if gm1 != null else "<null>"])
+
+	## --- E. the seams, live ---------------------------------------------------
+	var space := get_world_3d().direct_space_state
+	var probe := func(from: Vector3, to: Vector3) -> Dictionary:
+		var ray := PhysicsRayQueryParameters3D.create(world.to_global(from),
+				world.to_global(to))
+		ray.collision_mask = 1
+		return space.intersect_ray(ray)
+	## Beardshear: the west body face, a portico column, the dome top.
+	var west: Dictionary = probe.call(Vector3(be_center.x - 40.0, 8.0, be_center.y),
+			Vector3(be_center.x, 8.0, be_center.y))
+	if west.is_empty():
+		bad.append("Beardshear west-face ray missed")
+	else:
+		var wx: float = world.to_local((west as Dictionary)["position"]).x
+		if absf(wx - (be_center.x - 20.55)) > 0.3:
+			bad.append("Beardshear west face x %.2f != the 41.1 face %.2f (±0.3)" % [
+					wx, be_center.x - 20.55])
+	var col: Dictionary = probe.call(Vector3(be_center.x + 12.0 + 20.55 + 6.0, 4.5, be_center.y + 1.7),
+			Vector3(be_center.x + 20.55, 4.5, be_center.y + 1.7))
+	if col.is_empty():
+		bad.append("portico column ray missed — the portico is not solid")
+	else:
+		var colx: float = world.to_local((col as Dictionary)["position"]).x
+		if absf(colx - (be_center.x + 20.55 + 3.3)) > 0.2:
+			bad.append("portico column x %.2f != the column run face %.2f (±0.2)" % [
+					colx, be_center.x + 20.55 + 3.3])
+	var dome_top: Dictionary = probe.call(Vector3(be_center.x + 12.0, 40.0, be_center.y),
+			Vector3(be_center.x + 12.0, 10.0, be_center.y))
+	if dome_top.is_empty():
+		bad.append("dome-top ray missed — the dome mass is gone")
+	else:
+		var dy: float = world.to_local((dome_top as Dictionary)["position"]).y
+		if absf(dy - 20.0) > 0.1:
+			bad.append("dome top y %.2f != the settled 20.0 (±0.1)" % dy)
+	## Morrill: the east wall face, the ridge, the turret drum's cardinal, the cone tip.
+	var mo_face: Dictionary = probe.call(Vector3(mo_center.x + 40.0, 5.0, mo_center.y + 10.0),
+			Vector3(mo_center.x, 5.0, mo_center.y + 10.0))
+	if mo_face.is_empty():
+		bad.append("Morrill east-face ray missed")
+	else:
+		var mx: float = world.to_local((mo_face as Dictionary)["position"]).x
+		if absf(mx - (mo_center.x + mo_box.x * 0.5)) > 0.3:
+			bad.append("Morrill east face x %.2f != the wall face %.2f (±0.3)" % [
+					mx, mo_center.x + mo_box.x * 0.5])
+	var mo_ridge: Dictionary = probe.call(Vector3(mo_center.x, 30.0, mo_center.y),
+			Vector3(mo_center.x, 5.0, mo_center.y))
+	if mo_ridge.is_empty():
+		bad.append("Morrill ridge ray missed")
+	else:
+		var my: float = world.to_local((mo_ridge as Dictionary)["position"]).y
+		if absf(my - 15.0) > 0.1:
+			bad.append("Morrill ridge y %.2f != the pinned 15.0 (±0.1)" % my)
+	var turret := Vector2(mo_center.x + mo_box.x * 0.5 - 1.2,
+			mo_center.y + mo_box.y * 0.5 - 1.2)
+	var drum_ray: Dictionary = probe.call(Vector3(turret.x + 10.0, 6.0, turret.y),
+			Vector3(turret.x, 6.0, turret.y))
+	if drum_ray.is_empty():
+		bad.append("turret drum ray missed — the round corner turret is not solid")
+	else:
+		var dx2: float = world.to_local((drum_ray as Dictionary)["position"]).x
+		if absf(dx2 - (turret.x + 2.6)) > 0.2:
+			bad.append("turret drum cardinal x %.2f != the r-2.6 round read %.2f (±0.2)" % [
+					dx2, turret.x + 2.6])
+	var cone_ray: Dictionary = probe.call(Vector3(turret.x, 30.0, turret.y),
+			Vector3(turret.x, 10.0, turret.y))
+	if cone_ray.is_empty():
+		bad.append("turret cone ray missed")
+	else:
+		var cy: float = world.to_local((cone_ray as Dictionary)["position"]).y
+		if absf(cy - 16.8) > 0.15:
+			bad.append("turret cone tip y %.2f != the pinned 16.8 (±0.15)" % cy)
+	## Farm House: the west wall face (above the porch roof).
+	var fh_face: Dictionary = probe.call(Vector3(fh_center.x - 30.0, 5.0, fh_center.y - 3.75 + 5.0),
+			Vector3(fh_center.x, 5.0, fh_center.y - 3.75 + 5.0))
+	if fh_face.is_empty():
+		bad.append("Farm House west-face ray missed")
+	else:
+		var fx: float = world.to_local((fh_face as Dictionary)["position"]).x
+		if absf(fx - (fh_center.x - fh_box.x * 0.5)) > 0.3:
+			bad.append("Farm House west face x %.2f != the wall face %.2f (±0.3)" % [
+					fx, fh_center.x - fh_box.x * 0.5])
+	## Marston: the pavilion face on the axis, the body face off it.
+	var ma_pav: Dictionary = probe.call(Vector3(ma_center.x + 40.0, 5.0, ma_center.y + 4.0),
+			Vector3(ma_center.x, 5.0, ma_center.y + 4.0))
+	if ma_pav.is_empty():
+		bad.append("Marston pavilion ray missed")
+	else:
+		var px: float = world.to_local((ma_pav as Dictionary)["position"]).x
+		if absf(px - (ma_center.x + ma_box.x * 0.5 + 2.0)) > 0.3:
+			bad.append("Marston pavilion face x %.2f != the +2.0 projection %.2f (±0.3)" % [
+					px, ma_center.x + ma_box.x * 0.5 + 2.0])
+	var ma_face: Dictionary = probe.call(Vector3(ma_center.x + 40.0, 8.0, ma_center.y + 20.0),
+			Vector3(ma_center.x, 8.0, ma_center.y + 20.0))
+	if ma_face.is_empty():
+		bad.append("Marston body-face ray missed")
+	else:
+		var mx2: float = world.to_local((ma_face as Dictionary)["position"]).x
+		if absf(mx2 - (ma_center.x + ma_box.x * 0.5)) > 0.3:
+			bad.append("Marston body face x %.2f != the slot face %.2f (±0.3)" % [
+					mx2, ma_center.x + ma_box.x * 0.5])
+	## The ground record: the heroes answer their true tops.
+	var queries := [
+		[Vector3(be_center.x + 12.0, 0.0, be_center.y), 20.0, "Beardshear dome"],
+		[Vector3(mo_center.x, 0.0, mo_center.y), 15.0, "Morrill ridge"],
+		[Vector3(fh_center.x, 0.0, fh_center.y - 3.75), 12.9, "Farm House ridge"],
+		[Vector3(fh_center.x + 11.0, 0.0, fh_center.y - 9.0), 1.4, "Farm House knoll"],
+		[Vector3(mo_center.x + 6.0, 0.0, mo_center.y + 16.0), 10.6, "Morrill attic"],
+		[Vector3(ma_center.x, 0.0, ma_center.y), 12.0, "Marston roof"],
+	]
+	for q: Array in queries:
+		var got_h := world.ground_height(world.to_global(q[0] as Vector3))
+		if absf(got_h - float(q[1])) > 0.05:
+			bad.append("ground record at %s answers %.3f != the %s %.1f" % [
+					q[2], got_h, q[2], float(q[1])])
+	## The roof crumbs: one ROOF spot per hero at its pinned top.
+	var lift: float = AmesWorld.SPOT_LIFT
+	var want_crumbs := {
+		"beardshear": Vector3(be_center.x + 12.0, 20.0 + lift, be_center.y),
+		"morrill": Vector3(mo_center.x, 15.0 + lift, mo_center.y),
+		"farm_house": Vector3(fh_center.x, 12.9 + lift, fh_center.y - 3.75),
+		"marston_hall": Vector3(ma_center.x, 12.0 + lift, ma_center.y),
+	}
+	for hero: String in want_crumbs:
+		var want_crumb: Vector3 = want_crumbs[hero]
+		var crumb_ok := false
+		for i: int in world.bread_spots.size():
+			if world.bread_spots[i].distance_to(want_crumb) < 0.005 \
+					and i < world.bread_spot_kinds.size() \
+					and world.bread_spot_kinds[i] == City.BreadKind.ROOF:
+				crumb_ok = true
+				break
+		if not crumb_ok:
+			bad.append("no %s roof crumb at %s" % [hero, want_crumb])
+	_check(S, bad.is_empty(), "parts=%d bands=%d be_top=%.2f mo_top=%.2f fh_top=%.2f; %s"
+			% [parts.size(), bands_seen.size(), per_hi["beardshear"].y,
+			per_hi["morrill"].y, per_hi["farm_house"].y, "; ".join(bad)])
 	world.queue_free()
 
 

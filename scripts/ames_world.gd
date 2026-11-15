@@ -244,6 +244,14 @@ var campus_ribbon_xfs: Array[Transform3D] = []
 var campus_slab_tris: int = 0
 var campus_plaza_tris: int = 0
 var fountain_parts: Array[Dictionary] = []
+## (T-188) The campus row west heroes' part record, retained on the same law:
+## every box and mesh-bounding extra the four builds emitted —
+## `{hero, band, p, s, color, collide}` in world-local (pack) coordinates,
+## `hero` one of `beardshear` / `morrill` / `farm_house` / `marston_hall`.
+## The dome cap, the two roofs and the turret drum/cone file their band and
+## bounding `s` at their mesh centers so the dims and palette arms walk one
+## record; the LIVE material arms re-prove the meshes themselves.
+var campus_row_hero_parts: Array[Dictionary] = []
 
 @onready var _box_mesh: BoxMesh = _make_box_mesh()
 @onready var _tri_mesh: ArrayMesh = _make_tri_mesh()
@@ -398,6 +406,7 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	campus_slab_tris = 0
 	campus_plaza_tris = 0
 	fountain_parts = []
+	campus_row_hero_parts = [] ## (T-188) The row-hero record rebuilds with the world.
 	ped_zones = null
 	parking = null
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
@@ -410,6 +419,14 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 		return true
 	for hero_id: Variant in _manifest.get("heroes", []):
 		_hero_ids[str(hero_id)] = true
+	## (T-188) The campus row west heroes swap AUTHORED massing slots (Morrill,
+	## Farm House, Marston Hall), not placeholder parts — their ids join the
+	## same hero set at runtime so every massing-family skip (render, occluder,
+	## collision, ground record, roof spots) applies unchanged; Beardshear
+	## already rides the bake's own `heroes` list. Each hero files its own true
+	## tops in its build below.
+	for hero_id: String in CAMPUS_ROW_RUNTIME_HERO_IDS:
+		_hero_ids[hero_id] = true
 	_bounds_from_manifest()
 	_build_static_root()
 	_build_ground_plate()
@@ -472,6 +489,7 @@ func generate_step_finish() -> void:
 		"lake_reeds": _reed_xfs.size(),
 		"swans": swans.size(),
 		"campanile_parts": campanile_hero_parts.size(), ## (T-186) The hero swap is live.
+		"campus_row_parts": campus_row_hero_parts.size(), ## (T-188) The row heroes are live.
 		"campus_ribbons": campus_ribbon_xfs.size(), ## (T-187) The lawn dress is live.
 		"campus_slab_tris": campus_slab_tris,
 		"campus_plaza_tris": campus_plaza_tris,
@@ -1502,8 +1520,10 @@ func _collect_roof_spots(chunk: Dictionary) -> void:
 					float(m["p"][1]) + float(m["s"][1]) * 0.5, float(m["p"][2])))
 	for ph: Dictionary in chunk.get("placeholders", []):
 		var hero_id := str(ph.get("id", ""))
-		if not _hero_ids.has(hero_id) or hero_id == "way/183041212":
-			continue ## The campanile's cap crumb is the pinned hero-top spot.
+		if not _hero_ids.has(hero_id) or hero_id == CAMPANILE_HERO_ID \
+				or hero_id == BEARDSHEAR_HERO_ID:
+			continue ## (T-186/T-188) the campanile's cap crumb is pinned; the
+			## Beardshear hero files its own dome-top spot in its build below.
 		var top := float(ph["p"][1]) + float(ph["s"][1]) * 0.5
 		var pos := Vector3(float(ph["p"][0]), top, float(ph["p"][2]))
 		var current: Variant = _hero_roof_tops.get(hero_id)
@@ -1621,6 +1641,7 @@ func _build_chunk(entry: Dictionary) -> void:
 	_build_ground_record(chunk)
 	_collect_roof_spots(chunk) ## (T-176) the roof-crumb hosts, while the doc is in hand.
 	_build_campanile_hero(chunk_root, chunk, center, chunk_body) ## (T-186) the hero swap rides its own chunk.
+	_build_campus_row_heroes(chunk_root, chunk, center, chunk_body) ## (T-188) the row heroes ride theirs.
 
 
 ## One vertex-color unit-box MultiMesh from the chunk's massing entries
@@ -1670,14 +1691,14 @@ func _placeholders_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
 	var placeholders: Array = chunk.get("placeholders", [])
 	var count := 0
 	for ph: Dictionary in placeholders:
-		if str(ph.get("id", "")) != CAMPANILE_HERO_ID:
+		if not _row_superseded_placeholder(str(ph.get("id", ""))):
 			count += 1
 	if count == 0:
 		return null
 	var mm := _new_multimesh(count)
 	var i := 0
 	for ph: Dictionary in placeholders:
-		if str(ph.get("id", "")) == CAMPANILE_HERO_ID:
+		if _row_superseded_placeholder(str(ph.get("id", ""))):
 			continue
 		var p: Array = ph["p"]
 		var s: Array = ph["s"]
@@ -1821,7 +1842,7 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 		var pid := str(e.get("id", ""))
 		if pid == CAMPANILE_HERO_ID:
 			## (T-186) The hero's own collision supersedes the placeholder
-			## boxes 1:1 (same body, same layer-1 world class) — the build
+			## boxes 1:1 (same body, same layer-1 `world` class) — the build
 			## below files it. The cap capture stays: the crumb pin rides the
 			## bake's cap part, exactly the T-175 anchor convention.
 			if str(e.get("part", "")) == "cap":
@@ -1829,6 +1850,12 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 				var cs: Array = e["s"]
 				_campanile_cap = Vector3(float(cp[0]), float(cp[1]) + float(cs[1]) * 0.5,
 						float(cp[2]))
+			continue
+		if pid == BEARDSHEAR_HERO_ID:
+			## (T-188) The Beardshear hero's own collision supersedes its slot's
+			## block/dome/dome_cap placeholder parts the same 1:1 way — its
+			## build files the shapes; the dome-top crumb comes from the hero's
+			## own schedule, so no capture is needed here.
 			continue
 		var p: Array = e["p"]
 		var s: Array = e["s"]
@@ -1861,8 +1888,8 @@ func _build_ground_record(chunk: Dictionary) -> void:
 			continue
 		bytes += _file_ground_box(tiles, m["p"], m["s"])
 	for ph: Dictionary in chunk.get("placeholders", []):
-		if str(ph.get("id", "")) == CAMPANILE_HERO_ID:
-			continue ## (T-186) the hero files its own true tops below.
+		if _row_superseded_placeholder(str(ph.get("id", ""))):
+			continue ## (T-186/T-188) those heroes file their own true tops below.
 		bytes += _file_ground_box(tiles, ph["p"], ph["s"])
 	for key: Vector2i in tiles:
 		var packed := PackedFloat32Array(tiles[key])
@@ -2599,6 +2626,663 @@ func _make_campanile_dial_mesh() -> CylinderMesh:
 	mat.roughness = 0.9
 	mesh.material = mat
 	return mesh
+
+
+## --- T-188 the campus row west heroes ---------------------------------------
+## The west classical row at hero fidelity, swapping their T-175 slots 1:1 —
+## the T-186 campanile law generalized from one hero to four:
+##
+## - **Beardshear Hall** (`way/33725619`, a HERO placeholder slot): the pale
+##   limestone block keeps the bake slot's envelope EXACTLY (41.1 × 14 × 66,
+##   the dome stack at its slot offset +12 x and tops 18 / 20), dressed with
+##   the columned east portico (the lawn frontage — the E-W lawn axis starts
+##   at this face), the heavy cornice and THE GREEN DOME (F-03 — the only
+##   green dome in town, the oxidized-copper estimate trio from
+##   MODELING-SPECS §1.4). Its slot's block/dome/dome_cap placeholder parts
+##   render, collide and ground-file NOTHING anymore; the hero files its own
+##   tops, and the dome-top crumb lands byte-identically where the bake's
+##   dome_cap-derived spot always sat (20.0 m at the dome center).
+## - **Morrill Hall** (`way/158023244`, an authored massing slot): dark red
+##   brick under the patterned slate hip (red banding at the eave), the
+##   round-arched windows read as dark openings, and the round corner turret
+##   with its conical slate roof at the lawn-facing (SE) corner — the corner
+##   itself is unpinned by the survey (photos only), chosen for the read.
+## - **Farm House** (`way/158023219`, authored massing slot): the tiny
+##   1860s farmhouse on its knoll — 2-story brick massing (census 314 m²
+##   footprint, the 2-level ladder), white trim, front gable, ridge
+##   chimneys, the west-front porch. The ONLY ref is the archival B&W photo
+##   (`campus/15`): brick/trim colors carry from LANDMARKS C9's text, the
+##   roof wears §1.10's weathered-shingle row (the nearest pinned survey
+##   family — the B&W cannot pin a roof hue), flagged honestly.
+## - **Marston Hall** (`way/183216666`, authored massing slot — the ticket's
+##   "facade hint if cheap"): the quad's east row partner keeps its slot
+##   envelope (31.4 × 12 × 64.2) and gains the pale classical east facade —
+##   cornice, central pavilion, pilasters, arched entry, steps.
+##
+## The slot swap keys run in the SAME families the T-186 swap does: the
+## Beardshear placeholder parts are skipped by id in the placeholder render,
+## collision, ground-record and roof-spot passes; Morrill / Farm House /
+## Marston Hall join `_hero_ids` at build time (`CAMPUS_ROW_RUNTIME_HERO_IDS`),
+## so the existing hero-massing skips apply to their superseded bbox boxes
+## unchanged. Each hero hangs its own shapes on its chunk's layer-1
+## `Placeholders` body (the same slot and collision class), files its own
+## true ground tops, hosts its own roof crumb at its true top, and retains
+## its part record for the gates (headless runs cannot read the instances
+## back — the T-185 law). Like every corner dress: pure bake-derived
+## geometry, zero RNG of any stream — a rebuild reproduces every transform.
+
+const BEARDSHEAR_HERO_ID := "way/33725619"
+const MORRILL_HERO_ID := "way/158023244"
+const FARMHOUSE_HERO_ID := "way/158023219"
+const MARSTON_HALL_HERO_ID := "way/183216666"
+
+## (T-188) The massing-slot supersessions (see the section doc — Beardshear's
+## id already rides the bake manifest's `heroes` list, so only the three
+## authored-massing swaps need the runtime merge).
+const CAMPUS_ROW_RUNTIME_HERO_IDS: Array[String] = [
+	MORRILL_HERO_ID, FARMHOUSE_HERO_ID, MARSTON_HALL_HERO_ID,
+]
+
+## (T-188) The pinned palette — MODELING-SPECS §1.4's campus-buildings rows,
+## verbatim. The palette gate re-derives these hexes from the survey doc's
+## own table (never from these constants) and holds the record colors
+## against them; the window band carries no survey hex (the openings read as
+## dark in every ref photo) and is held by a darkness law instead, the
+## campanile `hand` band's precedent.
+const ROW_LIMESTONE := Color(0.784, 0.757, 0.682) ## #C8C1AE limestone, sunlit.
+const ROW_LIMESTONE_SHADE := Color(0.635, 0.608, 0.545) ## #A29B8B limestone, shade (base courses, cornices, trims).
+const ROW_DOME_MID := Color(0.369, 0.561, 0.408) ## #5E8F68 oxidized copper, mid (F-03 — the dome's own body).
+const ROW_DOME_LIGHT := Color(0.561, 0.725, 0.561) ## #8FB98F oxidized copper, light (the drum).
+const ROW_DOME_DARK := Color(0.290, 0.439, 0.333) ## #4A7055 oxidized copper, dark (the drum base ring).
+const ROW_MORRILL_BRICK := Color(0.659, 0.314, 0.227) ## #A8503A Morrill brick, sunlit.
+const ROW_MORRILL_SHADE := Color(0.486, 0.227, 0.169) ## #7C3A2B Morrill brick, shade (the attic frieze).
+const ROW_MORRILL_SLATE := Color(0.247, 0.267, 0.298) ## #3F444C Morrill patterned slate.
+const ROW_MORRILL_BANDING := Color(0.549, 0.290, 0.235) ## #8C4A3C the slate roof's red banding.
+const ROW_FARM_BRICK := Color(0.604, 0.290, 0.204) ## #9A4A34 Farm House brick (LANDMARKS C9 text — B&W-only ref).
+const ROW_FARM_TRIM := Color(0.929, 0.918, 0.886) ## #EDEAE2 Farm House white trim (C9 text).
+const ROW_FARM_ROOF := Color(0.306, 0.306, 0.322) ## #4E4E52 weathered shingle (§1.10 row — the B&W cannot pin a roof hue).
+const ROW_KNOLL := Color(0.373, 0.498, 0.259) ## #5F7F42 the quad lawn green — the knoll's dress.
+const ROW_WINDOW := Color(0.16, 0.14, 0.125) ## The dark openings — held by luminance ≤ 0.25, not a hex.
+
+## The band -> color table (the record and the render share this one mapping).
+const CAMPUS_ROW_BANDS: Dictionary = {
+	"limestone": ROW_LIMESTONE,
+	"limestone_shade": ROW_LIMESTONE_SHADE,
+	"dome_light": ROW_DOME_LIGHT,
+	"dome_mid": ROW_DOME_MID,
+	"dome_dark": ROW_DOME_DARK,
+	"morrill_brick": ROW_MORRILL_BRICK,
+	"morrill_shade": ROW_MORRILL_SHADE,
+	"morrill_slate": ROW_MORRILL_SLATE,
+	"morrill_banding": ROW_MORRILL_BANDING,
+	"farm_brick": ROW_FARM_BRICK,
+	"farm_trim": ROW_FARM_TRIM,
+	"farm_roof": ROW_FARM_ROOF,
+	"knoll": ROW_KNOLL,
+	"window": ROW_WINDOW,
+}
+
+## (T-188) The pinned heights (m) — the slot-exact law where the bake settled
+## one (Beardshear's stack: block 14, dome drum top 18, dome top 20), the
+## census ladder where it did not (Morrill 3 levels ≈ 11 walls + 4-hip read —
+## the bake's 30.0 `height_m` was an OSM default the census §3 records as the
+## bogus class and the baker's own hero law overrides; Farm House 2 levels
+## ≈ 8 walls on its knoll; Marston Hall keeps the pack's tagged 12.0).
+const BEARDSHEAR_DOME_OFFSET_X := 12.0 ## The slot's own dome offset (the bake's `dome` part).
+const BEARDSHEAR_DOME_TOP := 20.0 ## The slot's settled dome top (the crumb height, byte-continuous).
+const MORRILL_WALL_TOP := 9.6
+const MORRILL_ATTIC_TOP := 10.6
+const MORRILL_RIDGE := 15.0
+const MORRILL_TURRET_DRUM_TOP := 13.0
+const MORRILL_TURRET_CONE_TOP := 16.8
+const FARMHOUSE_KNOLL_TOP := 1.4
+const FARMHOUSE_RIDGE := 12.9
+const MARSTON_HALL_TOP := 12.0 ## The pack's own tagged height (the slot stays exact).
+
+
+func _row_band_color(band: String) -> Color:
+	return CAMPUS_ROW_BANDS.get(band, ROW_LIMESTONE)
+
+
+## (T-188) TRUE when a baked placeholder entry belongs to a hero that
+## supersedes its slot at runtime — the campanile (T-186) and Beardshear
+## (T-188, this ticket). The placeholder-family passes (render, collision,
+## ground record, roof spots) skip these ids so a hero never renders twice.
+func _row_superseded_placeholder(id: String) -> bool:
+	return id == CAMPANILE_HERO_ID or id == BEARDSHEAR_HERO_ID
+
+
+## Builds the row heroes found in this chunk (Beardshear + Morrill + Marston
+## Hall live in chunk (0, -2); Farm House in chunk (1, -2)). No-op elsewhere.
+func _build_campus_row_heroes(chunk_root: Node3D, chunk: Dictionary,
+		center: Vector3, chunk_body: StaticBody3D) -> void:
+	var beardshear := Vector2.ZERO
+	var morrill := Vector2.ZERO
+	var farm := Vector2.ZERO
+	var marston := Vector2.ZERO
+	for ph: Dictionary in chunk.get("placeholders", []):
+		if str(ph.get("id", "")) == BEARDSHEAR_HERO_ID \
+				and str(ph.get("part", "")) == "block":
+			beardshear = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+	for m: Dictionary in chunk.get("massing", []):
+		var mid := str(m.get("id", ""))
+		if mid == MORRILL_HERO_ID:
+			morrill = Vector2(float(m["p"][0]), float(m["p"][2]))
+		elif mid == FARMHOUSE_HERO_ID:
+			farm = Vector2(float(m["p"][0]), float(m["p"][2]))
+		elif mid == MARSTON_HALL_HERO_ID:
+			marston = Vector2(float(m["p"][0]), float(m["p"][2]))
+	if beardshear != Vector2.ZERO:
+		var bx := beardshear.x + BEARDSHEAR_DOME_OFFSET_X
+		_row_commit(chunk_root, center, "Beardshear", BEARDSHEAR_HERO_ID,
+				_beardshear_hero_boxes(beardshear),
+				Vector3(bx, BEARDSHEAR_DOME_TOP, beardshear.y), chunk_body,
+				_beardshear_hero_extras(beardshear))
+	if morrill != Vector2.ZERO:
+		_row_commit(chunk_root, center, "Morrill", MORRILL_HERO_ID,
+				_morrill_hero_boxes(morrill),
+				Vector3(morrill.x, MORRILL_RIDGE, morrill.y), chunk_body,
+				_morrill_hero_extras(morrill),
+				[{"p": Vector3(morrill.x, 13.05, morrill.y),
+					"s": Vector3(2.0, 3.9, 28.0)}] as Array[Dictionary])
+	if farm != Vector2.ZERO:
+		_row_commit(chunk_root, center, "FarmHouse", FARMHOUSE_HERO_ID,
+				_farmhouse_hero_boxes(farm),
+				Vector3(farm.x, FARMHOUSE_RIDGE, farm.y - 3.75), chunk_body,
+				_farmhouse_hero_extras(farm),
+				[{"p": Vector3(farm.x, 11.15, farm.y - 3.75),
+					"s": Vector3(19.6, 3.5, 0.9)}] as Array[Dictionary])
+	if marston != Vector2.ZERO:
+		_row_commit(chunk_root, center, "MarstonHall", MARSTON_HALL_HERO_ID,
+				_marston_hero_boxes(marston),
+				Vector3(marston.x, MARSTON_HALL_TOP, marston.y), chunk_body,
+				[] as Array[Dictionary])
+
+
+## One hero's commit — the T-186 pipeline shared by the four: render (the box
+## MultiMesh + every named mesh extra), collision (the hero's own shapes ride
+## the chunk's placeholder body — same slot, same layer-1 `world` class),
+## ground-record tops, the roof-crumb host (`_hero_roof_tops`, consumed by
+## `_append_roof_spots`), and the retained part record. Each extra is
+## `{name, mesh, pos, convex, band, size}`: the mesh mounts at `pos`
+## (chunk-local); a non-empty `convex` becomes one CollisionShape3D at the
+## same spot; `band`/`size` file the record.
+func _row_commit(chunk_root: Node3D, center: Vector3, hero_name: String,
+		hero_id: String, boxes: Array[Dictionary], crumb: Vector3,
+		chunk_body: StaticBody3D, extras: Array[Dictionary],
+		record_only: Array[Dictionary] = []) -> void:
+	var hero_key: String = hero_name.to_lower().replace("farmhouse", "farm_house") \
+			.replace("marstonhall", "marston_hall") ## The record's lowercase key.
+	var root := Node3D.new()
+	root.name = "HeroRow%s" % hero_name
+	chunk_root.add_child(root)
+	var mm := _new_multimesh(boxes.size())
+	for i in boxes.size():
+		var b: Dictionary = boxes[i]
+		var p: Vector3 = b["p"]
+		var s: Vector3 = b["s"]
+		mm.set_instance_transform(i, Transform3D(Basis.from_scale(s), p - center))
+		mm.set_instance_color(i, _row_band_color(str(b["band"])))
+	mm.custom_aabb = _campanile_hero_aabb(boxes, center)
+	var mm_node := MultiMeshInstance3D.new()
+	mm_node.name = "Boxes"
+	mm_node.multimesh = mm
+	root.add_child(mm_node)
+	for e: Dictionary in extras:
+		var mesh_node := MeshInstance3D.new()
+		mesh_node.name = str(e["name"])
+		mesh_node.mesh = e["mesh"]
+		mesh_node.position = (e["pos"] as Vector3) - center
+		root.add_child(mesh_node)
+	## Collision: the chunk's placeholder body (created when the chunk had no
+	## other entries — the campanile chunk's case, kept for the row).
+	var body := chunk_body
+	if body == null:
+		body = StaticBody3D.new()
+		body.name = "Placeholders"
+		body.collision_layer = 1 ## world
+		body.collision_mask = 0
+		chunk_root.add_child(body)
+	for b2: Dictionary in boxes:
+		if not b2["collide"]:
+			continue
+		var bp: Vector3 = b2["p"]
+		var bs: Vector3 = b2["s"]
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = bs
+		shape.shape = box
+		shape.position = bp - center
+		body.add_child(shape)
+	for e2: Dictionary in extras:
+		var pts: PackedVector3Array = e2["convex"]
+		if pts.is_empty():
+			continue
+		var extra_shape := CollisionShape3D.new()
+		var convex := ConvexPolygonShape3D.new()
+		convex.points = pts
+		extra_shape.shape = convex
+		extra_shape.position = (e2["pos"] as Vector3) - center
+		body.add_child(extra_shape)
+	## Ground record: the hero files its own true tops where the superseded
+	## slot used to (the walkability query answers the hero now). The
+	## `record_only` entries file WITHOUT rendering or colliding — the two
+	## roofs' ridge masses (a big ground box under a sloped loft mesh would
+	## poke through the slope; a hidden ridge strip files the ridge-top
+	## answer cleanly).
+	var tiles: Dictionary = {}
+	var bytes := 0
+	for b3: Dictionary in boxes:
+		if not b3["ground"]:
+			continue
+		var gp: Vector3 = b3["p"]
+		var gs: Vector3 = b3["s"]
+		bytes += _file_ground_box(tiles, [gp.x, gp.y, gp.z], [gs.x, gs.y, gs.z])
+	for r: Dictionary in record_only:
+		var rp: Vector3 = r["p"]
+		var rs: Vector3 = r["s"]
+		bytes += _file_ground_box(tiles, [rp.x, rp.y, rp.z], [rs.x, rs.y, rs.z])
+	for key: Vector2i in tiles:
+		var record: Dictionary = _chunks.get(key, {})
+		var ground: PackedFloat32Array = record.get("ground", PackedFloat32Array())
+		ground.append_array(PackedFloat32Array(tiles[key]))
+		record["ground"] = ground
+		_chunks[key] = record
+	_buffer_bytes += bytes
+	## The roof-crumb host: one ROOF spot at the hero's true top (the T-176
+	## convention — the superseded bake entries stopped filing in
+	## `_collect_roof_spots`).
+	_hero_roof_tops[hero_id] = crumb
+	## Retain the part record (world-local bands, positions, sizes, colors);
+	## `mesh` marks the named mesh extras so the gate can count the box
+	## schedule against the render MM separately.
+	for b4: Dictionary in boxes:
+		campus_row_hero_parts.append({
+			"hero": hero_key, "band": str(b4["band"]), "p": b4["p"],
+			"s": b4["s"], "color": _row_band_color(str(b4["band"])),
+			"collide": b4["collide"], "mesh": false,
+		})
+	for e3: Dictionary in extras:
+		campus_row_hero_parts.append({
+			"hero": hero_key, "band": str(e3["band"]), "p": e3["pos"],
+			"s": e3["size"], "color": _row_band_color(str(e3["band"])),
+			"collide": false, "mesh": true,
+		})
+
+
+## One box into a row-hero schedule (typed push keeps the Array[Dictionary]
+## contract — the campanile's own helper, row-suffixed).
+func _add_row_box(out: Array[Dictionary], band: String, p: Vector3, s: Vector3,
+		collide: bool, ground: bool) -> void:
+	out.append({"band": band, "p": p, "s": s, "collide": collide, "ground": ground})
+
+
+## --- Beardshear Hall ---------------------------------------------------------
+## The slot envelope EXACT (block 41.1 × 14 × 66 at the bake part's center,
+## dome drum 9 × 4 × 9 at +12 x topping 18, dome topping 20), dressed: the
+## east portico (columns + architrave + steps on the lawn frontage), the
+## heavy cornice, the drum's copper banding. The portico pavilion protrudes
+## 2.2 m past the east face; its face plane is `ex + 2.2`.
+func _beardshear_hero_boxes(c: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var ex := c.x + 20.55 ## The east face — the lawn frontage.
+	var dx := c.x + BEARDSHEAR_DOME_OFFSET_X
+	_add_row_box(out, "limestone", Vector3(c.x, 7.0, c.y),
+			Vector3(41.1, 14.0, 66.0), true, true)
+	_add_row_box(out, "limestone_shade", Vector3(c.x, 0.4, c.y),
+			Vector3(41.1, 0.8, 66.0), false, false)
+	_add_row_box(out, "limestone_shade", Vector3(c.x, 13.5, c.y),
+			Vector3(41.5, 1.0, 66.4), true, false) ## The heavy cornice ring.
+	## The portico pavilion + its own cornice.
+	_add_row_box(out, "limestone", Vector3(ex + 1.1, 7.0, c.y),
+			Vector3(2.2, 14.0, 12.0), true, true)
+	_add_row_box(out, "limestone_shade", Vector3(ex + 1.2, 13.5, c.y),
+			Vector3(2.6, 1.0, 12.8), false, false)
+	## Four portico columns carrying the architrave slab.
+	for off: float in [-4.6, -1.7, 1.7, 4.6]:
+		_add_row_box(out, "limestone", Vector3(ex + 2.8, 4.5, c.y + off),
+				Vector3(1.0, 9.0, 1.0), true, false)
+	_add_row_box(out, "limestone_shade", Vector3(ex + 2.8, 9.6, c.y),
+			Vector3(1.6, 1.2, 12.0), true, false) ## The architrave roof slab.
+	_add_row_box(out, "limestone_shade", Vector3(ex + 2.75, 10.9, c.y),
+			Vector3(1.8, 1.4, 12.2), false, false) ## The entablature band.
+	## The entrance steps, plate to the portico floor.
+	_add_row_box(out, "limestone_shade", Vector3(ex + 3.6, 0.175, c.y),
+			Vector3(5.2, 0.35, 15.0), true, true)
+	_add_row_box(out, "limestone_shade", Vector3(ex + 3.0, 0.525, c.y),
+			Vector3(3.6, 0.35, 13.2), true, true)
+	## The dark door + the tall windows, proud of the pavilion face (a face-
+	## flush dark box would z-fight; proud reads as the opening).
+	_add_row_box(out, "window", Vector3(ex + 2.26, 2.4, c.y),
+			Vector3(0.12, 3.4, 2.2), false, false)
+	for woff: float in [-3.4, 3.4]:
+		for wy: float in [3.4, 7.0]:
+			_add_row_box(out, "window", Vector3(ex + 2.26, wy, c.y + woff),
+					Vector3(0.12, 2.4, 1.4), false, false)
+	## The dome stack at the slot's own offset: drum (slot-exact 9 × 4 × 9,
+	## top 18 — its square top corners read as the plinth under the round
+	## cap), the dark copper base ring, and the cap's ground box (sized to
+	## stay fully under the tapered cap mesh; the mesh + convex ride the
+	## extras and the box files the 20.0 walkability top — every height
+	## derives from BEARDSHEAR_DOME_TOP so the settled pin is one constant).
+	_add_row_box(out, "dome_light", Vector3(dx, 16.0, c.y),
+			Vector3(9.0, 4.0, 9.0), true, true)
+	_add_row_box(out, "dome_dark", Vector3(dx, 14.25, c.y),
+			Vector3(9.3, 0.5, 9.3), false, false)
+	_add_row_box(out, "dome_mid", Vector3(dx, BEARDSHEAR_DOME_TOP - 1.0, c.y),
+			Vector3(3.0, 2.0, 3.0), false, true)
+	return out
+
+
+## Beardshear's mesh extras: the oxidized-copper dome cap — one tapered
+## CylinderMesh (the round read the box path cannot give), 18→20 so the top
+## stays the slot's settled 20.0 (BEARDSHEAR_DOME_TOP). The convex is the
+## 8-segment frustum under it (the walkable dome mass).
+func _beardshear_hero_extras(c: Vector2) -> Array[Dictionary]:
+	var dx := c.x + BEARDSHEAR_DOME_OFFSET_X
+	var pos := Vector3(dx, BEARDSHEAR_DOME_TOP - 1.0, c.y)
+	var out: Array[Dictionary] = [{
+		"name": "DomeCap", "mesh": _row_taper_mesh(2.2, 4.5, 2.0, ROW_DOME_MID),
+		"pos": pos, "convex": _row_cylinder_convex(4.5, 2.2, 2.0, 8),
+		"band": "dome_mid", "size": Vector3(9.0, 2.0, 9.0),
+	}]
+	return out
+
+
+## --- Morrill Hall ------------------------------------------------------------
+## Dark red brick walls (0→9.6, the census 3-level read), the shaded attic
+## frieze, the red-banded eave, the patterned slate hip (loft mesh 11.1→15.0
+## with its ridge line along the long z axis) and the round corner turret at
+## the lawn-facing corner — a full-height brick drum (13.0) carrying the
+## limestone band and the conical slate roof to 16.8. Tall windows and the
+## entry read as dark openings with pale surrounds on the east (lawn) face.
+func _morrill_hero_boxes(m: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var hx := 13.85
+	var hz := 20.15
+	var tx := m.x + hx - 1.2 ## The turret center (SE corner, inset 1.2).
+	var tz := m.y + hz - 1.2
+	_add_row_box(out, "limestone_shade", Vector3(m.x, 0.6, m.y),
+			Vector3(27.7, 1.2, 40.3), false, false) ## The limestone base course.
+	_add_row_box(out, "morrill_brick", Vector3(m.x, 4.8, m.y),
+			Vector3(27.7, 9.6, 40.3), true, true)
+	_add_row_box(out, "morrill_shade", Vector3(m.x, 10.1, m.y),
+			Vector3(27.7, 1.0, 40.3), true, true) ## The attic frieze.
+	_add_row_box(out, "morrill_banding", Vector3(m.x, 10.85, m.y),
+			Vector3(28.3, 0.5, 40.9), false, false) ## The red eave banding.
+	## (The hip roof's ridge-top ground answer files RECORD-ONLY — see the
+	## dispatcher: a big ground box under the sloped loft mesh would poke
+	## through the slope.)
+	## The banding dormer hint on the south slope (the winter photo's banded
+	## gable read).
+	_add_row_box(out, "morrill_banding", Vector3(m.x, 12.0, m.y + 18.8),
+			Vector3(6.0, 2.2, 1.4), false, false)
+	## The entry + tall windows on the east (lawn) face — surround proud of
+	## the wall, door proud of the surround (face-coincident boxes z-fight).
+	_add_row_box(out, "limestone_shade", Vector3(m.x + hx + 0.12, 2.1, m.y),
+			Vector3(0.16, 4.2, 2.8), false, false)
+	_add_row_box(out, "window", Vector3(m.x + hx + 0.15, 1.9, m.y),
+			Vector3(0.1, 3.0, 2.0), false, false)
+	for woff: float in [-10.0, 10.0]:
+		for wy: float in [3.4, 6.4]:
+			_add_row_box(out, "window", Vector3(m.x + hx + 0.06, wy, m.y + woff),
+					Vector3(0.1, 2.2, 1.4), false, false)
+	_add_row_box(out, "window", Vector3(m.x + hx + 0.06, 6.4, m.y),
+			Vector3(0.1, 2.2, 1.4), false, false)
+	## The turret drum's ground box (sized to stay inside the round convex;
+	## the drum cylinder + cone ride the extras) — files the 13.0 top.
+	_add_row_box(out, "morrill_brick", Vector3(tx, 6.5, tz),
+			Vector3(3.6, 13.0, 3.6), false, true)
+	return out
+
+
+func _morrill_hero_extras(m: Vector2) -> Array[Dictionary]:
+	var hx := 13.85
+	var hz := 20.15
+	var tx := m.x + hx - 1.2
+	var tz := m.y + hz - 1.2
+	var out: Array[Dictionary] = [{
+		"name": "HipRoof",
+		"mesh": _row_loft_mesh(Vector2(28.3, 40.9), Vector2(2.0, 28.0), 3.9,
+				ROW_MORRILL_SLATE, ROW_MORRILL_SLATE),
+		"pos": Vector3(m.x, 13.05, m.y),
+		"convex": _row_frustum_convex(Vector2(28.3, 40.9), Vector2(2.0, 28.0), 3.9),
+		"band": "morrill_slate", "size": Vector3(28.3, 3.9, 40.9),
+	}, {
+		"name": "TurretDrum", "mesh": _row_taper_mesh(2.6, 2.6, 13.0, ROW_MORRILL_BRICK),
+		"pos": Vector3(tx, 6.5, tz),
+		"convex": _row_cylinder_convex(2.6, 2.6, 13.0, 8),
+		"band": "morrill_brick", "size": Vector3(5.2, 13.0, 5.2),
+	}, {
+		"name": "TurretBand", "mesh": _row_taper_mesh(2.8, 2.8, 0.4, ROW_LIMESTONE_SHADE),
+		"pos": Vector3(tx, 13.2, tz), "convex": PackedVector3Array(),
+		"band": "limestone_shade", "size": Vector3(5.6, 0.4, 5.6),
+	}, {
+		"name": "TurretCone", "mesh": _row_taper_mesh(0.15, 3.2, 3.4, ROW_MORRILL_SLATE),
+		"pos": Vector3(tx, 15.1, tz),
+		"convex": _row_cylinder_convex(3.2, 0.3, 3.4, 8),
+		"band": "morrill_slate", "size": Vector3(6.4, 3.4, 6.4),
+	}]
+	return out
+
+
+## --- Farm House --------------------------------------------------------------
+## The tiny 1860s farmhouse on its knoll (the ticket's honest-flag hero: the
+## only ref is the archival B&W, `campus/15` — colors carry from LANDMARKS
+## C9's text; the roof hue borrows §1.10's weathered-shingle row). The main
+## 2-story gable block (walls 8.0 = the 2-level census ladder) + the lower
+## rear wing complete the slot's 18.8 × 21.5 envelope; the white-trimmed
+## porch faces WEST (the campus read); two brick chimneys ride the ridge.
+func _farmhouse_hero_boxes(f: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var zx := f.y - 3.75 ## The main block's center z (the north portion).
+	_add_row_box(out, "knoll", Vector3(f.x, 0.7, f.y),
+			Vector3(26.0, 1.4, 29.0), true, true) ## The knoll.
+	_add_row_box(out, "farm_brick", Vector3(f.x, 5.4, zx),
+			Vector3(18.8, 8.0, 14.0), true, true) ## The gable block.
+	_add_row_box(out, "farm_brick", Vector3(f.x + 2.0, 4.15, f.y + 7.0),
+			Vector3(13.0, 5.5, 7.5), true, true) ## The rear wing.
+	## (The gable roof's ridge-top ground answer files RECORD-ONLY — see the
+	## dispatcher: a big ground box under the sloped loft mesh would poke
+	## through the slope.)
+	## The ridge chimneys (the B&W photo's pair).
+	for coff: float in [-3.2, 3.2]:
+		_add_row_box(out, "farm_brick", Vector3(f.x + coff, 13.6, zx),
+				Vector3(0.9, 1.4, 0.9), true, false)
+	## The porch (deck + roof walkable; posts visual), facing west.
+	_add_row_box(out, "farm_trim", Vector3(f.x - 11.2, 1.55, zx),
+			Vector3(3.6, 0.3, 11.0), true, true)
+	_add_row_box(out, "farm_trim", Vector3(f.x - 11.3, 4.175, zx),
+			Vector3(4.0, 0.35, 11.4), true, true)
+	for poff: float in [-4.5, -1.5, 1.5, 4.5]:
+		_add_row_box(out, "farm_trim", Vector3(f.x - 12.9, 2.7, zx + poff),
+				Vector3(0.2, 2.6, 0.2), false, false)
+	## The door, its trim surround, the white-linteled windows and the attic
+	## gable window — all on the west front, every face proud of the plane
+	## behind it (face-coincident boxes z-fight).
+	_add_row_box(out, "farm_trim", Vector3(f.x - 9.52, 2.8, zx),
+			Vector3(0.1, 2.9, 1.7), false, false)
+	_add_row_box(out, "window", Vector3(f.x - 9.56, 2.7, zx),
+			Vector3(0.14, 2.6, 1.3), false, false)
+	for woff: float in [-3.6, 3.6]:
+		for wy: float in [3.6, 7.0]:
+			_add_row_box(out, "window", Vector3(f.x - 9.49, wy, zx + woff),
+					Vector3(0.12, 1.6, 1.2), false, false)
+			_add_row_box(out, "farm_trim", Vector3(f.x - 9.5, wy + 1.0, zx + woff),
+					Vector3(0.14, 0.28, 1.5), false, false)
+	_add_row_box(out, "window", Vector3(f.x - 9.86, 10.7, zx),
+			Vector3(0.12, 0.9, 0.9), false, false)
+	return out
+
+
+func _farmhouse_hero_extras(f: Vector2) -> Array[Dictionary]:
+	var zx := f.y - 3.75
+	var out: Array[Dictionary] = [{
+		"name": "GableRoof",
+		"mesh": _row_loft_mesh(Vector2(19.6, 15.2), Vector2(19.6, 0.9), 3.5,
+				ROW_FARM_ROOF, ROW_FARM_BRICK),
+		"pos": Vector3(f.x, 11.15, zx),
+		"convex": _row_frustum_convex(Vector2(19.6, 15.2), Vector2(19.6, 0.9), 3.5),
+		"band": "farm_roof", "size": Vector3(19.6, 3.5, 15.2),
+	}]
+	return out
+
+
+## --- Marston Hall (the facade hint) ------------------------------------------
+## The slot envelope EXACT (31.4 × 12 × 64.2, the pack's tagged 12.0 kept),
+## dressed with the pale classical east facade: cornice ring, the central
+## pavilion with its four pilasters, the arched entry in its surround, and
+## the entrance steps onto the marston_spoke walk.
+func _marston_hero_boxes(s: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var ex := s.x + 15.7 ## The east face — the lawn frontage.
+	_add_row_box(out, "limestone", Vector3(s.x, 6.0, s.y),
+			Vector3(31.4, 12.0, 64.2), true, true)
+	_add_row_box(out, "limestone_shade", Vector3(s.x, 0.4, s.y),
+			Vector3(31.4, 0.8, 64.2), false, false)
+	_add_row_box(out, "limestone_shade", Vector3(s.x, 11.55, s.y),
+			Vector3(31.8, 0.9, 64.6), true, false) ## The cornice ring.
+	_add_row_box(out, "limestone", Vector3(ex + 1.0, 6.0, s.y),
+			Vector3(2.0, 12.0, 14.0), true, true) ## The central pavilion.
+	_add_row_box(out, "limestone_shade", Vector3(ex + 1.1, 11.55, s.y),
+			Vector3(2.4, 0.9, 14.6), false, false)
+	for poff: float in [-5.2, -2.4, 2.4, 5.2]:
+		_add_row_box(out, "limestone_shade", Vector3(ex + 2.05, 5.0, s.y + poff),
+				Vector3(0.35, 10.0, 0.9), false, false) ## The pilasters.
+	_add_row_box(out, "limestone_shade", Vector3(ex + 2.15, 2.9, s.y),
+			Vector3(0.2, 5.8, 4.2), false, false) ## The entry surround.
+	_add_row_box(out, "window", Vector3(ex + 2.22, 2.5, s.y),
+			Vector3(0.12, 5.0, 3.2), false, false) ## The arched entry.
+	_add_row_box(out, "limestone_shade", Vector3(ex + 3.6, 0.175, s.y),
+			Vector3(5.2, 0.35, 12.0), true, true)
+	_add_row_box(out, "limestone_shade", Vector3(ex + 3.0, 0.525, s.y),
+			Vector3(3.6, 0.35, 10.4), true, true)
+	return out
+
+
+## One tapered/straight cylinder mesh with its own albedo material — the
+## dial-material path (albedo colors render sRGB-correct; the mesh-carried
+## vertex-color path would wash the hex — the T-187 round-1 finding).
+func _row_taper_mesh(top_radius: float, bottom_radius: float, height: float,
+		color: Color) -> CylinderMesh:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = top_radius
+	mesh.bottom_radius = bottom_radius
+	mesh.height = height
+	mesh.radial_segments = 16
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 1.0
+	mesh.material = mat
+	return mesh
+
+
+## One eave→ridge loft as a double-sided material ArrayMesh: the base
+## rectangle (at the eave plane, shape-local y −h/2) lerped to the top
+## rectangle (the ridge plane, +h/2). An axis whose extent does NOT shrink
+## makes vertical end walls — the gable read (the Farm House ends wear the
+## brick, the Morrill hip shrinks on both axes so every face is slate). Two
+## surfaces: 0 = slopes + ridge strip (the roof color), 1 = vertical ends
+## (empty when the roof is a full hip). Surface materials, not vertex
+## colors — the same color-space law as the tapers.
+func _row_loft_mesh(base_size: Vector2, top_size: Vector2, height: float,
+		slope_color: Color, end_color: Color) -> ArrayMesh:
+	var hh := height * 0.5
+	var b := [
+		Vector3(-base_size.x * 0.5, -hh, -base_size.y * 0.5),
+		Vector3(base_size.x * 0.5, -hh, -base_size.y * 0.5),
+		Vector3(base_size.x * 0.5, -hh, base_size.y * 0.5),
+		Vector3(-base_size.x * 0.5, -hh, base_size.y * 0.5),
+	]
+	var t := [
+		Vector3(-top_size.x * 0.5, hh, -top_size.y * 0.5),
+		Vector3(top_size.x * 0.5, hh, -top_size.y * 0.5),
+		Vector3(top_size.x * 0.5, hh, top_size.y * 0.5),
+		Vector3(-top_size.x * 0.5, hh, top_size.y * 0.5),
+	]
+	var end_x := absf(base_size.x - top_size.x) < 0.01 ## E/W walls vertical.
+	var end_z := absf(base_size.y - top_size.y) < 0.01 ## N/S walls vertical.
+	## Each: [a, b, c, d, normal, is_end], wound outside-out like the
+	## campanile cap's quads; cull disabled so winding never hides a face.
+	var quads := [
+		[b[1], b[0], t[0], t[1], Vector3(0.0, 0.0, -1.0), end_z],
+		[b[2], b[1], t[1], t[2], Vector3(1.0, 0.0, 0.0), end_x],
+		[b[3], b[2], t[2], t[3], Vector3(0.0, 0.0, 1.0), end_z],
+		[b[0], b[3], t[3], t[0], Vector3(-1.0, 0.0, 0.0), end_x],
+		[t[0], t[3], t[2], t[1], Vector3.UP, false],
+	]
+	var slope_verts := PackedVector3Array()
+	var slope_normals := PackedVector3Array()
+	var slope_idx := PackedInt32Array()
+	var end_verts := PackedVector3Array()
+	var end_normals := PackedVector3Array()
+	var end_idx := PackedInt32Array()
+	for q: Array in quads:
+		var is_end: bool = q[5]
+		var verts := end_verts if is_end else slope_verts
+		var normals := end_normals if is_end else slope_normals
+		var idx := end_idx if is_end else slope_idx
+		var n: Vector3 = q[4]
+		for corner: int in [0, 1, 2, 0, 2, 3]:
+			idx.append(verts.size())
+			verts.append(q[corner])
+			normals.append(n)
+	var mesh := ArrayMesh.new()
+	var arrays_slope := []
+	arrays_slope.resize(Mesh.ARRAY_MAX)
+	arrays_slope[Mesh.ARRAY_VERTEX] = slope_verts
+	arrays_slope[Mesh.ARRAY_NORMAL] = slope_normals
+	arrays_slope[Mesh.ARRAY_INDEX] = slope_idx
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays_slope)
+	mesh.surface_set_material(0, _row_flat_material(slope_color))
+	if not end_verts.is_empty():
+		var arrays_end := []
+		arrays_end.resize(Mesh.ARRAY_MAX)
+		arrays_end[Mesh.ARRAY_VERTEX] = end_verts
+		arrays_end[Mesh.ARRAY_NORMAL] = end_normals
+		arrays_end[Mesh.ARRAY_INDEX] = end_idx
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays_end)
+		mesh.surface_set_material(1, _row_flat_material(end_color))
+	return mesh
+
+
+func _row_flat_material(color: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 1.0
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED ## The lofts read from inside the gable too.
+	return mat
+
+
+## One square frustum's 8 convex points, shape-local (±h/2) — the loft
+## roofs' and the dome cap's solid mass.
+func _row_frustum_convex(base_size: Vector2, top_size: Vector2,
+		height: float) -> PackedVector3Array:
+	var hh := height * 0.5
+	return PackedVector3Array([
+		Vector3(-base_size.x * 0.5, -hh, -base_size.y * 0.5),
+		Vector3(base_size.x * 0.5, -hh, -base_size.y * 0.5),
+		Vector3(base_size.x * 0.5, -hh, base_size.y * 0.5),
+		Vector3(-base_size.x * 0.5, -hh, base_size.y * 0.5),
+		Vector3(-top_size.x * 0.5, hh, -top_size.y * 0.5),
+		Vector3(top_size.x * 0.5, hh, -top_size.y * 0.5),
+		Vector3(top_size.x * 0.5, hh, top_size.y * 0.5),
+		Vector3(-top_size.x * 0.5, hh, top_size.y * 0.5),
+	])
+
+
+## One tapered cylinder's convex ring points, shape-local (±h/2) — the dome
+## cap, the turret drum and the cone (8 segments keeps the shape light while
+## reading round to a ray).
+func _row_cylinder_convex(radius_bottom: float, radius_top: float, height: float,
+		segments: int) -> PackedVector3Array:
+	var hh := height * 0.5
+	var pts := PackedVector3Array()
+	for k in segments:
+		var a := TAU * float(k) / float(segments)
+		pts.append(Vector3(cos(a) * radius_bottom, -hh, sin(a) * radius_bottom))
+		pts.append(Vector3(cos(a) * radius_top, hh, sin(a) * radius_top))
+	return pts
 ## --- chunk node plumbing ---------------------------------------------------
 
 
