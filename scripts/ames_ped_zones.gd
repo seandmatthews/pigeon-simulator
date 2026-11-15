@@ -372,12 +372,17 @@ func _lawn_chain_pts(path: Dictionary) -> PackedVector2Array:
 	return out
 
 
-## One lawn-layer fountain ring packed ({} -> empty).
+## One lawn-layer fountain ring packed and RING-SPLIT (the baker's dedupe
+## law — the OSM closure duplicate must not skew a centroid) ({} -> empty).
 func _lawn_ring_pts(fountain: Dictionary, field: String) -> PackedVector2Array:
-	var out := PackedVector2Array()
+	var raw := PackedVector2Array()
 	for q: Variant in fountain.get(field, []):
-		out.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
-	return out
+		raw.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	var biggest := PackedVector2Array()
+	for ring: PackedVector2Array in AmesBaker._split_rings(raw):
+		if ring.size() > biggest.size():
+			biggest = ring
+	return biggest
 
 
 ## The distance from `p` to the nearest point ON a polyline's segments.

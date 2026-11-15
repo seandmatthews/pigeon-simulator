@@ -1918,12 +1918,17 @@ func _file_ground_box(tiles: Dictionary, p: Array, s: Array) -> int:
 const COLOR_QUAD_LAWN := Color(0.373, 0.498, 0.259) ## #5F7F42.
 ## The path ribbons' pale concrete — the same palette row ("paths #C9C3B4").
 const COLOR_CAMPUS_PATH := Color(0.788, 0.765, 0.706) ## #C9C3B4.
-## The slab flat rides ABOVE the bake's lawn tris (box top 0.04) at the
-## road-paint clearance discipline (paint sits 10-20 mm over its ground).
-const SLAB_TRI_Y := 0.05
-## The ribbon boxes stack one FLAT_THICKNESS above the slab flat
-## (center 0.06 -> top 0.07), so paths never z-fight the slab they cross.
-const RIBBON_CENTER_Y := 0.06
+## The slab flat rides ABOVE the bake's lawn tris (box top 0.04) — at 30 mm,
+## the clearance the ribbon read proved depth-safe at 200+ m (a 10 mm stack
+## loses the depth fight against the bake flat at range and the tint
+## vanishes; the paths at the old 30 mm stayed crisp). The plaza paving
+## paints one step above the slab it sits IN (the plaza is inside the lawn
+## polygon's south tip), and the ribbon boxes stack their top (center 0.075
+## + half thickness) between the slab and the road paint (top 0.09), so
+## paths paint over the lawn and UNDER the roads they cross.
+const SLAB_TRI_Y := 0.07
+const PLAZA_TRI_Y := 0.08
+const RIBBON_CENTER_Y := 0.075
 
 ## The Four Seasons fountain (geometry-hint level; figures = simplified, the
 ## ticket's own scope line). Proportions off the data ring's bbox
@@ -1959,36 +1964,58 @@ func _build_campus_lawn() -> void:
 ## flat tris one FLAT step above the bake's mown-lawn flat (the tint), plus
 ## the fountain plaza's paving flat from the lawn layer's plaza ring.
 func _build_campus_slab(root: Node3D, lawn: Dictionary) -> void:
-	var slab_tris := _campus_flat_tris(root, "SlabTris", _campus_polygon(), COLOR_QUAD_LAWN)
+	var slab_tris := _campus_flat_tris(root, "SlabTris", _campus_polygon(),
+			COLOR_QUAD_LAWN, SLAB_TRI_Y)
 	campus_slab_tris = slab_tris
 	var ring := _lawn_ring(lawn, "plaza_ring")
 	if ring.size() >= 3:
 		campus_plaza_tris = _campus_flat_tris(root, "PlazaTris", ring,
-				COLOR_CAMPUS_PATH)
+				COLOR_CAMPUS_PATH, PLAZA_TRI_Y)
 
 
 ## One polygon's flat-tri family: ear-clipped (the baker's own triangulator,
-## the same code the bake used for the parks), rendered as the world's unit
-## tri MultiMesh at the pinned slab level, one node per family.
+## the same code the bake used for the parks — fed through the baker's own
+## ring-split first, so the OSM closure duplicate never reaches the clip:
+## a degenerate ring stalls it into the fan fallback and the family paints
+## giant sweep triangles over the lawn), rendered as ONE vertex-colored
+## ArrayMesh on a MeshInstance3D — the T-186 CapRoof's proven runtime
+## pattern (the world's unit-tri MultiMesh path renders the bake's
+## chunk-mounted families but went invisible under this dress's own node;
+## the mesh-carried vertex colors need no instance buffer at all). One node
+## per family, at the family's own stack level.
 func _campus_flat_tris(root: Node3D, node_name: String, poly: PackedVector2Array,
-		color: Color) -> int:
+		color: Color, tri_y: float) -> int:
 	var tris := AmesBaker._triangulate(poly)
 	if tris.is_empty():
 		return 0
-	var mm := _new_multimesh(tris.size(), _tri_mesh)
-	for i in tris.size():
-		var t: Vector3i = tris[i]
-		var p0 := Vector3(poly[t.x].x, SLAB_TRI_Y, poly[t.x].y)
-		var p1 := Vector3(poly[t.y].x, SLAB_TRI_Y, poly[t.y].y)
-		var p2 := Vector3(poly[t.z].x, SLAB_TRI_Y, poly[t.z].y)
-		mm.set_instance_transform(i, Transform3D(
-				Basis(p1 - p0, Vector3.UP, p2 - p0), p0))
-		mm.set_instance_color(i, color)
-	var aabb := _queue_aabb_from_points(poly)
-	var node := MultiMeshInstance3D.new()
+	var verts := PackedVector3Array()
+	var colors := PackedColorArray()
+	for t: Vector3i in tris:
+		for idx: int in [t.x, t.y, t.z]:
+			verts.append(Vector3(poly[idx].x, tri_y, poly[idx].y))
+			## Mesh-carried vertex colors ride the shader as LINEAR values,
+			## while the MultiMesh instance-color families (the bake's flats,
+			## the ribbons, the benches) take their sRGB numbers as-is — the
+			## same hex renders washed-bright through this path otherwise
+			## (the round-1 screenshots: the tint read pale, the district
+			## cells next to it dark). Convert once, at the mesh build.
+			colors.append(_srgb_to_linear(color))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	var normals := PackedVector3Array()
+	normals.resize(verts.size())
+	normals.fill(Vector3.UP)
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_COLOR] = colors
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mat := _make_vertex_color_material()
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.surface_set_material(0, mat)
+	var node := MeshInstance3D.new()
 	node.name = node_name
-	node.multimesh = mm
-	mm.custom_aabb = aabb
+	node.mesh = mesh
 	root.add_child(node)
 	return tris.size()
 
@@ -2148,6 +2175,14 @@ func _add_fountain_part(out: Array[Dictionary], kind: String, p: Vector3,
 			"collide": collide, "ground": ground})
 
 
+## The exact sRGB -> linear transfer (the IEC piecewise curve) — the mesh
+## path's color conversion (`Color` carries no `to_linear` in 4.7).
+func _srgb_to_linear(c: Color) -> Color:
+	var channel := func(v: float) -> float:
+		return v / 12.92 if v <= 0.04045 else pow((v + 0.055) / 1.055, 2.4)
+	return Color(channel.call(c.r), channel.call(c.g), channel.call(c.b), c.a)
+
+
 ## The pack's Central Campus polygon, ring-split (the bake's own helpers).
 func _campus_polygon() -> PackedVector2Array:
 	var biggest := PackedVector2Array()
@@ -2161,13 +2196,20 @@ func _campus_polygon() -> PackedVector2Array:
 	return biggest
 
 
-## One lawn-layer ring by field name, packed (closed OSM order as stored).
+## One lawn-layer ring by field name, packed and RING-SPLIT (the baker's own
+## dedupe law — the OSM closure duplicate is a degenerate vertex for the
+## ear-clip; the split also handles any self-touching seam the way the bake
+## prepared every stored polygon).
 func _lawn_ring(lawn: Dictionary, field: String) -> PackedVector2Array:
 	var fountain: Dictionary = lawn.get("fountain", {})
-	var out := PackedVector2Array()
+	var raw := PackedVector2Array()
 	for q: Variant in fountain.get(field, []):
-		out.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
-	return out
+		raw.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	var biggest := PackedVector2Array()
+	for ring: PackedVector2Array in AmesBaker._split_rings(raw):
+		if ring.size() > biggest.size():
+			biggest = ring
+	return biggest
 
 
 ## One lawn-layer chain, packed.
@@ -2176,16 +2218,6 @@ func _lawn_chain(path: Dictionary) -> PackedVector2Array:
 	for q: Variant in path.get("chain", []):
 		out.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
 	return out
-
-
-## The world-local AABB over a packed XZ point set at the slab's stack band.
-func _queue_aabb_from_points(pts: PackedVector2Array) -> AABB:
-	var lo := Vector3(INF, INF, INF)
-	var hi := Vector3(-INF, -INF, -INF)
-	for p: Vector2 in pts:
-		lo = lo.min(Vector3(p.x, SLAB_TRI_Y, p.y))
-		hi = hi.max(Vector3(p.x, SLAB_TRI_Y, p.y))
-	return AABB(lo - Vector3.ONE, (hi - lo) + Vector3.ONE * 2.0)
 
 
 ## The world-local AABB over the fountain part record set.

@@ -6249,12 +6249,8 @@ func _scenario_central_campus_layout() -> void:
 			bad.append("chain %s width %.1f outside the data band 2.0..6.0"
 					% [path.get("id"), w])
 	var fountain: Dictionary = lawn.get("fountain", {})
-	var pool := PackedVector2Array()
-	for q: Variant in fountain.get("ring", []):
-		pool.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
-	var plaza := PackedVector2Array()
-	for q: Variant in fountain.get("plaza_ring", []):
-		plaza.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	var pool := _biggest_split_ring(fountain.get("ring", []))
+	var plaza := _biggest_split_ring(fountain.get("plaza_ring", []))
 	if pool.size() < 8 or plaza.size() < 8:
 		bad.append("fountain rings pool=%d plaza=%d (want the OSM rings)"
 				% [pool.size(), plaza.size()])
@@ -6427,7 +6423,8 @@ func _scenario_central_campus_layout() -> void:
 	if city.campus_slab_tris != want_slab:
 		bad.append("slab tris %d != the pack polygon's ear-clip recount %d"
 				% [city.campus_slab_tris, want_slab])
-	var want_plaza := AmesBaker._triangulate(plaza).size()
+	var want_plaza := AmesBaker._triangulate(
+			_biggest_split_ring(fountain.get("plaza_ring", []))).size()
 	if city.campus_plaza_tris != want_plaza:
 		bad.append("plaza tris %d != the plaza ring's ear-clip recount %d"
 				% [city.campus_plaza_tris, want_plaza])
@@ -6567,6 +6564,20 @@ func _poi_pos(poi_id: String) -> Vector2:
 		if str(p.get("id", "")) == poi_id:
 			return Vector2(float(p["position"][0]), float(p["position"][1]))
 	return Vector2.INF
+
+
+## The biggest ring of a lawn-layer ring field, packed and ring-split (the
+## baker's own dedupe law, mirrored here so the gate's expectations derive
+## from the file the same way the world's build does).
+func _biggest_split_ring(list: Variant) -> PackedVector2Array:
+	var raw := PackedVector2Array()
+	for q: Variant in (list as Array):
+		raw.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	var biggest := PackedVector2Array()
+	for ring: PackedVector2Array in AmesBaker._split_rings(raw):
+		if ring.size() > biggest.size():
+			biggest = ring
+	return biggest
 
 
 ## One lawn-layer chain's data width (0.0 when absent).
