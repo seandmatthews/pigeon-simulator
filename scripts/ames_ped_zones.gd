@@ -27,6 +27,12 @@ extends RefCounted
 ## retired Windrow bench's exact dimensions (seat slab top 0.54 — the
 ## T-163 law's wood top — over the T-141 spot line 0.60). T-183 re-homes the
 ## favor benches onto this set; this ticket is placement + walking only.
+## (T-187 campus amendment) the Central Campus zone's benches moved OFF the
+## abstract ring fractions onto the committed lawn layer's real geography —
+## the walk chains' junction (the two crossing sight axes' meeting point),
+## the fountain plaza (facing the pool down its walk) and the campanile
+## stub (facing the tower) — all derived from `AmesDataPack.campus_lawn()`,
+## never invented. T-183's favor elders seat THESE benches.
 
 ## --- the zone law (placement data law, pinned by `ames_ped_zones`) ----------
 
@@ -252,7 +258,10 @@ func _build_mu_corner() -> void:
 
 ## The Central Campus lawn-edge path: one closed loop 15 m inside the park
 ## polygon (the real periphery walk — road-free by probe), densified and
-## ground-guarded inward.
+## ground-guarded inward. (T-187) the zone's benches stand at the lawn
+## layer's real sit targets — the axes' junction, the fountain plaza and the
+## campanile stub — NOT the pre-T-187 ring fractions: the lawn's own sit
+## law, `_campus_bench_targets`, derives them from the committed data.
 func _build_central_campus() -> void:
 	var zone := Zone.new("central_campus", ZONE_CLASS["central_campus"], ZONE_CAPS["central_campus"])
 	var poly := _park_polygon("Central Campus")
@@ -263,8 +272,127 @@ func _build_central_campus() -> void:
 	ring = _densify(ring, true)
 	ring = _guard_ring(ring, _centroid(poly), true)
 	_append_path(zone, ring, true, Vector2.ZERO)
-	_benches_for_ring_zone(zone, [0.15, 0.5, 0.85], _centroid(poly))
+	_benches_at_targets(zone, _campus_bench_targets())
 	zones.append(zone)
+
+
+## (T-187) The campus sit targets, derived from the committed lawn layer —
+## one facing + ground-guarded position per target, exactly three (the
+## ZONE_BENCHES law): the two crossing sight axes' junction (facing north up
+## the spine toward the library read), the fountain plaza (facing the pool
+## down its walk) and the campanile stub (facing the tower). Every position
+## is a pure function of `AmesDataPack.campus_lawn()` + the pack POIs.
+func _campus_bench_targets() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var lawn: Dictionary = AmesDataPack.campus_lawn()
+	if lawn.is_empty():
+		return out ## The gate fails loudly on the missing targets.
+	var chains: Array[PackedVector2Array] = []
+	for path: Dictionary in lawn.get("paths", []):
+		var pts := PackedVector2Array()
+		for q: Variant in path.get("chain", []):
+			pts.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+		if pts.size() >= 2:
+			chains.append(pts)
+	var by_id := {}
+	for path2: Dictionary in lawn.get("paths", []):
+		by_id[str(path2.get("id", ""))] = path2
+	## 1. The axes junction: the E-W axis' vertex nearest the spine chain;
+	##    the bench faces the spine's own run direction (north — the library
+	##    read) and stands clear of the E-W ribbon (its own data half-width
+	##    plus the bench side offset — the path law applied to a wide path).
+	var ew_path: Dictionary = by_id.get("axis_ew_beardshear", {})
+	var ew := _lawn_chain_pts(ew_path)
+	var ns := _lawn_chain_pts(by_id.get("axis_ns_spine", {}))
+	if ew.size() >= 2 and ns.size() >= 2:
+		var junction := Vector2.ZERO
+		var best_d := INF
+		for p: Vector2 in ew:
+			var d := _point_chain_dist(p, ns)
+			if d < best_d:
+				best_d = d
+				junction = p
+		var spine_dir := (ns[ns.size() - 1] - ns[0]).normalized()
+		var clear := float(ew_path.get("width_m", 3.0)) * 0.5 + BENCH_SIDE_OFFSET
+		var pos := junction - spine_dir * clear
+		out.append({"pos": _guard_point(pos, -spine_dir), "facing": spine_dir})
+	## 2. The fountain plaza: the plaza ring's centroid; the bench sits on
+	##    the side away from the pool and faces it (the pool ring's centroid).
+	var fountain: Dictionary = lawn.get("fountain", {})
+	var plaza := _lawn_ring_pts(fountain, "plaza_ring")
+	var pool := _lawn_ring_pts(fountain, "ring")
+	if plaza.size() >= 3 and pool.size() >= 3:
+		var plaza_c := _centroid(plaza)
+		var pool_c := _centroid(pool)
+		var facing2 := (pool_c - plaza_c).normalized()
+		var pos2 := plaza_c - facing2 * BENCH_SIDE_OFFSET
+		out.append({"pos": _guard_point(pos2, -facing2), "facing": facing2})
+	## 3. The campanile stub: its midpoint, offset perpendicular away from
+	##    the tower POI, facing the tower.
+	var stub_path: Dictionary = by_id.get("campanile_stub", {})
+	var stub := _lawn_chain_pts(stub_path)
+	var cam_poi := Vector2.ZERO
+	var found := false
+	for p: Dictionary in AmesDataPack.pois():
+		if str(p.get("id", "")) == "campanile":
+			cam_poi = Vector2(float(p["position"][0]), float(p["position"][1]))
+			found = true
+			break
+	if stub.size() == 2 and found:
+		var mid := (stub[0] + stub[1]) * 0.5
+		var seg := stub[1] - stub[0]
+		var perp := Vector2(seg.y, -seg.x).normalized()
+		if (mid - cam_poi).dot(perp) < 0.0:
+			perp = -perp ## The offset side is the one away from the tower.
+		var stub_clear := float(stub_path.get("width_m", 3.0)) * 0.5 \
+				+ BENCH_SIDE_OFFSET
+		var pos3 := mid + perp * stub_clear
+		var facing3 := (cam_poi - mid).normalized()
+		out.append({"pos": _guard_point(pos3, perp), "facing": facing3})
+	return out
+
+
+## Benches for the pinned campus targets: one per surviving target, facing
+## its derived direction, ground-guarded (dropped when the ladder ends).
+func _benches_at_targets(zone: Zone, targets: Array[Dictionary]) -> void:
+	for target: Dictionary in targets:
+		var facing: Vector2 = target["facing"]
+		var pos: Vector2 = target["pos"]
+		if pos.x == INF or not _ground_ok(pos):
+			continue
+		zone.benches.append(Transform3D(Basis(Vector3.UP, _yaw_of(facing)),
+				Vector3(pos.x, BENCH_SEAT_LINE, pos.y)))
+
+
+## One lawn-layer chain packed ({} -> empty).
+func _lawn_chain_pts(path: Dictionary) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for q: Variant in path.get("chain", []):
+		out.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	return out
+
+
+## One lawn-layer fountain ring packed ({} -> empty).
+func _lawn_ring_pts(fountain: Dictionary, field: String) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for q: Variant in fountain.get(field, []):
+		out.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	return out
+
+
+## The distance from `p` to the nearest point ON a polyline's segments.
+func _point_chain_dist(p: Vector2, chain_pts: PackedVector2Array) -> float:
+	var best := INF
+	for i in chain_pts.size() - 1:
+		var a := chain_pts[i]
+		var b := chain_pts[i + 1]
+		var d := b - a
+		var l2 := d.length_squared()
+		var t := 0.0
+		if l2 > 1e-12:
+			t = clampf((p - a).dot(d) / l2, 0.0, 1.0)
+		best = minf(best, p.distance_to(a + d * t))
+	return best
 
 
 ## The Lake LaVerne shore path: one closed loop SHORE_OFFSET off the water

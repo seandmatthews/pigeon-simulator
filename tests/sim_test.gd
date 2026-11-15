@@ -191,6 +191,7 @@ func _run_scenarios() -> void:
 	await _scenario_laverne_swans() ## T-185 — the LaVerne shore read + the two ambient swans: exactly 2, always in the water, the yield law, the shore polish, the dims re-pin.
 	await _scenario_campanile_hero_dims() ## T-186 — the campanile hero: the 1:1 slot swap, the 33.5 m stack, the live collision class + open arcades, the pinned crumb.
 	await _scenario_campanile_palette() ## T-186 — the photo-corrected buff/tan palette: every band at its pinned hex, the F-01 not-red law, the live cap/dial reads.
+	await _scenario_central_campus_layout() ## T-187 — the lawn slab + the crossing axes + the fountain at its data position + the campus sit benches, all re-derived from the committed lawn layer.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -6177,6 +6178,417 @@ func _scenario_campanile_palette() -> void:
 	_check(S, bad.is_empty(), "parts=%d bands=%d; %s"
 			% [parts.size(), bands_seen.size(), "; ".join(bad)])
 	world.queue_free()
+
+
+## --- scenario (T-187 the Central Campus lawn) -------------------------------
+
+
+## (T-187) The lawn cluster's R3 ticket on the resident Ames world, every
+## expectation re-derived from the COMMITTED DATA (the no-self-test rule —
+## the lawn layer file `data/ames/campus_lawn.json` + the pack, never through
+## the world's own constants):
+## A. THE DATA LAYER — the lawn file parses: nine walk chains (each ≥ 2
+##    vertices at a pinned 2.0–6.0 m data width) and the fountain's two
+##    rings (pool + plaza);
+## B. THE AXES — the E-W axis chain reads due E-W (end-to-end bearing within
+##    ±1.5°) spanning ≥ 200 m from the Beardshear frontage (the POI within
+##    60 m of its west end); the N-S spine reads due N-S (within ±3°)
+##    spanning ≥ 400 m, its south end the MU read (the POI within 130 m) and
+##    its north end carrying the library read (Parks bearing within ±30° of
+##    due west); the campanile POI sits on its stub (within 8 m of the stub
+##    chain); and the two axes CROSS — the chains' minimum distance is the
+##    shared junction (≤ 0.5 m);
+## C. THE FOUNTAIN AT ITS DATA POSITION — the world's `fountain_parts` build
+##    AT the data ring's own vertex mean (±0.05) and the data ring's own
+##    bbox (±0.05), with the 4-rim + water + jet + 4-figures schedule (tops
+##    at the pinned rim/figure heights), the rim SOLID (a live layer-1
+##    raycast down at the long-wall center lands at the 0.55 rim top ±0.05
+##    — the §1.1 rim perch — and the pool center stays ray-clear) and the
+##    solid parts answering `ground_height` (the walkability query);
+## D. THE SLAB + RIBBONS — `campus_slab_tris` equals the ear-clip recount of
+##    the pack's own Central Campus polygon and `campus_plaza_tris` the
+##    plaza ring's (recomputed through the baker's own triangulator here);
+##    the ribbon box set matches the file's chains segment-for-segment
+##    (expected centers recomputed from the file, matched 1:1 within 0.01)
+##    at the data widths; the path color carries the §1.4 hex (value-locked
+##    scenario literal vs the world constant); and the CampusLawn family is
+##    mounted with its slab/ribbons/plaza/fountain nodes;
+## E. THE BENCHES — the sit system's three campus targets (the axes'
+##    junction facing north up the spine, the fountain plaza facing the
+##    pool, the campanile stub facing the tower), each at its data-derived
+##    transform (recomputed in-scenario from the file, ±0.05) with the
+##    facing read off the transform's basis; the pack's Central Campus
+##    polygon contains all three (T-183's favor elders seat THESE benches —
+##    the economy row re-proves the seating on the same set).
+func _scenario_central_campus_layout() -> void:
+	const S := "central_campus_layout"
+	var bad: PackedStringArray = PackedStringArray()
+	var city: AmesWorld = _city as AmesWorld
+	if city == null:
+		_check(S, false, "the harness world is not the Ames world")
+		return
+	var lawn: Dictionary = AmesDataPack.campus_lawn()
+	if lawn.is_empty():
+		_check(S, false, "the campus lawn layer did not load")
+		return
+
+	## --- A. the data layer --------------------------------------------------
+	var paths: Array = lawn.get("paths", [])
+	if paths.size() < 5:
+		bad.append("lawn layer carries %d walk chains (want >= 5)" % paths.size())
+	var chains := {}
+	for path: Dictionary in paths:
+		var pts := PackedVector2Array()
+		for q: Variant in path.get("chain", []):
+			pts.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+		chains[str(path.get("id", ""))] = pts
+		if pts.size() < 2:
+			bad.append("chain %s has %d vertices" % [path.get("id"), pts.size()])
+		var w: float = float(path.get("width_m", 0.0))
+		if w < 2.0 or w > 6.0:
+			bad.append("chain %s width %.1f outside the data band 2.0..6.0"
+					% [path.get("id"), w])
+	var fountain: Dictionary = lawn.get("fountain", {})
+	var pool := PackedVector2Array()
+	for q: Variant in fountain.get("ring", []):
+		pool.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	var plaza := PackedVector2Array()
+	for q: Variant in fountain.get("plaza_ring", []):
+		plaza.append(Vector2(float((q as Array)[0]), float((q as Array)[1])))
+	if pool.size() < 8 or plaza.size() < 8:
+		bad.append("fountain rings pool=%d plaza=%d (want the OSM rings)"
+				% [pool.size(), plaza.size()])
+
+	## --- B. the axes --------------------------------------------------------
+	var ew: PackedVector2Array = chains.get("axis_ew_beardshear", PackedVector2Array())
+	var ns: PackedVector2Array = chains.get("axis_ns_spine", PackedVector2Array())
+	var stub: PackedVector2Array = chains.get("campanile_stub", PackedVector2Array())
+	if ew.size() < 2 or ns.size() < 2 or stub.size() < 2:
+		bad.append("an axis chain is missing from the lawn layer")
+	else:
+		var ew_vec := ew[ew.size() - 1] - ew[0]
+		var ew_bearing := absf(rad_to_deg(atan2(ew_vec.y, ew_vec.x)))
+		if ew_bearing > 1.5 and ew_bearing < 178.5:
+			bad.append("the E-W axis reads %.2f deg off east-west" % ew_bearing)
+		var ew_span := ew_vec.length()
+		if ew_span < 200.0:
+			bad.append("the E-W axis spans %.0f m (want >= 200)" % ew_span)
+		var ns_vec := ns[ns.size() - 1] - ns[0]
+		var ns_bearing := absf(rad_to_deg(atan2(ns_vec.x, -ns_vec.y)))
+		if ns_bearing > 3.0:
+			bad.append("the N-S spine reads %.2f deg off north-south" % ns_bearing)
+		var ns_span := ns_vec.length()
+		if ns_span < 400.0:
+			bad.append("the N-S spine spans %.0f m (want >= 400)" % ns_span)
+		## The crossing: the chains' minimum distance is the shared junction.
+		var crossing := INF
+		for p: Vector2 in ew:
+			crossing = minf(crossing, _point_chain_dist(p, ns))
+		if crossing > 0.5:
+			bad.append("the axes miss each other (nearest %.2f m — no crossing)" % crossing)
+		## The reads: Beardshear at the E-W west end, MU at the spine's south
+		## end, the campanile on the stub, Parks west of the spine's north end.
+		var beardshear := _poi_pos("beardshear_hall")
+		var mu := _poi_pos("memorial_union")
+		var cam := _poi_pos("campanile")
+		var parks := _poi_pos("parks_library")
+		var ew_west := ew[0] if ew[0].x < ew[ew.size() - 1].x else ew[ew.size() - 1]
+		var ns_south := ns[0] if ns[0].y > ns[ns.size() - 1].y else ns[ns.size() - 1]
+		var ns_north := ns[ns.size() - 1] if ns[0].y > ns[ns.size() - 1].y else ns[0]
+		if beardshear != Vector2.INF \
+				and beardshear.distance_to(ew_west) > 60.0:
+			bad.append("Beardshear read %.0f m off the E-W axis west end (bar 60)"
+					% beardshear.distance_to(ew_west))
+		if mu != Vector2.INF and mu.distance_to(ns_south) > 130.0:
+			bad.append("MU read %.0f m off the spine south end (bar 130)"
+					% mu.distance_to(ns_south))
+		if cam != Vector2.INF and _point_chain_dist(cam, stub) > 8.0:
+			bad.append("campanile %.1f m off its stub (bar 8)"
+					% _point_chain_dist(cam, stub))
+		if parks != Vector2.INF:
+			var lib_vec := parks - ns_north
+			var lib_bearing := fposmod(rad_to_deg(atan2(lib_vec.x, -lib_vec.y)), 360.0)
+			if absf(lib_bearing - 270.0) > 30.0:
+				bad.append("library read %.0f deg off due west of the spine north end"
+						% absf(lib_bearing - 270.0))
+
+	## --- C. the fountain at its data position --------------------------------
+	var parts: Array[Dictionary] = city.fountain_parts
+	var rims := 0
+	var figures := 0
+	var waters := 0
+	var jets := 0
+	var collide_parts: Array[Dictionary] = []
+	if parts.is_empty():
+		bad.append("no fountain parts — the fountain did not build")
+	else:
+		var acc := Vector2.ZERO
+		var lo := Vector2(INF, INF)
+		var hi := Vector2(-INF, -INF)
+		for p: Vector2 in pool:
+			acc += p
+			lo = lo.min(p)
+			hi = hi.max(p)
+		var data_center := acc / float(pool.size())
+		var world_lo := Vector2(INF, INF)
+		var world_hi := Vector2(-INF, -INF)
+		for b: Dictionary in parts:
+			var p3: Vector3 = b["p"]
+			var s3: Vector3 = b["s"]
+			world_lo = world_lo.min(Vector2(p3.x - s3.x * 0.5, p3.z - s3.z * 0.5))
+			world_hi = world_hi.max(Vector2(p3.x + s3.x * 0.5, p3.z + s3.z * 0.5))
+			match str(b["kind"]):
+				"rim":
+					rims += 1
+					if bool(b["collide"]):
+						collide_parts.append(b)
+				"figure":
+					figures += 1
+					if bool(b["collide"]):
+						collide_parts.append(b)
+					if absf(float(p3.y) + s3.y * 0.5
+							- (AmesWorld.FOUNTAIN_RIM_TOP + AmesWorld.FOUNTAIN_FIGURE_SIZE.y)) > 0.01:
+						bad.append("figure top %.2f != rim+figure" % (p3.y + s3.y * 0.5))
+				"water":
+					waters += 1
+				"jet":
+					jets += 1
+		if rims != 4:
+			bad.append("rim walls %d != 4" % rims)
+		if figures != 4:
+			bad.append("kneeling figures %d != 4" % figures)
+		if waters != 1 or jets != 1:
+			bad.append("water=%d jet=%d (want 1/1)" % [waters, jets])
+		if data_center.distance_to((world_lo + world_hi) * 0.5) > 0.05:
+			bad.append("fountain center %s != the data ring mean %s (+-0.05)"
+					% [(world_lo + world_hi) * 0.5, data_center])
+		if absf((world_hi.x - world_lo.x) - (hi.x - lo.x)) > 0.05 \
+				or absf((world_hi.y - world_lo.y) - (hi.y - lo.y)) > 0.05:
+			bad.append("fountain bbox %s != the data ring bbox %s (+-0.05)"
+					% [world_hi - world_lo, hi - lo])
+		## The rim is solid: a live layer-1 ray down at a long-wall's center
+		## lands at the rim top; the pool center stays ray-clear (no walkable
+		## water).
+		var space := get_world_3d().direct_space_state
+		var rim_probe: Dictionary = {}
+		var probe_at := Vector3.ZERO
+		for b2: Dictionary in collide_parts:
+			var p4: Vector3 = b2["p"]
+			var s4: Vector3 = b2["s"]
+			if s4.x > s4.z: ## A long wall (the E-W pair).
+				rim_probe = b2
+				## Sample the wall OFF its midpoint — a figure stands there
+				## (the four-station read), and the probe wants bare coping.
+				probe_at = Vector3(p4.x + s4.x * 0.35, p4.y, p4.z)
+				break
+		if rim_probe.is_empty():
+			bad.append("no long rim wall found for the ray probe")
+		else:
+			var rim_from := city.to_global(probe_at + Vector3(0.0, 5.0, 0.0))
+			var rim_to := city.to_global(probe_at + Vector3(0.0, -5.0, 0.0))
+			var rim_ray := PhysicsRayQueryParameters3D.create(rim_from, rim_to)
+			rim_ray.collision_mask = 1
+			var rim_hit := space.intersect_ray(rim_ray)
+			if rim_hit.is_empty():
+				bad.append("rim ray missed — the fountain rim carries no collider")
+			else:
+				var rim_y: float = city.to_local(rim_hit["position"]).y
+				if absf(rim_y - AmesWorld.FOUNTAIN_RIM_TOP) > 0.05:
+					bad.append("rim ray hit y %.3f != the rim top %.2f (+-0.05)"
+							% [rim_y, AmesWorld.FOUNTAIN_RIM_TOP])
+		var pool_c := acc / float(pool.size())
+		var pool_from := city.to_global(Vector3(pool_c.x, 3.0, pool_c.y))
+		var pool_to := city.to_global(Vector3(pool_c.x, 0.2, pool_c.y))
+		var pool_ray := PhysicsRayQueryParameters3D.create(pool_from, pool_to)
+		pool_ray.collision_mask = 1
+		if not space.intersect_ray(pool_ray).is_empty():
+			bad.append("pool center ray hit — the water is not ray-clear")
+		## The walkability query answers the solid rim tops (same bare-coping
+		## sample point — the figures file their own higher tops).
+		var rim_ground := city.ground_height(city.to_global(probe_at))
+		if absf(rim_ground - AmesWorld.FOUNTAIN_RIM_TOP) > 0.005:
+			bad.append("ground record at the rim answers %.3f != %.2f"
+					% [rim_ground, AmesWorld.FOUNTAIN_RIM_TOP])
+
+	## --- D. the slab + the ribbons ------------------------------------------
+	var campus_poly := PackedVector2Array()
+	var biggest := PackedVector2Array()
+	for park: Dictionary in AmesDataPack.parks():
+		if str(park.get("name", "")) != "Central Campus":
+			continue
+		for ring: PackedVector2Array in AmesBaker._split_rings(
+				AmesBaker._pack_points(park.get("polygon", []))):
+			if ring.size() > biggest.size():
+				biggest = ring
+	campus_poly = biggest
+	if campus_poly.size() < 3:
+		bad.append("no Central Campus polygon in the pack")
+	var want_slab := AmesBaker._triangulate(campus_poly).size()
+	if city.campus_slab_tris != want_slab:
+		bad.append("slab tris %d != the pack polygon's ear-clip recount %d"
+				% [city.campus_slab_tris, want_slab])
+	var want_plaza := AmesBaker._triangulate(plaza).size()
+	if city.campus_plaza_tris != want_plaza:
+		bad.append("plaza tris %d != the plaza ring's ear-clip recount %d"
+				% [city.campus_plaza_tris, want_plaza])
+	## The ribbon set, recomputed segment-for-segment from the file.
+	var want_centers: Array[Vector3] = []
+	for path: Dictionary in paths:
+		var pts: PackedVector2Array = chains.get(str(path.get("id", "")),
+				PackedVector2Array())
+		for i in pts.size() - 1:
+			var a := pts[i]
+			var b := pts[i + 1]
+			want_centers.append(Vector3((a.x + b.x) * 0.5,
+					AmesWorld.RIBBON_CENTER_Y, (a.y + b.y) * 0.5))
+	if city.campus_ribbon_xfs.size() != want_centers.size():
+		bad.append("ribbon boxes %d != the file chains' segment recount %d"
+				% [city.campus_ribbon_xfs.size(), want_centers.size()])
+	else:
+		var matched := 0
+		for xf: Transform3D in city.campus_ribbon_xfs:
+			var best := INF
+			for w: Vector3 in want_centers:
+				best = minf(best, xf.origin.distance_to(w))
+			if best <= 0.01:
+				matched += 1
+		if matched != want_centers.size():
+			bad.append("ribbon centers matched %d/%d at +-0.01"
+					% [matched, want_centers.size()])
+	var want_path := Color(0.788, 0.765, 0.706) ## #C9C3B4, the §1.4 paths hex.
+	var path_gap: Color = AmesWorld.COLOR_CAMPUS_PATH - want_path
+	if absf(path_gap.r) > 0.005 or absf(path_gap.g) > 0.005 or absf(path_gap.b) > 0.005:
+		bad.append("path color %s != the §1.4 hex #C9C3B4" % AmesWorld.COLOR_CAMPUS_PATH)
+	var want_lawn := Color(0.373, 0.498, 0.259) ## #5F7F42, the §1.4 quad lawn hex.
+	var lawn_gap: Color = AmesWorld.COLOR_QUAD_LAWN - want_lawn
+	if absf(lawn_gap.r) > 0.005 or absf(lawn_gap.g) > 0.005 or absf(lawn_gap.b) > 0.005:
+		bad.append("quad lawn color %s != the §1.4 hex #5F7F42" % AmesWorld.COLOR_QUAD_LAWN)
+	var lawn_root := city.get_node_or_null("CampusLawn") as Node3D
+	if lawn_root == null:
+		bad.append("no CampusLawn family under the world")
+	else:
+		for family: String in ["SlabTris", "PathRibbons", "PlazaTris", "FountainBoxes"]:
+			if lawn_root.get_node_or_null(family) == null:
+				bad.append("CampusLawn carries no %s" % family)
+
+	## --- E. the benches, the sit system's campus targets ----------------------
+	var campus_zone: AmesPedZones.Zone = city.ped_zones.zone("central_campus") \
+			if city.ped_zones != null else null
+	if campus_zone == null:
+		bad.append("no central_campus zone")
+	else:
+		## Recompute the three targets from the file (the derivation's pure
+		## math, duplicated here as the expectation).
+		var want_benches: Array[Transform3D] = []
+		var spine_dir := Vector2.ZERO
+		if ew.size() >= 2 and ns.size() >= 2:
+			spine_dir = (ns[ns.size() - 1] - ns[0]).normalized()
+			var junction := Vector2.ZERO
+			var best_d := INF
+			for p: Vector2 in ew:
+				var d := _point_chain_dist(p, ns)
+				if d < best_d:
+					best_d = d
+					junction = p
+			var ew_width := _lawn_path_width(paths, "axis_ew_beardshear")
+			var junction_pos := junction \
+					- spine_dir * (ew_width * 0.5 + AmesPedZones.BENCH_SIDE_OFFSET)
+			want_benches.append(Transform3D(
+					Basis(Vector3.UP, _campus_bench_yaw(spine_dir)),
+					Vector3(junction_pos.x, AmesPedZones.BENCH_SEAT_LINE, junction_pos.y)))
+		if plaza.size() >= 3 and pool.size() >= 3:
+			var plaza_c := Vector2.ZERO
+			for p: Vector2 in plaza:
+				plaza_c += p
+			plaza_c /= float(plaza.size())
+			var pool_c := Vector2.ZERO
+			for p: Vector2 in pool:
+				pool_c += p
+			pool_c /= float(pool.size())
+			var facing2 := (pool_c - plaza_c).normalized()
+			var pos2 := plaza_c - facing2 * AmesPedZones.BENCH_SIDE_OFFSET
+			want_benches.append(Transform3D(
+					Basis(Vector3.UP, _campus_bench_yaw(facing2)),
+					Vector3(pos2.x, AmesPedZones.BENCH_SEAT_LINE, pos2.y)))
+		var stub_chain: PackedVector2Array = chains.get("campanile_stub",
+				PackedVector2Array())
+		var cam_poi := _poi_pos("campanile")
+		if stub_chain.size() == 2 and cam_poi != Vector2.INF:
+			var mid := (stub_chain[0] + stub_chain[1]) * 0.5
+			var seg := stub_chain[1] - stub_chain[0]
+			var perp := Vector2(seg.y, -seg.x).normalized()
+			if (mid - cam_poi).dot(perp) < 0.0:
+				perp = -perp
+			var stub_width := _lawn_path_width(paths, "campanile_stub")
+			var pos3 := mid + perp * (stub_width * 0.5 + AmesPedZones.BENCH_SIDE_OFFSET)
+			var facing3 := (cam_poi - mid).normalized()
+			want_benches.append(Transform3D(
+					Basis(Vector3.UP, _campus_bench_yaw(facing3)),
+					Vector3(pos3.x, AmesPedZones.BENCH_SEAT_LINE, pos3.y)))
+		if campus_zone.benches.size() != want_benches.size():
+			bad.append("campus benches %d != the %d data targets"
+					% [campus_zone.benches.size(), want_benches.size()])
+		else:
+			for i in want_benches.size():
+				var got := campus_zone.benches[i]
+				var want := want_benches[i]
+				var dxz := Vector2(got.origin.x - want.origin.x,
+						got.origin.z - want.origin.z).length()
+				if dxz > 0.05 or absf(got.origin.y - want.origin.y) > 0.01:
+					bad.append("campus bench %d at %s != the data target %s (+-0.05)"
+							% [i, got.origin, want.origin])
+				## The facing: the bench's -z axis vs the target's.
+				var got_facing := -got.basis.z
+				var want_facing := -want.basis.z
+				if got_facing.dot(want_facing) < 0.999:
+					bad.append("campus bench %d faces %.3f off its target (%s vs %s)"
+							% [i, 1.0 - got_facing.dot(want_facing),
+							got_facing, want_facing])
+		## The polygon containment (T-183's elders seat these).
+		for bench: Transform3D in campus_zone.benches:
+			if not _point_in_ring(Vector2(bench.origin.x, bench.origin.z), campus_poly):
+				bad.append("campus bench (%.1f, %.1f) outside the Central Campus polygon"
+						% [bench.origin.x, bench.origin.z])
+
+	print("SIM DATA %s: paths=%d ribbons=%d slab=%d plaza=%d parts=%d rims=%d figures=%d benches=%s"
+			% [S, paths.size(), city.campus_ribbon_xfs.size(), city.campus_slab_tris,
+			city.campus_plaza_tris, parts.size(), rims, figures,
+			str(campus_zone.benches.size()) if campus_zone != null else "-1"])
+	_check(S, bad.is_empty(), "paths=%d ribbons=%d slab=%d plaza=%d parts=%d benches=%d; %s"
+			% [paths.size(), city.campus_ribbon_xfs.size(), city.campus_slab_tris,
+			city.campus_plaza_tris, parts.size(),
+			campus_zone.benches.size() if campus_zone != null else -1,
+			"; ".join(bad)])
+
+
+## One POI's pack-local xz (INF sentinel when absent) — the gate's own read.
+func _poi_pos(poi_id: String) -> Vector2:
+	for p: Dictionary in AmesDataPack.pois():
+		if str(p.get("id", "")) == poi_id:
+			return Vector2(float(p["position"][0]), float(p["position"][1]))
+	return Vector2.INF
+
+
+## One lawn-layer chain's data width (0.0 when absent).
+func _lawn_path_width(paths: Array, id: String) -> float:
+	for path: Dictionary in paths:
+		if str(path.get("id", "")) == id:
+			return float(path.get("width_m", 0.0))
+	return 0.0
+
+
+## The bench yaw the zone builder derives for a facing (the same atan2 law).
+func _campus_bench_yaw(dir: Vector2) -> float:
+	return atan2(-dir.x, -dir.y)
+
+
+## The distance from `p` to the nearest point ON a polyline's segments (the
+## gate's own read, independent of the zone builder's).
+func _point_chain_dist(p: Vector2, chain_pts: PackedVector2Array) -> float:
+	var best := INF
+	for i in chain_pts.size() - 1:
+		best = minf(best, _point_seg_dist(p, chain_pts[i], chain_pts[i + 1]))
+	return best
 
 
 ## --- scenarios (T-001 flight model) ----------------------------------------

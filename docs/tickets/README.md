@@ -368,7 +368,7 @@ scan (T-170 was max; no workflows in flight).
 | T-184 | [R2 cutover](T-184-ames-r2-cutover.md) | R2 The Life | T-178..T-183 | done |
 | T-185 | [Lake LaVerne + the swans](T-185-laverne-swans.md) | R3 The Landmarks | T-177 | done |
 | T-186 | [The campanile](T-186-campanile-hero.md) | R3 The Landmarks | T-177 | done |
-| T-187 | [Central Campus](T-187-central-campus.md) | R3 The Landmarks | T-177 | proposed |
+| T-187 | [Central Campus](T-187-central-campus.md) | R3 The Landmarks | T-177 | doing |
 | T-188 | [Campus row west](T-188-campus-row-west.md) | R3 The Landmarks | T-177 | proposed |
 | T-189 | [Memorial Union + Parks Library](T-189-mu-parks-heroes.md) | R3 The Landmarks | T-177 | proposed |
 | T-190 | [Marston Water Tower](T-190-marston-tower-hero.md) | R3 The Landmarks | T-177 | proposed |
