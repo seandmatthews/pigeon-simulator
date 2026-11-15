@@ -110,6 +110,12 @@ const SPAWN_CAMPANILE_OFFSET_X := 40.0
 ## The campanile POI id in the pack (its `position` is the census literal the
 ## spawn derives from; the hero placeholder/cap collider sits on the same way).
 const CAMPANILE_POI_ID := "campanile"
+## (T-186) The campanile hero's bake id — the placeholder slot (the T-175
+## plinth/shaft/head/cap stack in its chunk) this hero supersedes 1:1: same
+## id, same slot, same collision class. Every placeholder family that renders,
+## collides or files ground tops skips exactly this id; the hero build files
+## its own.
+const CAMPANILE_HERO_ID := "way/183041212"
 ## The four pinned parks (census §5 named-park stock's top four) — ground-ring
 ## grids clipped to their own pack polygons.
 const PINNED_PARKS: Array[String] = [
@@ -220,6 +226,13 @@ var _pale_edge_xfs: Array[Transform3D] = []
 var _reed_xfs: Array[Transform3D] = []
 var swan_circuit: PackedVector3Array = PackedVector3Array()
 var swans: Array[Swan] = []
+## (T-186) The campanile hero's part record, retained after the build in the
+## same headless-visibility law as the T-185 queues: every box the hero build
+## emitted — `{band, p, s, color, collide}` in world-local (pack) coordinates,
+## `band` one of the pinned palette bands. The cap frustum and the clock dials
+## are not boxes; they file their band and color with s ZERO so the palette
+## arm sees them while the dims arm ignores them.
+var campanile_hero_parts: Array[Dictionary] = []
 
 @onready var _box_mesh: BoxMesh = _make_box_mesh()
 @onready var _tri_mesh: ArrayMesh = _make_tri_mesh()
@@ -369,6 +382,7 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	_reed_xfs = []
 	swan_circuit = PackedVector3Array()
 	swans = []
+	campanile_hero_parts = [] ## (T-186) The hero part record rebuilds with the world.
 	ped_zones = null
 	parking = null
 	traffic_graph = null ## (T-178) The graph rebuilds with the world.
@@ -441,6 +455,7 @@ func generate_step_finish() -> void:
 		"lake_pale_quads": _pale_edge_xfs.size(),
 		"lake_reeds": _reed_xfs.size(),
 		"swans": swans.size(),
+		"campanile_parts": campanile_hero_parts.size(), ## (T-186) The hero swap is live.
 	}
 	## Deterministic identity: the bake manifest's total hash — a re-bake that
 	## moves a byte moves the fingerprint, exactly the layout-fingerprint
@@ -1582,9 +1597,10 @@ func _build_chunk(entry: Dictionary) -> void:
 		_add_chunk_mm(chunk_root, "Patches", tris, aabb, 0.0, 0.0)
 
 	_build_chunk_occluder(chunk_root, chunk, center)
-	_build_chunk_colliders(chunk_root, chunk, center)
+	var chunk_body := _build_chunk_colliders(chunk_root, chunk, center)
 	_build_ground_record(chunk)
 	_collect_roof_spots(chunk) ## (T-176) the roof-crumb hosts, while the doc is in hand.
+	_build_campanile_hero(chunk_root, chunk, center, chunk_body) ## (T-186) the hero swap rides its own chunk.
 
 
 ## One vertex-color unit-box MultiMesh from the chunk's massing entries
@@ -1627,14 +1643,22 @@ func _is_hero_massing(m: Dictionary) -> bool:
 ## entries — the hero silhouette parts (true-dim gray masses) and the venue
 ## fixup boxes. Per-entry baked colors; never fades (the silhouette read is
 ## the deliverable this ring). Slot collision comes from
-## `_build_chunk_colliders`, which consumes the same entries.
+## `_build_chunk_colliders`, which consumes the same entries. (T-186) the
+## campanile's four placeholder parts are skipped — its hero supersedes the
+## slot 1:1 and a hero must not render twice.
 func _placeholders_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
 	var placeholders: Array = chunk.get("placeholders", [])
-	if placeholders.is_empty():
+	var count := 0
+	for ph: Dictionary in placeholders:
+		if str(ph.get("id", "")) != CAMPANILE_HERO_ID:
+			count += 1
+	if count == 0:
 		return null
-	var mm := _new_multimesh(placeholders.size())
-	for i in placeholders.size():
-		var ph: Dictionary = placeholders[i]
+	var mm := _new_multimesh(count)
+	var i := 0
+	for ph: Dictionary in placeholders:
+		if str(ph.get("id", "")) == CAMPANILE_HERO_ID:
+			continue
 		var p: Array = ph["p"]
 		var s: Array = ph["s"]
 		var c: Array = ph["c"]
@@ -1642,6 +1666,7 @@ func _placeholders_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
 				Basis.from_scale(Vector3(s[0], s[1], s[2])),
 				Vector3(p[0], p[1], p[2]) - center))
 		mm.set_instance_color(i, Color(c[0], c[1], c[2]))
+		i += 1
 	return mm
 
 
@@ -1747,11 +1772,18 @@ func _build_chunk_occluder(chunk_root: Node3D, chunk: Dictionary, center: Vector
 ## box CollisionShape3D per placeholder — every authored building's massing
 ## slot (the bake's `a` flag), every hero silhouette part and every venue
 ## fixup. Solid at flight speeds; the campanile cap's top face is the
-## landable pad (the anchor-cap rule). Procedural filler stays visual-only
+## landable pad (the anchor-cap rule). (T-186) the campanile's placeholder
+## boxes are superseded by its hero's own shapes on this same body — the
+## capture above still reads the bake's cap part to pin the crumb anchor.
+## Procedural filler stays visual-only
 ## massing — the ticket's scope is the ~540 authored positions. (The ~600
 ## shapes are not counted in `render_metrics().buffer_bytes` — the metric
-## covers the GPU-side resident estimate, not physics shapes.)
-func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vector3) -> void:
+## covers the GPU-side resident estimate, not physics shapes.) Returns the
+## body (null when the chunk had no entries) — the T-186 hero appends its own
+## shapes to the SAME body, the 1:1 swap's collision class; the name lookup
+## cannot serve here (the gray `Placeholders` MultiMeshInstance3D already
+## took the name, and Godot auto-renames the second child).
+func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vector3) -> StaticBody3D:
 	var entries: Array = []
 	for m: Dictionary in chunk.get("massing", []):
 		if m.get("a", false) and not _is_hero_massing(m):
@@ -1759,13 +1791,25 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 	for ph: Dictionary in chunk.get("placeholders", []):
 		entries.append(ph)
 	if entries.is_empty():
-		return
+		return null
 	var body := StaticBody3D.new()
 	body.name = "Placeholders"
 	body.collision_layer = 1 ## world
 	body.collision_mask = 0
 	chunk_root.add_child(body)
 	for e: Dictionary in entries:
+		var pid := str(e.get("id", ""))
+		if pid == CAMPANILE_HERO_ID:
+			## (T-186) The hero's own collision supersedes the placeholder
+			## boxes 1:1 (same body, same layer-1 world class) — the build
+			## below files it. The cap capture stays: the crumb pin rides the
+			## bake's cap part, exactly the T-175 anchor convention.
+			if str(e.get("part", "")) == "cap":
+				var cp: Array = e["p"]
+				var cs: Array = e["s"]
+				_campanile_cap = Vector3(float(cp[0]), float(cp[1]) + float(cs[1]) * 0.5,
+						float(cp[2]))
+			continue
 		var p: Array = e["p"]
 		var s: Array = e["s"]
 		var shape := CollisionShape3D.new()
@@ -1774,9 +1818,7 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 		shape.shape = box
 		shape.position = Vector3(float(p[0]), float(p[1]), float(p[2])) - center
 		body.add_child(shape)
-		if str(e.get("id", "")) == "way/183041212" and str(e.get("part", "")) == "cap":
-			_campanile_cap = Vector3(float(p[0]), float(p[1]) + float(s[1]) * 0.5,
-					float(p[2]))
+	return body
 
 
 ## The compact ground record the seam queries: per box (x, z, half_w, half_d,
@@ -1789,7 +1831,8 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 ## duplicates add ~25 KB). (T-175) hero massing boxes are skipped (the
 ## silhouettes file their own true tops instead — the bowl interior must
 ## answer the plate, not its superseded 25 m bbox) and the placeholder
-## entries file alongside.
+## entries file alongside — (T-186) except the campanile's: its hero files
+## those tops itself.
 func _build_ground_record(chunk: Dictionary) -> void:
 	var tiles: Dictionary = {} ## tile Vector2i -> Array of floats, packed below.
 	var bytes := 0
@@ -1798,6 +1841,8 @@ func _build_ground_record(chunk: Dictionary) -> void:
 			continue
 		bytes += _file_ground_box(tiles, m["p"], m["s"])
 	for ph: Dictionary in chunk.get("placeholders", []):
+		if str(ph.get("id", "")) == CAMPANILE_HERO_ID:
+			continue ## (T-186) the hero files its own true tops below.
 		bytes += _file_ground_box(tiles, ph["p"], ph["s"])
 	for key: Vector2i in tiles:
 		var packed := PackedFloat32Array(tiles[key])
@@ -1835,6 +1880,373 @@ func _file_ground_box(tiles: Dictionary, p: Array, s: Array) -> int:
 	return bytes
 
 
+## --- T-186 the campanile hero ----------------------------------------------
+## The #1 emotional object in Ames at hero fidelity, swapping the T-175
+## placeholder slot 1:1: same id (`CAMPANILE_HERO_ID`), same chunk slot, same
+## collision class (layer-1 `world` static shapes on the chunk's own body).
+## The silhouette is MODELING-SPECS §1.1's photo read — buff/tan brick (F-01:
+## NOT red; the dossier's red was corrected by the photos), a slender 4.9 m
+## shaft, the three open-arcade head tiers (the 50-bell carillon read — real
+## through-openings: only the piers, mullions and crowns collide up there), a
+## white clock per face at ~2/3 height and the dark slate cap whose truncated
+## pyramid ends in the LANDABLE deck at exactly 33.5 m (the T-175 anchor-cap
+## rule carries: the crumb stays pinned at the cap top + ANCHOR_CRUMB_LIFT).
+## Like every corner dress: pure pack-derived geometry, zero RNG of any
+## stream — a rebuild reproduces every transform — and the part record is
+## retained for the gate (headless runs cannot read MultiMesh instances back).
+
+## (T-186) The pinned palette — MODELING-SPECS §1.1's photo-corrected hex
+## estimates, one band per hero family. The palette gate re-derives these
+## hexes from the survey doc itself (never from these constants) and holds
+## the live colors against them.
+const CAMPANILE_BRICK := Color(0.788, 0.647, 0.416) ## #C9A56A sunlit buff brick.
+const CAMPANILE_BRICK_SHADE := Color(0.541, 0.427, 0.247) ## #8A6D3F mid/shaded brick (the receding upper stages).
+const CAMPANILE_SLOT := Color(0.431, 0.333, 0.200) ## #6E5533 recessed slots / deep shadow.
+const CAMPANILE_SLATE := Color(0.247, 0.267, 0.302) ## #3F444D the pyramidal cap.
+const CAMPANILE_CLOCK := Color(0.945, 0.933, 0.906) ## #F1EEE7 the clock dials.
+const CAMPANILE_TRIM := Color(0.776, 0.753, 0.698) ## #C6C0B2 limestone trim.
+const CAMPANILE_HAND := Color(0.18, 0.18, 0.18) ## The dial hands — the black-numerals read.
+
+## The band -> color table (the record and the render share this one mapping).
+const CAMPANILE_BANDS: Dictionary = {
+	"brick": CAMPANILE_BRICK,
+	"brick_shade": CAMPANILE_BRICK_SHADE,
+	"slot": CAMPANILE_SLOT,
+	"slate": CAMPANILE_SLATE,
+	"clock": CAMPANILE_CLOCK,
+	"trim": CAMPANILE_TRIM,
+	"hand": CAMPANILE_HAND,
+}
+
+## The tier-stack heights (m) — the T-175 slot spans kept EXACTLY (plinth
+## 0..2.0, shaft ..26.4, head ..30.9, cap ..33.5 — the bake's 33.5-exact
+## anchor stack) with the head band subdivided into the three open-arcade
+## tiers and the cap mass re-read as the truncated pyramid + landable deck
+## the photos show. Each tier's floor is the tier below's crown (or the shaft
+## top), so a perch-through pigeon can stand INSIDE every stage; the deck top
+## is the pad.
+const CAMPANILE_TIER1_TOP := 28.4
+const CAMPANILE_TIER2_TOP := 29.5
+const CAMPANILE_TIER3_TOP := 30.9
+const CAMPANILE_CORONA_TOP := 31.12
+const CAMPANILE_DECK_BOTTOM := 33.3
+const CAMPANILE_DECK_TOP := 33.5 ## The survey's settled total — the pad.
+const CAMPANILE_DIAL_Y := 21.5 ## The clock stage, just under 2/3 of the 33.5 m height.
+
+
+func _campanile_band_color(band: String) -> Color:
+	return CAMPANILE_BANDS.get(band, CAMPANILE_BRICK)
+
+
+## Builds the hero into its chunk: render (box MultiMesh + the cap frustum
+## mesh + the four clock dials), collision (the hero's own shapes on the
+## chunk's placeholder body — the SAME slot and class the T-175 boxes rode,
+## passed in from `_build_chunk_colliders`), ground-record tops (the
+## superseded placeholders file nothing anymore), and the retained part
+## record the gates walk. No-op for every chunk that does not carry the
+## campanile slot.
+func _build_campanile_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3,
+		chunk_body: StaticBody3D) -> void:
+	var c := Vector2.ZERO
+	var found := false
+	for ph: Dictionary in chunk.get("placeholders", []):
+		if str(ph.get("id", "")) != CAMPANILE_HERO_ID or str(ph.get("part", "")) != "shaft":
+			continue
+		c = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+		found = true
+		break
+	if not found:
+		return ## Not this chunk's slot (or the bake lost the shaft — the dims gate fails loudly).
+	var boxes := _campanile_hero_boxes(c)
+	var root := Node3D.new()
+	root.name = "HeroCampanile"
+	chunk_root.add_child(root)
+	## Render: every box through the vertex-color unit box, chunk-local like
+	## every placeholder family member.
+	var mm := _new_multimesh(boxes.size())
+	for i in boxes.size():
+		var b: Dictionary = boxes[i]
+		var p: Vector3 = b["p"]
+		var s: Vector3 = b["s"]
+		mm.set_instance_transform(i, Transform3D(Basis.from_scale(s), p - center))
+		mm.set_instance_color(i, _campanile_band_color(str(b["band"])))
+	mm.custom_aabb = _campanile_hero_aabb(boxes, center)
+	var mm_node := MultiMeshInstance3D.new()
+	mm_node.name = "Boxes"
+	mm_node.multimesh = mm
+	root.add_child(mm_node)
+	## The cap's truncated pyramid: one double-sided vertex-color mesh.
+	var roof := MeshInstance3D.new()
+	roof.name = "CapRoof"
+	roof.mesh = _make_campanile_cap_mesh()
+	var roof_center := Vector3(c.x, (CAMPANILE_CORONA_TOP + CAMPANILE_DECK_BOTTOM) * 0.5, c.y)
+	roof.position = roof_center - center
+	root.add_child(roof)
+	## The four clock dials (round — the white dot every lawn photo carries).
+	var dial_mesh := _make_campanile_dial_mesh()
+	for dir: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD]:
+		var dial := MeshInstance3D.new()
+		dial.name = "Clock%s" % dir
+		dial.mesh = dial_mesh
+		dial.transform = Transform3D(Basis(Quaternion(Vector3.UP, dir)),
+				Vector3(c.x, CAMPANILE_DIAL_Y, c.y) + dir * 2.5 - center)
+		root.add_child(dial)
+	## Collision: the hero's own shapes ride the chunk's placeholder body —
+	## same slot, same layer-1 `world` class (the T-175 boxes were removed
+	## from this body's feed in `_build_chunk_colliders`).
+	var body := chunk_body
+	if body == null:
+		body = StaticBody3D.new()
+		body.name = "Placeholders"
+		body.collision_layer = 1 ## world
+		body.collision_mask = 0
+		chunk_root.add_child(body)
+	for b: Dictionary in boxes:
+		if not b["collide"]:
+			continue
+		var p: Vector3 = b["p"]
+		var s: Vector3 = b["s"]
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = s
+		shape.shape = box
+		shape.position = p - center
+		body.add_child(shape)
+	## The cap mass: one convex solid from the corona up to the deck rim —
+	## the pyramidal roof is solid at flight speeds.
+	var cap_shape := CollisionShape3D.new()
+	var cap_convex := ConvexPolygonShape3D.new()
+	cap_convex.points = PackedVector3Array([
+		Vector3(-2.5, -1.09, -2.45), Vector3(2.5, -1.09, -2.45),
+		Vector3(2.5, -1.09, 2.45), Vector3(-2.5, -1.09, 2.45),
+		Vector3(-1.2, 1.09, -1.2), Vector3(1.2, 1.09, -1.2),
+		Vector3(1.2, 1.09, 1.2), Vector3(-1.2, 1.09, 1.2),
+	])
+	cap_shape.shape = cap_convex
+	cap_shape.position = roof_center - center
+	body.add_child(cap_shape)
+	## Ground record: the hero files its own true tops where the superseded
+	## placeholders used to (the shaft top, the three tier crowns, the corona
+	## and the landable deck answer the walkability query now).
+	var tiles: Dictionary = {}
+	var bytes := 0
+	for b: Dictionary in boxes:
+		if not b["ground"]:
+			continue
+		var p: Vector3 = b["p"]
+		var s: Vector3 = b["s"]
+		bytes += _file_ground_box(tiles, [p.x, p.y, p.z], [s.x, s.y, s.z])
+	for key: Vector2i in tiles:
+		var record: Dictionary = _chunks.get(key, {})
+		var ground: PackedFloat32Array = record.get("ground", PackedFloat32Array())
+		ground.append_array(PackedFloat32Array(tiles[key]))
+		record["ground"] = ground
+		_chunks[key] = record
+	_buffer_bytes += bytes
+	## Retain the part record (world-local bands, positions, sizes, colors)
+	## for the gates — headless runs cannot read the instances back.
+	for b: Dictionary in boxes:
+		campanile_hero_parts.append({
+			"band": str(b["band"]),
+			"p": b["p"],
+			"s": b["s"],
+			"color": _campanile_band_color(str(b["band"])),
+		})
+
+
+## The hero's box schedule in WORLD-LOCAL coordinates (pack-local — the world
+## node IS the pack frame), one entry per box: `{band, p, s, collide, ground}`.
+## `collide` boxes join the chunk's layer-1 body; `ground` boxes file their
+## top into the walkability record. Every height rides the pinned tier-stack
+## constants; every span rides the survey (plinth 6.8 × 6.7, shaft 4.9 — the
+## OSM 6.8 × 6.7 bbox is the plinth, the shaft stays ~5 m).
+func _campanile_hero_boxes(c: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	## The four faces as [outward, horizontal] pairs (+z is south here).
+	var faces := [
+		[Vector3.RIGHT, Vector3.BACK], ## East.
+		[Vector3.LEFT, Vector3.BACK], ## West.
+		[Vector3.BACK, Vector3.RIGHT], ## South.
+		[Vector3.FORWARD, Vector3.RIGHT], ## North.
+	]
+	## --- plinth: the battered base, limestone-trimmed entrance arch ---------
+	_add_campanile_box(out, "brick", Vector3(c.x, 1.0, c.y), Vector3(6.8, 2.0, 6.7), true, true)
+	_add_campanile_box(out, "trim", Vector3(c.x, 0.125, c.y), Vector3(6.9, 0.25, 6.8), false, false)
+	## The entrance arch on the WEST face (−X, the lawn side): dark opening,
+	## limestone lintel + flanking buttresses.
+	_add_campanile_box(out, "slot", Vector3(c.x - 3.34, 0.95, c.y), Vector3(0.12, 1.9, 1.5), false, false)
+	_add_campanile_box(out, "trim", Vector3(c.x - 3.33, 1.98, c.y), Vector3(0.14, 0.25, 1.9), false, false)
+	_add_campanile_box(out, "trim", Vector3(c.x - 3.25, 1.0, c.y - 1.15), Vector3(0.3, 2.0, 0.45), false, false)
+	_add_campanile_box(out, "trim", Vector3(c.x - 3.25, 1.0, c.y + 1.15), Vector3(0.3, 2.0, 0.45), false, false)
+	## --- shaft: the slender buff needle, slim lancet slots stacked down it --
+	_add_campanile_box(out, "brick", Vector3(c.x, 14.2, c.y), Vector3(4.9, 24.4, 4.9), true, true)
+	for f: Array in faces:
+		var n: Vector3 = f[0]
+		var h: Vector3 = f[1]
+		var thin := Vector3(0.06, 1.9, 0.35) if absf(n.x) > 0.5 else Vector3(0.35, 1.9, 0.06)
+		for off: float in [-0.55, 0.55]: ## The upper lancet pair (under the belfry).
+			_add_campanile_box(out, "slot",
+					Vector3(c.x, 23.35, c.y) + n * 2.47 + h * off, thin, false, false)
+		_add_campanile_box(out, "slot", ## The mid-shaft single.
+				Vector3(c.x, 16.95, c.y) + n * 2.47, thin, false, false)
+	## The clock stringcourse under the belfry.
+	_add_campanile_box(out, "trim", Vector3(c.x, 26.2, c.y), Vector3(5.3, 0.3, 5.2), false, false)
+	## --- head: the three open-arcade tiers (the 50-bell carillon read) -----
+	## Tier 1 (26.4..28.4): two tall lancet openings per face — corner piers
+	## + a center mullion per face, dark core depth, walkable crown.
+	var t1_open_mid := (26.4 + CAMPANILE_TIER1_TOP - 0.35) * 0.5 ## 27.225
+	for k: int in 4:
+		var sx := -1.0 if k % 2 == 0 else 1.0
+		var sz := -1.0 if k < 2 else 1.0
+		_add_campanile_box(out, "brick",
+				Vector3(c.x + sx * 2.075, 27.4, c.y + sz * 2.075),
+				Vector3(0.75, 2.0, 0.75), true, false)
+	var t1_mull_thin := Vector3(0.45, 1.65, 0.4)
+	var t1_mull_flat := Vector3(0.4, 1.65, 0.45)
+	for f: Array in faces:
+		var n1: Vector3 = f[0]
+		_add_campanile_box(out, "brick", Vector3(c.x, t1_open_mid, c.y) + n1 * 2.225,
+				t1_mull_thin if absf(n1.x) > 0.5 else t1_mull_flat, true, false)
+	_add_campanile_box(out, "brick", Vector3(c.x, CAMPANILE_TIER1_TOP - 0.175, c.y),
+			Vector3(5.0, 0.35, 4.9), true, true)
+	_add_campanile_box(out, "slot", Vector3(c.x, t1_open_mid, c.y),
+			Vector3(3.1, 1.65, 3.05), false, false)
+	## Tier 2 (28.4..29.5): the receding middle stage, two smaller openings
+	## per face — its masonry wears the shaded band (the photos' receding read).
+	var t2_open_mid := (CAMPANILE_TIER1_TOP + CAMPANILE_TIER2_TOP - 0.3) * 0.5 ## 28.85
+	for k: int in 4:
+		var sx2 := -1.0 if k % 2 == 0 else 1.0
+		var sz2 := -1.0 if k < 2 else 1.0
+		_add_campanile_box(out, "brick_shade",
+				Vector3(c.x + sx2 * 2.05, 28.95, c.y + sz2 * 2.05),
+				Vector3(0.6, 1.1, 0.6), true, false)
+	var t2_mull_thin := Vector3(0.4, 0.8, 0.35)
+	var t2_mull_flat := Vector3(0.35, 0.8, 0.4)
+	for f: Array in faces:
+		var n2: Vector3 = f[0]
+		_add_campanile_box(out, "brick_shade", Vector3(c.x, t2_open_mid, c.y) + n2 * 2.125,
+				t2_mull_thin if absf(n2.x) > 0.5 else t2_mull_flat, true, false)
+	_add_campanile_box(out, "brick_shade", Vector3(c.x, CAMPANILE_TIER2_TOP - 0.15, c.y),
+			Vector3(4.7, 0.3, 4.65), true, true)
+	_add_campanile_box(out, "slot", Vector3(c.x, t2_open_mid, c.y),
+			Vector3(2.7, 0.8, 2.65), false, false)
+	## Tier 3 (29.5..30.9): the crown colonnade — one wide opening per face.
+	var t3_open_mid := (CAMPANILE_TIER2_TOP + CAMPANILE_TIER3_TOP - 0.35) * 0.5 ## 30.025
+	for k: int in 4:
+		var sx3 := -1.0 if k % 2 == 0 else 1.0
+		var sz3 := -1.0 if k < 2 else 1.0
+		_add_campanile_box(out, "brick_shade",
+				Vector3(c.x + sx3 * 1.975, 30.2, c.y + sz3 * 1.975),
+				Vector3(0.55, 1.4, 0.55), true, false)
+	_add_campanile_box(out, "brick_shade", Vector3(c.x, CAMPANILE_TIER3_TOP - 0.175, c.y),
+			Vector3(4.8, 0.35, 4.4), true, true)
+	_add_campanile_box(out, "slot", Vector3(c.x, t3_open_mid, c.y),
+			Vector3(2.3, 1.05, 2.25), false, false)
+	## --- cap: the corona table, the crocketed corner pinnacles, the
+	## truncated-pyramid roof, the LANDABLE deck ------------------------------
+	_add_campanile_box(out, "slate",
+			Vector3(c.x, (CAMPANILE_TIER3_TOP + CAMPANILE_CORONA_TOP) * 0.5, c.y),
+			Vector3(5.2, 0.22, 5.1), true, true)
+	for k: int in 4:
+		var px := -2.15 if k % 2 == 0 else 2.15
+		var pz := -2.15 if k < 2 else 2.15
+		_add_campanile_box(out, "brick",
+				Vector3(c.x + px, (CAMPANILE_CORONA_TOP + 32.9) * 0.5, c.y + pz),
+				Vector3(0.45, 32.9 - CAMPANILE_CORONA_TOP, 0.45), false, false)
+		_add_campanile_box(out, "slate",
+				Vector3(c.x + px, (32.9 + 33.25) * 0.5, c.y + pz),
+				Vector3(0.22, 0.35, 0.22), false, false)
+	_add_campanile_box(out, "slate",
+			Vector3(c.x, (CAMPANILE_DECK_BOTTOM + CAMPANILE_DECK_TOP) * 0.5, c.y),
+			Vector3(2.5, CAMPANILE_DECK_TOP - CAMPANILE_DECK_BOTTOM, 2.45), true, true)
+	## The clock hands (render-only, riding the dial faces).
+	for f: Array in faces:
+		var n3: Vector3 = f[0]
+		var h3: Vector3 = f[1]
+		var hand := Vector3(0.06, 0.08, 0.85) if absf(n3.x) > 0.5 else Vector3(0.85, 0.08, 0.06)
+		_add_campanile_box(out, "hand",
+				Vector3(c.x, CAMPANILE_DIAL_Y, c.y) + n3 * 2.58 + h3 * 0.28, hand, false, false)
+	return out
+
+
+## One box into the schedule (typed push keeps the Array[Dictionary] contract).
+func _add_campanile_box(out: Array[Dictionary], band: String, p: Vector3, s: Vector3,
+		collide: bool, ground: bool) -> void:
+	out.append({"band": band, "p": p, "s": s, "collide": collide, "ground": ground})
+
+
+## The schedule's render AABB (chunk-local), padded for the roof frustum.
+func _campanile_hero_aabb(boxes: Array[Dictionary], center: Vector3) -> AABB:
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for b: Dictionary in boxes:
+		var p: Vector3 = b["p"]
+		var s: Vector3 = b["s"]
+		lo = lo.min(p - s * 0.5)
+		hi = hi.max(p + s * 0.5)
+	return AABB(lo - center - Vector3.ONE * 2.0, (hi - lo) + Vector3.ONE * 4.0)
+
+
+## The cap's truncated pyramid as one double-sided vertex-color ArrayMesh
+## (slate), matching the cap collider's convex: base ±2.5/±2.45, deck rim
+## ±1.2, shape-local around the frustum center (the mesh instance rides
+## `roof_center - center` — heights span ±1.09 around it).
+func _make_campanile_cap_mesh() -> ArrayMesh:
+	var y_lo := -1.09 ## The corona-top plane, shape-local.
+	var y_hi := 1.09 ## The deck-rim plane, shape-local.
+	var b := [ ## The four base corners, clockwise seen from above.
+		Vector3(-2.5, y_lo, -2.45), Vector3(2.5, y_lo, -2.45),
+		Vector3(2.5, y_lo, 2.45), Vector3(-2.5, y_lo, 2.45),
+	]
+	var t := [ ## The four deck-rim corners, matching order.
+		Vector3(-1.2, y_hi, -1.2), Vector3(1.2, y_hi, -1.2),
+		Vector3(1.2, y_hi, 1.2), Vector3(-1.2, y_hi, 1.2),
+	]
+	var quads := [ ## Each: [a, b, c, d, normal], wound counter-clockwise outside.
+		[b[1], b[0], t[0], t[1], Vector3(0.0, 0.0, -1.0)], ## North.
+		[b[2], b[1], t[1], t[2], Vector3(1.0, 0.0, 0.0)], ## East.
+		[b[3], b[2], t[2], t[3], Vector3(0.0, 0.0, 1.0)], ## South.
+		[b[0], b[3], t[3], t[0], Vector3(-1.0, 0.0, 0.0)], ## West.
+		[t[0], t[3], t[2], t[1], Vector3.UP], ## The deck rim face.
+	]
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var colors := PackedColorArray()
+	var idx := PackedInt32Array()
+	for q: Array in quads:
+		var n: Vector3 = q[4]
+		for corner: int in [0, 1, 2, 0, 2, 3]:
+			idx.append(verts.size())
+			verts.append(q[corner])
+			normals.append(n)
+			colors.append(CAMPANILE_SLATE)
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_INDEX] = idx
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mat := _make_vertex_color_material()
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.surface_set_material(0, mat)
+	return mesh
+
+
+## One white clock dial (the round white dot per face) — a short cylinder
+## with its own material (the vertex-color box path cannot round a box).
+func _make_campanile_dial_mesh() -> CylinderMesh:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.85
+	mesh.bottom_radius = 0.85
+	mesh.height = 0.16
+	mesh.radial_segments = 20
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = CAMPANILE_CLOCK
+	mat.roughness = 0.9
+	mesh.material = mat
+	return mesh
 ## --- chunk node plumbing ---------------------------------------------------
 
 
