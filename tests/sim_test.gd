@@ -193,6 +193,7 @@ func _run_scenarios() -> void:
 	await _scenario_campanile_palette() ## T-186 — the photo-corrected buff/tan palette: every band at its pinned hex, the F-01 not-red law, the live cap/dial reads.
 	await _scenario_central_campus_layout() ## T-187 — the lawn slab + the crossing axes + the fountain at its data position + the campus sit benches, all re-derived from the committed lawn layer.
 	await _scenario_campus_row_heroes() ## T-188 — the campus row west heroes: the 1:1 slot swaps (Beardshear's dome, Morrill's turret, Farm House, the Marston hint), the AABB/palette pins, the live seams.
+	await _scenario_mu_parks_heroes() ## T-189 — the MU + Parks heroes: the 1:1 slot swaps at the CORRECT corner (the tower at Lincoln Way & Morrill/Lynn), the zodiac decal at the Gold Star Hall threshold, the tower-estimate pin, the live seams.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -1016,9 +1017,13 @@ func _scenario_ames_world_render_budget() -> void:
 	## already a bake hero — the massing term handles its bbox) plus the
 	## three authored massing slots (Morrill, Farm House, Marston Hall)
 	## joined to the hero set at runtime, all walked from the chunk files.
+	## (T-189) the MU + Parks pair retires its five placeholder parts the
+	## same way (both ids already bake heroes — the massing term handles
+	## their bboxes), walked from the chunk files.
 	var hero_count := (manifest.get("heroes", []) as Array).size()
 	var campanile_slot_parts := 0
 	var row_slot_parts := 0
+	var mu_parks_slot_parts := 0
 	for entry: Dictionary in manifest.get("chunks", []):
 		var doc_b: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
 		for ph_b: Dictionary in doc_b.get("placeholders", []):
@@ -1026,6 +1031,9 @@ func _scenario_ames_world_render_budget() -> void:
 				campanile_slot_parts += 1
 			if str(ph_b.get("id", "")) == "way/33725619":
 				row_slot_parts += 1
+			if str(ph_b.get("id", "")) == "way/183224150" \
+					or str(ph_b.get("id", "")) == "way/33725897":
+				mu_parks_slot_parts += 1
 		for m_b: Dictionary in doc_b.get("massing", []):
 			if bool(m_b.get("a", false)) and ["way/158023244", "way/158023219",
 					"way/183216666"].has(str(m_b.get("id", ""))):
@@ -1037,7 +1045,7 @@ func _scenario_ames_world_render_budget() -> void:
 			+ int(totals.get("tie_quads", 0)) + int(totals.get("ground_quads", 0)) \
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
 			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
-			- row_slot_parts
+			- row_slot_parts - mu_parks_slot_parts
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
 	if int(m.instances) != expected_instances:
@@ -6787,6 +6795,545 @@ func _scenario_campus_row_heroes() -> void:
 	_check(S, bad.is_empty(), "parts=%d bands=%d be_top=%.2f mo_top=%.2f fh_top=%.2f; %s"
 			% [parts.size(), bands_seen.size(), per_hi["beardshear"].y,
 			per_hi["morrill"].y, per_hi["farm_house"].y, "; ".join(bad)])
+	world.queue_free()
+
+
+## --- scenario (T-189 the MU + Parks heroes) ---------------------------------
+
+
+## (T-189) The Memorial Union + Parks Library re-pin their slots onto the
+## HEROES — the T-188 swap law carried to the corner block at Lincoln Way &
+## Morrill Rd/Lynn (F-06's CORRECTED corner — the ledger item) and the
+## library block closing the lawn's east read, every expectation re-derived
+## from the committed bake slots (walked in-scenario from the chunk files) +
+## the survey docs as verbatim scenario literals:
+## THE SWAP — MU (`way/183224150`) keeps the bake block part's slot envelope
+## EXACT (the 109.8 × 20.0 × 109.9 body AT the block center ±0.01) while its
+## block/tower/tower_cap parts render/collide/file NOTHING anymore (chunk
+## (1,−1)'s whole gray placeholder family WAS the MU — the MM legitimately
+## vanishes, the campanile-chunk precedent); Parks (`way/33725897`) swaps its
+## block/addition parts the same 1:1 way (chunk (0,−3)'s whole family was
+## Parks — same vanishing read; its authored bbox massing already rides the
+## bake's `heroes` list). THE CORNER — the hero tower stands at the bake's
+## own tower part, the block's SOUTHWEST corner (5.0 m in from each edge:
+## Lincoln Way south + Morrill Rd/Lynn west — the F-06 correction, one block
+## east of Stanton, pinned as west-half/south-half + the slot inset).
+## THE DIMS — MU tops at the TOWER CROWN 36.0: THE TICKET'S ESTIMATE (survey
+## VERIFICATION: tower height UNKNOWABLE — no authoritative source; the ~148
+## ft figure unsourced, likely Campanile confusion; tooling band ≈35–45 m
+## UNVERIFIED; this build pins 36.0, the photo-19 squat read — the
+## uncertainty note is the ticket's job, the pin is this row's), the dark
+## slate hip ridge 24.0, the arcade apron roof 13.0 + its corner pavilions
+## 14.8, the per-hero AABBs pinned with the dress projections (MU 110.6 ×
+## 123.9 over the hip eave, the proud north dress and the zodiac ring's
+## south reach; Parks 97.9 × 123.1 over the portal piers + glass proud);
+## Parks tops at the 1925 core's 24.0, the
+## 1961/1983 additions band at 20.0.
+## THE PALETTE — every band at its §1.4 hex ±0.02 (limestone #C8C1AE + shade
+## #A29B8B — F-02's PALE GRAY LIMESTONE, NOT dark brick; the slate row
+## #3F444C shared with Morrill; the additions' curtain-wall glass #3E4A50 +
+## the white spandrel panels #EDEDEA — the survey's pinned white), the
+## window band darkness-lawed (luminance ≤ 0.25), and the ZODIAC BRONZE
+## held by its law (TRADITIONS §9.5 pins the WORD, no hex: r > g > b
+## ordering, luminance ≤ 0.45, dark against the limestone by ≥ 0.25).
+## THE MESHES, LIVE — the MU hip a single-surface slate ArrayMesh (a full
+## hip), the zodiac's two flat bronze cylinders (ring + proud disc) at the
+## Gold Star Hall threshold read — one bay east of the tower bay, just
+## outside the south wall line (a survey-anchored approximation: the
+## tradition pins the HALL, no source surveys the door).
+## THE SEAMS, LIVE — layer-1 rays answer the MU tower's west (Morrill Rd)
+## face, the body's south (Lincoln Way) face, the apron front, the tower
+## crown at 36.0 and the hip ridge at 24.0; the Parks core's east (lawn)
+## face + the portal pier and lintel faces (the portal is a FRAME read
+## against the mass — no interior is modeled); `ground_height` answers the
+## body 20.0 / ridge 24.0 / apron 13.0 / corner pavilions 14.8 / tower 36.0,
+## the Parks core 24.0 + the three addition masses 20.0 — and the PLATE
+## (0.0) through the zodiac decal (students walk AROUND it: the walkability
+## query never answers the bronze); the two roof crumbs ride the pinned tops
+## (MU at the tower crown, Parks at the core top).
+func _scenario_mu_parks_heroes() -> void:
+	const S := "mu_parks_heroes"
+	var bad: PackedStringArray = PackedStringArray()
+	const MU_ID := "way/183224150"
+	const PK_ID := "way/33725897"
+	## --- the bake slots, walked independently --------------------------------
+	var mu_center := Vector2.ZERO
+	var mu_tower := Vector2.ZERO
+	var pk_center := Vector2.ZERO
+	var pk_box := Vector2.ZERO
+	var mu_chunk := Vector2i(99, 99)
+	var pk_chunk := Vector2i(99, 99)
+	## The two hero chunks' file walks: totals AND retired counts — in BOTH
+	## chunks every hero-id placeholder IS one of the two superseded slots
+	## (the campanile-chunk precedent: the whole gray family retires), and
+	## the massing wearing ANY hero id (the manifest set — both ids already
+	## ride it) retires from the massing families (the render family counts
+	## EVERY massing entry — authored AND filler — so the walk does too).
+	var hero_ids := {}
+	for hid: Variant in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("heroes", []):
+		hero_ids[str(hid)] = true
+	var chunk_walks := {}
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		var tile := Vector2i(int(entry["cx"]), int(entry["cz"]))
+		if tile != Vector2i(1, -1) and tile != Vector2i(0, -3):
+			continue
+		var walk: Dictionary = chunk_walks.get(tile, {
+			"ph_file": 0, "ph_retired": 0, "ma_file": 0, "ma_retired": 0 })
+		for ph: Dictionary in doc.get("placeholders", []):
+			walk["ph_file"] += 1
+			if hero_ids.has(str(ph.get("id", ""))):
+				walk["ph_retired"] += 1
+			if str(ph.get("id", "")) == MU_ID:
+				mu_chunk = tile
+				if str(ph.get("part", "")) == "block":
+					mu_center = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+				elif str(ph.get("part", "")) == "tower":
+					mu_tower = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+			elif str(ph.get("id", "")) == PK_ID:
+				pk_chunk = tile
+				if str(ph.get("part", "")) == "block":
+					pk_center = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+					pk_box = Vector2(float(ph["s"][0]), float(ph["s"][2]))
+		for m: Dictionary in doc.get("massing", []):
+			walk["ma_file"] += 1
+			if hero_ids.has(str(m.get("id", ""))):
+				walk["ma_retired"] += 1
+		chunk_walks[tile] = walk
+	var ph_mu: int = chunk_walks[Vector2i(1, -1)]["ph_file"]
+	var ph_mu_r: int = chunk_walks[Vector2i(1, -1)]["ph_retired"]
+	var ma_mu: int = chunk_walks[Vector2i(1, -1)]["ma_file"]
+	var ma_mu_r: int = chunk_walks[Vector2i(1, -1)]["ma_retired"]
+	var ph_pk: int = chunk_walks[Vector2i(0, -3)]["ph_file"]
+	var ph_pk_r: int = chunk_walks[Vector2i(0, -3)]["ph_retired"]
+	var ma_pk: int = chunk_walks[Vector2i(0, -3)]["ma_file"]
+	var ma_pk_r: int = chunk_walks[Vector2i(0, -3)]["ma_retired"]
+	if mu_center == Vector2.ZERO or mu_tower == Vector2.ZERO \
+			or pk_center == Vector2.ZERO:
+		_check(S, false, "bake slot walk failed: mu=%s tower=%s pk=%s" % [
+				mu_center, mu_tower, pk_center])
+		return
+	## THE CORNER (the ledger item): the bake's tower part at the block's
+	## southwest corner — west half (the Morrill Rd/Lynn corridor side,
+	## F-06's correction: one block EAST of Stanton), south half (Lincoln
+	## Way), exactly 5.0 m in from each face.
+	var wx := mu_center.x - 54.9
+	var sz := mu_center.y + 54.95
+	if mu_tower.x >= mu_center.x or mu_tower.y <= mu_center.y:
+		bad.append("MU tower %s not in the block's SW quadrant (F-06 corner)" % mu_tower)
+	if absf(mu_tower.x - (wx + 5.0)) > 0.01 or absf(mu_tower.y - (sz - 5.0)) > 0.01:
+		bad.append("MU tower %s off the bake's 5.0-inset corner slot" % mu_tower)
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var parts := world.mu_parks_hero_parts
+	if parts.is_empty():
+		_check(S, false, "no retained MU/Parks hero parts — the heroes never built")
+		world.queue_free()
+		return
+
+	## --- A. the swap: slot-exact bodies + the gray families' vanishing -------
+	var mu_body: Dictionary = {}
+	var mu_shaft: Dictionary = {}
+	var mu_crown: Dictionary = {}
+	var pk_core: Dictionary = {}
+	var pk_wing: Dictionary = {}
+	var pk_band: Dictionary = {}
+	var pk_leg: Dictionary = {}
+	for part: Dictionary in parts:
+		var s: Vector3 = part["s"]
+		var p: Vector3 = part["p"]
+		var hero: String = part["hero"]
+		if hero == "memorial_union" and s.is_equal_approx(Vector3(109.8, 20.0, 109.9)):
+			mu_body = part
+		elif hero == "memorial_union" and s.is_equal_approx(Vector3(10.0, 34.2, 10.0)):
+			mu_shaft = part
+		elif hero == "memorial_union" and s.is_equal_approx(Vector3(9.0, 1.2, 9.0)):
+			mu_crown = part
+		elif hero == "parks_library" and s.is_equal_approx(
+				Vector3(39.6, 24.0, 53.6)):
+			pk_core = part
+		elif hero == "parks_library" and absf(s.y - 20.0) < 0.01 \
+				and absf(s.x - 95.5) < 0.01:
+			pk_wing = part
+		elif hero == "parks_library" and absf(s.y - 20.0) < 0.01 \
+				and absf(s.x - (pk_box.x - 39.6)) < 0.01:
+			pk_band = part
+		elif hero == "parks_library" and s.is_equal_approx(
+				Vector3(39.6, 20.0, 34.65)):
+			pk_leg = part
+	if mu_body.is_empty():
+		bad.append("MU's slot-exact body 109.8x20x109.9 missing from the record")
+	else:
+		var bp: Vector3 = mu_body["p"]
+		if Vector2(bp.x, bp.z).distance_to(mu_center) > 0.01:
+			bad.append("MU body %s off the bake slot %s" % [bp, mu_center])
+	if mu_shaft.is_empty() or mu_crown.is_empty():
+		bad.append("MU tower shaft or crown missing from the record")
+	else:
+		var tp: Vector3 = mu_shaft["p"]
+		if Vector2(tp.x, tp.z).distance_to(mu_tower) > 0.01:
+			bad.append("MU tower shaft %s off the bake's corner slot %s" % [tp, mu_tower])
+	if pk_core.is_empty() or pk_wing.is_empty() or pk_band.is_empty() or pk_leg.is_empty():
+		bad.append("Parks core/west-band/south-leg composition missing from the record")
+	else:
+		var cp: Vector3 = pk_core["p"]
+		var want_core_x: float = pk_center.x + pk_box.x * 0.5 - 19.8
+		if absf(cp.x - want_core_x) > 0.01 or absf(cp.z - pk_center.y) > 0.01:
+			bad.append("Parks core %s off the lawn frontage (want x %.2f)" % [
+					cp, want_core_x])
+	## The gray families: both hero chunks' placeholder families WERE the
+	## slots — they legitimately vanish; the massing MMs shrink by exactly
+	## the retired authored bboxes.
+	var hero_chunk := {
+		"memorial_union": mu_chunk, "parks_library": pk_chunk,
+	}
+	var record_counts := {}
+	var box_counts := {}
+	for part2: Dictionary in parts:
+		var hero2: String = part2["hero"]
+		record_counts[hero2] = int(record_counts.get(hero2, 0)) + 1
+		if not bool(part2.get("mesh", false)):
+			box_counts[hero2] = int(box_counts.get(hero2, 0)) + 1
+	for hero: String in ["memorial_union", "parks_library"]:
+		if not record_counts.has(hero):
+			bad.append("hero %s carries no record parts" % hero)
+			continue
+		var tile2: Vector2i = hero_chunk[hero]
+		var chunk_node := world.get_node_or_null(
+				"Chunks/Chunk_%d_%d" % [tile2.x, tile2.y]) as Node3D
+		if chunk_node == null:
+			bad.append("chunk %s missing" % tile2)
+			continue
+		var row_name := "HeroRowMemorialUnion" if hero == "memorial_union" \
+				else "HeroRowParksLibrary"
+		var row_root := chunk_node.get_node_or_null(row_name) as Node3D
+		if row_root == null:
+			bad.append("no %s under %s" % [row_name, tile2])
+		else:
+			var boxes_mm := row_root.get_node_or_null("Boxes") as MultiMeshInstance3D
+			if boxes_mm == null:
+				bad.append("%s carries no Boxes MM" % row_root.name)
+			elif boxes_mm.multimesh.instance_count != int(box_counts.get(hero, 0)):
+				bad.append("%s box MM %d != the record's box count %d" % [hero,
+						boxes_mm.multimesh.instance_count, int(box_counts.get(hero, 0))])
+	var c_mu := world.get_node_or_null("Chunks/Chunk_1_-1") as Node3D
+	var c_pk := world.get_node_or_null("Chunks/Chunk_0_-3") as Node3D
+	if c_mu == null or c_pk == null:
+		_check(S, false, "chunk nodes missing: mu=%s pk=%s" % [
+				c_mu != null, c_pk != null])
+		world.queue_free()
+		return
+	for pair: Array in [[c_mu, Vector2i(1, -1), ph_mu, ph_mu_r, ma_mu, ma_mu_r],
+			[c_pk, Vector2i(0, -3), ph_pk, ph_pk_r, ma_pk, ma_pk_r]]:
+		var node: Node3D = pair[0]
+		var tile3: Vector2i = pair[1]
+		var ph_file: int = pair[2]
+		var ph_retired: int = pair[3]
+		var ma_file: int = pair[4]
+		var ma_retired: int = pair[5]
+		var found_ph := false
+		var found_ma := false
+		var ma_count := -1
+		for child: Node in node.get_children():
+			if child is MultiMeshInstance3D:
+				if (child as MultiMeshInstance3D).name == "Placeholders":
+					found_ph = true
+				elif (child as MultiMeshInstance3D).name == "Massing":
+					found_ma = true
+					ma_count = (child as MultiMeshInstance3D).multimesh.instance_count
+		## The whole gray placeholder family WAS the slot in both chunks —
+		## it legitimately vanishes (the campanile-chunk precedent).
+		if ph_file - ph_retired > 0:
+			if not found_ph:
+				bad.append("chunk %s lost its placeholder family (%d - %d remain)"
+						% [tile3, ph_file, ph_retired])
+		elif found_ph:
+			bad.append("chunk %s kept a placeholder MM after the full swap" % tile3)
+		if not found_ma or ma_count != ma_file - ma_retired:
+			bad.append("chunk %s massing MM %d != file %d - %d retired" % [
+					tile3, ma_count, ma_file, ma_retired])
+
+	## --- B. the dims (the tower estimate is the ticket's, the pin is here) ---
+	var per_lo := {}
+	var per_hi := {}
+	for part3: Dictionary in parts:
+		var p3: Vector3 = part3["p"]
+		var s3: Vector3 = part3["s"]
+		var hero3: String = part3["hero"]
+		var plo: Vector3 = per_lo.get(hero3, Vector3(INF, INF, INF))
+		var phi: Vector3 = per_hi.get(hero3, Vector3(-INF, -INF, -INF))
+		per_lo[hero3] = plo.min(p3 - s3 * 0.5)
+		per_hi[hero3] = phi.max(p3 + s3 * 0.5)
+	for hero4: String in ["memorial_union", "parks_library"]:
+		if not per_hi.has(hero4):
+			_check(S, false, "hero %s absent from the record — the arms cannot run" % hero4)
+			world.queue_free()
+			return
+	## MU: the tower crown closes at the ESTIMATE 36.0 (survey tooling band
+	## ≈35–45 m UNVERIFIED — recorded with its uncertainty in the ticket;
+	## the superseded bake read was 29.0), the hip ridge 24.0, the apron
+	## 13.0 + corner pavilions 14.8; the AABB with the hip's 0.4 eave
+	## overhang (the widest read), the proud north entry dress (arcade front
+	## + entry pavilion at nz − 8.72) and the zodiac ring's south reach: span
+	## 110.6 × 123.9.
+	var mu_top: float = (per_hi["memorial_union"] as Vector3).y
+	if absf(mu_top - 36.0) > 0.05:
+		bad.append("MU top %.3f != the ticket's tower-crown estimate 36.0" % mu_top)
+	if mu_top < 35.0 or mu_top > 45.0:
+		bad.append("MU tower estimate %.2f outside the survey's ≈35–45 m UNVERIFIED band" % mu_top)
+	if not mu_crown.is_empty() and absf(((mu_crown["p"] as Vector3).y \
+			+ (mu_crown["s"] as Vector3).y * 0.5) - 36.0) > 0.05:
+		bad.append("MU crown box %s does not close at 36.0" % mu_crown["p"])
+	var mu_span := (per_hi["memorial_union"] as Vector3) \
+			- (per_lo["memorial_union"] as Vector3)
+	if absf(mu_span.x - 110.6) > 0.5 or absf(mu_span.z - 123.9) > 0.5:
+		bad.append("MU AABB %.1fx%.1f != the pinned 110.6x123.9 (±0.5)" % [
+				mu_span.x, mu_span.z])
+	## Parks: the 1925 core tops the composition at 24.0, the additions band
+	## at 20.0; the AABB over the portal piers (+2.4 west proud) + the glass
+	## proud (±0.11 on z): 97.9 × 123.1.
+	var pk_top: float = (per_hi["parks_library"] as Vector3).y
+	if absf(pk_top - 24.0) > 0.05:
+		bad.append("Parks top %.3f != the 1925 core's 24.0" % pk_top)
+	var pk_span := (per_hi["parks_library"] as Vector3) \
+			- (per_lo["parks_library"] as Vector3)
+	if absf(pk_span.x - 97.9) > 0.5 or absf(pk_span.z - 123.1) > 0.5:
+		bad.append("Parks AABB %.1fx%.1f != the pinned 97.9x123.1 (±0.5)" % [
+				pk_span.x, pk_span.z])
+	if not pk_wing.is_empty() and absf((pk_wing["s"] as Vector3).y - 20.0) > 0.05:
+		bad.append("Parks 1961 wing height %.2f != the additions' 20.0 band" % [
+				(pk_wing["s"] as Vector3).y])
+
+	## --- C. the palette (§1.4's rows, verbatim scenario literals) ------------
+	var hexes: Dictionary = {
+		"limestone": Color("c8c1ae"),
+		"limestone_shade": Color("a29b8b"),
+		"mu_slate": Color("3f444c"),
+		"addition_glass": Color("3e4a50"),
+		"addition_panel": Color("eded ea".replace(" ", "")),
+	}
+	var bands_seen := {}
+	for part4: Dictionary in parts:
+		var band := str(part4["band"])
+		bands_seen[band] = true
+		var got: Color = part4["color"]
+		if band == "window":
+			var wl: float = got.r * 0.299 + got.g * 0.587 + got.b * 0.114
+			if wl > 0.25:
+				bad.append("window band %s luminance %.3f > 0.25 — openings must read dark"
+						% [got, wl])
+			continue
+		if band == "zodiac_bronze":
+			## The bronze LAW (no survey hex — TRADITIONS §9.5's word):
+			## warm ordering, dark, and clearly dark against the limestone.
+			var zl: float = got.r * 0.299 + got.g * 0.587 + got.b * 0.114
+			if not (got.r > got.g and got.g > got.b):
+				bad.append("zodiac_bronze %s is not bronze-ordered (want r>g>b)" % got)
+			if zl > 0.45:
+				bad.append("zodiac_bronze luminance %.3f > 0.45 — must read dark" % zl)
+			var ls := Color("c8c1ae")
+			var lsl: float = ls.r * 0.299 + ls.g * 0.587 + ls.b * 0.114
+			if lsl - zl < 0.25:
+				bad.append("zodiac_bronze %.3f not ≥0.25 dark against the limestone %.3f"
+						% [zl, lsl])
+			continue
+		if not hexes.has(band):
+			bad.append("band %s wears no pinned §1.4 hex" % band)
+			continue
+		var want: Color = hexes[band]
+		if absf(got.r - want.r) > 0.02 or absf(got.g - want.g) > 0.02 \
+				or absf(got.b - want.b) > 0.02:
+			bad.append("band %s color %s != the pinned hex %s" % [band, got, want])
+	for band2: String in hexes:
+		if not bands_seen.has(band2):
+			bad.append("band %s never used — the family is missing" % band2)
+	for band3: String in ["window", "zodiac_bronze"]:
+		if not bands_seen.has(band3):
+			bad.append("band %s never used — the family is missing" % band3)
+
+	## --- D. the meshes, live ---------------------------------------------------
+	var mu_node := (c_mu as Node3D).get_node_or_null("HeroRowMemorialUnion") as Node3D
+	var pk_node := (c_pk as Node3D).get_node_or_null("HeroRowParksLibrary") as Node3D
+	if mu_node == null or pk_node == null:
+		bad.append("a hero node is missing (mu=%s pk=%s)" % [
+				mu_node != null, pk_node != null])
+	else:
+		var hip := mu_node.get_node_or_null("SlateHip") as MeshInstance3D
+		if hip == null or hip.mesh == null:
+			bad.append("no SlateHip mesh — the dark slate hip is missing")
+		else:
+			var hip_mesh := hip.mesh as ArrayMesh
+			if hip_mesh.get_surface_count() != 1:
+				bad.append("SlateHip surfaces %d != 1 (a full hip has no gable ends)"
+						% hip_mesh.get_surface_count())
+			else:
+				var want_slate := Color("3f444c")
+				var hm := hip_mesh.surface_get_material(0) as StandardMaterial3D
+				if hm == null or _color_gap(hm.albedo_color, want_slate) > 0.02:
+					bad.append("SlateHip albedo %s != the §1.4 slate #3F444C" % [
+							hm.albedo_color if hm != null else "<null>"])
+		## The zodiac: two flat bronze cylinders at the threshold read — the
+		## position read off the RECORD (world-local), the albedos off the
+		## LIVE nodes.
+		var z_disc := mu_node.get_node_or_null("ZodiacDisc") as MeshInstance3D
+		var z_ring := mu_node.get_node_or_null("ZodiacRing") as MeshInstance3D
+		if z_disc == null or z_ring == null:
+			bad.append("the zodiac decal is missing (disc=%s ring=%s)" % [
+					z_disc != null, z_ring != null])
+		else:
+			var want_bronze := Color(0.43, 0.35, 0.2)
+			for z_node: MeshInstance3D in [z_ring, z_disc]:
+				var zm := (z_node.mesh as CylinderMesh).material as StandardMaterial3D
+				if zm == null or _color_gap(zm.albedo_color, want_bronze) > 0.02:
+					bad.append("%s albedo %s != the bronze law color" % [
+							z_node.name, zm.albedo_color if zm != null else "<null>"])
+			var want_z := Vector2(mu_tower.x + 8.0,
+					mu_center.y + 54.95 + 2.2) ## The threshold read.
+			for rec: Dictionary in parts:
+				if str(rec["band"]) == "zodiac_bronze" and bool(rec["mesh"]):
+					var rp: Vector3 = rec["p"]
+					var half: float = (rec["s"] as Vector3).x * 0.5
+					if (rec["s"] as Vector3).y > 0.04: ## The proud disc.
+						if Vector2(rp.x, rp.z).distance_to(want_z) > 0.05 \
+								or absf(rp.y - 0.04) > 0.01:
+							bad.append("zodiac disc %s != the Gold Star Hall threshold read %s"
+									% [rp, want_z])
+						if half > 2.7:
+							bad.append("zodiac disc radius %.2f > the 2.6 read" % half)
+					else: ## The ring.
+						if Vector2(rp.x, rp.z).distance_to(want_z) > 0.05:
+							bad.append("zodiac ring %s != the threshold read %s" % [
+									rp, want_z])
+			if absf(z_disc.position.y - 0.04) > 0.01:
+				bad.append("zodiac disc y %.3f != the flat 0.04 decal read" % z_disc.position.y)
+
+	## --- E. the seams, live -----------------------------------------------------
+	var space := get_world_3d().direct_space_state
+	var probe := func(from: Vector3, to: Vector3) -> Dictionary:
+		var ray := PhysicsRayQueryParameters3D.create(world.to_global(from),
+				world.to_global(to))
+		ray.collision_mask = 1
+		return space.intersect_ray(ray)
+	## MU: the tower's west face (the Morrill Rd/Lynn read — the CORRECT
+	## corner), the body's south face (Lincoln Way), the apron front, the
+	## crown top, the hip ridge.
+	var t_face: Dictionary = probe.call(Vector3(wx - 30.0, 10.0, mu_tower.y),
+			Vector3(mu_tower.x, 10.0, mu_tower.y))
+	if t_face.is_empty():
+		bad.append("MU tower west-face ray missed")
+	else:
+		var tfx: float = world.to_local((t_face as Dictionary)["position"]).x
+		if absf(tfx - wx) > 0.3:
+			bad.append("MU tower west face x %.2f != the slot's %.2f (±0.3)" % [tfx, wx])
+	var s_face: Dictionary = probe.call(Vector3(mu_center.x - 30.0, 10.0, sz + 20.0),
+			Vector3(mu_center.x - 30.0, 10.0, mu_center.y))
+	if s_face.is_empty():
+		bad.append("MU south-face ray missed")
+	else:
+		var sfz: float = world.to_local((s_face as Dictionary)["position"]).z
+		if absf(sfz - sz) > 0.3:
+			bad.append("MU south face z %.2f != the Lincoln Way face %.2f (±0.3)" % [
+					sfz, sz])
+	var apron_z: float = mu_center.y - 54.95 - 6.0
+	var a_face: Dictionary = probe.call(Vector3(mu_center.x + 20.0, 6.0, apron_z - 30.0),
+			Vector3(mu_center.x + 20.0, 6.0, mu_center.y))
+	if a_face.is_empty():
+		bad.append("MU apron-front ray missed")
+	else:
+		var afz: float = world.to_local((a_face as Dictionary)["position"]).z
+		if absf(afz - apron_z) > 0.3:
+			bad.append("MU apron front z %.2f != the proud face %.2f (±0.3)" % [
+					afz, apron_z])
+	var crown_ray: Dictionary = probe.call(Vector3(mu_tower.x, 60.0, mu_tower.y),
+			Vector3(mu_tower.x, 20.0, mu_tower.y))
+	if crown_ray.is_empty():
+		bad.append("tower crown ray missed")
+	else:
+		var cy: float = world.to_local((crown_ray as Dictionary)["position"]).y
+		if absf(cy - 36.0) > 0.1:
+			bad.append("tower crown y %.2f != the estimate pin 36.0 (±0.1)" % cy)
+	var ridge_ray: Dictionary = probe.call(Vector3(mu_center.x, 40.0, mu_center.y),
+			Vector3(mu_center.x, 10.0, mu_center.y))
+	if ridge_ray.is_empty():
+		bad.append("MU ridge ray missed")
+	else:
+		var ry: float = world.to_local((ridge_ray as Dictionary)["position"]).y
+		if absf(ry - 24.0) > 0.1:
+			bad.append("MU hip ridge y %.2f != the pinned 24.0 (±0.1)" % ry)
+	## Parks: the core's east (lawn) face + the portal pier and lintel faces.
+	var pk_ex: float = pk_center.x + pk_box.x * 0.5
+	var pk_face: Dictionary = probe.call(Vector3(pk_ex + 30.0, 8.0, pk_center.y + 11.75),
+			Vector3(pk_center.x, 8.0, pk_center.y + 11.75))
+	if pk_face.is_empty():
+		bad.append("Parks east-face ray missed")
+	else:
+		var pfx: float = world.to_local((pk_face as Dictionary)["position"]).x
+		if absf(pfx - pk_ex) > 0.3:
+			bad.append("Parks east face x %.2f != the lawn frontage %.2f (±0.3)" % [
+					pfx, pk_ex])
+	var pk_wx: float = pk_center.x - pk_box.x * 0.5
+	var pk_cz: float = pk_center.y + (61.45 - 26.8) * 0.5 ## The 1983 band's center z.
+	var pier_ray: Dictionary = probe.call(Vector3(pk_wx - 30.0, 5.0, pk_cz - 9.0),
+			Vector3(pk_wx, 5.0, pk_cz - 9.0))
+	if pier_ray.is_empty():
+		bad.append("portal pier ray missed")
+	else:
+		var prx: float = world.to_local((pier_ray as Dictionary)["position"]).x
+		if absf(prx - (pk_wx - 2.4)) > 0.2:
+			bad.append("portal pier face x %.2f != the +2.4 proud %.2f (±0.2)" % [
+					prx, pk_wx - 2.4])
+	var lintel_ray: Dictionary = probe.call(Vector3(pk_wx - 30.0, 16.0, pk_cz),
+			Vector3(pk_wx, 16.0, pk_cz))
+	if lintel_ray.is_empty():
+		bad.append("portal lintel ray missed")
+	else:
+		var lrx: float = world.to_local((lintel_ray as Dictionary)["position"]).x
+		if absf(lrx - (pk_wx - 2.4)) > 0.2:
+			bad.append("portal lintel face x %.2f != the +2.4 proud %.2f (±0.2)" % [
+					lrx, pk_wx - 2.4])
+	## The ground record: the heroes answer their true tops — and the plate
+	## through the zodiac (students walk AROUND it).
+	var queries := [
+		[Vector3(mu_center.x - 40.0, 0.0, mu_center.y), 20.0, "MU body"],
+		[Vector3(mu_center.x, 0.0, mu_center.y), 24.0, "MU hip ridge"],
+		[Vector3(mu_center.x + 20.0, 0.0, mu_center.y - 57.95), 13.0, "MU apron roof"],
+		[Vector3(mu_center.x - 48.0, 0.0, mu_center.y - 57.95), 14.8, "MU corner pavilion"],
+		[Vector3(mu_tower.x, 0.0, mu_tower.y), 36.0, "MU tower crown"],
+		[Vector3(mu_tower.x + 8.0, 0.0, mu_center.y + 54.95 + 2.2), 0.0, "zodiac plate"],
+		[Vector3(pk_center.x + pk_box.x * 0.5 - 19.8, 0.0, pk_center.y), 24.0, "Parks core"],
+		[Vector3(pk_center.x, 0.0, pk_center.y - 47.9), 20.0, "Parks 1961 wing"],
+		[Vector3(pk_center.x - 30.0, 0.0, pk_center.y + 10.0), 20.0, "Parks 1983 band"],
+		[Vector3(pk_center.x + pk_box.x * 0.5 - 19.8, 0.0, pk_center.y + 43.0), 20.0,
+			"Parks 1983 south leg"],
+	]
+	for q: Array in queries:
+		var got_h := world.ground_height(world.to_global(q[0] as Vector3))
+		if absf(got_h - float(q[1])) > 0.05:
+			bad.append("ground record at %s answers %.3f != the %s %.1f" % [
+					q[2], got_h, q[2], float(q[1])])
+	## The roof crumbs: one ROOF spot per hero at its pinned top.
+	var lift: float = AmesWorld.SPOT_LIFT
+	var want_crumbs := {
+		"memorial_union": Vector3(mu_tower.x, 36.0 + lift, mu_tower.y),
+		"parks_library": Vector3(pk_center.x + pk_box.x * 0.5 - 19.8,
+				24.0 + lift, pk_center.y),
+	}
+	for hero5: String in want_crumbs:
+		var want_crumb: Vector3 = want_crumbs[hero5]
+		var crumb_ok := false
+		for i: int in world.bread_spots.size():
+			if world.bread_spots[i].distance_to(want_crumb) < 0.005 \
+					and i < world.bread_spot_kinds.size() \
+					and world.bread_spot_kinds[i] == City.BreadKind.ROOF:
+				crumb_ok = true
+				break
+		if not crumb_ok:
+			bad.append("no %s roof crumb at %s" % [hero5, want_crumb])
+	_check(S, bad.is_empty(), "parts=%d bands=%d mu_top=%.2f pk_top=%.2f; %s"
+			% [parts.size(), bands_seen.size(), per_hi["memorial_union"].y,
+			per_hi["parks_library"].y, "; ".join(bad)])
 	world.queue_free()
 
 
