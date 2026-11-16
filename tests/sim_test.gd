@@ -200,6 +200,7 @@ func _run_scenarios() -> void:
 	await _scenario_civic_tanks_dims() ## T-193 — the civic water tanks: the bulb-on-stem pair's 1:1 slot swaps at the data positions, the photo-02 mushroom shoulder + banding pairs + roof dome, the diamond logo as painted geometry on the town-facing walls (the hue-law palette), the solid-but-not-landable crown, the live seams.
 	await _scenario_rail_dressing_pins() ## T-194 — the rail corridor: the depot's 1:1 slot swap (the corrected track-face canopy), the crossbuck set at the 9 at-grade crossings, the right-of-way fence lines, the coal drag's chained route + loop schedule + livery, and the no-traffic-gating probe (a real car crosses the straddled consist).
 	await _scenario_elevator_cluster_dims() ## T-195 — the SE grain-elevator cluster: the 1:1 slot swap (the styled silo bank + headhouse + bins + leg tower), the 30–40 m band assertion (the honesty pin), the composition + closed palette vs the Iowa refs, the walk-parity ground record, the live seams.
+	await _scenario_r3_cutover_swap_set() ## T-196 — the R3 cutover: the ring's swap set complete (every hero ticket's slot swapped, zero orphan placeholders at hero positions), the supersede identity against the ring table, the honest LOD0 remainder intact.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -10440,6 +10441,269 @@ func _scenario_elevator_cluster_dims() -> void:
 ## arm here counts only the elevator slot so the chunk file walk stays local).
 func _is_superseded_t195(id: String) -> bool:
 	return id == "grain_elevators"
+
+
+## (T-196) The R3 cutover's swap-set proof — the ring's own enforcement
+## moment (the ticket's What item 1): every R3 hero ticket's slot is
+## SWAPPED — the hero built live at its position, the gray stack retired —
+## and ZERO orphan placeholders remain at hero positions, while the
+## authored-but-not-yet-hero massing stays as honest LOD0. The RING SLOT
+## TABLE below is the authority, derived verbatim from the ring's ticket
+## list T-185..T-195 (each hero's slot id(s) + kind + retained record), NOT
+## from the world's own law — the identity arms compare the world's
+## supersede law AGAINST this table, so a future hero ticket that forgets
+## to join the law fails here by name and an over-broad law that silently
+## retires an honest gray box fails the same night:
+## A. THE TABLE WALK — every placeholder-kind slot id has baked parts (the
+##    slot existed to swap — a vacuous swap fails) and every massing-kind
+##    slot id has its authored bbox slot in the bake;
+## B. THE SUPERSEDE IDENTITY — the world's `_row_superseded_placeholder`
+##    answers true for EXACTLY the table's placeholder ids across every
+##    placeholder id the bake carries (the 11 venue fixups stay LOD0), and
+##    the massing skip set (`_hero_ids`) is exactly the bake's own `heroes`
+##    list plus the table's runtime massing ids — every other authored
+##    building still renders, and no skipped id falls outside the authored
+##    set (a stale skip);
+## C. THE LIVE BUILD — every table row's retained record is non-empty (the
+##    hero mounted on the resident world), and the ring's non-slot heroes
+##    are live too: the two swans (T-185), the campus lawn's slab + fountain
+##    (T-187), the tailgate lot dress (T-191), the 9-crossbuck pin set + the
+##    coal drag (T-194);
+	## D. THE POSITION — each hero's record union AABB stands on its slot's
+	##    union AABB (centers within the row's tolerance). Shared records
+	##    filter to the row's own hero via the parts' `hero` key; the
+	##    bandshell carries the 40 m tolerance for its ticketed ~35 m
+	##    true-position re-shape (T-192's documented exception) and the
+	##    stadium its measured asymmetric-reshape band (the press tower,
+	##    videoboard, statue and hillside wedges the hero adds beyond the
+	##    ring's symmetric slot) — no hero wandered off its slot, no gray
+	##    stack left standing where the hero should read;
+	## E. THE BUDGET CROSS-CHECK — the superseded placeholder part count this
+	##    table derives is exactly 94, the skipped massing set exactly 13 ids
+	##    (the bake's own 8 + the ring's 5 runtime massing slots), and their
+	##    render-budget cross-foot — 94 parts + the 5 runtime-massing boxes,
+	##    with the bake's 8 hero bboxes riding `hero_count` — equals the
+	##    hand-counted subtraction 99 in `ames_world_render_budget`; the
+	##    surviving placeholder family is exactly the 11 named venue fixups.
+	##    The per-ticket hand counts re-derived from the ring table in one
+	##    place, so a future hero ticket that retires a slot without
+	##    re-deriving the budget fails here.
+func _scenario_r3_cutover_swap_set() -> void:
+	const S := "r3_cutover_swap_set"
+	const RING := [
+		{"ticket": "T-186", "id": "way/183041212", "kind": "placeholder",
+			"record": "campanile_hero_parts", "hero": "", "tol": 5.0},
+		{"ticket": "T-188", "id": "way/33725619", "kind": "placeholder",
+			"record": "campus_row_hero_parts", "hero": "beardshear", "tol": 5.0},
+		{"ticket": "T-188", "id": "way/158023244", "kind": "massing",
+			"record": "campus_row_hero_parts", "hero": "morrill", "tol": 5.0},
+		{"ticket": "T-188", "id": "way/158023219", "kind": "massing",
+			"record": "campus_row_hero_parts", "hero": "farm_house", "tol": 5.0},
+		{"ticket": "T-188", "id": "way/183216666", "kind": "massing",
+			"record": "campus_row_hero_parts", "hero": "marston_hall", "tol": 5.0},
+		{"ticket": "T-189", "id": "way/183224150", "kind": "placeholder",
+			"record": "mu_parks_hero_parts", "hero": "memorial_union", "tol": 5.0},
+		{"ticket": "T-189", "id": "way/33725897", "kind": "placeholder",
+			"record": "mu_parks_hero_parts", "hero": "parks_library", "tol": 5.0},
+		{"ticket": "T-190", "id": "way/861201396", "kind": "placeholder",
+			"record": "marston_hero_parts", "hero": "", "tol": 5.0},
+		{"ticket": "T-191", "id": "way/613735866", "kind": "placeholder",
+			"record": "stadium_hero_parts", "hero": "", "tol": 12.0},
+		{"ticket": "T-191", "id": "way/180651868", "kind": "placeholder",
+			"record": "hilton_hero_parts", "hero": "", "tol": 5.0},
+		## The bandshell's hero stands at the TRUE OSM structure position,
+		## ~35 m north of the retired slot's POI centroid — T-192's ticketed
+		## exception, hence the wide tolerance on this one row.
+		{"ticket": "T-192", "id": "downtown_bandshell", "kind": "placeholder",
+			"record": "bandshell_hero_parts", "hero": "", "tol": 40.0},
+		{"ticket": "T-192", "id": "relation/2560369", "kind": "massing",
+			"record": "civic_hero_parts", "hero": "cityhall", "tol": 5.0},
+		{"ticket": "T-192", "id": "way/237834146", "kind": "massing",
+			"record": "civic_hero_parts", "hero": "municipal", "tol": 5.0},
+		{"ticket": "T-193", "id": "city_water_tank_north", "kind": "placeholder",
+			"record": "civic_tank_hero_parts", "hero": "civic_tank_north", "tol": 5.0},
+		{"ticket": "T-193", "id": "city_water_tank_east", "kind": "placeholder",
+			"record": "civic_tank_hero_parts", "hero": "civic_tank_east", "tol": 5.0},
+		{"ticket": "T-194", "id": "way/260524827", "kind": "placeholder",
+			"record": "depot_hero_parts", "hero": "", "tol": 5.0},
+		{"ticket": "T-195", "id": "grain_elevators", "kind": "placeholder",
+			"record": "elevator_hero_parts", "hero": "", "tol": 5.0},
+	]
+	## The honest-LOD0 remainder: the venue fixups stay (T-175's partition),
+	## named so a silently-retired gray storefront fails by name.
+	const HONEST_FIXUPS := [
+		"aunt_maudes", "blue_fish_poke", "blue_owl_bar", "cafe_beaudelaire",
+		"mickeys_irish_pub", "mr_burrito", "paddys_irish_pub", "sips",
+		"stomping_grounds", "the_stan_tap", "welch_ave_station",
+	]
+	var bad: PackedStringArray = PackedStringArray()
+	var world := _city as AmesWorld
+	if world == null:
+		_check(S, false, "the harness world is not the Ames world")
+		return
+
+	## --- the bake walk: slot unions, part counts, the id sets ---------------
+	var slot_lo: Dictionary = {}
+	var slot_hi: Dictionary = {}
+	var slot_parts: Dictionary = {}
+	var placeholder_ids: Dictionary = {}
+	var authored_ids: Dictionary = {}
+	var authored_lo: Dictionary = {}
+	var authored_hi: Dictionary = {}
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for ph: Dictionary in doc.get("placeholders", []):
+			var pid := str(ph.get("id", ""))
+			placeholder_ids[pid] = true
+			slot_parts[pid] = int(slot_parts.get(pid, 0)) + 1
+			if str(ph.get("part", "")) == "fixup":
+				continue ## the honest LOD0 family — no slot union.
+			var p: Array = ph["p"]
+			var s: Array = ph["s"]
+			var lo := Vector3(float(p[0]) - float(s[0]) * 0.5,
+					float(p[1]) - float(s[1]) * 0.5, float(p[2]) - float(s[2]) * 0.5)
+			var hi := Vector3(float(p[0]) + float(s[0]) * 0.5,
+					float(p[1]) + float(s[1]) * 0.5, float(p[2]) + float(s[2]) * 0.5)
+			slot_lo[pid] = (slot_lo.get(pid, lo) as Vector3).min(lo)
+			slot_hi[pid] = (slot_hi.get(pid, hi) as Vector3).max(hi)
+		for m: Dictionary in doc.get("massing", []):
+			if not bool(m.get("a", false)):
+				continue
+			var mid := str(m.get("id", ""))
+			authored_ids[mid] = true
+			var mp: Array = m["p"]
+			var ms: Array = m["s"]
+			var mlo := Vector3(float(mp[0]) - float(ms[0]) * 0.5,
+					float(mp[1]) - float(ms[1]) * 0.5, float(mp[2]) - float(ms[2]) * 0.5)
+			var mhi := Vector3(float(mp[0]) + float(ms[0]) * 0.5,
+					float(mp[1]) + float(ms[1]) * 0.5, float(mp[2]) + float(ms[2]) * 0.5)
+			authored_lo[mid] = (authored_lo.get(mid, mlo) as Vector3).min(mlo)
+			authored_hi[mid] = (authored_hi.get(mid, mhi) as Vector3).max(mhi)
+
+	## --- A. the table walk ---------------------------------------------------
+	var ring_ph_ids: Dictionary = {}
+	var ring_massing_ids: Dictionary = {}
+	for row: Dictionary in RING:
+		var rid := str(row["id"])
+		if str(row["kind"]) == "placeholder":
+			ring_ph_ids[rid] = true
+			if not slot_lo.has(rid):
+				bad.append("%s slot %s has no baked placeholder parts — nothing to swap"
+						% [row["ticket"], rid])
+		else:
+			ring_massing_ids[rid] = true
+			if not authored_ids.has(rid):
+				bad.append("%s slot %s has no authored massing bbox — nothing to swap"
+						% [row["ticket"], rid])
+
+	## --- B. the supersede identity -------------------------------------------
+	for pid: String in placeholder_ids:
+		var want: bool = ring_ph_ids.has(pid)
+		if world._row_superseded_placeholder(pid) != want:
+			if want:
+				bad.append("slot %s NOT superseded — an orphan placeholder renders at a hero position" % pid)
+			else:
+				bad.append("%s superseded — an honest LOD0 box was silently retired" % pid)
+	var bake_hero_ids: Dictionary = {}
+	for h: Variant in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("heroes", []):
+		bake_hero_ids[str(h)] = true
+	for aid: String in authored_ids:
+		var want_skip: bool = bake_hero_ids.has(aid) or ring_massing_ids.has(aid)
+		if world._hero_ids.has(aid) != want_skip:
+			if want_skip:
+				bad.append("authored slot %s NOT hero-skipped — the gray bbox renders beside its hero" % aid)
+			else:
+				bad.append("authored slot %s skipped though not a ring slot — honest LOD0 lost" % aid)
+	for hid: Variant in world._hero_ids.keys():
+		if not authored_ids.has(str(hid)):
+			bad.append("hero id %s is not an authored slot — a stale massing skip" % str(hid))
+
+	## --- C. the live build ------------------------------------------------------
+	var record_sizes := {}
+	for row: Dictionary in RING:
+		var rec_name := str(row["record"])
+		var rec: Variant = world.get(rec_name)
+		if not (rec is Array) or (rec as Array).is_empty():
+			bad.append("%s hero record %s empty — the hero never built"
+					% [row["ticket"], rec_name])
+		else:
+			record_sizes[rec_name] = (rec as Array).size()
+	if world.swans.size() != 2:
+		bad.append("R3 non-slot hero T-185: %d swans != 2" % world.swans.size())
+	if world.campus_slab_tris <= 0 or world.fountain_parts.is_empty():
+		bad.append("R3 non-slot hero T-187: the lawn slab/fountain never built")
+	if world.lot_flat_tris <= 0 or world.lot_marking_xfs.is_empty():
+		bad.append("R3 non-slot hero T-191: the tailgate lot dress never built")
+	if world.crossbuck_pins.size() != 9 or world.train == null:
+		bad.append("R3 non-slot hero T-194: crossbuck pins %d != 9 or the coal drag never built"
+				% world.crossbuck_pins.size())
+
+	## --- D. the position ---------------------------------------------------------
+	var offsets := {}
+	for row: Dictionary in RING:
+		var rid := str(row["id"])
+		var s_lo: Vector3 = slot_lo.get(rid, authored_lo.get(rid, Vector3.ZERO))
+		var s_hi: Vector3 = slot_hi.get(rid, authored_hi.get(rid, Vector3.ZERO))
+		var rec2: Variant = world.get(str(row["record"]))
+		if not (rec2 is Array) or (rec2 as Array).is_empty():
+			continue ## already failed in C.
+		var want_hero := str(row["hero"])
+		var r_lo := Vector3(INF, INF, INF)
+		var r_hi := Vector3(-INF, -INF, -INF)
+		var matched := 0
+		for part: Variant in (rec2 as Array):
+			var pb: Dictionary = part
+			if not want_hero.is_empty() and str(pb.get("hero", "")) != want_hero:
+				continue ## a shared record — this row's hero's parts only.
+			matched += 1
+			var pp: Vector3 = pb["p"]
+			var ps: Vector3 = pb["s"]
+			var basis: Basis = pb.get("basis", Basis())
+			for sx: float in [-0.5, 0.5]:
+				for sy: float in [-0.5, 0.5]:
+					for sz: float in [-0.5, 0.5]:
+						var corner := pp + basis * Vector3(sx * ps.x, sy * ps.y, sz * ps.z)
+						r_lo = r_lo.min(corner)
+						r_hi = r_hi.max(corner)
+		if matched == 0:
+			bad.append("%s record %s holds no parts for hero '%s' — the key drifted"
+					% [row["ticket"], row["record"], want_hero])
+			continue
+		var slot_center := (s_lo + s_hi) * 0.5
+		var hero_center := (r_lo + r_hi) * 0.5
+		var tol: float = float(row["tol"])
+		var dist := Vector2(hero_center.x - slot_center.x, hero_center.z - slot_center.z).length()
+		offsets[rid] = snappedf(dist, 0.1)
+		if dist > tol:
+			bad.append("%s hero %s stands %.1f m off its slot (%s tol %.0f)"
+					% [row["ticket"], rid, dist, row["record"], tol])
+
+	## --- E. the budget cross-check -------------------------------------------------
+	var superseded_parts := 0
+	for pid2: String in placeholder_ids:
+		if world._row_superseded_placeholder(pid2):
+			superseded_parts += int(slot_parts.get(pid2, 0))
+	var skipped_massing := 0
+	for aid2: String in authored_ids:
+		if world._hero_ids.has(aid2):
+			skipped_massing += 1
+	if superseded_parts != 94:
+		bad.append("superseded placeholder parts %d != the ring's 94" % superseded_parts)
+	if skipped_massing != 13:
+		bad.append("skipped massing ids %d != the ring's 13 (8 bake heroes + 5 runtime slots)"
+				% skipped_massing)
+	if superseded_parts + (skipped_massing - bake_hero_ids.size()) != 99:
+		bad.append("render-budget cross-foot %d != the hand-counted 99 "
+				+ "(parts + runtime-massing boxes; the bake's heroes ride hero_count)"
+				% [superseded_parts + skipped_massing - bake_hero_ids.size()])
+	for fix: String in HONEST_FIXUPS:
+		if not placeholder_ids.has(fix):
+			bad.append("honest LOD0 lost: fixup %s missing from the bake" % fix)
+		elif world._row_superseded_placeholder(fix):
+			bad.append("honest LOD0 lost: fixup %s superseded" % fix)
+	print("SIM DATA %s: records=%s offsets=%s superseded_parts=%d skipped_massing=%d honest_fixups=%d"
+			% [S, record_sizes, offsets, superseded_parts, skipped_massing, HONEST_FIXUPS.size()])
+	_check(S, bad.is_empty(), "; ".join(bad))
 
 
 ## (T-187) The lawn cluster's R3 ticket on the resident Ames world, every
