@@ -377,7 +377,7 @@ scan (T-170 was max; no workflows in flight).
 | T-193 | [Civic water towers](T-193-civic-water-towers.md) | R3 The Landmarks | T-177 | done |
 | T-194 | [Rail corridor dressing](T-194-rail-corridor-dressing.md) | R3 The Landmarks | T-177, T-180 | done |
 | T-195 | [Grain elevators](T-195-grain-elevators.md) | R3 The Landmarks | T-177 | done |
-| T-196 | [R3 cutover](T-196-ames-r3-cutover.md) | R3 The Landmarks | T-185..T-195 | proposed |
+| T-196 | [R3 cutover](T-196-ames-r3-cutover.md) | R3 The Landmarks | T-185..T-195 | doing |
 | T-197 | [Text capability](T-197-ames-text-capability.md) | R4 The Names | T-196 | proposed |
 | T-198 | [Venue signs tier 1](T-198-venue-signs-tier1.md) | R4 The Names | T-197 | proposed |
 | T-199 | [Venue signs tiers 2–3 + ghost plaques](T-199-venue-signs-tier2-3.md) | R4 The Names | T-198 | proposed |
