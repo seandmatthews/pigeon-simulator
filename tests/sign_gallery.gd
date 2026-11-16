@@ -8,12 +8,13 @@ extends Node3D
 ## Seconds each camera pose holds before stepping to the next.
 const POSE_SECONDS := 3.5
 
-## The five poses: [camera position, look-at target] — target chosen so each
-## typology reads at roughly its pinned readable_distance from the mount.
+## The five poses: [camera position, look-at target] — each typology at a
+## read that shows its letterforms (the blade angled onto its ±x faces, the
+## way a blade reads walking along the street, never dead edge-on).
 const POSES: Array = [
-	[Vector3(0.0, 3.0, 9.0), Vector3(0.0, 2.6, 0.0)], ## Triptych: box + blade + pole.
+	[Vector3(5.5, 3.2, 7.5), Vector3(0.0, 2.6, 0.0)], ## Triptych: box + blade + pole, angled.
 	[Vector3(4.6, 3.4, 3.6), Vector3(4.6, 3.5, 0.2)], ## Box close (mid budget ~60 m -> sidewalk read).
-	[Vector3(0.4, 2.2, 2.2), Vector3(0.0, 2.0, 0.0)], ## Blade at eye level.
+	[Vector3(2.1, 2.4, 0.9), Vector3(0.0, 2.0, -0.2)], ## Blade's +x face at eye level.
 	[Vector3(2.4, 4.0, 8.0), Vector3(-4.4, 4.4, 0.0)], ## Pole cabinet from the drive-by side.
 	[Vector3(-8.6, 2.7, 2.4), Vector3(-9.2, 2.6, 0.1)], ## Plaque at its close sidewalk read.
 ]
