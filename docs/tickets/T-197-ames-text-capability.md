@@ -1,6 +1,6 @@
 # T-197 — Ames R4 · text capability: in-world signs become possible
 
-- **Status:** doing · **Category:** code-optimization · **Ring:** R4 The Names ·
+- **Status:** done · **Category:** code-optimization · **Ring:** R4 The Names ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
 - **Depends on:** T-196 (heroes carry the signs)
 - **Refs:** `docs/AMES-MASTERPLAN.md` §7 · T-090 (the blank-signboard
@@ -44,7 +44,8 @@ screen — so every later sign ticket is content, not plumbing.
       — machine legs in `sign_text_legibility` (the four mounts at
       arbitrary transforms, the pole yawed, dims + letter heights +
       budget locks pinned); the agent screenshot set
-      (`.captures/session_t197sign2/pose0..4.png`, `tests/sign_gallery.tscn`)
+      (`.captures/session_t197sign2/` pose0/1/2/4 +
+      `.captures/session_t197sign3/pose3_pole.png`, `tests/sign_gallery.tscn`)
       reads every typology's letterforms; the physical at-distance
       read is the owner's T-202 fold-in per the Verification line.
 - [x] Font license bundled; credits screen live with OSM + photo
@@ -71,6 +72,11 @@ typology in-situ (test placements), owner eyeball pass folded into
 T-202.
 
 ## Run record (2026-11-16, implementer)
+
+**Reviewer sign-off 2026-11-16** — every AC ticked on the recorded
+evidence below; the final tuned values stand as recorded; the owner
+eyeball pass rides T-202 per the Verification line. Ticket flipped to
+done on that sign-off.
 
 - **Font pick:** Oswald (variable wght 200–700, default instance as
   shipped by google/fonts) — the one OFL file that reads on all three
@@ -114,9 +120,10 @@ T-202.
   `pose0_triptych.png` (all three typologies + the plaque in one frame),
   `pose1_box.png` (the lit box face-on), `pose2_blade.png` (the blade's
   +x face, S/I/G/N stacked upright in neon red over the rounded top),
-  `pose3_pole.png` (the cabinet from the drive-by side),
-  `pose4_plaque.png` ("AMES" on the T-090 cream slab); credits screen
-  live `.captures/session_t197menu/window.png` (focus-key driven on the
+  `pose4_plaque.png` ("AMES" on the T-090 cream slab), plus
+  `.captures/session_t197sign3/pose3_pole.png` (the cabinet from the
+  drive-by side); credits screen live
+  `.captures/session_t197menu/window.png` (focus-key driven on the
   real title). Zero errors in the session logs. The owner eyeball pass
   (do the letterforms read at flight distances; do the typologies read
   as their districts) folds into T-202 per the Verification line.
