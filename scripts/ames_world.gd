@@ -309,6 +309,13 @@ var fabric_parts: Array[Dictionary] = []
 ## world AABB, the T-192 arch-chord law); the round families file their
 ## bounding sizes.
 var civic_tank_hero_parts: Array[Dictionary] = []
+## (T-195) The SE grain-elevator cluster's part record, the T-193 law carried
+## to the agricultural skyline: every box and named mesh the build emitted —
+## `{band, p, s, color, collide, mesh}` in world-local (pack) coordinates.
+## The silo bank, the headhouse and the annex bins ride the round named-mesh
+## families (their record entries file the bounding sizes); the headhouse cap,
+## the silo cap rings are mesh entries too; the leg tower rides the box path.
+var elevator_hero_parts: Array[Dictionary] = []
 ## (T-192) The frontage-row slots collected while the chunks parse (the
 ## authored downtown massing in the Main/5th frontage bands), consumed by
 ## the step-3 fabric build — the cornice hints ride the bake's own slot
@@ -479,6 +486,7 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	civic_hero_parts = []
 	civic_tank_hero_parts = [] ## (T-193) The civic tank record rebuilds with the world.
 	depot_hero_parts = [] ## (T-194) The rail-corridor records rebuild with the world.
+	elevator_hero_parts = [] ## (T-195) The elevator-cluster record rebuilds with the world.
 	crossbuck_pins = []
 	wigwag_parts = []
 	_crossbuck_post_xfs = []
@@ -599,6 +607,7 @@ func generate_step_finish() -> void:
 		"campus_plaza_tris": campus_plaza_tris,
 		"fountain_parts": fountain_parts.size(),
 		"depot_parts": depot_hero_parts.size(), ## (T-194) The depot hero is live.
+		"elevator_parts": elevator_hero_parts.size(), ## (T-195) The SE cluster hero is live.
 		"crossbuck_crossings": crossbuck_pins.size(),
 		"crossbuck_posts": _crossbuck_post_xfs.size(),
 		"fence_posts": _fence_post_xfs.size(),
@@ -1768,6 +1777,7 @@ func _build_chunk(entry: Dictionary) -> void:
 	_build_downtown_heroes(chunk_root, chunk, center, chunk_body) ## (T-192) the bandshell + civic pair ride their carrier chunks.
 	_build_civic_tank_heroes(chunk_root, chunk, center, chunk_body) ## (T-193) the city tanks ride theirs.
 	_build_depot_hero(chunk_root, chunk, center, chunk_body) ## (T-194) the depot rides its carrier chunk.
+	_build_elevator_hero(chunk_root, chunk, center, chunk_body) ## (T-195) the SE cluster rides its carrier chunk.
 	_collect_fabric_row_slots(chunk) ## (T-192) the frontage-row walk, while the doc is in hand.
 
 
@@ -2020,6 +2030,12 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 			## placeholder parts the same 1:1 way — its build files the shapes
 			## (the wall + canopy slab boxes, the chimney, the hip frustum);
 			## no capture.
+			continue
+		if pid == ELEVATOR_CLUSTER_HERO_ID:
+			## (T-195) The elevator-cluster hero supersedes its slot's seven
+			## placeholder parts (4 silos + headhouse + 2 bins) the same 1:1
+			## way — its build files the shapes (the round families as convex
+			## cylinders, the headhouse box, the bin cones); no capture.
 			continue
 		var p: Array = e["p"]
 		var s: Array = e["s"]
@@ -2998,7 +3014,9 @@ func _row_band_color(band: String) -> Color:
 ## north and (13,2) east — are the slots the bulb-on-stem heroes re-shape).
 ## The depot (T-194: the 1906 C&NW depot's wall/roof/canopy stack — chunk
 ## (10,−1) — is the slot the depot hero re-shapes; its id already rides the
-## bake's `heroes` list, so the massing term handles its bbox).
+## bake's `heroes` list, so the massing term handles its bbox). The SE
+## grain-elevator cluster (T-195: the silo bank + headhouse + bins placeholder
+## stack — chunk (13,−1) — is the slot the styled cluster hero re-shapes).
 ## The placeholder-family passes (render, collision, ground record, roof
 ## spots) skip these ids so a hero never renders twice.
 func _row_superseded_placeholder(id: String) -> bool:
@@ -3008,7 +3026,8 @@ func _row_superseded_placeholder(id: String) -> bool:
 			or id == JACK_TRICE_HERO_ID or id == HILTON_HERO_ID \
 			or id == BANDSHELL_SLOT_ID \
 			or id == CITY_TANK_NORTH_HERO_ID or id == CITY_TANK_EAST_HERO_ID \
-			or id == DEPOT_HERO_ID
+			or id == DEPOT_HERO_ID \
+			or id == ELEVATOR_CLUSTER_HERO_ID
 
 
 ## Builds the row heroes found in this chunk (Beardshear + Morrill + Marston
@@ -6039,6 +6058,312 @@ func _depot_extras(wx: float, wz: float, roof_base: Vector2) -> Array[Dictionary
 			"convex": PackedVector3Array(),
 			"band": "trim",
 			"size": Vector3(3.6, 1.5, 3.6),
+		})
+	return out
+
+
+## --- T-195 the SE grain-elevator cluster -------------------------------------
+## The agricultural skyline (LANDMARKS T7, MODELING-SPECS §1.8 item 4): the
+## styled hero that swaps the T-175 placeholder massing 1:1 on the T-190 law.
+##
+## HONESTY NOTE (the ticket's, carried verbatim — it governs any future R4
+## signage decision): no photo of the actual Ames SE elevator cluster exists
+## under CC — styled from Iowa-generic refs (`images/rail/10,11,12`: Hull's
+## pale concrete silo bank + headhouse slab, Jefferson's box-annex read,
+## Batavia's rail-side steel bins + leg tower) at ASSUMED heights — the V-30
+## 30–40 m UNVERIFIED placeholder range the bake's own slot spans (silos 34,
+## headhouse 38, bins 12) already sits inside. NO operator name, logo or
+## brand mark is painted anywhere on it — nothing real is known to letter
+## the cluster; R4 text defers to the legal pass like every facade.
+##
+## The slot (committed bake, chunk (13,−1), the baker's ELEVATOR_CLUSTER_POS
+## survey-anchored approximation — V-30: no sourced position exists): four
+## 7 × 34 × 7 silo boxes in an E–W bank, the 10 × 38 × 10 headhouse 8 m
+## north of it, two 5 × 12 × 5 bins 8 m south. The hero keeps every span
+## EXACTLY (the keep-the-stack law) and re-reads the SHAPES from the refs:
+## the silos round to Ø7 cylinders under darker cap rims, the headhouse
+## stays the box under a proud dark roof slab, the bins round to Ø5
+## galvanized cylinders under cone roofs, and the Batavia typology's LEG
+## TOWER joins as a visual-only dark lattice (4 posts + 5 collars + the
+## crown distributor arm) against the headhouse's east wall — hero-only
+## geometry, the composition member the ticket names beyond the T-175
+## massing. Collision solid on the big three families (convex cylinders +
+## the box, layer-1 `world` on the chunk body); ground record: the slot's
+## own seven walk answers re-filed byte-identically (the walk-parity law —
+## the swap changes the dress, never the seam); roof crumb: none (the slot
+## never filed one — the specced silo-cap perch is a future owner ticket).
+
+const ELEVATOR_CLUSTER_HERO_ID := "grain_elevators"
+
+## (T-195) The pinned palette — §1.8's "Grain silos (style ref) #D9D2C4 pale"
+## row verbatim for the concrete; the rest this ticket's own literals (the
+## refs are photos, not hex tables — the scenario re-pins the same values
+## and holds the warm/cool/dark laws that make them read).
+const ELEVATOR_CONCRETE := Color(0.851, 0.824, 0.769) ## #D9D2C4 the silo bank + headhouse pale.
+const ELEVATOR_CONCRETE_CAP := Color(0.784, 0.753, 0.682) ## #C8C0AE the cap rims' darker warm step.
+const ELEVATOR_ROOF := Color(0.30, 0.29, 0.28) ## The headhouse roof slab — dark law: luminance ≤ 0.45.
+const ELEVATOR_STEEL := Color(0.776, 0.796, 0.824) ## #C6CBD2 the bins' galvanized (cool: blue ≥ red).
+const ELEVATOR_STEEL_ROOF := Color(0.651, 0.675, 0.714) ## #A6ACB6 the cones' darker galvanized.
+const ELEVATOR_LEG := Color(0.34, 0.35, 0.36) ## The leg lattice — dark law: luminance ≤ 0.45.
+
+## The band -> color table (the record and the render share this one
+## mapping); closed at six — NO sign band (the honesty note's no-branding law).
+const ELEVATOR_BANDS: Dictionary = {
+	"concrete": ELEVATOR_CONCRETE,
+	"concrete_cap": ELEVATOR_CONCRETE_CAP,
+	"roof": ELEVATOR_ROOF,
+	"steel": ELEVATOR_STEEL,
+	"steel_roof": ELEVATOR_STEEL_ROOF,
+	"leg": ELEVATOR_LEG,
+}
+
+## (T-195) The pinned dressing dims (m) — the slot's own spans are kept
+## exactly; these shape the dressing INSIDE them.
+const ELEVATOR_HEADHOUSE_CAP_H := 0.8 ## The proud roof slab's height.
+const ELEVATOR_HEADHOUSE_CAP_PROUD := 0.15 ## Its overhang per side.
+const ELEVATOR_SILO_CAP_H := 0.7 ## The cap rim ring's height at each silo top.
+const ELEVATOR_SILO_CAP_PROUD := 0.06 ## The rim's proud radius past the wall.
+const ELEVATOR_BIN_ROOF_H := 1.6 ## Each bin's cone roof (the wall takes the rest of the slot span).
+const ELEVATOR_BIN_ROOF_TOP_R := 0.25 ## The cone's top eyelet radius.
+const ELEVATOR_LEG_HALF := 0.8 ## The lattice square's half-width about the leg center.
+const ELEVATOR_LEG_STANDOFF := 1.4 ## The leg center's standoff east of the headhouse east wall.
+const ELEVATOR_LEG_TOP_DROP := 1.0 ## The leg tops this under the headhouse top — ABOVE the bank line, so the rail/12 mast reads in the skyline from the town side (occluded behind the silos if it stopped at their top).
+const ELEVATOR_LEG_COLLARS := 5 ## The collar ring count (the braced read at distance), evenly spread over the lower leg.
+const ELEVATOR_LEG_ARM_DROP := 0.6 ## The distributor arm hangs this under the leg top.
+const ELEVATOR_LEG_ARM_LEN := 8.0 ## The arm's length, running alongside the headhouse wall.
+
+
+func _elevator_band_color(band: String) -> Color:
+	return ELEVATOR_BANDS.get(band, ELEVATOR_CONCRETE)
+
+
+## Builds the elevator hero found in this chunk — chunk (13,−1) carries the
+## slot. No-op elsewhere. The 1:1 swap (the T-190 law): the slot's seven
+## placeholder parts are superseded (render, collision, ground record — the
+## slot filed no roof crumb and files none now). Render — the headhouse box +
+## roof slab + the leg tower in a chunk-local MultiMesh, the round families
+## (4 silo cylinders + cap rims, 2 bin cylinders + cone roofs) as named
+## meshes; collision — the silos/bins/cones as convex cylinders + the
+## headhouse box on the chunk's placeholder body, same layer-1 `world` class
+## (the cap rims, roof slab and leg lattice stay visual-only dressing);
+## ground record — the slot's own seven boxes re-filed byte-identically (the
+## walk-parity law); the retained part record for the gates.
+func _build_elevator_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3,
+		chunk_body: StaticBody3D) -> void:
+	var silos: Array[Dictionary] = []
+	var bins: Array[Dictionary] = []
+	var headhouse := {}
+	for ph: Dictionary in chunk.get("placeholders", []):
+		if str(ph.get("id", "")) != ELEVATOR_CLUSTER_HERO_ID:
+			continue
+		var part := {
+			"p": Vector3(float(ph["p"][0]), float(ph["p"][1]), float(ph["p"][2])),
+			"s": Vector3(float(ph["s"][0]), float(ph["s"][1]), float(ph["s"][2])),
+		}
+		match str(ph.get("part", "")):
+			"silo":
+				silos.append(part)
+			"bin":
+				bins.append(part)
+			"headhouse":
+				headhouse = part
+	if silos.size() != 4 or bins.size() != 2 or headhouse.is_empty():
+		return ## Not this chunk's slot (or the bake lost a part — the gate fails loudly).
+	silos.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a["p"] as Vector3).x < (b["p"] as Vector3).x)
+	bins.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a["p"] as Vector3).x < (b["p"] as Vector3).x)
+	var hp: Vector3 = headhouse["p"]
+	var hs: Vector3 = headhouse["s"]
+	var boxes := _elevator_boxes(hp, hs)
+	var extras := _elevator_extras(silos, bins)
+	var root := Node3D.new()
+	root.name = "HeroElevatorCluster"
+	chunk_root.add_child(root)
+	var mm := _new_multimesh(boxes.size())
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for i in boxes.size():
+		var b: Dictionary = boxes[i]
+		var basis: Basis = b["basis"]
+		var bp: Vector3 = b["p"]
+		var bs: Vector3 = b["s"]
+		mm.set_instance_transform(i, Transform3D(basis * Basis.from_scale(bs),
+				bp - center))
+		mm.set_instance_color(i, _elevator_band_color(str(b["band"])))
+		var ab: Array = _complex_box_aabb(basis, bp, bs)
+		lo = (ab[0] as Vector3).min(lo)
+		hi = (ab[1] as Vector3).max(hi)
+	mm.custom_aabb = AABB(lo - center - Vector3.ONE * 2.0, (hi - lo) + Vector3.ONE * 4.0)
+	var mm_node := MultiMeshInstance3D.new()
+	mm_node.name = "Boxes"
+	mm_node.multimesh = mm
+	root.add_child(mm_node)
+	## Collision: the chunk's placeholder body (the chunk carries authored
+	## entries, so the body exists — the null fallback kept for the swap's
+	## contract).
+	var body := chunk_body
+	if body == null:
+		body = StaticBody3D.new()
+		body.name = "Placeholders"
+		body.collision_layer = 1 ## world
+		body.collision_mask = 0
+		chunk_root.add_child(body)
+	for b2: Dictionary in boxes:
+		if not b2["collide"]:
+			continue
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = b2["s"]
+		shape.shape = box
+		shape.transform = Transform3D(b2["basis"] as Basis,
+				(b2["p"] as Vector3) - center)
+		body.add_child(shape)
+	for e: Dictionary in extras:
+		var mesh_node := MeshInstance3D.new()
+		mesh_node.name = str(e["name"])
+		mesh_node.mesh = e["mesh"]
+		mesh_node.position = (e["pos"] as Vector3) - center
+		root.add_child(mesh_node)
+		var pts: PackedVector3Array = e["convex"]
+		if not pts.is_empty():
+			var extra_shape := CollisionShape3D.new()
+			var convex := ConvexPolygonShape3D.new()
+			convex.points = pts
+			extra_shape.shape = convex
+			extra_shape.position = (e["pos"] as Vector3) - center
+			body.add_child(extra_shape)
+	## Ground record: the slot's own seven boxes re-filed byte-identically —
+	## the walk answers the T-175 massing gave (silos 34, headhouse 38, bins
+	## 12) survive the swap exactly (the walk-parity law; the flag path would
+	## double-file the headhouse, so the parity walk is explicit).
+	var tiles: Dictionary = {}
+	var bytes := 0
+	for ph2: Dictionary in chunk.get("placeholders", []):
+		if str(ph2.get("id", "")) != ELEVATOR_CLUSTER_HERO_ID:
+			continue
+		bytes += _file_ground_box(tiles, ph2["p"], ph2["s"])
+	for key: Vector2i in tiles:
+		var tile_record: Dictionary = _chunks.get(key, {})
+		var ground: PackedFloat32Array = tile_record.get("ground", PackedFloat32Array())
+		ground.append_array(PackedFloat32Array(tiles[key]))
+		tile_record["ground"] = ground
+		_chunks[key] = tile_record
+	_buffer_bytes += bytes
+	## Retain the part record (world-local bands, positions, sizes, colors);
+	## `mesh` marks the named round families so the gate walks one record.
+	for b3: Dictionary in boxes:
+		var ab2: Array = _complex_box_aabb(b3["basis"], b3["p"], b3["s"])
+		elevator_hero_parts.append({
+			"band": str(b3["band"]),
+			"p": ((ab2[0] as Vector3) + (ab2[1] as Vector3)) * 0.5,
+			"s": (ab2[1] as Vector3) - (ab2[0] as Vector3),
+			"color": _elevator_band_color(str(b3["band"])),
+			"collide": b3["collide"], "mesh": false,
+		})
+	for e2: Dictionary in extras:
+		elevator_hero_parts.append({
+			"band": str(e2["band"]), "p": e2["pos"], "s": e2["size"],
+			"color": _elevator_band_color(str(e2["band"])),
+			"collide": not (e2["convex"] as PackedVector3Array).is_empty(),
+			"mesh": true,
+		})
+
+
+## The box schedule in WORLD-LOCAL coordinates (pack-local — the world node
+## IS the pack frame): the headhouse body keeps the slot's own box EXACTLY
+## under its proud dark roof slab; the leg tower rises to a meter under the
+## headhouse top — ABOVE the bank line, so the rail/12 mast reads in the
+## skyline from the town side — and its posts, collars and crown arm are
+## visual-only dressing (the thin-member law — the fence/crossbuck
+## precedent). `basis` the UNSCALED rotation (the T-191 statue-lean law), `s`
+## the size in that rotated frame.
+func _elevator_boxes(hp: Vector3, hs: Vector3) -> Array[Dictionary]:
+	var leg_top := hs.y - ELEVATOR_LEG_TOP_DROP
+	var out: Array[Dictionary] = []
+	out.append({"band": "concrete", "basis": Basis(), "p": hp, "s": hs,
+			"collide": true, "ground": false})
+	out.append({"band": "roof", "basis": Basis(),
+			"p": Vector3(hp.x, hp.y + hs.y * 0.5 - ELEVATOR_HEADHOUSE_CAP_H * 0.5, hp.z),
+			"s": Vector3(hs.x + ELEVATOR_HEADHOUSE_CAP_PROUD * 2.0,
+					ELEVATOR_HEADHOUSE_CAP_H, hs.z + ELEVATOR_HEADHOUSE_CAP_PROUD * 2.0),
+			"collide": false, "ground": false})
+	var leg_x := hp.x + hs.x * 0.5 + ELEVATOR_LEG_STANDOFF
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			out.append({"band": "leg", "basis": Basis(),
+					"p": Vector3(leg_x + sx * ELEVATOR_LEG_HALF, leg_top * 0.5,
+							hp.z + sz * ELEVATOR_LEG_HALF),
+					"s": Vector3(0.16, leg_top, 0.16),
+					"collide": false, "ground": false})
+	for k in ELEVATOR_LEG_COLLARS:
+		out.append({"band": "leg", "basis": Basis(),
+				"p": Vector3(leg_x, leg_top * float(k + 1)
+						/ float(ELEVATOR_LEG_COLLARS + 1), hp.z),
+				"s": Vector3(ELEVATOR_LEG_HALF * 2.0 + 0.3, 0.14,
+						ELEVATOR_LEG_HALF * 2.0 + 0.3),
+				"collide": false, "ground": false})
+	out.append({"band": "leg", "basis": Basis(),
+			"p": Vector3(leg_x, leg_top - ELEVATOR_LEG_ARM_DROP, hp.z),
+			"s": Vector3(0.22, 0.3, ELEVATOR_LEG_ARM_LEN),
+			"collide": false, "ground": false})
+	return out
+
+
+## The round families' mesh extras (world-local): the four Ø7 concrete silo
+## cylinders + their proud cap rims, the two Ø5 galvanized bin cylinders +
+## their cone roofs — the slot's own spans kept (silo 0..34, bin wall
+## 0..10.4 + cone 10.4..12). Solid convexes on the walls and cones; the
+## proud cap rims stay visual-only.
+func _elevator_extras(silos: Array[Dictionary],
+		bins: Array[Dictionary]) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i in silos.size():
+		var sp: Vector3 = silos[i]["p"]
+		var ss: Vector3 = silos[i]["s"]
+		var r := ss.x * 0.5
+		out.append({
+			"name": "Silo%d" % (i + 1),
+			"mesh": _row_taper_mesh(r, r, ss.y, ELEVATOR_CONCRETE),
+			"pos": sp, "rot": Basis(),
+			"convex": _row_cylinder_convex(r, r, ss.y, 8),
+			"band": "concrete",
+			"size": Vector3(ss.x, ss.y, ss.z),
+		})
+		out.append({
+			"name": "SiloCap%d" % (i + 1),
+			"mesh": _row_taper_mesh(r + ELEVATOR_SILO_CAP_PROUD,
+					r + ELEVATOR_SILO_CAP_PROUD, ELEVATOR_SILO_CAP_H,
+					ELEVATOR_CONCRETE_CAP),
+			"pos": Vector3(sp.x, sp.y + ss.y * 0.5 - ELEVATOR_SILO_CAP_H * 0.5, sp.z),
+			"rot": Basis(), "convex": PackedVector3Array(),
+			"band": "concrete_cap",
+			"size": Vector3((r + ELEVATOR_SILO_CAP_PROUD) * 2.0,
+					ELEVATOR_SILO_CAP_H, (r + ELEVATOR_SILO_CAP_PROUD) * 2.0),
+		})
+	for i in bins.size():
+		var bp: Vector3 = bins[i]["p"]
+		var bs: Vector3 = bins[i]["s"]
+		var br := bs.x * 0.5
+		var wall_h := bs.y - ELEVATOR_BIN_ROOF_H
+		out.append({
+			"name": "Bin%d" % (i + 1),
+			"mesh": _row_taper_mesh(br, br, wall_h, ELEVATOR_STEEL),
+			"pos": Vector3(bp.x, wall_h * 0.5, bp.z), "rot": Basis(),
+			"convex": _row_cylinder_convex(br, br, wall_h, 8),
+			"band": "steel",
+			"size": Vector3(bs.x, wall_h, bs.z),
+		})
+		out.append({
+			"name": "BinRoof%d" % (i + 1),
+			"mesh": _row_taper_mesh(ELEVATOR_BIN_ROOF_TOP_R, br,
+					ELEVATOR_BIN_ROOF_H, ELEVATOR_STEEL_ROOF),
+			"pos": Vector3(bp.x, wall_h + ELEVATOR_BIN_ROOF_H * 0.5, bp.z),
+			"rot": Basis(),
+			"convex": _row_cylinder_convex(br, ELEVATOR_BIN_ROOF_TOP_R,
+					ELEVATOR_BIN_ROOF_H, 8),
+			"band": "steel_roof",
+			"size": Vector3(bs.x, ELEVATOR_BIN_ROOF_H, bs.z),
 		})
 	return out
 
