@@ -141,7 +141,11 @@ func _physics_process(delta: float) -> void:
 func _apply() -> void:
 	if _mm == null or extended_route.size() < 2:
 		return
-	var st := state_at(clock)
+	_apply_state(state_at(clock))
+
+
+## One schedule state onto the rig: visibility + every box's route anchor.
+func _apply_state(st: Dictionary) -> void:
 	visible = bool(st["visible"])
 	if not visible:
 		return
@@ -156,6 +160,14 @@ func _apply() -> void:
 		_mm.set_instance_transform(i, Transform3D(
 				basis * Basis.from_scale(part["s"] as Vector3),
 				(pt["p"] as Vector3) + off))
+
+
+## The live readout seam (the T-169 call verb's ordinary one-hop method —
+## a getter, nothing more): the schedule state at the CURRENT clock, so a
+## staging session can read where the drag is without touching the write
+## family. The clock itself stays advanced only by `_physics_process`.
+func live_state() -> Dictionary:
+	return state_at(clock)
 
 
 ## The route position and unit direction at arc s (clamped into the span).
