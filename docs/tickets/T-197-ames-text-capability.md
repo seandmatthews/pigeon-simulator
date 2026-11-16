@@ -1,6 +1,6 @@
 # T-197 — Ames R4 · text capability: in-world signs become possible
 
-- **Status:** proposed · **Category:** code-optimization · **Ring:** R4 The Names ·
+- **Status:** doing · **Category:** code-optimization · **Ring:** R4 The Names ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
 - **Depends on:** T-196 (heroes carry the signs)
 - **Refs:** `docs/AMES-MASTERPLAN.md` §7 · T-090 (the blank-signboard

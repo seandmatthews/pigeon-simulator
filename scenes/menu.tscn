@@ -80,6 +80,72 @@ offset_bottom = 145.0
 theme_override_font_sizes/font_size = 18
 text = "Settings"
 
+[node name="CreditsButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -70.0
+offset_top = 155.0
+offset_right = 70.0
+offset_bottom = 195.0
+theme_override_font_sizes/font_size = 18
+text = "Credits"
+
+[node name="CreditsPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -290.0
+offset_top = -240.0
+offset_right = 290.0
+offset_bottom = 240.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="CreditsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="CreditsPanel/Margin"]
+layout_mode = 2
+
+[node name="CreditsTitle" type="Label" parent="CreditsPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+text = "CREDITS"
+
+[node name="Scroll" type="ScrollContainer" parent="CreditsPanel/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CreditsText" type="Label" parent="CreditsPanel/Margin/VBox/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+text = ""
+
+[node name="BackButton" type="Button" parent="CreditsPanel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 15
+text = "Back"
+
 [node name="SettingsPanel" parent="." instance=ExtResource("2_settings")]
 unique_name_in_owner = true
 visible = false
