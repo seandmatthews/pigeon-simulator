@@ -118,6 +118,11 @@ const POLE_CABINET_Y := 4.4 ## Cabinet center height (cabinet top 5.7).
 @export_multiline var text: String = ""
 ## Rendered capital-letter height (m). 0 → the typology's pinned default.
 @export var letter_height: float = 0.0
+## Body dims override (m; x = face width for the overflow law). ZERO → the
+## typology's pinned dims (T-198's venue knob: the real bands a sign ticket
+## needs — Welch Ave Station's 8.4 m block-letter band — stay in-system, one
+## export, the legibility budget and the overflow guard riding the real size).
+@export var body_scale: Vector3 = Vector3.ZERO
 ## Body/text albedo overrides. Any alpha-0 color = "typology default".
 @export var body_color: Color = Color(0, 0, 0, 0)
 @export var text_color: Color = Color(0, 0, 0, 0)
@@ -162,7 +167,7 @@ func _build() -> void:
 		body_mat.emission_enabled = true
 		body_mat.emission = body_col
 		body_mat.emission_energy_multiplier = spec["emission"]
-	var size: Vector3 = spec["body"]
+	var size: Vector3 = spec["body"] if body_scale == Vector3.ZERO else body_scale
 	match typology:
 		Typology.PLAQUE, Typology.BOX:
 			_box_part("Body", size, Vector3.ZERO, body_mat)

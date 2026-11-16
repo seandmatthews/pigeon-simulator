@@ -316,6 +316,13 @@ var civic_tank_hero_parts: Array[Dictionary] = []
 ## families (their record entries file the bounding sizes); the headhouse cap,
 ## the silo cap rings are mesh entries too; the leg tower rides the box path.
 var elevator_hero_parts: Array[Dictionary] = []
+
+## (T-198) The Tier-1 venue signs — one record per placed sign (id, venue text,
+## form, the pack-frame mount transform, the live SignText node; the Superdog
+## cart's record carries its cart_parts count). The staged entry (The Cafe)
+## builds nothing and rides only in `AmesVenueSigns.SIGNS`. World-local (= the
+## pack frame), retained for the gate like the T-180/T-181 queues.
+var venue_signs: Array[Dictionary] = []
 ## (T-192) The frontage-row slots collected while the chunks parse (the
 ## authored downtown massing in the Main/5th frontage bands), consumed by
 ## the step-3 fabric build — the cornice hints ride the bake's own slot
@@ -558,6 +565,7 @@ func generate_step_finish() -> void:
 	_build_tailgate_lots() ## (T-191) The Iowa State Center lot flats + stall-marking hint.
 	_build_downtown_fabric() ## (T-192) The Main Street cornices + the maroon furniture + the blade seeds.
 	_build_rail_corridor() ## (T-194) The depot rides its chunk; this is the corridor dress: crossbucks, fence, the coal drag.
+	_build_venue_signs() ## (T-198) The Tier-1 venue names on their street walls.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -608,6 +616,8 @@ func generate_step_finish() -> void:
 		"fountain_parts": fountain_parts.size(),
 		"depot_parts": depot_hero_parts.size(), ## (T-194) The depot hero is live.
 		"elevator_parts": elevator_hero_parts.size(), ## (T-195) The SE cluster hero is live.
+		"venue_signs": venue_signs.size(), ## (T-198) The Tier-1 signs are live.
+		"superdog_cart_parts": _venue_cart_parts(),
 		"crossbuck_crossings": crossbuck_pins.size(),
 		"crossbuck_posts": _crossbuck_post_xfs.size(),
 		"fence_posts": _fence_post_xfs.size(),
@@ -6916,6 +6926,30 @@ func _flat_quad_box_xf(q: Array, center: Vector3) -> Transform3D:
 					Vector3.UP * FLAT_THICKNESS,
 					along.normalized() * along.length()),
 			center_quad - center)
+
+
+## --- T-198 the Tier-1 venue signs ------------------------------------------
+## The fourteen VENUES §1 names a student says first, mounted at their verified
+## positions/facings through `AmesVenueSigns` (the mount table + the Superdog
+## cart prop live there; this is only the world wiring). The signs are the R4
+## text capability's first real content: visual-only (no colliders), pack-frame
+## coordinates, zero RNG — a rebuild reproduces every mount byte-identically.
+## The staged The Cafe entry (north Ames, outside the v1 bake core) places when
+## T-205 extends the bake — recorded in the module table and the ticket, not
+## worked around.
+func _build_venue_signs() -> void:
+	var root := Node3D.new()
+	root.name = "VenueSigns"
+	add_child(root)
+	venue_signs = AmesVenueSigns.build(root)
+
+
+## The Superdog cart's part count for the report (0 before the signs build).
+func _venue_cart_parts() -> int:
+	for rec: Dictionary in venue_signs:
+		if rec.has("cart_parts"):
+			return int(rec["cart_parts"])
+	return 0
 
 
 ## --- shared meshes/materials ----------------------------------------------
