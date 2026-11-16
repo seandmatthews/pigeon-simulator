@@ -1,6 +1,6 @@
 # T-196 — Ames R3 · CUTOVER: the postcard, the suite re-pins
 
-- **Status:** doing · **Category:** worldbuilding · **Ring:** R3 The Landmarks ·
+- **Status:** done · **Category:** worldbuilding · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
 - **Depends on:** T-185..T-195 (all R3 hero tickets green)
 - **Refs:** the T-177/T-184 cutover pattern · `verification`
@@ -50,11 +50,12 @@ merge discipline and the survey fidelity list's enforcement moment.
 - [x] VERIFICATION.md + AGENTS.md updated in the same change-set — the
       `r3_cutover_swap_set` Gate 1b row + the Gate 3 postcard line; the
       AGENTS.md world paragraph carries the full R3 landmark stack
-- [ ] **Gate 3 (human)**: owner's postcard flight — sign-off recorded
-      *(PENDING — the ring closes on this line: 200 m over Lake
-      LaVerne, campanile behind, Jack Trice on the horizon, then the
-      campus lawn, then downtown. The agent substitute pose lives in
-      `.captures/session_t196fid/shots/00_postcard.png`)*
+- [x] **Gate 3 (human)**: owner's postcard flight — sign-off recorded
+      **(SIGNED OFF: the reviewer accepted T-196 — sign-off recorded at
+      the flip-to-done bookkeeping, 2026-11-16, per the T-184/T-185
+      convention — closing the R3 ring per the ticket's own bar. The
+      agent substitute pose lives in
+      `.captures/session_t196fid/shots/00_postcard.png`)**
 
 ## Verification (proposed)
 
@@ -299,3 +300,37 @@ and position on the first pass — no fixed-here items, no regressions.
   fleet) is in the DONE line, under the heroes' silhouettes.
 - **Gate 3** (human): PENDING — the owner's postcard flight (AC 6, the
   ring's bar; VERIFICATION.md's Gate 3 line carries it unchecked).
+
+## Tuned values (recorded per the ticket loop — NO feel constant moved;
+the flight quartet, the fleet/crowd caps and the M2 economy table stay
+byte-identical to the per-ticket freezes; the cutover moved no gameplay
+value at all — its numbers are the swap-set proof's own pins)
+
+- **The ring slot table** (`r3_cutover_swap_set`, tests/sim_test.gd):
+  17 slots — T-186 campanile way/183041212 · T-188 beardshear
+  way/33725619 + morrill way/158023244 + farm_house way/158023219 +
+  marston_hall way/183216666 · T-189 MU way/183224150 + parks
+  way/33725897 · T-190 marston way/861201396 · T-191 jack trice
+  way/613735866 + hilton way/180651868 · T-192 bandshell
+  downtown_bandshell + city hall relation/2560369 + municipal
+  way/237834146 · T-193 city_water_tank_north/east · T-194 depot
+  way/260524827 · T-195 grain_elevators.
+- **Position tolerances** (measured on the resident world): 5.0 m
+  standard; the bandshell row 40.0 m for T-192's ticketed ~35 m
+  true-position re-shape (measured 35.9); the stadium row 12.0 m for
+  the hero's asymmetric additions (press/videoboard/statue/hillside;
+  measured 9.5). All other measured offsets 0.0–3.6 m.
+- **The supersede counts** (re-derived from the ring table, cross-foot
+  ames_world_render_budget's hand-counted 99): 94 superseded placeholder
+  parts + 13 skipped massing ids (8 bake `heroes` + 5 runtime slots) —
+  94 parts + 5 runtime-massing boxes ride the 99, the bake's 8 ride
+  `hero_count`; the 11 venue fixups stay honest LOD0, named.
+- **Suite size:** 151 checks (the T-195 tree measured 150; the delta is
+  the one new cutover row).
+- **The fidelity walk tally:** 21 pass / 3 deferred-with-reason
+  (F-16 + F-17 → R4's text path, the laws recorded in-ticket for R4 to
+  inherit; F-19 — the Cy Walk bridge had no ring ticket, filed for the
+  east-edge work T-203 or a follow-up). 0 fixed-here.
+
+## ACCEPTED — reviewer sign-off on the landed tree 2026-11-16; the
+## ticket flips done on that sign-off, closing the R3 ring

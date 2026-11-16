@@ -32,7 +32,20 @@ bands), T-182 staged the PARKING stock on the census curbs and lots
 (`scripts/ames_parking.gd`), and T-183 put the FAVOR economy on the real
 gathering places (the zone benches seat the favor elders — campus 3 + downtown
 2 + shore 2, each with its bread spot at the toss line; the trust/share loop
-runs there).
+runs there). Since the **T-196 R3 cutover the town's LANDMARKS are the real
+ones at every boot** (the R3 heroes all live default-on, no flags): the
+LaVerne swans (T-185), the campanile hero in buff/tan (T-186), the Central
+Campus lawn with its crossing axes + fountain (T-187), the campus row west
+heroes (T-188), the MU + Parks pair at the corrected corner (T-189), the
+Marston water tower (T-190), the Jack Trice bowl + Hilton drum + tailgate
+lots (T-191), the downtown bandshell/civic pair + Main Street fabric
+(T-192), the civic water tanks with their AMES diamonds (T-193), the rail
+corridor's depot/crossbucks/coal drag (T-194) and the SE grain-elevator
+cluster (T-195) — every placeholder slot these heroes own is superseded
+1:1 (`r3_cutover_swap_set` pins the swap set complete and the venue-fixup
+gray boxes as honest LOD0); the fidelity walk (F-01..F-24) lives in
+T-196's ticket, and the names/text layer (signage, street blades, the
+diamond letterforms) waits for R4's legal pass.
 
 ## Stack & tooling
 
