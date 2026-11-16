@@ -218,7 +218,8 @@ const SIGNS: Array[Dictionary] = [
 		"form": "box",
 		"body": "placeholder:cafe_beaudelaire",
 		"face": "N", ## South side of Lincoln Way at the Welch corner.
-		"wall_u": -22.91,
+		"wall_u": -21.5, ## Nudged east: the band's west end clears the
+			## overlapping Mr. Burrito fixup box (the two parcel boxes lap).
 		"mount_y": 5.6,
 		"letter": 0.30, ## 7.536 × 0.30 = 2.26 ≤ 2.8.
 		"band": Vector3.ZERO,
@@ -333,9 +334,9 @@ const SIGNS: Array[Dictionary] = [
 		"id": "great_plains_sauce_dough",
 		"venue": "Great Plains Sauce & Dough Co.",
 		"form": "plaque",
-		"body": "massing:way/237834149",
-		"face": "W", ## The pack facing (269.4) signs the Douglas corner wall.
-		"wall_u": -287.52,
+		"body": "massing:way/237834141",
+		"face": "W", ## The Douglas street wall of the Main row block.
+		"wall_u": -287.52, ## GP's own address depth along the shared wall.
 		"mount_y": 5.4,
 		"letter": 0.18, ## 14.146 × 0.18 = 2.55 ≤ 2.6 (the widened board).
 		"band": Vector3(2.8, 0.6, 0.1), ## The painted signboard, one size up.
@@ -348,7 +349,12 @@ const SIGNS: Array[Dictionary] = [
 			+ "the lettered plaque IS the signboard (T-090's slab, cream/ink "
 			+ "defaults). The pack facing points at Douglas (the survey's "
 			+ "nearest street); VENUES reads the storefront on Main's wall — "
-			+ "the pack's verified facing carries the ticket.",
+			+ "the pack's verified facing carries the ticket. Wall note: GP's "
+			+ "own bake massing (way/237834149) INTERLEAVES with the row "
+			+ "neighbor way/237834141 (their AABBs overlap by 0.63 m), so "
+			+ "GP's west face is buried inside the block — the signboard "
+			+ "hangs on the block's Douglas street wall at GP's address "
+			+ "depth, the continuous-Main-Street-wall read VENUES describes.",
 	},
 ]
 
