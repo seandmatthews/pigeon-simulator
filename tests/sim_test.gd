@@ -1036,7 +1036,9 @@ func _scenario_ames_world_render_budget() -> void:
 ## runtime-merge law), walked too. (T-193) the civic water tanks retire
 ## their slots' six placeholder parts (stem/bulb/cap ×2 — chunk (10,−5)
 ## north, (13,2) east; placeholder-only slots like the bandshell's, so no
-## massing term), walked too.
+## massing term), walked too. (T-195) the SE elevator cluster retires its
+## slot's seven placeholder parts (4 silos + headhouse + 2 bins — chunk
+## (13,−1); placeholder-only, no massing term), walked too.
 	var hero_count := (manifest.get("heroes", []) as Array).size()
 	var campanile_slot_parts := 0
 	var row_slot_parts := 0
@@ -1046,6 +1048,7 @@ func _scenario_ames_world_render_budget() -> void:
 	var downtown_slot_parts := 0
 	var civic_tank_slot_parts := 0
 	var depot_slot_parts := 0
+	var elevator_slot_parts := 0
 	for entry: Dictionary in manifest.get("chunks", []):
 		var doc_b: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
 		for ph_b: Dictionary in doc_b.get("placeholders", []):
@@ -1068,6 +1071,8 @@ func _scenario_ames_world_render_budget() -> void:
 				civic_tank_slot_parts += 1
 			if str(ph_b.get("id", "")) == "way/260524827":
 				depot_slot_parts += 1
+			if str(ph_b.get("id", "")) == "grain_elevators":
+				elevator_slot_parts += 1
 		for m_b: Dictionary in doc_b.get("massing", []):
 			if bool(m_b.get("a", false)) and ["way/158023244", "way/158023219",
 					"way/183216666"].has(str(m_b.get("id", ""))):
@@ -1084,7 +1089,7 @@ func _scenario_ames_world_render_budget() -> void:
 			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
 			- row_slot_parts - mu_parks_slot_parts - marston_slot_parts \
 			- complex_slot_parts - downtown_slot_parts - civic_tank_slot_parts \
-			- depot_slot_parts
+			- depot_slot_parts - elevator_slot_parts
 	if int(m.mm_nodes) <= 0:
 		bad.append("no chunk MultiMeshes built (%s)" % str(m))
 	if int(m.instances) != expected_instances:
