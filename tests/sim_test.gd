@@ -206,6 +206,7 @@ func _run_scenarios() -> void:
 	await _scenario_r3_cutover_swap_set() ## T-196 — the R3 cutover: the ring's swap set complete (every hero ticket's slot swapped, zero orphan placeholders at hero positions), the supersede identity against the ring table, the honest LOD0 remainder intact.
 	await _scenario_sign_text_legibility() ## T-197 — the sign capability: typology scenes at their pinned dims and letter heights, faces on the bundled OFL font at cap-true pixel sizes, the legibility budget locked per typology.
 	await _scenario_credits_screen_content() ## T-197 — the credits screen: the three attribution classes (OSM, photos, font) live on the title screen.
+	await _scenario_venue_signs_tier1() ## T-198 — the fourteen Tier-1 venue names at their verified mounts, re-derived from the bake + pack.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -11348,6 +11349,339 @@ func _scenario_credits_screen_content() -> void:
 	menu.free()
 	_check("credits_screen_content", bad.is_empty(),
 		"; ".join(bad) if not bad.is_empty() else "-")
+
+
+## (T-198) The Tier-1 venue signs — the fourteen VENUES §1 names a student says
+## first, live on the resident Ames world: 13 placed (the 12 in-core venues +
+## the S Duff pylon) and the one staged spec (The Cafe — north Ames, the honest
+## T-205 dependency). Every leg re-derives independently of the module table:
+## the mounts against the COMMITTED bake bodies (the chunk files walked here)
+## and the pack POIs, the texts exact-matched against the survey names AND the
+## pack names, the street frontage against the pack street graph, the budget
+## law through the component, the overflow fit law, the night-lit acceptance
+## sign's emissive material, and the visual-only guard.
+func _scenario_venue_signs_tier1() -> void:
+	const S := "venue_signs_tier1"
+	var bad: PackedStringArray = []
+	## The VENUES.md §1 heading names — the byte-exact sign texts (the ticket's
+	## exact-match law), typed here from the survey doc.
+	var names: Array[String] = [
+		"Welch Ave Station", "Paddy's Irish Pub", "Cy's Roost", "Sips",
+		"Mickey's Irish Pub", "AJ's Ultra Lounge", "Outlaws", "Café Beaudelaire",
+		"Jeff's Pizza Shop", "Mr. Burrito", "Superdog", "Hickory Park",
+		"The Cafe", "Great Plains Sauce & Dough Co.",
+	]
+	## The survey street each venue fronts (pack street names — the frontage
+	## band legs read through AmesDataPack.nearest_street).
+	var frontage: Dictionary = {
+		"welch_ave_station": "Welch Avenue", "paddys_irish_pub": "Welch Avenue",
+		"sips": "Welch Avenue", "cys_roost": "Welch Avenue",
+		"mickeys_irish_pub": "Welch Avenue", "superdog": "Welch Avenue",
+		"ajs_ultra_lounge": "Chamberlain Street", "outlaws": "Chamberlain Street",
+		"cafe_beaudelaire": "Lincoln Way", "jeffs_pizza_shop": "Lincoln Way",
+		"mr_burrito": "Lincoln Way", "great_plains_sauce_dough": "Douglas Avenue",
+		"hickory_park": "South Duff Avenue",
+	}
+	var world := _city as AmesWorld
+	if world == null:
+		_check(S, false, "the harness world is not an AmesWorld")
+		return
+	var records := world.venue_signs
+	## Table shape: the ticket's 14, exactly one staged (The Cafe), 13 placed.
+	if AmesVenueSigns.SIGNS.size() != 14:
+		bad.append("module table %d entries want 14" % AmesVenueSigns.SIGNS.size())
+	var staged: Array[Dictionary] = []
+	for e: Dictionary in AmesVenueSigns.SIGNS:
+		if bool(e["staged"]):
+			staged.append(e)
+		if not (e["venue"] as String) in names:
+			bad.append("table name not a VENUES Tier-1 name: %s" % e["venue"])
+	if staged.size() != 1 or str(staged[0].get("id", "")) != "the_cafe":
+		bad.append("staged set %d (want exactly the_cafe)" % staged.size())
+	elif not (staged[0]["note"] as String).contains("T-205"):
+		bad.append("the staged The Cafe note drops the T-205 dependency")
+	## The pack tiering: the pack carries exactly the 14 as tier-1 venue POIs,
+	## and the sign names ride them (never retyped).
+	var tier1: Dictionary = {}
+	for p: Dictionary in AmesDataPack.pois():
+		if str(p.get("kind", "")) == "venue" and int(p.get("tier", -1)) == 1:
+			tier1[str(p.get("id", ""))] = p
+	if tier1.size() != 14:
+		bad.append("pack tier-1 venues %d want 14" % tier1.size())
+	if records.size() != 13:
+		bad.append("placed records %d want 13" % records.size())
+	var world_root := world.get_node_or_null("VenueSigns") as Node3D
+	if world_root == null:
+		bad.append("no VenueSigns root")
+		world_root = Node3D.new() ## Keep the walk below alive; bad already set.
+	## One walk of the committed chunks collects every mount body the records
+	## reference — the wall mounts re-derive against these, not against the
+	## module's own cache.
+	var selectors: Array[String] = []
+	for rec: Dictionary in records:
+		var sel := str(rec["body"])
+		if sel != "" and not sel in selectors:
+			selectors.append(sel)
+	var bodies := _venue_bake_bodies(selectors)
+	var sign_nodes: Array[SignText] = []
+	var cart_roots := 0
+	for c: Node in world_root.get_children():
+		if c.name.begins_with("Cart_"):
+			cart_roots += 1
+	## All 13 sign faces (the cart's topper rides INSIDE its cart root).
+	for c: Node in world_root.find_children("*", "SignText", true, false):
+		sign_nodes.append(c)
+	if sign_nodes.size() != 13:
+		bad.append("world sign nodes %d want 13" % sign_nodes.size())
+	if cart_roots != 1:
+		bad.append("world cart roots %d want 1" % cart_roots)
+	## Per-record legs.
+	for rec: Dictionary in records:
+		var id := str(rec["id"])
+		var venue := str(rec["venue"])
+		if not venue in names:
+			bad.append("%s name not in the VENUES Tier-1 set" % id)
+		var poi: Dictionary = tier1.get(id, {})
+		if poi.is_empty():
+			bad.append("%s is not a pack tier-1 venue POI" % id)
+			continue
+		if str(poi.get("name", "")) != venue:
+			bad.append("%s text '%s' != pack name '%s'" % [id, venue,
+					str(poi.get("name", ""))])
+		var sign: SignText = rec["node"]
+		if sign == null or not is_instance_valid(sign):
+			bad.append("%s record node is gone" % id)
+			continue
+		if sign.display_text() != venue:
+			bad.append("%s display '%s' want '%s'" % [id, sign.display_text(), venue])
+		## Placement rides the pinned mount (the records ARE the mounts); the
+		## cart's record node is cart-local, so the cart root carries the mount.
+		var mount_node: Node3D = sign
+		if str(rec["form"]) == "cart":
+			mount_node = sign.get_parent()
+		if mount_node.position.distance_to(rec["pos"] as Vector3) > 0.001:
+			bad.append("%s node drifted off its mount" % id)
+		## The budget law: readable_distance == letter × the typology's factor.
+		var letter := float(rec["letter"])
+		if absf(sign.effective_letter_height() - letter) > 0.0001:
+			bad.append("%s letter %.3f != pinned %.3f" % [id,
+					sign.effective_letter_height(), letter])
+		var budget := float(SignText.SPEC[sign.typology]["budget"])
+		if not is_equal_approx(sign.readable_distance(), letter * budget):
+			bad.append("%s readable %.2f want %.2f" % [id, sign.readable_distance(),
+					letter * budget])
+		## The band override rides the record.
+		if (sign.body_scale - (rec["band"] as Vector3)).length() > 0.0001:
+			bad.append("%s body_scale %s want %s" % [id, sign.body_scale,
+					rec["band"]])
+		## Visual-only law: no collision anywhere under the sign (or its cart).
+		if _has_collision(sign) or _has_collision(sign.get_parent()):
+			bad.append("%s carries collision (visual-only law)" % id)
+		## The overflow fit law — what the component warns past, pre-computed:
+		## string width at the cap ≤ face width − 0.2 (blades: widest glyph).
+		var px := letter / (float(SignText.FONT_SIZE_PX) * SignText.CAP_HEIGHT_EM)
+		var face_w := (sign.body_scale if sign.body_scale != Vector3.ZERO
+				else SignText.SPEC[sign.typology]["body"] as Vector3).x
+		if sign.typology == SignText.Typology.BLADE:
+			face_w = (SignText.SPEC[SignText.Typology.BLADE]["body"]
+					as Vector3).z
+		var widest := venue
+		if sign.typology == SignText.Typology.BLADE:
+			widest = ""
+			for c2: String in venue:
+				if SignText.FONT.get_string_size(c2, HORIZONTAL_ALIGNMENT_LEFT,
+						-1, SignText.FONT_SIZE_PX).x \
+						> SignText.FONT.get_string_size(widest,
+						HORIZONTAL_ALIGNMENT_LEFT, -1, SignText.FONT_SIZE_PX).x:
+					widest = c2
+		var width := SignText.FONT.get_string_size(widest,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, SignText.FONT_SIZE_PX).x * px
+		if width > face_w - 0.2:
+			bad.append("%s lettering %.2f m overflows its %.2f m face" % [id,
+					width, face_w])
+		## The mount legs — against the committed bake body + the pack.
+		var form := str(rec["form"])
+		var face := str(rec["face"])
+		var yaw := float(rec["yaw"])
+		var want_yaw := 0.0
+		if face == "poi":
+			## Free-standing forms stand at the pack POI, yawed onto the
+			## pack's verified facing — the facing vector IS the check.
+			var n := AmesVenueSigns._facing_normal(float(poi["facing_deg"]))
+			want_yaw = atan2(n.x, n.z)
+			if (rec["pos"] as Vector3).distance_to(Vector3(
+					float((poi["position"] as Array)[0]), 0.0,
+					float((poi["position"] as Array)[1]))) > 0.02:
+				bad.append("%s not at its pack POI position" % id)
+		else:
+			## Wall mounts hang on the pinned bake body's face plane,
+			## re-derived here from the committed chunk files.
+			var parts := (str(rec["body"]) as String).split(":")
+			var body: Dictionary = bodies.get(str(rec["body"]), {})
+			if body.is_empty():
+				bad.append("%s bake body %s not in the committed chunks" % [id,
+						rec["body"]])
+				continue
+			var bp: Array = body["p"]
+			var bs: Array = body["s"]
+			var band: Vector3 = rec["band"]
+			var size: Vector3 = band if band != Vector3.ZERO \
+					else SignText.SPEC[AmesVenueSigns._typology_of(rec)]["body"]
+			var stand := size.z * 0.5 + AmesVenueSigns.WALL_GAP
+			if form == "blade":
+				stand = AmesVenueSigns.BLADE_STANDOFF
+			var u := float(rec["wall_u"])
+			var y := float(rec["mount_y"])
+			var want_pos := Vector3.ZERO
+			match face:
+				"E":
+					want_pos = Vector3(float(bp[0]) + float(bs[0]) * 0.5
+							+ stand, y, u)
+					want_yaw = atan2(1.0, 0.0)
+				"W":
+					want_pos = Vector3(float(bp[0]) - float(bs[0]) * 0.5
+							- stand, y, u)
+					want_yaw = atan2(-1.0, 0.0)
+				"N":
+					want_pos = Vector3(u, y, float(bp[2]) - float(bs[2]) * 0.5
+							- stand)
+					want_yaw = atan2(0.0, -1.0)
+				_:
+					want_pos = Vector3(u, y, float(bp[2]) + float(bs[2]) * 0.5
+							+ stand)
+					want_yaw = atan2(0.0, 1.0)
+			if (rec["pos"] as Vector3).distance_to(want_pos) > 0.02:
+				bad.append("%s mount %s off the re-derived wall mount %s"
+						% [id, rec["pos"], want_pos])
+			## The band fits the wall it hangs on: along-wall extent inside
+			## the face span, mount below the body top.
+			var along := face in ["E", "W"]
+			var half_wall := float(bs[2]) * 0.5 if along else float(bs[0]) * 0.5
+			var center_u := float(bp[2]) if along else float(bp[0])
+			if absf(u - center_u) + size.x * 0.5 > half_wall:
+				bad.append("%s band exceeds its face span" % id)
+			if y > float(bp[1]) + float(bs[1]) * 0.5 + 0.01:
+				bad.append("%s mounts above its body top" % id)
+		if absf(wrapf(yaw - want_yaw, -PI, PI)) > 0.02:
+			bad.append("%s yaw %.3f want %.3f" % [id, yaw, want_yaw])
+		## The facing hemisphere: the mounted facing looks at the venue's own
+		## POI facing (the Sips override rides this too — 181.3 vs west is
+		## still the front half-space; the note in the table documents it).
+		var rad := deg_to_rad(float(poi["facing_deg"]))
+		var poi_n := Vector3(sin(rad), 0.0, -cos(rad))
+		var mount_n := Vector3(sin(yaw), 0.0, cos(yaw))
+		if mount_n.dot(poi_n) <= 0.0:
+			bad.append("%s sign faces away from its venue" % id)
+		## The street frontage: the venue's survey street is the nearest named
+		## street IN FRONT of the sign, at a sidewalk-frontage distance.
+		var street := AmesDataPack.nearest_street(rec["pos"] as Vector3)
+		var want_street := str(frontage.get(id, ""))
+		if street.is_empty() or str(street["name"]) != want_street:
+			bad.append("%s frontage '%s' want '%s'" % [id,
+					str(street.get("name", "<none>")), want_street])
+			continue
+		var d := float(street["distance_m"])
+		if id == "hickory_park":
+			## The honest apron read: the pylon stands past the v1 bake's SE
+			## corner — the pack's S Duff polyline ends ≈240 m short, and the
+			## pylon's facing must AIM at it (the building lands with T-203).
+			if d < 100.0:
+				bad.append("hickory_park S Duff frontage %.0f m — expected the "
+					+ "apron read (> 100)" % d)
+		elif id == "superdog":
+			## The cart's curb read: the pack's hand-placed 208-Welch position
+			## sits at the EAST carriageway of the 200 block's divided section
+			## (Welch maps as two one-way polylines through z 150..185), 1.3 m
+			## off that carriageway's centerline — the curb the cart parks on.
+			## Upper band only; the facing leg below carries the street read.
+			if d > 30.0:
+				bad.append("superdog curb distance %.1f m past the band" % d)
+		elif d < 4.0 or d > 30.0:
+			bad.append("%s frontage distance %.1f m off the sidewalk band" % [id, d])
+		var to_street: Vector3 = street["point"] - (rec["pos"] as Vector3)
+		to_street.y = 0.0
+		to_street = to_street.normalized()
+		if mount_n.dot(to_street) < 0.9:
+			bad.append("%s does not face its street (dot %.3f)" % [id,
+					mount_n.dot(to_street)])
+	## The night-lit acceptance sign: Welch Ave Station — the big band, lit.
+	for rec: Dictionary in records:
+		if str(rec["id"]) != "welch_ave_station":
+			continue
+		if str(rec["form"]) != "box":
+			bad.append("welch_ave_station form %s want box" % rec["form"])
+		if (rec["band"] as Vector3) != Vector3(8.4, 1.3, 0.35) \
+				or not is_equal_approx(float(rec["letter"]), 0.80):
+			bad.append("welch_ave_station band/letter off the pinned values")
+		var body_mesh: MeshInstance3D = null
+		for c3: Node in (rec["node"] as SignText).get_children():
+			if c3.name == "Body" and c3 is MeshInstance3D:
+				body_mesh = c3
+		if body_mesh == null or body_mesh.mesh == null:
+			bad.append("welch_ave_station body mesh missing")
+		else:
+			var mat := body_mesh.mesh.surface_get_material(0) as StandardMaterial3D
+			if mat == null or not mat.emission_enabled \
+					or mat.emission_energy_multiplier <= 0.0:
+				bad.append("welch_ave_station band is not night-lit")
+	## The staged The Cafe: no world node, no record.
+	for c4: Node in world_root.get_children():
+		if c4.name.begins_with("Sign_the_cafe") or c4.name.begins_with("Cart_the_cafe"):
+			bad.append("the staged The Cafe built a world node")
+	for rec: Dictionary in records:
+		if str(rec["id"]) == "the_cafe":
+			bad.append("the staged The Cafe produced a placed record")
+	## The Superdog cart: the one PROP — parts, the red umbrella, its sign.
+	for rec: Dictionary in records:
+		if str(rec["id"]) != "superdog":
+			continue
+		if not rec.has("cart_parts") or int(rec["cart_parts"]) < 8:
+			bad.append("superdog cart parts %s want >= 8" % str(rec.get("cart_parts")))
+		var cart := (rec["node"] as SignText).get_parent()
+		var canopy: MeshInstance3D = null
+		for c5: Node in cart.get_children():
+			if c5.name == "Canopy" and c5 is MeshInstance3D:
+				canopy = c5
+		if canopy == null or canopy.mesh == null:
+			bad.append("superdog umbrella missing")
+		else:
+			var cm := canopy.mesh.surface_get_material(0) as StandardMaterial3D
+			if cm == null or cm.albedo_color.r < 0.5 or cm.albedo_color.g > 0.3:
+				bad.append("superdog umbrella is not the red read")
+	## The world report keys.
+	var report: Dictionary = world.last_report
+	if int(report.get("venue_signs", -1)) != 13:
+		bad.append("report venue_signs %s want 13" % str(report.get("venue_signs")))
+	if int(report.get("superdog_cart_parts", -1)) < 8:
+		bad.append("report superdog_cart_parts %s" % str(report.get("superdog_cart_parts")))
+	_check(S, bad.is_empty(), "; ".join(bad) if not bad.is_empty() else "-")
+
+
+## One walk of the committed chunk files, returning every referenced bake body
+## (placeholder or massing) by its "kind:id" selector — the venue-sign mounts'
+## independent derivation leg.
+func _venue_bake_bodies(selectors: Array[String]) -> Dictionary:
+	var out: Dictionary = {}
+	var want: Dictionary = {}
+	for s: String in selectors:
+		want[s] = true
+	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	for entry: Dictionary in manifest.get("chunks", []):
+		if want.is_empty():
+			break
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+				str(entry["file"]))
+		for ph: Dictionary in doc.get("placeholders", []):
+			var key := "placeholder:%s" % str(ph.get("id", ""))
+			if want.has(key):
+				out[key] = ph
+				want.erase(key)
+		for m: Dictionary in doc.get("massing", []):
+			var key := "massing:%s" % str(m.get("id", ""))
+			if want.has(key):
+				out[key] = m
+				want.erase(key)
+	return out
 
 
 ## --- scenarios (T-001 flight model) ----------------------------------------
