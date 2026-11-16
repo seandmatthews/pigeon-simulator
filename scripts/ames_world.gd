@@ -6127,9 +6127,9 @@ const ELEVATOR_BIN_ROOF_H := 1.6 ## Each bin's cone roof (the wall takes the res
 const ELEVATOR_BIN_ROOF_TOP_R := 0.25 ## The cone's top eyelet radius.
 const ELEVATOR_LEG_HALF := 0.8 ## The lattice square's half-width about the leg center.
 const ELEVATOR_LEG_STANDOFF := 1.4 ## The leg center's standoff east of the headhouse east wall.
-const ELEVATOR_LEG_COLLARS := 5 ## The collar ring count (the braced read at distance).
-const ELEVATOR_LEG_COLLAR_PITCH := 5.5 ## Collar centers every 5.5 m up the leg.
-const ELEVATOR_LEG_ARM_DROP := 0.6 ## The distributor arm hangs this under the silo-top line.
+const ELEVATOR_LEG_TOP_DROP := 1.0 ## The leg tops this under the headhouse top — ABOVE the bank line, so the rail/12 mast reads in the skyline from the town side (occluded behind the silos if it stopped at their top).
+const ELEVATOR_LEG_COLLARS := 5 ## The collar ring count (the braced read at distance), evenly spread over the lower leg.
+const ELEVATOR_LEG_ARM_DROP := 0.6 ## The distributor arm hangs this under the leg top.
 const ELEVATOR_LEG_ARM_LEN := 8.0 ## The arm's length, running alongside the headhouse wall.
 
 
@@ -6175,10 +6175,7 @@ func _build_elevator_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3
 		return (a["p"] as Vector3).x < (b["p"] as Vector3).x)
 	var hp: Vector3 = headhouse["p"]
 	var hs: Vector3 = headhouse["s"]
-	var silo_top := 0.0
-	for s: Dictionary in silos:
-		silo_top = maxf(silo_top, (s["p"] as Vector3).y + (s["s"] as Vector3).y * 0.5)
-	var boxes := _elevator_boxes(hp, hs, silo_top)
+	var boxes := _elevator_boxes(hp, hs)
 	var extras := _elevator_extras(silos, bins)
 	var root := Node3D.new()
 	root.name = "HeroElevatorCluster"
@@ -6275,11 +6272,14 @@ func _build_elevator_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3
 
 ## The box schedule in WORLD-LOCAL coordinates (pack-local — the world node
 ## IS the pack frame): the headhouse body keeps the slot's own box EXACTLY
-## under its proud dark roof slab; the leg tower's posts, collars and crown
-## arm are visual-only dressing (the thin-member law — the fence/crossbuck
+## under its proud dark roof slab; the leg tower rises to a meter under the
+## headhouse top — ABOVE the bank line, so the rail/12 mast reads in the
+## skyline from the town side — and its posts, collars and crown arm are
+## visual-only dressing (the thin-member law — the fence/crossbuck
 ## precedent). `basis` the UNSCALED rotation (the T-191 statue-lean law), `s`
 ## the size in that rotated frame.
-func _elevator_boxes(hp: Vector3, hs: Vector3, silo_top: float) -> Array[Dictionary]:
+func _elevator_boxes(hp: Vector3, hs: Vector3) -> Array[Dictionary]:
+	var leg_top := hs.y - ELEVATOR_LEG_TOP_DROP
 	var out: Array[Dictionary] = []
 	out.append({"band": "concrete", "basis": Basis(), "p": hp, "s": hs,
 			"collide": true, "ground": false})
@@ -6292,18 +6292,19 @@ func _elevator_boxes(hp: Vector3, hs: Vector3, silo_top: float) -> Array[Diction
 	for sx: float in [-1.0, 1.0]:
 		for sz: float in [-1.0, 1.0]:
 			out.append({"band": "leg", "basis": Basis(),
-					"p": Vector3(leg_x + sx * ELEVATOR_LEG_HALF, silo_top * 0.5,
+					"p": Vector3(leg_x + sx * ELEVATOR_LEG_HALF, leg_top * 0.5,
 							hp.z + sz * ELEVATOR_LEG_HALF),
-					"s": Vector3(0.16, silo_top, 0.16),
+					"s": Vector3(0.16, leg_top, 0.16),
 					"collide": false, "ground": false})
 	for k in ELEVATOR_LEG_COLLARS:
 		out.append({"band": "leg", "basis": Basis(),
-				"p": Vector3(leg_x, ELEVATOR_LEG_COLLAR_PITCH * float(k + 1), hp.z),
+				"p": Vector3(leg_x, leg_top * float(k + 1)
+						/ float(ELEVATOR_LEG_COLLARS + 1), hp.z),
 				"s": Vector3(ELEVATOR_LEG_HALF * 2.0 + 0.3, 0.14,
 						ELEVATOR_LEG_HALF * 2.0 + 0.3),
 				"collide": false, "ground": false})
 	out.append({"band": "leg", "basis": Basis(),
-			"p": Vector3(leg_x, silo_top - ELEVATOR_LEG_ARM_DROP, hp.z),
+			"p": Vector3(leg_x, leg_top - ELEVATOR_LEG_ARM_DROP, hp.z),
 			"s": Vector3(0.22, 0.3, ELEVATOR_LEG_ARM_LEN),
 			"collide": false, "ground": false})
 	return out

@@ -10224,33 +10224,40 @@ func _scenario_elevator_cluster_dims() -> void:
 			bad.append("bin x %.1f wall+roof %.2f != the slot's own %.1f span" % [
 					(bn2["p"] as Vector3).x, bin_sum, want_bin])
 	## D. THE COMPOSITION: the leg tower against the headhouse's east wall,
-	## rising with the bank (post height == the silo span), 5 collars, the
-	## crown arm at silo-top − 0.6 running 8 m alongside the wall.
+	## rising to a meter under the headhouse top — ABOVE the bank line, so
+	## the rail/12 mast reads in the skyline from the town side (a leg that
+	## stopped at the silo top would stand occluded behind the bank) — with
+	## 5 collars evenly over the lower leg and the crown arm at leg-top − 0.6
+	## running 8 m alongside the wall.
 	var leg_x := hp.x + hs.x * 0.5 + 1.4
-	var leg_parts := 0
+	var leg_top := hs.y - 1.0
+	var silo_span: float = (silos[0]["s"] as Vector3).y
+	if leg_top <= silo_span:
+		bad.append("leg top %.1f not above the bank line %.1f — the mast would never read" % [
+				leg_top, silo_span])
 	var posts := 0
 	var collars := 0
 	var arms := 0
 	for part5: Dictionary in parts:
 		if str(part5["band"]) != "leg":
 			continue
-		leg_parts += 1
 		var lp: Vector3 = part5["p"]
 		var ls: Vector3 = part5["s"]
 		if absf(ls.x - 0.16) < 0.001 and absf(ls.z - 0.16) < 0.001:
 			posts += 1
 			if absf(absf(lp.x - leg_x) - 0.8) > 0.01 or absf(absf(lp.z - hp.z) - 0.8) > 0.01 \
-					or absf(ls.y - (silos[0]["s"] as Vector3).y) > 0.001:
-				bad.append("leg post %s off the lattice square or the bank-top line" % lp)
+					or absf(ls.y - leg_top) > 0.001:
+				bad.append("leg post %s off the lattice square or the headhouse-top line" % lp)
 		elif absf(ls.y - 0.14) < 0.001:
 			collars += 1
-			if absf(lp.y - 5.5 * float(collars)) > 0.01:
-				bad.append("leg collar %d at y %.2f != the 5.5 m pitch line" % [collars, lp.y])
+			if absf(lp.y - leg_top * float(collars) / 6.0) > 0.01:
+				bad.append("leg collar %d at y %.2f != the even lower-leg line %.2f" % [
+						collars, lp.y, leg_top * float(collars) / 6.0])
 		elif absf(ls.z - 8.0) < 0.001:
 			arms += 1
-			if absf(lp.y - ((silos[0]["s"] as Vector3).y - 0.6)) > 0.01 \
+			if absf(lp.y - (leg_top - 0.6)) > 0.01 \
 					or absf(lp.x - leg_x) > 0.01:
-				bad.append("leg arm %s off the crown line (silo top − 0.6)" % lp)
+				bad.append("leg arm %s off the crown line (leg top − 0.6)" % lp)
 	if posts != 4 or collars != 5 or arms != 1:
 		bad.append("leg schedule %d posts / %d collars / %d arms != 4/5/1" % [posts, collars, arms])
 	## E. THE PALETTE: every band at its literal ±0.02 + the read laws.
@@ -10398,7 +10405,8 @@ func _scenario_elevator_cluster_dims() -> void:
 	## The leg tower visual-only: the crown arm's line and the post line
 	## answer NOTHING (the thin-member law).
 	var arm_ray: Dictionary = probe.call(
-			Vector3(leg_x, 33.4, hp.z - 6.0), Vector3(leg_x, 33.4, hp.z - 2.0))
+			Vector3(leg_x, leg_top - 0.6, hp.z - 6.0),
+			Vector3(leg_x, leg_top - 0.6, hp.z - 2.0))
 	if not arm_ray.is_empty():
 		bad.append("leg crown arm answered a ray — the lattice must stay visual-only")
 	var post_ray: Dictionary = probe.call(
