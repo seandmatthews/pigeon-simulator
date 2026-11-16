@@ -478,6 +478,15 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	bandshell_hero_parts = [] ## (T-192) The downtown records rebuild with the world.
 	civic_hero_parts = []
 	civic_tank_hero_parts = [] ## (T-193) The civic tank record rebuilds with the world.
+	depot_hero_parts = [] ## (T-194) The rail-corridor records rebuild with the world.
+	crossbuck_pins = []
+	wigwag_parts = []
+	_crossbuck_post_xfs = []
+	_crossbuck_arm_xfs = []
+	_fence_post_xfs = []
+	_fence_wire_xfs = []
+	rail_route = PackedVector3Array()
+	train = null
 	fabric_parts = []
 	_fabric_row_slots = []
 	ped_zones = null
@@ -540,6 +549,7 @@ func generate_step_finish() -> void:
 	_build_campus_lawn() ## (T-187) The lawn slab, the crossing axes' ribbons, the fountain.
 	_build_tailgate_lots() ## (T-191) The Iowa State Center lot flats + stall-marking hint.
 	_build_downtown_fabric() ## (T-192) The Main Street cornices + the maroon furniture + the blade seeds.
+	_build_rail_corridor() ## (T-194) The depot rides its chunk; this is the corridor dress: crossbucks, fence, the coal drag.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -588,6 +598,13 @@ func generate_step_finish() -> void:
 		"campus_slab_tris": campus_slab_tris,
 		"campus_plaza_tris": campus_plaza_tris,
 		"fountain_parts": fountain_parts.size(),
+		"depot_parts": depot_hero_parts.size(), ## (T-194) The depot hero is live.
+		"crossbuck_crossings": crossbuck_pins.size(),
+		"crossbuck_posts": _crossbuck_post_xfs.size(),
+		"fence_posts": _fence_post_xfs.size(),
+		"fence_wires": _fence_wire_xfs.size(),
+		"train_route_m": snappedf(_rail_route_length(rail_route), 0.01),
+		"train_boxes": train.consist_boxes() if train != null else 0,
 	}
 	## Deterministic identity: the bake manifest's total hash — a re-bake that
 	## moves a byte moves the fingerprint, exactly the layout-fingerprint
@@ -1618,12 +1635,14 @@ func _collect_roof_spots(chunk: Dictionary) -> void:
 				or hero_id == BEARDSHEAR_HERO_ID \
 				or hero_id == MU_HERO_ID or hero_id == PARKS_HERO_ID \
 				or hero_id == MARSTON_TOWER_HERO_ID \
-				or hero_id == JACK_TRICE_HERO_ID or hero_id == HILTON_HERO_ID:
-			continue ## (T-186/T-188/T-189/T-190/T-191) the campanile's cap crumb is
-			## pinned; the other heroes file their own true-top spots in their
-			## builds (Marston's byte-identical to the bake-derived cap pin;
-			## the stadium's re-pins the ring-top read at the press-tower roof,
-			## Hilton's byte-identical at the drum roof top).
+				or hero_id == JACK_TRICE_HERO_ID or hero_id == HILTON_HERO_ID \
+				or hero_id == DEPOT_HERO_ID:
+			continue ## (T-186/T-188/T-189/T-190/T-191/T-194) the campanile's cap
+			## crumb is pinned; the other heroes file their own true-top spots
+			## in their builds (Marston's byte-identical to the bake-derived
+			## cap pin; the stadium's re-pins the ring-top read at the
+			## press-tower roof, Hilton's byte-identical at the drum roof top;
+			## the depot's the ridge top).
 		var top := float(ph["p"][1]) + float(ph["s"][1]) * 0.5
 		var pos := Vector3(float(ph["p"][0]), top, float(ph["p"][2]))
 		var current: Variant = _hero_roof_tops.get(hero_id)
@@ -1748,6 +1767,7 @@ func _build_chunk(entry: Dictionary) -> void:
 	_build_hilton_hero(chunk_root, chunk, center, chunk_body) ## (T-191) the drum hero rides its carrier chunk.
 	_build_downtown_heroes(chunk_root, chunk, center, chunk_body) ## (T-192) the bandshell + civic pair ride their carrier chunks.
 	_build_civic_tank_heroes(chunk_root, chunk, center, chunk_body) ## (T-193) the city tanks ride theirs.
+	_build_depot_hero(chunk_root, chunk, center, chunk_body) ## (T-194) the depot rides its carrier chunk.
 	_collect_fabric_row_slots(chunk) ## (T-192) the frontage-row walk, while the doc is in hand.
 
 
@@ -1994,6 +2014,12 @@ func _build_chunk_colliders(chunk_root: Node3D, chunk: Dictionary, center: Vecto
 			## stem/bulb/cap placeholder parts the same 1:1 way — their builds
 			## file the shapes (the stem, the mushroom shoulder, the bulb drum
 			## and the roof dome as convex cylinders); no capture.
+			continue
+		if pid == DEPOT_HERO_ID:
+			## (T-194) The depot hero supersedes its slot's wall/roof/canopy
+			## placeholder parts the same 1:1 way — its build files the shapes
+			## (the wall + canopy slab boxes, the chimney, the hip frustum);
+			## no capture.
 			continue
 		var p: Array = e["p"]
 		var s: Array = e["s"]
@@ -2970,6 +2996,9 @@ func _row_band_color(band: String) -> Color:
 ## true structure position ~35 m north). The civic water tanks (T-193: the
 ## two municipal bulbs' stem/bulb/cap placeholder stacks — chunk (10,−5)
 ## north and (13,2) east — are the slots the bulb-on-stem heroes re-shape).
+## The depot (T-194: the 1906 C&NW depot's wall/roof/canopy stack — chunk
+## (10,−1) — is the slot the depot hero re-shapes; its id already rides the
+## bake's `heroes` list, so the massing term handles its bbox).
 ## The placeholder-family passes (render, collision, ground record, roof
 ## spots) skip these ids so a hero never renders twice.
 func _row_superseded_placeholder(id: String) -> bool:
@@ -2978,7 +3007,8 @@ func _row_superseded_placeholder(id: String) -> bool:
 			or id == MARSTON_TOWER_HERO_ID \
 			or id == JACK_TRICE_HERO_ID or id == HILTON_HERO_ID \
 			or id == BANDSHELL_SLOT_ID \
-			or id == CITY_TANK_NORTH_HERO_ID or id == CITY_TANK_EAST_HERO_ID
+			or id == CITY_TANK_NORTH_HERO_ID or id == CITY_TANK_EAST_HERO_ID \
+			or id == DEPOT_HERO_ID
 
 
 ## Builds the row heroes found in this chunk (Beardshear + Morrill + Marston
@@ -5729,6 +5759,641 @@ func _civic_tank_extras(c: Vector2) -> Array[Dictionary]:
 		},
 	]
 	return out
+
+
+## --- T-194 the rail corridor -------------------------------------------------
+## The town's motion landmark (LANDMARKS §5 item 12), honest to the verified
+## facts: the 1906 C&NW depot hero (photo `rail/08` — brick + red-tile hip +
+## arched dormers + green-bracket platform canopy, NO Amtrak signage — the
+## ground truth: Ames has no passenger stop, the nearest is Osceola), the
+## crossbucks at the pack's 9 at-grade crossings (T-134 sign discipline,
+## visual-only dressing), ONE museum wigwag at the busiest crossing (Duff —
+## the ticket's optional flavor, photo `rail/09`), the right-of-way fence
+## line (photo `rail/06`'s cross-section read) and THE DAILY COAL DRAG — a
+## yellow SD70ACe-led consist (photo `rail/07`) running the chained south
+## track on a loop-timer schedule. The train is DRESSING THAT MOVES: zero
+## physics (collision_layer 0, no body — the T-185 swan scope guard), no
+## event system, no traffic gating (the fence — the blocking-EVENT fork is
+## deliberately out per the ticket). Ballast + tie stripes already exist in
+## the bake (T-174); this section adds only what the bake does not carry.
+## Zero RNG of any stream — a rebuild reproduces every transform
+## byte-identically (the T-180 dress law).
+
+const DEPOT_HERO_ID := "way/260524827" ## The 1906 depot (today's "Main Street Station") — a bake manifest hero: the massing bbox is already skipped, the placeholder stack joins the superseded set below.
+
+## (T-194) The depot's pinned palette — §1.8's rail-corridor rows, verbatim
+## where the table pins one; the trim and cap carry no survey hex (photo-08
+## reads) pinned here and asserted as the scenario's own literals.
+const DEPOT_BRICK := Color(0.604, 0.251, 0.188) ## #9A4030 the depot brick row.
+const DEPOT_TILE := Color(0.690, 0.290, 0.204) ## #B04A34 the red tile roof row.
+const DEPOT_BRACKET_GREEN := Color(0.243, 0.478, 0.353) ## #3E7A5A the canopy brackets row.
+const DEPOT_TRIM := Color(0.898, 0.875, 0.808) ## #E5DFCE the photo-08 cream trim read.
+const DEPOT_STEEL := Color(0.45, 0.45, 0.46) ## The bake's own canopy-steel carryover (HERO_STEEL).
+const DEPOT_CAP := Color(0.30, 0.28, 0.27) ## Dark law: luminance ≤ 0.45 (the chimney cap).
+
+## The band -> color table (the record and the render share this one mapping).
+const DEPOT_BANDS: Dictionary = {
+	"brick": DEPOT_BRICK,
+	"tile": DEPOT_TILE,
+	"trim": DEPOT_TRIM,
+	"green": DEPOT_BRACKET_GREEN,
+	"steel": DEPOT_STEEL,
+	"cap": DEPOT_CAP,
+}
+
+## (T-194) The depot's pinned dressing dims (m) — photo-08 reads on the slot's
+## own envelope (the T-190 keep-the-stack law: the wall/roof/canopy spans stay
+## the slot's; the shapes re-read from the photo). The canopy moves to the
+## TRACK FACE: the bake's north-face canopy contradicts the pack's own
+## geometry (the Clinton main runs SOUTH of the depot footprint here — z
+## −159..−163 vs the wall's −175..−195), so the platform canopy rides the
+## south face, 11.95 m south of the wall center (the wall half-depth 9.95 +
+## the 4.0 m canopy half-depth — over the platform, 10 m clear of the track).
+const DEPOT_DORMER_OFFSET_X := 10.5 ## The dormer pair's spacing off the wall center (photo-08's flanking pair).
+const DEPOT_DORMER_Z := 4.6 ## The dormers' center depth onto the south slope (front face proud of the slope).
+const DEPOT_CHIMNEY_X := 14.0 ## The chimney's east offset (photo-08's center-east stack).
+const DEPOT_CHIMNEY_Z := -1.5 ## The chimney rides the ridge's north side.
+const DEPOT_CANOPY_POSTS := 9 ## The bracket-post run along the 85.4 m canopy.
+const DEPOT_CANOPY_OUTSET := 1.24 ## The post row's inset from the canopy's outer edge.
+
+
+func _depot_band_color(band: String) -> Color:
+	return DEPOT_BANDS.get(band, DEPOT_BRICK)
+
+
+## Builds the depot hero found in this chunk — chunk (10,−1) carries the slot.
+## No-op elsewhere. The 1:1 swap (the T-190 law): the slot's wall/roof/canopy
+## placeholder stack is superseded (render, collision, ground record, roof
+## crumb); the hero re-reads the SAME spans as the photo's shapes. Render —
+## the box schedule in a chunk-local MultiMesh plus the hip-roof loft and the
+## two dormer arches as named meshes (the T-188 mesh-extra path, extended with
+## a per-extra rot basis); collision — the wall, the canopy slab, the chimney
+## and the hip frustum ride the chunk's placeholder body, same layer-1 `world`
+## class (the dressing props stay visual-only); ground record — the wall top
+## 7.0, the canopy top 4.0 at its CORRECTED south-face position and a hidden
+## ridge strip filing the ridge-top 9.5 walk answer (the Farm House law: the
+## sloped loft files no AABB lie); roof crumb — the ridge top; the retained
+## part record for the gates.
+func _build_depot_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3,
+		chunk_body: StaticBody3D) -> void:
+	var wall := {}
+	var roof := {}
+	var canopy := {}
+	for ph: Dictionary in chunk.get("placeholders", []):
+		if str(ph.get("id", "")) != DEPOT_HERO_ID:
+			continue
+		match str(ph.get("part", "")):
+			"wall":
+				wall = ph
+			"roof":
+				roof = ph
+			"canopy":
+				canopy = ph
+	if wall.is_empty() or roof.is_empty() or canopy.is_empty():
+		return ## Not this chunk's slot.
+	var wx := float(wall["p"][0])
+	var wz := float(wall["p"][2])
+	var roof_base := Vector2(float(roof["s"][0]), float(roof["s"][2]))
+	var canopy_s := Vector3(float(canopy["s"][0]), float(canopy["s"][1]),
+			float(canopy["s"][2]))
+	var boxes := _depot_boxes(wx, wz, wall["s"], roof_base, canopy_s)
+	var extras := _depot_extras(wx, wz, roof_base)
+	var root := Node3D.new()
+	root.name = "HeroDepot"
+	chunk_root.add_child(root)
+	var mm := _new_multimesh(boxes.size())
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for i in boxes.size():
+		var b: Dictionary = boxes[i]
+		var basis: Basis = b["basis"]
+		var bp: Vector3 = b["p"]
+		var bs: Vector3 = b["s"]
+		mm.set_instance_transform(i, Transform3D(basis * Basis.from_scale(bs),
+				bp - center))
+		mm.set_instance_color(i, _depot_band_color(str(b["band"])))
+		var ab: Array = _complex_box_aabb(basis, bp, bs)
+		lo = (ab[0] as Vector3).min(lo)
+		hi = (ab[1] as Vector3).max(hi)
+	mm.custom_aabb = AABB(lo - center - Vector3.ONE * 2.0, (hi - lo) + Vector3.ONE * 4.0)
+	var mm_node := MultiMeshInstance3D.new()
+	mm_node.name = "Boxes"
+	mm_node.multimesh = mm
+	root.add_child(mm_node)
+	## Collision: the chunk's placeholder body (the chunk carries authored
+	## massing, so the body always exists here — the null fallback kept for
+	## the swap's contract).
+	var body := chunk_body
+	if body == null:
+		body = StaticBody3D.new()
+		body.name = "Placeholders"
+		body.collision_layer = 1 ## world
+		body.collision_mask = 0
+		chunk_root.add_child(body)
+	for b2: Dictionary in boxes:
+		if not b2["collide"]:
+			continue
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = b2["s"]
+		shape.shape = box
+		shape.transform = Transform3D(b2["basis"] as Basis,
+				(b2["p"] as Vector3) - center)
+		body.add_child(shape)
+	for e: Dictionary in extras:
+		var mesh_node := MeshInstance3D.new()
+		mesh_node.name = str(e["name"])
+		mesh_node.mesh = e["mesh"]
+		mesh_node.position = (e["pos"] as Vector3) - center
+		mesh_node.transform = Transform3D(e["rot"] as Basis,
+				(e["pos"] as Vector3) - center)
+		root.add_child(mesh_node)
+		var pts: PackedVector3Array = e["convex"]
+		if not pts.is_empty():
+			var extra_shape := CollisionShape3D.new()
+			var convex := ConvexPolygonShape3D.new()
+			convex.points = pts
+			extra_shape.shape = convex
+			extra_shape.position = (e["pos"] as Vector3) - center
+			body.add_child(extra_shape)
+	## Ground record: the hero files its own true tops where the superseded
+	## slot used to (the walk seam answers the hero now); the ridge strip is
+	## record-only — the loft slopes file no AABB lie over the walk query.
+	var tiles: Dictionary = {}
+	var bytes := 0
+	for b3: Dictionary in boxes:
+		if not b3["ground"]:
+			continue
+		var gp: Vector3 = b3["p"]
+		var gs: Vector3 = b3["s"]
+		bytes += _file_ground_box(tiles, [gp.x, gp.y, gp.z], [gs.x, gs.y, gs.z])
+	bytes += _file_ground_box(tiles, [wx, DEPOT_RIDGE_WALK_Y - 0.2, wz],
+			[roof_base.x - roof_base.y, 0.4, 0.9])
+	for key: Vector2i in tiles:
+		var tile_record: Dictionary = _chunks.get(key, {})
+		var ground: PackedFloat32Array = tile_record.get("ground", PackedFloat32Array())
+		ground.append_array(PackedFloat32Array(tiles[key]))
+		tile_record["ground"] = ground
+		_chunks[key] = tile_record
+	_buffer_bytes += bytes
+	## The roof-crumb host: the ridge top (the superseded bake crumb retired
+	## with the slot; this one files through the same `_hero_roof_tops` map).
+	_hero_roof_tops[DEPOT_HERO_ID] = Vector3(wx, DEPOT_RIDGE_WALK_Y, wz)
+	## Retain the part record (world-local bands, positions, sizes, colors);
+	## `mesh` marks the named families so the gate walks one record.
+	for b4: Dictionary in boxes:
+		var ab2: Array = _complex_box_aabb(b4["basis"], b4["p"], b4["s"])
+		depot_hero_parts.append({
+			"band": str(b4["band"]),
+			"p": ((ab2[0] as Vector3) + (ab2[1] as Vector3)) * 0.5,
+			"s": (ab2[1] as Vector3) - (ab2[0] as Vector3),
+			"color": _depot_band_color(str(b4["band"])),
+			"collide": b4["collide"], "mesh": false,
+		})
+	for e2: Dictionary in extras:
+		depot_hero_parts.append({
+			"band": str(e2["band"]), "p": e2["pos"], "s": e2["size"],
+			"color": _depot_band_color(str(e2["band"])),
+			"collide": not (e2["convex"] as PackedVector3Array).is_empty(),
+			"mesh": true,
+		})
+
+
+## The ridge-top walk answer the ridge strip files (the loft's own top).
+const DEPOT_RIDGE_WALK_Y := 9.5 ## The slot roof part's top — the stack's own total.
+
+
+## The depot's box schedule in WORLD-LOCAL coordinates (pack-local — the world
+## node IS the pack frame). The wall and the canopy slab keep the slot's own
+## spans EXACTLY; the canopy center moves to the corrected south (track) face.
+## `basis` the UNSCALED rotation (the T-191 statue-lean law), `s` the size in
+## that rotated frame.
+func _depot_boxes(wx: float, wz: float, wall_s: Array, roof_base: Vector2,
+		canopy_s: Vector3) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var canopy_z := wz + float(wall_s[2]) * 0.5 + canopy_s.z * 0.5
+	## The body + the platform canopy slab (the slot's own spans).
+	out.append({"band": "brick", "basis": Basis(),
+			"p": Vector3(wx, float(wall_s[1]) * 0.5, wz),
+			"s": Vector3(float(wall_s[0]), float(wall_s[1]), float(wall_s[2])),
+			"collide": true, "ground": true})
+	out.append({"band": "tile", "basis": Basis(),
+			"p": Vector3(wx, canopy_s.y * 0.5 + 3.2, canopy_z), "s": canopy_s,
+			"collide": true, "ground": true})
+	## The bracket-post run + the green diagonal braces (photo-08's canopy
+	## read) + the green fascia line on the outer edge.
+	var run_a := canopy_s.x * 0.5 - 2.6
+	for k in DEPOT_CANOPY_POSTS:
+		var px := wx - run_a + (2.0 * run_a) * float(k) / float(DEPOT_CANOPY_POSTS - 1)
+		var post_z := canopy_z + canopy_s.z * 0.5 - DEPOT_CANOPY_OUTSET
+		out.append({"band": "steel", "basis": Basis(),
+				"p": Vector3(px, 1.6, post_z), "s": Vector3(0.18, 3.2, 0.18),
+				"collide": false, "ground": false})
+		var brace := Basis(Vector3.RIGHT, deg_to_rad(-66.0))
+		out.append({"band": "green", "basis": brace,
+				"p": Vector3(px, 3.9, post_z - 1.57), "s": Vector3(0.22, 3.44, 0.22),
+				"collide": false, "ground": false})
+	out.append({"band": "green", "basis": Basis(),
+			"p": Vector3(wx, 3.45, canopy_z + canopy_s.z * 0.5 + 0.075),
+			"s": Vector3(canopy_s.x, 0.5, 0.15), "collide": false, "ground": false})
+	## The arched dormer pair on the south (track-facing) slope: brick slabs
+	## through the slope + the cream arch caps (mesh extras below).
+	for side: float in [-1.0, 1.0]:
+		out.append({"band": "brick", "basis": Basis(),
+				"p": Vector3(wx + side * DEPOT_DORMER_OFFSET_X, 7.7,
+						wz + DEPOT_DORMER_Z),
+				"s": Vector3(3.6, 1.4, 1.5), "collide": false, "ground": false})
+	## The brick chimney (north of the ridge, photo-08's center-east stack).
+	out.append({"band": "brick", "basis": Basis(),
+			"p": Vector3(wx + DEPOT_CHIMNEY_X, 10.1, wz + DEPOT_CHIMNEY_Z),
+			"s": Vector3(1.6, 4.2, 1.6), "collide": true, "ground": false})
+	out.append({"band": "cap", "basis": Basis(),
+			"p": Vector3(wx + DEPOT_CHIMNEY_X, 12.4, wz + DEPOT_CHIMNEY_Z),
+			"s": Vector3(2.0, 0.4, 2.0), "collide": false, "ground": false})
+	return out
+
+
+## The depot's mesh extras (world-local): the hip roof as one eave→ridge loft
+## (the Farm House/Morrill path — both axes shrink, so every face is tile) on
+## its solid frustum convex, and the two cream dormer arch caps (axis turned
+## horizontal so the round profile faces the tracks).
+func _depot_extras(wx: float, wz: float, roof_base: Vector2) -> Array[Dictionary]:
+	var ridge_len := roof_base.x - roof_base.y
+	var out: Array[Dictionary] = [
+		{
+			"name": "HipRoof", "mesh": _row_loft_mesh(roof_base,
+					Vector2(ridge_len, 0.9), 2.5, DEPOT_TILE, DEPOT_TILE),
+			"pos": Vector3(wx, 8.25, wz), "rot": Basis(),
+			"convex": _row_frustum_convex(roof_base, Vector2(ridge_len, 0.9), 2.5),
+			"band": "tile",
+			"size": Vector3(roof_base.x, 2.5, roof_base.y),
+		},
+	]
+	for side: float in [-1.0, 1.0]:
+		out.append({
+			"name": "DormerArch%s" % ("East" if side > 0.0 else "West"),
+			"mesh": _row_taper_mesh(1.8, 1.8, 1.5, DEPOT_TRIM),
+			"pos": Vector3(wx + side * DEPOT_DORMER_OFFSET_X, 8.4,
+					wz + DEPOT_DORMER_Z),
+			"rot": Basis(Vector3.RIGHT, deg_to_rad(90.0)),
+			"convex": PackedVector3Array(),
+			"band": "trim",
+			"size": Vector3(3.6, 1.5, 3.6),
+		})
+	return out
+
+
+## (T-194) The rail corridor dressing: the chained track route, the crossbucks
+## at the 9 at-grade crossings, the right-of-way fence line and the daily coal
+## drag. Everything derives from the committed pack (`rail()` crossings +
+## centerlines, `streets()` for the road axes); the fence and the crossbucks
+## keep the T-180 transform-queue retention for the gate.
+const RAIL_Y := 0.16 ## The rail-head height the consist rides (the bake's tie stripe tops 0.13).
+const CROSSBUCK_POST_H := 3.0 ## The post's height (m) — the T-134 sign-assembly read.
+const CROSSBUCK_ARM_LEN := 1.9 ## Each X arm's length.
+const CROSSBUCK_EDGE_GAP := 2.5 ## The assembly's setback past the road half-width.
+const FENCE_LEFT_OFFSET := 5.0 ## The north-side fence line, off the route (clears the ballast edge by 2.5).
+const FENCE_RIGHT_OFFSET := 9.5 ## The south-side line — the double-track midline sits ~2.1 right of this chain; both fences hold 7.25 off it.
+const FENCE_POST_PITCH := 18.0 ## The post run's along-route pitch.
+const FENCE_POST_H := 1.3 ## The post's height (m).
+const FENCE_WIRE_HEIGHTS: Array[float] = [0.55, 1.05] ## The two strand lines.
+const FENCE_GAP_RADIUS := 18.0 ## No fence element within this of an at-grade crossing (the ballast's own road-gap law).
+const WIGWAG_ROAD := "Duff Avenue" ## The museum piece stands at the busiest crossing (the census's note).
+
+## The fence's weathered read (no survey hex — photo-06's dark right-of-way
+## line) pinned here, asserted as the scenario's literals.
+const FENCE_POST_COLOR := Color(0.23, 0.21, 0.19)
+const FENCE_WIRE_COLOR := Color(0.45, 0.44, 0.42)
+const WIGWAG_DARK := Color(0.16, 0.16, 0.17)
+const WIGWAG_WHITE := Color(0.90, 0.89, 0.86)
+const WIGWAG_RED := Color(0.75, 0.10, 0.08)
+
+## The world-local chain of the south track (the greedy nearest-endpoint walk
+## over the pack's 26 main-line ways — the daily drag's route and the fence's
+## spine), retained for the gate.
+var rail_route: PackedVector3Array = PackedVector3Array()
+var train: AmesTrain = null
+var crossbuck_pins: Array[Dictionary] = []
+var wigwag_parts: Array[Dictionary] = []
+var depot_hero_parts: Array[Dictionary] = []
+var _crossbuck_post_xfs: Array[Transform3D] = []
+var _crossbuck_arm_xfs: Array[Transform3D] = []
+var _fence_post_xfs: Array[Transform3D] = []
+var _fence_wire_xfs: Array[Transform3D] = []
+const TRAIN_SCENE: PackedScene = preload("res://scenes/ames_train.tscn")
+
+
+## Builds the whole corridor dress (the finish slice, after the fabric): the
+## route chain, the crossbuck assemblies at the pack's 9 at-grade crossings,
+## the fence lines and the train — one `RailCorridor` root under the world.
+func _build_rail_corridor() -> void:
+	rail_route = _rail_chain_route()
+	if rail_route.size() < 2:
+		push_error("AmesWorld: rail route chain failed — corridor builds empty")
+		return
+	var root := Node3D.new()
+	root.name = "RailCorridor"
+	add_child(root)
+	_build_crossbucks(root)
+	_build_fence(root)
+	train = TRAIN_SCENE.instantiate() as AmesTrain
+	train.name = "CoalDrag"
+	train.setup(rail_route)
+	root.add_child(train)
+
+
+## The route: ONE track of the double-track main, chained west → east. Walk:
+## start at the westmost way endpoint, then repeatedly consume the unused way
+## whose start or end coincides with the chain's end (2.0 m tolerance — the
+## ways split at shared nodes; the parallel track sits ≥ 3.4 m away and can
+## never cross-link), appending it in its traversal direction. Deterministic,
+## zero RNG. Returns the CORE route (y = RAIL_TOP); the train extends it
+## off-map itself.
+func _rail_chain_route() -> PackedVector3Array:
+	var lines: Array = AmesDataPack.rail().get("centerlines", [])
+	if lines.is_empty():
+		return PackedVector3Array()
+	var used: Array[bool] = []
+	for _l: Array in lines:
+		used.append(false)
+	var start_i := 0
+	var start_first := true
+	var best_x := INF
+	for i in lines.size():
+		var line: Array = lines[i]
+		if float((line[0] as Array)[0]) < best_x:
+			best_x = float((line[0] as Array)[0])
+			start_i = i
+			start_first = true
+		if float((line[line.size() - 1] as Array)[0]) < best_x:
+			best_x = float((line[line.size() - 1] as Array)[0])
+			start_i = i
+			start_first = false
+	used[start_i] = true
+	var route := PackedVector3Array()
+	var first: Array = lines[start_i]
+	if start_first:
+		for p: Array in first:
+			route.append(Vector3(float(p[0]), RAIL_Y, float(p[1])))
+	else:
+		for k in range(first.size() - 1, -1, -1):
+			var p2: Array = first[k]
+			route.append(Vector3(float(p2[0]), RAIL_Y, float(p2[1])))
+	while true:
+		var end_p := route[route.size() - 1]
+		var nxt := -1
+		var nxt_rev := false
+		var best_d := 2.0
+		for i in lines.size():
+			if used[i]:
+				continue
+			var line2: Array = lines[i]
+			var a: Array = line2[0]
+			var b: Array = line2[line2.size() - 1]
+			var d0 := Vector2(float(a[0]), float(a[1])).distance_to(
+					Vector2(end_p.x, end_p.z))
+			var d1 := Vector2(float(b[0]), float(b[1])).distance_to(
+					Vector2(end_p.x, end_p.z))
+			if d0 < best_d:
+				best_d = d0
+				nxt = i
+				nxt_rev = false
+			if d1 < best_d:
+				best_d = d1
+				nxt = i
+				nxt_rev = true
+		if nxt < 0:
+			break
+		used[nxt] = true
+		var seg: Array = lines[nxt]
+		if not nxt_rev:
+			for k in range(1, seg.size()):
+				var p3: Array = seg[k]
+				route.append(Vector3(float(p3[0]), RAIL_Y, float(p3[1])))
+		else:
+			for k in range(seg.size() - 2, -1, -1):
+				var p4: Array = seg[k]
+				route.append(Vector3(float(p4[0]), RAIL_Y, float(p4[1])))
+	return route
+
+
+## The road axis at an at-grade crossing: the nearest polyline segment of the
+## matching street (exact name when the crossing names one, else — the unnamed
+## yard lead — the nearest street segment of ANY class, since the pack's
+## streets[] graph carries no service-class ways for it) — the segment's unit
+## direction is the road axis, its `width_m` the road width. Deterministic.
+func _road_axis_at(pos: Vector2, road_name: String, road_class: String) -> Dictionary:
+	var best: Dictionary = {}
+	var best_d := INF
+	for street: Dictionary in AmesDataPack.streets():
+		if not road_name.is_empty() and str(street.get("name", "")) != road_name:
+			continue
+		var pts: Array = street.get("points", [])
+		for i in range(pts.size() - 1):
+			var a := Vector2(float((pts[i] as Array)[0]), float((pts[i] as Array)[1]))
+			var b := Vector2(float((pts[i + 1] as Array)[0]),
+					float((pts[i + 1] as Array)[1]))
+			var seg := b - a
+			var l2 := seg.length_squared()
+			var t := 0.0
+			if l2 > 1e-12:
+				t = clampf((pos - a).dot(seg) / l2, 0.0, 1.0)
+			var p := a + seg * t
+			var d := p.distance_to(pos)
+			if d < best_d:
+				best_d = d
+				best = {
+					"axis": seg.normalized() if l2 > 1e-12 else Vector2.RIGHT,
+					"width": float(street.get("width_m", 8.0)),
+					"point": p,
+				}
+	return best
+
+
+## The crossbuck assemblies: two per at-grade crossing (one per road approach,
+## set back past the asphalt edge), each a dark post + the white X (two arms
+## rotated ±45° in the plane facing along the road — the T-134 sign
+## discipline: face-flush thin boxes, visual-only dressing).
+func _build_crossbucks(root: Node3D) -> void:
+	var posts: Array[Transform3D] = []
+	var arms: Array[Transform3D] = []
+	for crossing: Dictionary in AmesDataPack.rail().get("crossings", []):
+		if str(crossing.get("grade", "")) != "at_grade":
+			continue
+		var pos := Vector2(float((crossing["pos"] as Array)[0]),
+				float((crossing["pos"] as Array)[1]))
+		var road := _road_axis_at(pos, str(crossing.get("road_name", "")),
+				str(crossing.get("road_class", "")))
+		if road.is_empty():
+			continue
+		var axis: Vector3 = Vector3((road["axis"] as Vector2).x, 0.0,
+				(road["axis"] as Vector2).y)
+		var side := axis.cross(Vector3.UP).normalized() ## In-plane perpendicular.
+		var setback: float = float(road["width"]) * 0.5 + CROSSBUCK_EDGE_GAP
+		for dir_sign: float in [-1.0, 1.0]:
+			var sp := pos + (road["axis"] as Vector2) * dir_sign * setback
+			var sp3 := Vector3(sp.x, 0.0, sp.y)
+			posts.append(Transform3D(
+					Basis(axis * 0.14, Vector3.UP * CROSSBUCK_POST_H, side * 0.14),
+					sp3 + Vector3(0.0, CROSSBUCK_POST_H * 0.5, 0.0)))
+			for arm_sign: float in [-1.0, 1.0]:
+				var arm_dir := (Vector3.UP + side * arm_sign).normalized()
+				arms.append(Transform3D(
+						Basis(axis * 0.10, arm_dir * CROSSBUCK_ARM_LEN,
+								axis.cross(arm_dir).normalized() * 0.30),
+						sp3 + Vector3(0.0, CROSSBUCK_POST_H, 0.0)))
+		crossbuck_pins.append({
+			"pos": pos, "road": str(crossing.get("road_name", "")),
+			"rail": str(crossing.get("rail", "")), "width": float(road["width"]),
+			"assemblies": 2,
+		})
+	_crossbuck_post_xfs = posts
+	_crossbuck_arm_xfs = arms
+	_spawn_corner_family(root, "CrossbuckPosts", posts, COLOR_SIGN_POST)
+	_spawn_corner_family(root, "CrossbuckArms", arms, COLOR_SIGN_WHITE)
+	_build_wigwag(root)
+
+
+## The museum wigwag at ONE crossing (the ticket's optional flavor, photo
+## `rail/09`): pole + top motor case + the over-road arm + the round target
+## disc (mesh extra, face toward the road approach). Static — the swing is a
+## museum piece, not live hardware.
+func _build_wigwag(root: Node3D) -> void:
+	for crossing: Dictionary in AmesDataPack.rail().get("crossings", []):
+		if str(crossing.get("grade", "")) != "at_grade" \
+				or str(crossing.get("road_name", "")) != WIGWAG_ROAD:
+			continue
+		var pos := Vector2(float((crossing["pos"] as Array)[0]),
+				float((crossing["pos"] as Array)[1]))
+		var road := _road_axis_at(pos, WIGWAG_ROAD,
+				str(crossing.get("road_class", "")))
+		if road.is_empty():
+			continue
+		var axis: Vector3 = Vector3((road["axis"] as Vector2).x, 0.0,
+				(road["axis"] as Vector2).y)
+		var u2: Vector2 = road["axis"]
+		var base := pos + u2 * (float(road["width"]) * 0.5 + 6.0)
+		var base3 := Vector3(base.x, 0.0, base.y)
+		var parts: Array[Dictionary] = [
+			{"band": "wigwag_dark", "p": base3 + Vector3(0.0, 2.2, 0.0),
+					"s": Vector3(0.16, 4.4, 0.16), "color": WIGWAG_DARK},
+			{"band": "wigwag_dark", "p": base3 + Vector3(0.0, 4.25, 0.0),
+					"s": Vector3(0.5, 0.35, 0.4), "color": WIGWAG_DARK},
+			{"band": "wigwag_dark", "p": base3 - axis * 0.45 + Vector3(0.0, 4.0, 0.0),
+					"s": Vector3(0.9, 0.08, 0.08), "color": WIGWAG_DARK},
+			{"band": "wigwag_white", "p": base3 + Vector3(0.0, 3.6, 0.0),
+					"s": Vector3(1.6, 0.4, 0.08), "color": WIGWAG_WHITE},
+		]
+		var disc_pos := base3 - axis * 0.9 + Vector3(0.0, 3.55, 0.0)
+		var x_col := axis.cross(Vector3.UP).normalized()
+		var disc_basis := Basis(x_col, axis, x_col.cross(axis).normalized())
+		wigwag_parts = parts
+		var wg_dark: Array[Transform3D] = []
+		var wg_white: Array[Transform3D] = []
+		for part2: Dictionary in parts:
+			var xf2 := Transform3D(Basis.from_scale(part2["s"] as Vector3),
+					part2["p"] as Vector3)
+			if str(part2["band"]) == "wigwag_white":
+				wg_white.append(xf2)
+			else:
+				wg_dark.append(xf2)
+		_spawn_corner_family(root, "WigwagDark", wg_dark, WIGWAG_DARK)
+		_spawn_corner_family(root, "WigwagWhite", wg_white, WIGWAG_WHITE)
+		var disc := MeshInstance3D.new()
+		disc.name = "WigwagDisc"
+		disc.mesh = _row_taper_mesh(0.275, 0.275, 0.1, WIGWAG_RED)
+		disc.transform = Transform3D(disc_basis, disc_pos)
+		root.add_child(disc)
+		wigwag_parts.append({
+			"band": "wigwag_red", "p": disc_pos,
+			"s": Vector3(0.55, 0.1, 0.55), "color": WIGWAG_RED, "mesh": true,
+		})
+		for p_rec: Dictionary in wigwag_parts:
+			if p_rec.has("mesh"):
+				continue
+			p_rec["mesh"] = false
+		return ## One wigwag only.
+
+
+## One route polyline's total length (m) — the gate's route-metric feed.
+func _rail_route_length(route: PackedVector3Array) -> float:
+	var total := 0.0
+	for i in route.size() - 1:
+		total += (route[i + 1] as Vector3).distance_to(route[i])
+	return total
+
+
+## The right-of-way fence lines (photo `rail/06`'s cross-section): a post run
+## at the pinned pitch on BOTH sides of the route (the offsets clear both
+## ballast strips of the double track) with two strand lines between
+## consecutive posts, gapped at the at-grade crossings. Visual-only dressing.
+func _build_fence(root: Node3D) -> void:
+	var posts: Array[Transform3D] = []
+	var wires: Array[Transform3D] = []
+	var route := rail_route
+	var total := 0.0
+	var seg_lens: PackedFloat32Array = PackedFloat32Array()
+	for i in route.size() - 1:
+		var seg := (route[i + 1] as Vector3).distance_to(route[i])
+		seg_lens.append(seg)
+		total += seg
+	var crossings: Array[Vector2] = []
+	for crossing: Dictionary in AmesDataPack.rail().get("crossings", []):
+		if str(crossing.get("grade", "")) != "at_grade":
+			continue
+		crossings.append(Vector2(float((crossing["pos"] as Array)[0]),
+				float((crossing["pos"] as Array)[1])))
+	var n_posts := int(total / FENCE_POST_PITCH)
+	var prev: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+	var prev_ok: Array[bool] = [false, false]
+	for k in n_posts + 1:
+		var s := float(k) * FENCE_POST_PITCH
+		if s > total:
+			break
+		## Walk to arc s.
+		var acc := 0.0
+		var pt := route[0]
+		var tan := Vector3.RIGHT
+		for i in route.size() - 1:
+			if acc + seg_lens[i] >= s:
+				var t := (s - acc) / maxf(seg_lens[i], 0.001)
+				pt = (route[i] as Vector3).lerp(route[i + 1], t)
+				tan = ((route[i + 1] as Vector3) - (route[i] as Vector3)).normalized()
+				break
+			acc += seg_lens[i]
+		var left := Vector3(tan.z, 0.0, -tan.x) ## North side of west→east travel.
+		for side_i in 2:
+			var offset := FENCE_LEFT_OFFSET if side_i == 0 else FENCE_RIGHT_OFFSET
+			var side_sign := 1.0 if side_i == 0 else -1.0
+			var fp_flat := pt + left * (offset * side_sign) ## Left line north of the route, right line south (the second track's side).
+			var fp := Vector3(fp_flat.x, 0.0, fp_flat.z) ## The fence stands on the plate — the route's own y is the rail head.
+			var fp2 := Vector2(fp.x, fp.z)
+			var ok := true
+			for c: Vector2 in crossings:
+				if fp2.distance_to(c) < FENCE_GAP_RADIUS:
+					ok = false
+					break
+			if ok:
+				posts.append(Transform3D(
+						Basis(tan * 0.10, Vector3.UP * FENCE_POST_H,
+								Vector3(left.z, 0.0, -left.x) * 0.10),
+						fp + Vector3(0.0, FENCE_POST_H * 0.5, 0.0)))
+			if ok and prev_ok[side_i]:
+				var span := fp - prev[side_i]
+				var mid := (fp + prev[side_i]) * 0.5
+				var dir := span.normalized()
+				var perp := Vector3(-dir.z, 0.0, dir.x)
+				for h: float in FENCE_WIRE_HEIGHTS:
+					wires.append(Transform3D(
+							Basis(dir * span.length(), Vector3.UP * 0.05,
+									perp * 0.05),
+							mid + Vector3(0.0, h, 0.0)))
+			prev[side_i] = fp
+			prev_ok[side_i] = ok
+	_fence_post_xfs = posts
+	_fence_wire_xfs = wires
+	_spawn_corner_family(root, "FencePosts", posts, FENCE_POST_COLOR)
+	_spawn_corner_family(root, "FenceWires", wires, FENCE_WIRE_COLOR)
 
 
 ## One tapered/straight cylinder mesh with its own albedo material — the
