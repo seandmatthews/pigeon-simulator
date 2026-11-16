@@ -1,6 +1,6 @@
 # T-195 — Ames R3 · grain elevators: the SE silo cluster
 
-- **Status:** proposed · **Category:** visual-design · **Ring:** R3 The Landmarks ·
+- **Status:** doing · **Category:** visual-design · **Ring:** R3 The Landmarks ·
   **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-177
 - **Refs:** `MODELING-SPECS.md` §1 rail-corridor (elevators) ·
@@ -22,6 +22,14 @@ The agricultural skyline, styled honestly:
 - The in-ticket honesty note: "no photo of the actual Ames cluster
   exists under CC — styled from Iowa-generic refs at assumed heights"
   travels into the ticket body and any future R4 signage decision.
+
+> **HONESTY NOTE (carries forward — into the world script's section
+> header and any future R4 signage decision):** no photo of the actual
+> Ames SE elevator cluster exists under CC — styled from Iowa-generic
+> refs (Hull / Jefferson / Batavia, `images/rail/10,11,12`) at assumed
+> 30–40 m heights (V-30 UNVERIFIED). NO operator name, logo or brand
+> signage may be painted on it (nothing real is known to letter it;
+> R4 text defers to the legal pass like every facade).
 
 ## Why
 
