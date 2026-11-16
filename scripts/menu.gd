@@ -13,6 +13,21 @@ extends Control
 
 const MAIN_SCENE_PATH := "res://scenes/main.tscn"
 
+## (T-197) The survey's photograph credits, summarized for the credits screen —
+## every one of the 81 CC-licensed survey photographs across the ten cluster
+## folders, its photographer named (the CC-BY-family obligation), with the
+## per-photo record living in the repository at
+## docs/references/ames-survey/images/<cluster>/CREDITS.md.
+const SURVEY_PHOTOGRAPHERS := "Adam Guenther; Alex Hanson; Carl Wycoff; " \
+		+ "Cburnett; Chelmonkey; Crcjfly; Dagwin57; David Wilson; Dirk DBQ; " \
+		+ "Dirk Hansen; Don Graham; Etoribio5474; GardenLover2008; " \
+		+ "Hadley Wickham; HMHC; IAHilltopper; Jamo2008; Jerold Crawford; " \
+		+ "Jim Roberts; Josejuan05; kirkmwilkins; lindyi; Magicpiano; makzu; " \
+		+ "Manop; Mark Hesseltine; Mhermsenwhite; Pud00; Ron Reiring; " \
+		+ "Ryan Moomey; Scott McLeod; Shubert Ciencia; Tallness456; Ted Taber; " \
+		+ "Tim Kiser; Tony Webster; Tyler Silvest; User:Divyamistry; " \
+		+ "User:Manop; vharjadi"
+
 @onready var high_score_label: Label = %HighScoreLabel
 ## The T-129 handoff beat — hidden at rest, shown for one painted frame between
 ## the Fly press and the scene swap.
@@ -27,6 +42,11 @@ func _ready() -> void:
 	high_score_label.text = "High score: %d" % Game.high_score \
 			if Game.high_score > 0 else "No high score yet — go be a menace"
 	%SettingsPanel.closed.connect(_close_settings) ## (T-122)
+	## (T-197) The credits screen: the ODbL attribution obligation lands here
+	## (ODBL-NOTE.md — from this ticket on the screen is the surfacing point).
+	%CreditsButton.pressed.connect(_open_credits)
+	%BackButton.pressed.connect(_close_credits)
+	%CreditsText.text = _credits_text()
 	## (T-126) The Q hint is a desktop affordance — strip it on the web.
 	if Game.is_web():
 		$Footer.text = $Footer.text.replace(" · Q quit", "")
@@ -60,6 +80,37 @@ func _unhandled_input(event: InputEvent) -> void:
 ## (T-122) The title screen hosts the same settings panel as the pause menu.
 func _on_settings_pressed() -> void:
 	%SettingsPanel.visible = true
+
+
+## (T-197) The credits screen — the three attribution classes: OSM map data,
+## the survey's CC photographs, the bundled OFL font. The ODbL obligation is
+## quoted through AmesDataPack.ATTRIBUTION (the one source of the wording —
+## ODBL-NOTE.md's law that nothing retypes it).
+func _open_credits() -> void:
+	%SettingsPanel.visible = false ## One overlay at a time.
+	%CreditsPanel.visible = true
+	%BackButton.grab_focus()
+
+
+func _close_credits() -> void:
+	%CreditsPanel.visible = false
+
+
+## The credits text, assembled from the three attribution classes (plain
+## concatenation — a `%`-format at the tail of a `+` chain binds to the last
+## segment only, which left raw placeholders in the text once).
+func _credits_text() -> String:
+	return "MAP DATA\n" \
+			+ AmesDataPack.ATTRIBUTION \
+			+ " (ODbL)\nThe street grid, building footprints, places and " \
+			+ "landmarks derive from OpenStreetMap.\n\n" \
+			+ "PHOTOGRAPHS\n81 survey photographs by 40 Wikimedia Commons and " \
+			+ "Flickr photographers — CC BY / CC BY-SA / CC BY-ND:\n" \
+			+ SURVEY_PHOTOGRAPHERS + "\n" \
+			+ "Per-photo credits: docs/references/ames-survey/images/<cluster>/CREDITS.md\n\n" \
+			+ "FONT\nOswald — © The Oswald Project Authors, " \
+			+ "SIL Open Font License 1.1 (assets/fonts/OFL.txt).\n\n" \
+			+ "Full asset credits: assets/CREDITS.md"
 
 
 func _close_settings() -> void:

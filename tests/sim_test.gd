@@ -21,6 +21,9 @@ const RECORDER_SCRIPT := preload("res://tests/capture_recorder.gd") ## (T-140) D
 const CALL_PROBE_SCRIPT := preload("res://tests/call_probe.gd") ## (T-169) The call verb's typed-method probe.
 const ELDER_SCENE: PackedScene = preload("res://scenes/elder.tscn") ## (T-183) Fresh-elder pin reads.
 const SWAN_SCRIPT: GDScript = preload("res://scripts/swan.gd") ## (T-185) The bird-rig identity read.
+const SIGN_BOX_SCENE: PackedScene = preload("res://scenes/sign_box.tscn") ## (T-197) The lit-box typology.
+const SIGN_BLADE_SCENE: PackedScene = preload("res://scenes/sign_blade.tscn") ## (T-197) The vertical blade typology.
+const SIGN_POLE_SCENE: PackedScene = preload("res://scenes/sign_pole.tscn") ## (T-197) The big-box pole typology.
 
 ## (T-119) The shipped non-builtin InputMap set. The touch layer must add
 ## NOTHING — `touch_layer_desktop_inert` reads the live InputMap against this
@@ -201,6 +204,8 @@ func _run_scenarios() -> void:
 	await _scenario_rail_dressing_pins() ## T-194 — the rail corridor: the depot's 1:1 slot swap (the corrected track-face canopy), the crossbuck set at the 9 at-grade crossings, the right-of-way fence lines, the coal drag's chained route + loop schedule + livery, and the no-traffic-gating probe (a real car crosses the straddled consist).
 	await _scenario_elevator_cluster_dims() ## T-195 — the SE grain-elevator cluster: the 1:1 slot swap (the styled silo bank + headhouse + bins + leg tower), the 30–40 m band assertion (the honesty pin), the composition + closed palette vs the Iowa refs, the walk-parity ground record, the live seams.
 	await _scenario_r3_cutover_swap_set() ## T-196 — the R3 cutover: the ring's swap set complete (every hero ticket's slot swapped, zero orphan placeholders at hero positions), the supersede identity against the ring table, the honest LOD0 remainder intact.
+	await _scenario_sign_text_legibility() ## T-197 — the sign capability: typology scenes at their pinned dims and letter heights, faces on the bundled OFL font at cap-true pixel sizes, the legibility budget locked per typology.
+	await _scenario_credits_screen_content() ## T-197 — the credits screen: the three attribution classes (OSM, photos, font) live on the title screen.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -11123,6 +11128,226 @@ func _point_chain_dist(p: Vector2, chain_pts: PackedVector2Array) -> float:
 	for i in chain_pts.size() - 1:
 		best = minf(best, _point_seg_dist(p, chain_pts[i], chain_pts[i + 1]))
 	return best
+
+
+## --- scenarios (T-197 sign text capability) ---------------------------------
+
+
+## (T-197) The sign capability's machine legs. The three typology scenes plus
+## a bare plaque mount ANYWHERE — each at its own arbitrary placement, the
+## pole yawed to prove the built geometry rides the placement transform — and:
+## every body union at its pinned dims (photo-01 box, photo-07 blade with the
+## rounded cap + brackets, photo-04 pole cabinet over its Ø0.35 pole), every
+## face an UNSHADED Label3D carrying the bundled OFL font whose rendered
+## CAPITAL height equals the sign's letter height (the cap fraction re-parsed
+## from the TTF's own head/OS-2 tables right here — never through the
+## component's constant, which this scenario pins against its own read), the
+## blade's letters stacked upright, the legibility budget locked as
+## letter_height × pinned factor per typology (plaque 140 / box 200 / blade
+## 160 / pole 260), and the visual-only scope guard (no collision body of any
+## kind) on every instance.
+func _scenario_sign_text_legibility() -> void:
+	var bad: PackedStringArray = []
+	var font_path := "res://assets/fonts/oswald_variable.ttf"
+	var font: FontFile = load(font_path)
+	if font == null:
+		bad.append("bundled font missing: " + font_path)
+	## The capital-height fraction from the TTF's own tables, parsed here.
+	var cap_em := _font_cap_height_em(font_path)
+	if absf(cap_em - 0.81) > 0.001:
+		bad.append("font cap_em=%.4f want 0.81 (sCapHeight 810 / unitsPerEm 1000)" % cap_em)
+	if bad.is_empty() and absf(SignText.CAP_HEIGHT_EM - cap_em) > 0.0005:
+		bad.append("component CAP_HEIGHT_EM %.4f != parsed %.4f" % [SignText.CAP_HEIGHT_EM, cap_em])
+	## Placement, dims union, face count, vertical stacking, and the budget —
+	## per typology, all values pinned HERE as literals.
+	var rows: Array[Dictionary] = [
+		{"scene": SIGN_BOX_SCENE, "typ": SignText.Typology.BOX, "letter": 0.30,
+			"budget": 200.0, "faces": 1, "vertical": false, "want_text": "BOX SIGN",
+			"aabb_c": Vector3(0.0, 0.0, 0.0), "aabb_s": Vector3(3.0, 1.0, 0.25),
+			"pos": Vector3(4.0, 3.5, -40.0), "yaw": 0.0},
+		{"scene": SIGN_BLADE_SCENE, "typ": SignText.Typology.BLADE, "letter": 0.28,
+			"budget": 160.0, "faces": 2, "vertical": true, "want_text": "S\nI\nG\nN",
+			## Board ±1.3 + cap to +1.75; brackets reach z −0.75.
+			"aabb_c": Vector3(0.0, 0.225, -0.15), "aabb_s": Vector3(0.14, 3.05, 1.2),
+			"pos": Vector3(0.0, 2.0, -44.0), "yaw": 0.0},
+		{"scene": SIGN_POLE_SCENE, "typ": SignText.Typology.POLE, "letter": 0.55,
+			"budget": 260.0, "faces": 2, "vertical": false, "want_text": "POLE",
+			"aabb_c": Vector3(0.0, 3.0, 0.0), "aabb_s": Vector3(2.6, 6.0, 0.4),
+			"pos": Vector3(-4.0, 0.0, -48.0), "yaw": 0.6}, ## Yawed: places anywhere.
+		{"scene": null, "typ": SignText.Typology.PLAQUE, "letter": 0.16,
+			"budget": 140.0, "faces": 1, "vertical": false, "want_text": "AMES",
+			"aabb_c": Vector3(0.0, 0.0, 0.0), "aabb_s": Vector3(2.2, 0.5, 0.08),
+			"pos": Vector3(8.0, 2.6, -52.0), "yaw": 0.0},
+	]
+	for row: Dictionary in rows:
+		var sign: SignText
+		if row["scene"] != null:
+			sign = (row["scene"] as PackedScene).instantiate() as SignText
+		else:
+			sign = SignText.new() ## The bare component mounts a plaque too.
+		sign.typology = row["typ"]
+		sign.position = row["pos"]
+		sign.rotation = Vector3(0.0, row["yaw"], 0.0)
+		add_child(sign)
+		await _wait_frames(2)
+		var tag := "typ%d" % row["typ"]
+		if absf(sign.effective_letter_height() - float(row["letter"])) > 0.0001:
+			bad.append("%s letter height %.4f want %.4f" % [tag, sign.effective_letter_height(), row["letter"]])
+		if not is_equal_approx(sign.readable_distance(),
+				float(row["letter"]) * float(row["budget"])):
+			bad.append("%s readable_distance %.2f want %.2f" % [tag, sign.readable_distance(),
+					float(row["letter"]) * float(row["budget"])])
+		var dims := _sign_local_aabb(sign)
+		if dims.size.length_squared() <= 0.000001:
+			bad.append("%s no body meshes" % tag)
+		var dims_c := dims.position + dims.size * 0.5 ## Godot's AABB.position is the min corner.
+		for axis: int in 3:
+			if absf(dims_c[axis] - (row["aabb_c"] as Vector3)[axis]) > 0.01 \
+					or absf(dims.size[axis] - (row["aabb_s"] as Vector3)[axis]) > 0.01:
+				bad.append("%s body aabb c=%s s=%s want c=%s s=%s" % [tag, dims_c,
+						dims.size, row["aabb_c"], row["aabb_s"]])
+		var faces: Array[Label3D] = []
+		_collect_faces(sign, faces)
+		if faces.size() != int(row["faces"]):
+			bad.append("%s face count %d want %d" % [tag, faces.size(), row["faces"]])
+		for face: Label3D in faces:
+			if face.font != font:
+				bad.append("%s face font is not the bundled OFL file" % tag)
+			if face.font_size != 96:
+				bad.append("%s face font_size %d want 96" % [tag, face.font_size])
+			if face.shaded:
+				bad.append("%s face is shaded (unshaded-at-distance law)" % tag)
+			var rendered_cap := face.pixel_size * 96.0 * cap_em
+			if absf(rendered_cap - float(row["letter"])) > face.pixel_size * 2.0:
+				bad.append("%s rendered cap %.4f m want %.4f m" % [tag, rendered_cap, row["letter"]])
+			if face.text != row["want_text"]:
+				bad.append("%s face text '%s' want '%s'" % [tag, face.text, row["want_text"]])
+		if _has_collision(sign):
+			bad.append("%s carries a collision body (visual-only law)" % tag)
+		if sign.global_position.distance_to(row["pos"] as Vector3) > 0.001:
+			bad.append("%s did not hold its placement" % tag)
+		sign.free()
+	_check("sign_text_legibility", bad.is_empty(),
+		"; ".join(bad) if not bad.is_empty() else "-")
+
+
+## The body meshes' union AABB in the sign's own space (placement-independent,
+## so a yawed mount proves the geometry rides the placement transform).
+func _sign_local_aabb(sign: SignText) -> AABB:
+	var total := AABB()
+	var first := true
+	for child: Node in sign.get_children():
+		if child is not MeshInstance3D:
+			continue
+		var mi := child as MeshInstance3D
+		var box: AABB = mi.mesh.get_aabb()
+		var xf := mi.transform
+		box = xf * box
+		total = box if first else total.merge(box)
+		first = false
+	return total
+
+
+func _collect_faces(sign: SignText, into: Array[Label3D]) -> void:
+	for child: Node in sign.get_children():
+		if child is Label3D:
+			into.append(child)
+
+
+func _has_collision(node: Node) -> bool:
+	for child: Node in node.get_children():
+		if child is CollisionObject3D or child is CollisionShape3D \
+				or child is CollisionPolygon3D:
+			return true
+	return false
+
+
+## The bundled TTF's capital-height fraction parsed from its own tables:
+## head.unitsPerEm and OS/2.sCapHeight (OS/2 v2+), read big-endian straight
+## off res:// — the legibility budget's independent font-derivation leg.
+func _font_cap_height_em(path: String) -> float:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return 0.0
+	f.big_endian = true ## The sfnt table directory is big-endian.
+	f.seek(4)
+	var num_tables := f.get_16()
+	var units := 0
+	var cap := 0
+	for i: int in num_tables:
+		f.seek(12 + i * 16)
+		var tag := f.get_32()
+		f.seek(12 + i * 16 + 8)
+		var off := f.get_32()
+		if tag == 0x68656164: ## "head"
+			f.seek(off + 18)
+			units = f.get_16()
+		elif tag == 0x4F532F32: ## "OS/2"
+			f.seek(off)
+			var version := f.get_16()
+			if version >= 2:
+				f.seek(off + 88)
+				cap = f.get_16()
+	if units > 0 and cap > 0:
+		return float(cap) / float(units)
+	return 0.0
+
+
+## (T-197) The credits screen: the title screen gains a Credits button whose
+## panel carries ALL THREE attribution classes — the ODbL map-data string
+## (read through AmesDataPack.ATTRIBUTION, never retyped), the survey's CC
+## photo credits summarized with photographers named, and the bundled OFL
+## font's license — opening live, closing live, with the shipped title text
+## (controls line, footer, buttons) untouched beside it.
+func _scenario_credits_screen_content() -> void:
+	var bad: PackedStringArray = []
+	var menu: Control = MENU_SCENE.instantiate()
+	add_child(menu)
+	await _wait_frames(2)
+	var panel: Control = menu.get_node("%CreditsPanel") as Control
+	var button: Button = menu.get_node("%CreditsButton") as Button
+	var text_label: Label = menu.get_node("%CreditsText") as Label
+	var back: Button = menu.get_node("%BackButton") as Button
+	if panel == null or button == null or text_label == null or back == null:
+		bad.append("credits nodes missing (panel/button/text/back)")
+	else:
+		if panel.visible:
+			bad.append("credits panel visible at rest")
+		button.pressed.emit()
+		if not panel.visible:
+			bad.append("credits panel did not open on the button")
+		var t := text_label.text
+		## Class 1 — the ODbL obligation, through THE constant, never retyped.
+		if not t.contains(AmesDataPack.ATTRIBUTION):
+			bad.append("OSM attribution missing: '%s'" % AmesDataPack.ATTRIBUTION)
+		if not t.contains("(ODbL)"):
+			bad.append("OSM license class missing (ODbL)")
+		## Class 2 — the survey photographs, sites + license classes + names.
+		for phrase: String in ["Wikimedia Commons", "Flickr", "CC BY", "CC BY-SA",
+				"Alex Hanson", "Tim Kiser", "CREDITS.md"]:
+			if not t.contains(phrase):
+				bad.append("photo credits missing: " + phrase)
+		## Class 3 — the bundled font and its license.
+		for phrase: String in ["Oswald", "SIL Open Font License", "OFL.txt"]:
+			if not t.contains(phrase):
+				bad.append("font credits missing: " + phrase)
+		back.pressed.emit()
+		if panel.visible:
+			bad.append("credits panel did not close on Back")
+	## The no-gameplay-text guard: the shipped title copy stands untouched.
+	var controls := menu.get_node("%ControlsLabel") as Label
+	var footer := menu.get_node("Footer") as Label
+	var fly := menu.get_node("%FlyButton") as Button
+	if controls == null or footer == null or fly == null:
+		bad.append("shipped title nodes missing")
+	else:
+		if not controls.text.contains("W/S pitch · A/D turn · Space flap · F poop · Esc pause"):
+			bad.append("controls line changed")
+		if not footer.text.contains("Q quit"):
+			bad.append("footer line changed (headless is non-web)")
+	menu.free()
+	_check("credits_screen_content", bad.is_empty(),
+		"; ".join(bad) if not bad.is_empty() else "-")
 
 
 ## --- scenarios (T-001 flight model) ----------------------------------------
