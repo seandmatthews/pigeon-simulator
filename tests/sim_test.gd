@@ -199,6 +199,7 @@ func _run_scenarios() -> void:
 	await _scenario_downtown_heroes() ## T-192 — the downtown heroes: the bandshell at its true OSM position (the copper arch over the mint shells), the City Hall + Municipal civic pair's 1:1 slot swaps with the photo-02 cartouche stone, the Main Street fabric (cornices, the maroon furniture run, the blue banners, the neon blade seeds), the live seams.
 	await _scenario_civic_tanks_dims() ## T-193 — the civic water tanks: the bulb-on-stem pair's 1:1 slot swaps at the data positions, the photo-02 mushroom shoulder + banding pairs + roof dome, the diamond logo as painted geometry on the town-facing walls (the hue-law palette), the solid-but-not-landable crown, the live seams.
 	await _scenario_rail_dressing_pins() ## T-194 — the rail corridor: the depot's 1:1 slot swap (the corrected track-face canopy), the crossbuck set at the 9 at-grade crossings, the right-of-way fence lines, the coal drag's chained route + loop schedule + livery, and the no-traffic-gating probe (a real car crosses the straddled consist).
+	await _scenario_elevator_cluster_dims() ## T-195 — the SE grain-elevator cluster: the 1:1 slot swap (the styled silo bank + headhouse + bins + leg tower), the 30–40 m band assertion (the honesty pin), the composition + closed palette vs the Iowa refs, the walk-parity ground record, the live seams.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -10031,6 +10032,406 @@ func _rail_arc_of(route: PackedVector3Array, pos: Vector2) -> float:
 			best_arc = acc + seg.length() * t
 		acc += seg.length()
 	return best_arc
+
+
+## --- scenario (T-195 the SE grain-elevator cluster) ---------------------------
+
+## The agricultural skyline (LANDMARKS T7 / MODELING-SPECS §1.8 item 4) on the
+## resident Ames world, every expectation re-derived from the COMMITTED DATA
+## (the bake's chunk files — never through the world's own constants). The
+## HONESTY IS THE PIN: heights assert the documented V-30 30–40 m placeholder
+## BAND, never exact dims — no photo of the actual Ames SE cluster exists
+## under CC (the refs are `images/rail/10,11,12`: Hull's pale concrete silo
+## bank + headhouse slab, Jefferson's box annex, Batavia's steel bins + leg
+## tower), so nothing here may pretend to a surveyed height. Arms:
+## A. THE SLOT — the bake's seven placeholder parts (4 silos + headhouse +
+##    2 bins) walked in chunk (13,−1), the bank centered on the
+##    survey-anchored approximation (3420, −20), the headhouse 8 m north and
+##    the bins 8 m south of the bank, the V-30 band ALREADY holding on the
+##    slot's own silo/headhouse spans;
+## B. THE SWAP — the slot's gray stack retired (chunk (13,−1)'s placeholder
+##    family shrinks to exactly its non-superseded remainder) and the hero
+##    mounting through its own root (Boxes = 12: headhouse + roof slab + the
+##    10-member leg tower);
+## C. THE BAND (the honesty pin) — the styled cluster's union top inside
+##    30..40 (NOT an exact-dim pin), base on the plate, every family kept
+##    inside its slot's own span (the keep-the-stack law: the hero's
+##    headhouse box IS the slot box, the silo walls the slot silo spans,
+##    wall+cone sums the slot bin spans);
+## D. THE COMPOSITION vs the refs — 4 silo cylinders + 4 cap rims + the
+##    headhouse + roof slab + 2 bins + 2 cone roofs + the leg tower (4 posts
+##    + 5 collars + the crown arm) at the slot's own grid, the leg rising
+##    with the bank against the headhouse's east wall;
+## E. THE PALETTE — the CLOSED six-band set at the literals + laws (the
+##    §1.8 pale #D9D2C4 concrete reading warm/high-luminance, the galvanized
+##    steel reading cool, roof slab + leg reading dark, and NO sign band —
+##    the honesty note's no-branding law);
+## F. THE SEAMS, LIVE — layer-1 rays answer the silo wall (Ø7 on the east
+##    vertex plane), the headhouse east face, the bin wall (Ø5) and the bin
+##    cone slope; the walk-parity ground record (34 / 38 / 12 / 12 — the
+##    slot's own answers, byte-identical); the leg tower visual-only (the
+##    crown-arm and post lines ray-clear); no roof crumb filed (the slot
+##    never carried one).
+func _scenario_elevator_cluster_dims() -> void:
+	const S := "elevator_cluster_dims"
+	var bad: PackedStringArray = PackedStringArray()
+	const SLOT_ID := "grain_elevators"
+
+	## --- A. the bake slot, walked independently --------------------------------
+	var silos: Array[Dictionary] = []
+	var bins: Array[Dictionary] = []
+	var headhouse := {}
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for ph: Dictionary in doc.get("placeholders", []):
+			if str(ph.get("id", "")) != SLOT_ID:
+				continue
+			var part := {
+				"part": str(ph.get("part", "")),
+				"p": Vector3(float(ph["p"][0]), float(ph["p"][1]), float(ph["p"][2])),
+				"s": Vector3(float(ph["s"][0]), float(ph["s"][1]), float(ph["s"][2])),
+			}
+			match part["part"]:
+				"silo":
+					silos.append(part)
+				"bin":
+					bins.append(part)
+				"headhouse":
+					headhouse = part
+	if silos.size() != 4 or bins.size() != 2 or headhouse.is_empty():
+		_check(S, false, "slot walk failed: silos=%d bins=%d headhouse=%s (want 4/2/1)"
+				% [silos.size(), bins.size(), headhouse.is_empty()])
+		return
+	silos.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a["p"] as Vector3).x < (b["p"] as Vector3).x)
+	bins.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a["p"] as Vector3).x < (b["p"] as Vector3).x)
+	var bank_z: float = (silos[0]["p"] as Vector3).z
+	var bank_x := 0.0
+	for sl: Dictionary in silos:
+		bank_x += (sl["p"] as Vector3).x
+	bank_x /= silos.size()
+	for k in silos.size() - 1:
+		var gap: float = (silos[k + 1]["p"] as Vector3).x - (silos[k]["p"] as Vector3).x
+		var width: float = (silos[k]["s"] as Vector3).x
+		if absf(gap - (width + 2.0)) > 0.01:
+			bad.append("silo spacing %.2f != the bank read (Ø %.1f boxes + 2 m gaps)" % [gap, width])
+	for sl2: Dictionary in silos:
+		var sp: Vector3 = sl2["p"]
+		var ss: Vector3 = sl2["s"]
+		if absf(sp.z - bank_z) > 0.01:
+			bad.append("silo at z %.1f off the bank line %.1f" % [sp.z, bank_z])
+		if absf(ss.x - ss.z) > 0.01:
+			bad.append("silo plan %.1fx%.1f not square (the Ø read)" % [ss.x, ss.z])
+		## The V-30 band on the slot's own span — the honesty holds BEFORE the dress.
+		if ss.y < 30.0 or ss.y > 40.0:
+			bad.append("silo span %.1f outside the 30–40 m placeholder band" % ss.y)
+	var hp: Vector3 = headhouse["p"]
+	var hs: Vector3 = headhouse["s"]
+	if absf(hp.x - bank_x) > 0.01:
+		bad.append("headhouse x %.1f off the bank center %.1f" % [hp.x, bank_x])
+	if absf(hp.z - (bank_z - 8.0)) > 0.01:
+		bad.append("headhouse z %.1f != 8 m north of the bank %.1f" % [hp.z, bank_z - 8.0])
+	if hs.y < 30.0 or hs.y > 40.0:
+		bad.append("headhouse span %.1f outside the 30–40 m placeholder band" % hs.y)
+	if hs.y < (silos[0]["s"] as Vector3).y:
+		bad.append("headhouse %.1f shorter than the silos — must read the tall element" % hs.y)
+	var bank_center := Vector2(bank_x, bank_z)
+	if bank_center.distance_to(Vector2(3420.0, -20.0)) > 0.01:
+		bad.append("bank center %s off the survey-anchored approximation (3420, −20)" % bank_center)
+	for bn: Dictionary in bins:
+		var bp: Vector3 = bn["p"]
+		var bs: Vector3 = bn["s"]
+		if absf(bp.z - (bank_z + 8.0)) > 0.01:
+			bad.append("bin at z %.1f != 8 m south of the bank %.1f" % [bp.z, bank_z + 8.0])
+		if bs.y <= 5.0 or bs.y >= 30.0:
+			bad.append("bin span %.1f outside the annex read (low, under the band)" % bs.y)
+
+	## --- B+C+D+E. the hero: swap, band, composition, palette -------------------
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var parts := world.elevator_hero_parts
+	if parts.is_empty():
+		_check(S, false, "no retained elevator parts — the hero never built")
+		world.queue_free()
+		return
+	if parts.size() != 24:
+		bad.append("record %d != the 24 schedule (12 boxes: headhouse + roof slab "
+				+ "+ 10 leg members; 12 meshes: 4 silos + 4 caps + 2 bins + 2 cones)" % parts.size())
+	var band_counts := {}
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for part: Dictionary in parts:
+		var p: Vector3 = part["p"]
+		var s: Vector3 = part["s"]
+		lo = lo.min(p - s * 0.5)
+		hi = hi.max(p + s * 0.5)
+		var band := str(part["band"])
+		band_counts[band] = int(band_counts.get(band, 0)) + 1
+	var want_counts := {
+		"concrete": 5, "concrete_cap": 4, "roof": 1,
+		"steel": 2, "steel_roof": 2, "leg": 10,
+	}
+	for want_band: String in want_counts:
+		if int(band_counts.get(want_band, 0)) != int(want_counts[want_band]):
+			bad.append("band %s count %d != %d" % [want_band,
+					int(band_counts.get(want_band, 0)), int(want_counts[want_band])])
+	for seen_band: String in band_counts:
+		if not want_counts.has(seen_band):
+			bad.append("band %s outside the closed six — no sign band may exist" % seen_band)
+	## C. THE BAND — the honesty pin: the styled union sits INSIDE the
+	## documented 30–40 m placeholder range (a band assertion, deliberately
+	## not the exact 38.0 the slot carries).
+	if hi.y < 30.0 or hi.y > 40.0:
+		bad.append("cluster union top %.2f outside the 30–40 m placeholder band "
+				+ "(the honesty is the pin)" % hi.y)
+	if lo.y < -0.05:
+		bad.append("cluster base %.2f sinks past the plate" % lo.y)
+	## The keep-the-stack law: every family inside its slot's own span.
+	var headhouse_part := {}
+	for part2: Dictionary in parts:
+		if str(part2["band"]) == "concrete" and not bool(part2["mesh"]) \
+				and absf((part2["s"] as Vector3).y - hs.y) < 0.001:
+			headhouse_part = part2
+			break
+	if headhouse_part.is_empty():
+		bad.append("no headhouse box at the slot's own %.1f span — the stack law broke" % hs.y)
+	for sl3: Dictionary in silos:
+		var want_h: float = (sl3["s"] as Vector3).y
+		var found := false
+		for part3: Dictionary in parts:
+			if str(part3["band"]) == "concrete" and bool(part3["mesh"]) \
+					and absf((part3["s"] as Vector3).y - want_h) < 0.001 \
+					and absf((part3["p"] as Vector3).x - (sl3["p"] as Vector3).x) < 0.01:
+				found = true
+				break
+		if not found:
+			bad.append("no silo wall at x %.1f on the slot's own %.1f span" % [
+					(sl3["p"] as Vector3).x, want_h])
+	for bn2: Dictionary in bins:
+		var want_bin: float = (bn2["s"] as Vector3).y
+		var bin_sum := 0.0
+		for part4: Dictionary in parts:
+			if str(part4["band"]) == "steel" and bool(part4["mesh"]) \
+					and absf((part4["p"] as Vector3).x - (bn2["p"] as Vector3).x) < 0.01:
+				bin_sum += (part4["s"] as Vector3).y
+			elif str(part4["band"]) == "steel_roof" and bool(part4["mesh"]) \
+					and absf((part4["p"] as Vector3).x - (bn2["p"] as Vector3).x) < 0.01:
+				bin_sum += (part4["s"] as Vector3).y
+		if absf(bin_sum - want_bin) > 0.001:
+			bad.append("bin x %.1f wall+roof %.2f != the slot's own %.1f span" % [
+					(bn2["p"] as Vector3).x, bin_sum, want_bin])
+	## D. THE COMPOSITION: the leg tower against the headhouse's east wall,
+	## rising with the bank (post height == the silo span), 5 collars, the
+	## crown arm at silo-top − 0.6 running 8 m alongside the wall.
+	var leg_x := hp.x + hs.x * 0.5 + 1.4
+	var leg_parts := 0
+	var posts := 0
+	var collars := 0
+	var arms := 0
+	for part5: Dictionary in parts:
+		if str(part5["band"]) != "leg":
+			continue
+		leg_parts += 1
+		var lp: Vector3 = part5["p"]
+		var ls: Vector3 = part5["s"]
+		if absf(ls.x - 0.16) < 0.001 and absf(ls.z - 0.16) < 0.001:
+			posts += 1
+			if absf(absf(lp.x - leg_x) - 0.8) > 0.01 or absf(absf(lp.z - hp.z) - 0.8) > 0.01 \
+					or absf(ls.y - (silos[0]["s"] as Vector3).y) > 0.001:
+				bad.append("leg post %s off the lattice square or the bank-top line" % lp)
+		elif absf(ls.y - 0.14) < 0.001:
+			collars += 1
+			if absf(lp.y - 5.5 * float(collars)) > 0.01:
+				bad.append("leg collar %d at y %.2f != the 5.5 m pitch line" % [collars, lp.y])
+		elif absf(ls.z - 8.0) < 0.001:
+			arms += 1
+			if absf(lp.y - ((silos[0]["s"] as Vector3).y - 0.6)) > 0.01 \
+					or absf(lp.x - leg_x) > 0.01:
+				bad.append("leg arm %s off the crown line (silo top − 0.6)" % lp)
+	if posts != 4 or collars != 5 or arms != 1:
+		bad.append("leg schedule %d posts / %d collars / %d arms != 4/5/1" % [posts, collars, arms])
+	## E. THE PALETTE: every band at its literal ±0.02 + the read laws.
+	var literals := {
+		"concrete": Color(0.851, 0.824, 0.769),
+		"concrete_cap": Color(0.784, 0.753, 0.682),
+		"roof": Color(0.30, 0.29, 0.28),
+		"steel": Color(0.776, 0.796, 0.824),
+		"steel_roof": Color(0.651, 0.675, 0.714),
+		"leg": Color(0.34, 0.35, 0.36),
+	}
+	for part6: Dictionary in parts:
+		var band6 := str(part6["band"])
+		var got: Color = part6["color"]
+		if _color_gap(got, literals[band6]) > 0.02:
+			bad.append("band %s color %s != the pinned literal %s" % [band6, got, literals[band6]])
+		var wl: float = got.r * 0.299 + got.g * 0.587 + got.b * 0.114
+		var sat: float = (maxf(got.r, maxf(got.g, got.b)) - minf(got.r, minf(got.g, got.b))) \
+				/ maxf(maxf(got.r, maxf(got.g, got.b)), 1e-6)
+		match band6:
+			"concrete", "concrete_cap":
+				var hue := _hue_deg(got)
+				if hue < 30.0 or hue > 70.0:
+					bad.append("band %s hue %.0f outside the warm pale law 30..70" % [band6, hue])
+				if wl < 0.7:
+					bad.append("band %s luminance %.3f < 0.7 — must read pale" % [band6, wl])
+				if sat > 0.16:
+					bad.append("band %s saturation %.2f > 0.16 — too tinted for concrete" % [band6, sat])
+			"steel", "steel_roof":
+				if got.b < got.r:
+					bad.append("band %s reads warm (b < r) — galvanized must read cool" % band6)
+				if sat > 0.12:
+					bad.append("band %s saturation %.2f > 0.12 — too tinted for steel" % [band6, sat])
+			"roof", "leg":
+				if wl > 0.45:
+					bad.append("band %s luminance %.3f > 0.45 — must read dark" % [band6, wl])
+	var concrete_lum: float = literals["concrete"].r * 0.299 + literals["concrete"].g * 0.587 \
+			+ literals["concrete"].b * 0.114
+	var cap_lum: float = literals["concrete_cap"].r * 0.299 + literals["concrete_cap"].g * 0.587 \
+			+ literals["concrete_cap"].b * 0.114
+	if cap_lum >= concrete_lum:
+		bad.append("cap rims %.3f not darker than the walls %.3f — the rim read dies" % [cap_lum, concrete_lum])
+
+	## --- F. the meshes + seams, live -------------------------------------------
+	var chunk_node := world.get_node_or_null("Chunks/Chunk_13_-1") as Node3D
+	if chunk_node == null:
+		bad.append("chunk Chunk_13_-1 missing")
+	else:
+		## The gray family shrank to exactly its non-superseded remainder
+		## (the chunk file walked by its tile — the chunk node sits at the
+		## tile center, the file grid's own key).
+		var ph_mm := chunk_node.get_node_or_null("Placeholders") as MultiMeshInstance3D
+		var want_remainder := 0
+		for entry3: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+			var tile := Vector2i(int(entry3["cx"]), int(entry3["cz"]))
+			var tile_center := Vector3(tile.x * 256.0 + 128.0, 0.0, tile.y * 256.0 + 128.0)
+			if (chunk_node as Node3D).position.distance_to(tile_center) > 0.5:
+				continue
+			var doc3: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry3["file"]))
+			for ph: Dictionary in doc3.get("placeholders", []):
+				if not _is_superseded_t195(str(ph.get("id", ""))):
+					want_remainder += 1
+		if ph_mm == null:
+			if want_remainder > 0:
+				bad.append("Chunk_13_-1 lost its placeholder family (%d non-superseded remain)"
+						% want_remainder)
+		elif ph_mm.multimesh.instance_count != want_remainder:
+			bad.append("Chunk_13_-1 placeholder MM %d != the non-superseded remainder %d" % [
+					ph_mm.multimesh.instance_count, want_remainder])
+		var hero_root := chunk_node.get_node_or_null("HeroElevatorCluster") as Node3D
+		if hero_root == null:
+			bad.append("no HeroElevatorCluster under Chunk_13_-1")
+		else:
+			var boxes_mm := hero_root.get_node_or_null("Boxes") as MultiMeshInstance3D
+			if boxes_mm == null or boxes_mm.multimesh.instance_count != 12:
+				bad.append("Boxes MM %s != the headhouse + roof slab + 10 leg members" % [
+						boxes_mm.multimesh.instance_count if boxes_mm != null else -1])
+			var want_albedo := {
+				"Silo1": literals["concrete"], "Silo2": literals["concrete"],
+				"Silo3": literals["concrete"], "Silo4": literals["concrete"],
+				"SiloCap1": literals["concrete_cap"], "SiloCap2": literals["concrete_cap"],
+				"SiloCap3": literals["concrete_cap"], "SiloCap4": literals["concrete_cap"],
+				"Bin1": literals["steel"], "Bin2": literals["steel"],
+				"BinRoof1": literals["steel_roof"], "BinRoof2": literals["steel_roof"],
+			}
+			for mesh_name: String in want_albedo:
+				var mesh_node := hero_root.get_node_or_null(mesh_name) as MeshInstance3D
+				if mesh_node == null or not (mesh_node.mesh is CylinderMesh):
+					bad.append("named mesh %s missing (want a CylinderMesh)" % mesh_name)
+					continue
+				var mat := (mesh_node.mesh as CylinderMesh).material as StandardMaterial3D
+				if mat == null or _color_gap(mat.albedo_color, want_albedo[mesh_name]) > 0.02:
+					bad.append("%s albedo %s != the pinned literal" % [
+							mesh_node.name if mesh_node != null else mesh_name,
+							mesh_name, mat.albedo_color if mat != null else "<null>"])
+	var space := get_world_3d().direct_space_state
+	var probe := func(from: Vector3, to: Vector3) -> Dictionary:
+		var ray := PhysicsRayQueryParameters3D.create(world.to_global(from),
+				world.to_global(to))
+		ray.collision_mask = 1
+		return space.intersect_ray(ray)
+	## The silo wall at Ø7 on the east vertex plane (the 8-gon's vertex ring) —
+	## probed on the EASTMOST silo from clear eastern air (the bank is a row;
+	## a ray at any inner member would answer its eastern neighbor first).
+	var silo_c: Vector3 = silos[3]["p"]
+	var silo_ray: Dictionary = probe.call(
+			Vector3(silo_c.x + 30.0, 17.0, silo_c.z), Vector3(silo_c.x, 17.0, silo_c.z))
+	if silo_ray.is_empty():
+		bad.append("silo wall ray missed")
+	else:
+		var sx: float = world.to_local((silo_ray as Dictionary)["position"]).x
+		if absf(sx - (silo_c.x + 3.5)) > 0.15:
+			bad.append("silo wall x %.2f != Ø7 (±0.15)" % sx)
+	## The headhouse east face (the box's own wall — the leg posts beside it
+	## are visual-only and must not answer).
+	var face_ray: Dictionary = probe.call(
+			Vector3(hp.x + 30.0, 20.0, hp.z), Vector3(hp.x, 20.0, hp.z))
+	if face_ray.is_empty():
+		bad.append("headhouse east face ray missed")
+	else:
+		var fx: float = world.to_local((face_ray as Dictionary)["position"]).x
+		if absf(fx - (hp.x + hs.x * 0.5)) > 0.05:
+			bad.append("headhouse east face x %.2f != the slot wall %.2f (±0.05)" % [
+					fx, hp.x + hs.x * 0.5])
+	## The bin wall at Ø5 (the EAST bin, from clear eastern air — same row
+	## law) + the cone slope over the frustum read (down at r 2.0 on the west
+	## bin: the taper 2.5→0.25 over 10.4..12 lands the surface at 10.756).
+	var bin_c: Vector3 = bins[1]["p"]
+	var bin_ray: Dictionary = probe.call(
+			Vector3(bin_c.x + 20.0, 5.0, bin_c.z), Vector3(bin_c.x, 5.0, bin_c.z))
+	if bin_ray.is_empty():
+		bad.append("bin wall ray missed")
+	else:
+		var bx: float = world.to_local((bin_ray as Dictionary)["position"]).x
+		if absf(bx - (bin_c.x + 2.5)) > 0.15:
+			bad.append("bin wall x %.2f != Ø5 (±0.15)" % bx)
+	var cone_ray: Dictionary = probe.call(
+			Vector3(bin_c.x + 2.0, 20.0, bin_c.z), Vector3(bin_c.x + 2.0, 8.0, bin_c.z))
+	if cone_ray.is_empty():
+		bad.append("bin cone ray missed")
+	else:
+		var cy: float = world.to_local((cone_ray as Dictionary)["position"]).y
+		if absf(cy - 10.756) > 0.1:
+			bad.append("bin cone y %.2f != the frustum read 10.756 (±0.1)" % cy)
+	## The leg tower visual-only: the crown arm's line and the post line
+	## answer NOTHING (the thin-member law).
+	var arm_ray: Dictionary = probe.call(
+			Vector3(leg_x, 33.4, hp.z - 6.0), Vector3(leg_x, 33.4, hp.z - 2.0))
+	if not arm_ray.is_empty():
+		bad.append("leg crown arm answered a ray — the lattice must stay visual-only")
+	var post_ray: Dictionary = probe.call(
+			Vector3(leg_x - 0.8, 20.0, hp.z - 6.0), Vector3(leg_x - 0.8, 20.0, hp.z + 2.5))
+	if not post_ray.is_empty():
+		bad.append("leg post line answered a ray — the lattice must stay visual-only")
+	## The walk-parity ground record: the slot's own answers survive the swap
+	## byte-identically (silos 34, headhouse 38, bins 12).
+	var ground_pins := [[silos[1]["p"], (silos[1]["s"] as Vector3).y],
+			[hp, hs.y], [bins[0]["p"], (bins[0]["s"] as Vector3).y],
+			[bins[1]["p"], (bins[1]["s"] as Vector3).y]]
+	for gp: Array in ground_pins:
+		var gpos: Vector3 = gp[0]
+		var want_top: float = gp[1]
+		var gh := world.ground_height(world.to_global(gpos))
+		if absf(gh - want_top) > 0.05:
+			bad.append("ground record answers %.2f at (%.1f, %.1f) != the slot's own %.1f"
+					% [gh, gpos.x, gpos.z, want_top])
+	## No roof crumb filed (the slot never carried one — the swap files none).
+	if world._hero_roof_tops.has(SLOT_ID):
+		bad.append("roof crumb filed for %s — the slot never carried one" % SLOT_ID)
+	_check(S, bad.is_empty(),
+		"parts=%d bank=(%.1f, %.1f) band=[30, 40] union_top=%.1f slot_top=%.1f; %s"
+		% [parts.size(), bank_center.x, bank_center.y, hi.y, hs.y, "; ".join(bad)])
+	world.queue_free()
+
+
+## (T-195) The scenario-local supersede mirror — the id the cluster's hero
+## retires, walked against the runtime placeholder MM (the world's own
+## `_row_superseded_placeholder` covers the other heroes too; the remainder
+## arm here counts only the elevator slot so the chunk file walk stays local).
+func _is_superseded_t195(id: String) -> bool:
+	return id == "grain_elevators"
 
 
 ## (T-187) The lawn cluster's R3 ticket on the resident Ames world, every
