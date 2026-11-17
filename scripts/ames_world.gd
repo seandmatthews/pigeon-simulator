@@ -5113,11 +5113,13 @@ func _build_lot_markings(root: Node3D, lots: Array[PackedVector2Array],
 ## THE KIND + PALETTE MIX — every dressed site rolls its prop (RV / table /
 ## flag / tent at the pinned shares) and every tent or flag rolls its color
 ## (canopy cardinal / gold / white at the pinned gentle mix — no cardinal
-## invasion; flags alternate cardinal-gold) off stable `hash()` bands
-## (`& 0x7FFFFFFF` before the mod — Godot's `%` keeps the sign, the codebase
-## band law). Zero RNG of any stream — a rebuild reproduces every transform
-## and color byte-identically. Visual-only dressing (the T-180 corner-dress
-## law): zero colliders; the families live OUTSIDE the bake-derived render
+## invasion; flags alternate cardinal-gold) off ONE stable `hash()` base
+## roll per site spread through the T-207 band law (`_tg_band`'s splitmix
+## finalizer — the raw string-hash spread correlated its low bits across
+## same-prefix keys, the drift the canopy bake already paid for). Zero RNG
+## of any stream — a rebuild reproduces every transform and color
+## byte-identically. Visual-only dressing (the T-180 corner-dress law):
+## zero colliders; the families live OUTSIDE the bake-derived render
 ## metric (the T-187 corner-dress law); records retained for the gate.
 
 ## The density tiers (m, lot center to the pitch anchor — pinned on the
@@ -5240,14 +5242,16 @@ func _dress_tailgate_lot(lot: AmesParking.Lot) -> void:
 			var x := u if long_x else site_cross
 			var z := site_cross if long_x else u
 			rec["sites"] = int(rec["sites"]) + 1
-			var fill_roll: int = hash("tailgate/%s/%d/%d" % [lot.id, row, k]) \
-					& 0x7FFFFFFF
-			if fill_roll % 100 >= fill:
+			var roll := hash("tailgate/%s/%d/%d" % [lot.id, row, k])
+			## One base roll per site, spread through the T-207 band law: a
+			## splitmix-style integer finalizer per band — the raw string-hash
+			## spread correlated its low bits across the same-prefix keys (the
+			## first probe's canopy mix landed 70/94/24 against its 38/32/30
+			## bands — the T-207 drift lesson, again).
+			if (_tg_band(roll, 0) * 100) >> 13 >= fill:
 				continue
-			var kind_roll: int = hash("tailgate_kind/%s/%d/%d" \
-					% [lot.id, row, k]) & 0x7FFFFFFF
-			var color_roll: int = hash("tailgate_color/%s/%d/%d" \
-					% [lot.id, row, k]) & 0x7FFFFFFF
+			var kind_roll := (_tg_band(roll, 1) * 100) >> 13
+			var color_roll := _tg_band(roll, 2)
 			## The site basis: yaw faces the row's aisle (the T-182 facing
 			## law); local X runs ALONG the row, local Z across.
 			var facing := Vector2(0.0, 1.0 if row % 2 == 0 else -1.0)
@@ -5277,7 +5281,7 @@ func _dress_tailgate_lot(lot: AmesParking.Lot) -> void:
 			if not parking.prop_guard_ok(x, z, candidates):
 				continue
 			rec["dressed"] = int(rec["dressed"]) + 1
-			var cp := color_roll % 100
+			var cp := (color_roll * 100) >> 13
 			var ground := ground_height(to_global(Vector3(x, 0.0, z)))
 			var base := Transform3D(Basis(Vector3.UP, atan2(-facing.x, -facing.y)),
 					Vector3(x, ground, z))
@@ -5305,7 +5309,7 @@ func _dress_tailgate_lot(lot: AmesParking.Lot) -> void:
 							Basis.from_scale(TG_FLAG_SIZE), TG_FLAG_LOCAL))
 					tailgate_flag_colors.append(
 							TG_COLOR_CARDINAL if (color_roll & 1) == 0
-							else TG_COLOR_GOLD)
+							else TG_COLOR_GOLD) ## The 13-bit band's LSB — post-avalanche parity.
 					rec["flags"] = int(rec["flags"]) + 1
 				3:
 					tailgate_tent_xfs.append(base * Transform3D(
@@ -5322,6 +5326,18 @@ func _dress_tailgate_lot(lot: AmesParking.Lot) -> void:
 									cp < TG_TENT_CARDINAL + TG_TENT_GOLD
 									else TG_COLOR_CANOPY_WHITE))
 					rec["tents"] = int(rec["tents"]) + 1
+
+
+## The band spread (the T-207 law, transcribed): a splitmix-style integer
+## finalizer over (roll, band) — int64 arithmetic wraps deterministically,
+## no RNG; the 13-bit read feeds the percentage bands ((b * 100) >> 13 →
+## 0..99) and the flag parity rides its LSB.
+func _tg_band(roll: int, band: int) -> int:
+	var h := roll ^ (band * -7046029254386353131)
+	h = (h ^ (h >> 30)) * -4658895280553007687
+	h = (h ^ (h >> 27)) * -7905916399975552669
+	h = h ^ (h >> 31)
+	return (h >> 11) & 0x1FFF
 
 
 ## One site's footprint guard: the center plus the four bbox corners
