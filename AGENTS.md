@@ -44,8 +44,28 @@ corridor's depot/crossbucks/coal drag (T-194) and the SE grain-elevator
 cluster (T-195) — every placeholder slot these heroes own is superseded
 1:1 (`r3_cutover_swap_set` pins the swap set complete and the venue-fixup
 gray boxes as honest LOD0); the fidelity walk (F-01..F-24) lives in
-T-196's ticket, and the names/text layer (signage, street blades, the
-diamond letterforms) waits for R4's legal pass.
+T-196's ticket. Since the **T-202 R4 cutover the town has its NAME on
+things at every boot — all R4 text lives default-on, no flags**: the
+T-197 text capability (the `SignText` component — Oswald letterforms
+through a pinned per-typology legibility budget: plaque 140 / box 200 /
+blade 160 / street 200 / pole 260 metres of readable distance per metre
+of capital height, visual-only, no colliders) carries the tier-1 venue
+signs (T-198 — the fourteen names a student says first; 13 placed + The
+Cafe staged for T-205), the tiers 2–3 venue signs + the mourned ghost
+plaques (T-199 — 27 signed of the 34 tier-2/3 POIs, the unsigned set
+closed with reasons; 11 memorial plaques at their closed rooms), the
+MUTCD street-name blades (T-200 — 85 green blades over the 70 pinned
+spine corners, mast stacks at signals, posts at the all-way stops; the
+unreached spine names stay a closed ledger until R5 pins corners) and
+the campus + civic name plaques (T-201 — 11 nominative names in plain
+type on the R3 heroes' own faces + the Marston base marker, Reiman
+Gardens staged for T-204; no marks anywhere, names and years only).
+`r4_cutover_text_ledger` pins the whole ring joined: every family live
+at its pinned count on the default boot with the legibility law re-run
+over all 147 texts — the cutover's Gate 3 is the owner's
+fly-to-your-bar test (the fly-by-reading sign-off recorded in T-202's
+ticket closes the ring). The tank diamond's letterforms stay the legal
+pass's honest remainder — no R4 ticket staged them.
 
 ## Stack & tooling
 
