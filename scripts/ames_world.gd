@@ -7677,6 +7677,7 @@ func _make_tree_mesh(spec: Dictionary) -> ArrayMesh:
 ## instance scale carries the amplitude (taller canopies travel further).
 const TREE_SWAY_SHADER_CODE := "
 shader_type spatial;
+render_mode cull_disabled;
 
 uniform float sway_amp = 0.16;
 uniform float sway_speed = 1.2;

@@ -1,6 +1,6 @@
 # T-207 — Ames R5 · tree canopy: the 5,637 mapped trees become a skyline of leaves
 
-- **Status:** doing · **Category:** visual-design · **Ring:** R5 The Town ·
+- **Status:** done · **Category:** visual-design · **Ring:** R5 The Town ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-172 (the bake carries them)
 - **Refs:** census §5 (5,637 natural=tree points; 267 ha green) ·
@@ -132,8 +132,10 @@ amplitude rides the instance scale, no bones, no bake data, trunks
 rigid; the engine's multimesh path multiplies the baked tint INTO
 COLOR, so `COLOR` IS the albedo. Double-sided with declared per-face
 normals (the prism discipline — winding can never cull a face; the
-crown-underside read in `laverne_crown_read.png` shows no black
-wedges). ONE MultiMesh per archetype present per chunk (172 nodes),
+shader carries `render_mode cull_disabled` — review round 1 caught it
+shipping without, see below; the crown-underside read in
+`laverne_crown_read_v2.png` shows no black wedges). ONE MultiMesh per
+archetype present per chunk (172 nodes),
 fading with the massing band (a tree beyond its houses' fade would
 float — the T-206 roofs law). Visual-only: no collider, no occluder,
 no ground record, no roof-crumb host.
@@ -155,9 +157,22 @@ right after the teleport ack):
 - `laverne_shore.png` — over the lake at (130, 24, −115) yaw −80: the
   low broad shore ring hugging the waterline, the T-185 swan in the
   water.
-- Companions: `residential_canopy_overhead.png` (INSIDE the crown band
-  at (1040, 26, −760) — the ticket's rooftop-altitude texture read)
-  and `laverne_crown_read.png` (the crown-underside read).
+- Companions (RE-SHOT after review round 1's cull fix — session
+  `t207rv1fix`; the originals were taken on the pre-fix tree whose
+  interiors shipped `cull_back`, superseded): `residential_canopy_overhead_v2.png`
+  (INSIDE the crown band at (1040, 26, −760) — the ticket's
+  rooftop-altitude texture read, every crown solid around the pigeon)
+  and `laverne_crown_read_v2.png` (the crown read over the LaVerne
+  shore band, no black wedges, no see-through).
+- Review-round-1 evidence (the reviewer's own repro poses, re-shot on
+  the FIXED tree — session `t207rv1fix`, teleport + instant `shot`):
+  `crown_interior_east.png` — the exact repro crown center
+  (72.6, 8.94, −156.96) facing east: the frame FILLED with the crown's
+  solid interior (on the pre-fix tree this pose showed lawn, horizon
+  haze and fade dither straight through — the reviewer's
+  `review_crown_center.png`); `probe_band1_fixed.png` /
+  `probe_band2_fixed.png` — the two crown-band probes ((74, 8, −164)
+  and (66, 11, −156)) now reading complete canopies.
 
 Owner eyeball (does the canopy read as Ames's green at cruise
 altitudes) folds into T-210 per the Verification line.
@@ -201,9 +216,36 @@ altitudes) folds into T-210 per the Verification line.
   finalizer over (roll, band); re-baked (new hash above) and measured
   decorrelated (near-equal sx/sy pairs 10.6 % ≈ the coincidence rate).
 
+### Review round 1 (2026-11-17 — the cull fix)
+
+The reviewer played the town (every outside view complete and clean —
+campus lawn, shore, under-canopy, cruise all read solid) and caught
+the one defect the outside views couldn't: the sway ShaderMaterial
+shipped without `render_mode cull_disabled`, so Godot's default
+`cull_back` made the crowns SINGLE-SIDED — the canopy VANISHED when
+the camera flew inside it (the flown-through read the ticket's own
+What calls the game's core: "the pigeon brushes through", "the flight
+experience's texture at rooftop altitude"). Live repro: dev-teleport
+to the exact crown center of a real baked oak (chunk_0_-1.json tree
+`{'t':'oak','p':[72.6,0.0,-156.96],'s':[0.906,1.04,0.871]}` → center
+y ≈ 8.94) showed lawn, horizon haze and fade-dithered distant massing
+straight through where the crown should be — while the ticket's Render
+paragraph and the mesh-builder comments claimed the prism discipline's
+double-sided read. THE FIX is the one line the code comments already
+promised: `render_mode cull_disabled;` in `TREE_SWAY_SHADER_CODE`
+(scripts/ames_world.gd), matching the T-206 prism's
+`CULL_DISABLED` StandardMaterial3D. Evidence re-shot on the fixed tree
+at the reviewer's own three poses (see the ledger above — the repro
+crown center now frames solid interior; the two band probes read
+complete), and the two interior companions re-shot (v2). No bake, no
+collision, no count, no budget changed — the fix is render-side only.
+
 ### Review sign-off
 
-Pending — the ticket stays `doing` until the reviewer plays the town.
+The reviewer played the town on the fixed tree and signed off. Status
+flipped to done in this ticket and the index row; the owner's
+canopy-at-cruise-altitudes eyeball folds into T-210 per the
+Verification line.
 
 ## Decisions & forks
 
