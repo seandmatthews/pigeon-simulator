@@ -5748,7 +5748,7 @@
 		{
 			"aabb": {
 				"max": [
-					3328.0,
+					3329.06,
 					11.0,
 					-1275.6
 				],
@@ -5758,7 +5758,7 @@
 					-1504.0
 				]
 			},
-			"bytes": 25795,
+			"bytes": 26440,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5766,8 +5766,8 @@
 				"ground_quads": 34,
 				"lane_quads": 16,
 				"lawn_tris": 8,
-				"massing": 34,
-				"occluders": 34,
+				"massing": 36,
+				"occluders": 36,
 				"placeholders": 0,
 				"ribbons": 14,
 				"shore_quads": 0,
@@ -5778,12 +5778,12 @@
 			"cx": 12,
 			"cz": -6,
 			"file": "chunk_12_-6.json",
-			"sha256": "53a46aafbe155dc9d42e7ed5817658b30a42b3679b283b1d853d8febcf38982e"
+			"sha256": "142c0f0781185e87f4c2f88a950f50df15fb15453eefbe423b91f3edc49e268b"
 		},
 		{
 			"aabb": {
 				"max": [
-					3328.0,
+					3337.796,
 					20.0,
 					-1018.99
 				],
@@ -5793,7 +5793,7 @@
 					-1294.865
 				]
 			},
-			"bytes": 27498,
+			"bytes": 27675,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5804,7 +5804,7 @@
 				"massing": 10,
 				"occluders": 10,
 				"placeholders": 0,
-				"ribbons": 52,
+				"ribbons": 53,
 				"shore_quads": 0,
 				"tie_quads": 0,
 				"water_tris": 0
@@ -5813,12 +5813,12 @@
 			"cx": 12,
 			"cz": -5,
 			"file": "chunk_12_-5.json",
-			"sha256": "dfd03384b1a559cb7223082af1acfe372372ff2d9e513c3376dc14f2b9b36af5"
+			"sha256": "365cda155404fadcfdb39ec2c6260b7e595cdaf1a5f4755fc4558b700470a638"
 		},
 		{
 			"aabb": {
 				"max": [
-					3328.0,
+					3329.45,
 					14.0,
 					-747.127
 				],
@@ -5828,7 +5828,7 @@
 					-1028.229
 				]
 			},
-			"bytes": 38126,
+			"bytes": 38759,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5836,8 +5836,8 @@
 				"ground_quads": 36,
 				"lane_quads": 30,
 				"lawn_tris": 5,
-				"massing": 59,
-				"occluders": 59,
+				"massing": 61,
+				"occluders": 61,
 				"placeholders": 0,
 				"ribbons": 28,
 				"shore_quads": 0,
@@ -5848,7 +5848,7 @@
 			"cx": 12,
 			"cz": -4,
 			"file": "chunk_12_-4.json",
-			"sha256": "3c134035564c546e4961e73e920c40eafebda05e4a3b2f270ce0bf0b4cdee212"
+			"sha256": "731ceb97cbacd6bf3a38f345f433251f0f83b8a35ec16c8b26c0636353fe9c84"
 		},
 		{
 			"aabb": {
@@ -5863,7 +5863,7 @@
 					-790.091
 				]
 			},
-			"bytes": 43572,
+			"bytes": 43888,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5871,8 +5871,8 @@
 				"ground_quads": 36,
 				"lane_quads": 30,
 				"lawn_tris": 0,
-				"massing": 74,
-				"occluders": 74,
+				"massing": 75,
+				"occluders": 75,
 				"placeholders": 0,
 				"ribbons": 36,
 				"shore_quads": 0,
@@ -5883,12 +5883,12 @@
 			"cx": 12,
 			"cz": -3,
 			"file": "chunk_12_-3.json",
-			"sha256": "45917890168fa44c432283c61a2f8d6d33a2908220a108f95ae2a11a325078d3"
+			"sha256": "4e9fbaf496efd4f30d10e07ab34a7401026642c56ab562e6a9d8dcf54bb20dc1"
 		},
 		{
 			"aabb": {
 				"max": [
-					3328.0,
+					3350.81,
 					11.0,
 					-253.329
 				],
@@ -5898,18 +5898,18 @@
 					-527.87
 				]
 			},
-			"bytes": 46794,
+			"bytes": 48429,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
 				"crossings": 0,
 				"ground_quads": 64,
 				"lane_quads": 53,
-				"lawn_tris": 0,
+				"lawn_tris": 10,
 				"massing": 41,
 				"occluders": 41,
 				"placeholders": 0,
-				"ribbons": 59,
+				"ribbons": 61,
 				"shore_quads": 0,
 				"tie_quads": 0,
 				"water_tris": 0
@@ -5918,12 +5918,12 @@
 			"cx": 12,
 			"cz": -2,
 			"file": "chunk_12_-2.json",
-			"sha256": "05a76d0c3211813a9220512dc8fc381eac1f1718e47de215c740b29f19173269"
+			"sha256": "79cce2b435545068fc0224ee83989e39c1579fe1b3b8057843abd291de3e118d"
 		},
 		{
 			"aabb": {
 				"max": [
-					3338.961,
+					3343.529,
 					11.0,
 					1.549
 				],
@@ -5933,20 +5933,20 @@
 					-256.483
 				]
 			},
-			"bytes": 62489,
+			"bytes": 66710,
 			"counts": {
-				"ballast_quads": 55,
+				"ballast_quads": 63,
 				"creek_quads": 0,
 				"crossings": 1,
 				"ground_quads": 56,
-				"lane_quads": 58,
+				"lane_quads": 61,
 				"lawn_tris": 0,
-				"massing": 41,
-				"occluders": 41,
+				"massing": 43,
+				"occluders": 43,
 				"placeholders": 0,
-				"ribbons": 48,
+				"ribbons": 50,
 				"shore_quads": 0,
-				"tie_quads": 55,
+				"tie_quads": 63,
 				"water_tris": 0
 			},
 			"crossings": [
@@ -5962,12 +5962,12 @@
 			"cx": 12,
 			"cz": -1,
 			"file": "chunk_12_-1.json",
-			"sha256": "61c04a0051d1e62a9545c722d38c07f890fb6edc2a8847c596d33a2301603c25"
+			"sha256": "300020548d22fc6292bece144fdb5fe9813e91202f257912a0cc50f74b547d0e"
 		},
 		{
 			"aabb": {
 				"max": [
-					3328.0,
+					3342.77,
 					14.0,
 					257.17
 				],
@@ -5977,7 +5977,7 @@
 					-2.202
 				]
 			},
-			"bytes": 26868,
+			"bytes": 27488,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5985,8 +5985,8 @@
 				"ground_quads": 40,
 				"lane_quads": 30,
 				"lawn_tris": 0,
-				"massing": 19,
-				"occluders": 19,
+				"massing": 21,
+				"occluders": 21,
 				"placeholders": 0,
 				"ribbons": 40,
 				"shore_quads": 0,
@@ -5997,7 +5997,7 @@
 			"cx": 12,
 			"cz": 0,
 			"file": "chunk_12_0.json",
-			"sha256": "b35d6b003e769e5a4b1cd5c83f344d3a1051d5eaa83fc3bae7eeef47700efbe0"
+			"sha256": "340b404851bcf7a1f1123924eac27f2003fc970d97c5bee1a5ae321bb7195ac6"
 		},
 		{
 			"aabb": {
@@ -6037,7 +6037,7 @@
 		{
 			"aabb": {
 				"max": [
-					3328.0,
+					3347.454,
 					14.0,
 					801.914
 				],
@@ -6047,7 +6047,7 @@
 					506.93
 				]
 			},
-			"bytes": 23715,
+			"bytes": 23884,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6058,7 +6058,7 @@
 				"massing": 13,
 				"occluders": 13,
 				"placeholders": 0,
-				"ribbons": 21,
+				"ribbons": 22,
 				"shore_quads": 0,
 				"tie_quads": 0,
 				"water_tris": 0
@@ -6067,7 +6067,7 @@
 			"cx": 12,
 			"cz": 2,
 			"file": "chunk_12_2.json",
-			"sha256": "dc285b9e7efdc63d7c96fad2a1a8479908b9ccad9d793d9c0d102dab1f1aa4a7"
+			"sha256": "99f01231dfb27860823de4fa888ba9081886e41aa2f7795f85e496c5a45c594c"
 		},
 		{
 			"aabb": {
@@ -6142,17 +6142,17 @@
 		{
 			"aabb": {
 				"max": [
-					3360.0,
-					0.004,
-					-1280.0
+					3576.8,
+					11.0,
+					-1272.88
 				],
 				"min": [
-					3328.0,
-					0.004,
+					3322.892,
+					0.0,
 					-1472.0
 				]
 			},
-			"bytes": 2528,
+			"bytes": 19107,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6160,10 +6160,10 @@
 				"ground_quads": 6,
 				"lane_quads": 0,
 				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"massing": 45,
+				"occluders": 45,
 				"placeholders": 0,
-				"ribbons": 0,
+				"ribbons": 12,
 				"shore_quads": 0,
 				"tie_quads": 0,
 				"water_tris": 0
@@ -6172,22 +6172,22 @@
 			"cx": 13,
 			"cz": -6,
 			"file": "chunk_13_-6.json",
-			"sha256": "d466aa1db85dfb3f929bbdfcb44a89074ee5c533e527b42a9ad67a15f1fe736b"
+			"sha256": "e6536de895f821eea05d1b981bfb1d0ef3f349d486bf0dd7cf307dbb9232c02e"
 		},
 		{
 			"aabb": {
 				"max": [
-					3360.0,
-					0.004,
-					-1024.0
+					3581.86,
+					11.0,
+					-1019.69
 				],
 				"min": [
-					3328.0,
-					0.004,
-					-1280.0
+					3326.488,
+					0.0,
+					-1297.555
 				]
 			},
-			"bytes": 2958,
+			"bytes": 34256,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6195,10 +6195,10 @@
 				"ground_quads": 8,
 				"lane_quads": 0,
 				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"massing": 82,
+				"occluders": 82,
 				"placeholders": 0,
-				"ribbons": 0,
+				"ribbons": 28,
 				"shore_quads": 0,
 				"tie_quads": 0,
 				"water_tris": 0
@@ -6207,22 +6207,22 @@
 			"cx": 13,
 			"cz": -5,
 			"file": "chunk_13_-5.json",
-			"sha256": "2e53e6b6de95d7c55f896e970f34d2f8bf38cceecef56845b95c4dfa040c7721"
+			"sha256": "424813adca8484c1dc331a33e7f293ea3aa68b8a27b32082dd3d5feaef2c42ae"
 		},
 		{
 			"aabb": {
 				"max": [
-					3360.0,
-					0.004,
-					-768.0
+					3571.37,
+					14.0,
+					-763.48
 				],
 				"min": [
-					3328.0,
-					0.004,
-					-1024.0
+					3284.065,
+					0.0,
+					-1026.886
 				]
 			},
-			"bytes": 2926,
+			"bytes": 30327,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6230,10 +6230,10 @@
 				"ground_quads": 8,
 				"lane_quads": 0,
 				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"massing": 77,
+				"occluders": 77,
 				"placeholders": 0,
-				"ribbons": 0,
+				"ribbons": 17,
 				"shore_quads": 0,
 				"tie_quads": 0,
 				"water_tris": 0
@@ -6242,22 +6242,22 @@
 			"cx": 13,
 			"cz": -4,
 			"file": "chunk_13_-4.json",
-			"sha256": "3c626ce51e2c8144dadf647b5f3f3d26d6872395956ec0b15692094588f44d2a"
+			"sha256": "13b631230f95f2d224a0b45f898156c43dff555b6a43d5c614d015eb980d989d"
 		},
 		{
 			"aabb": {
 				"max": [
-					3360.0,
-					0.004,
-					-512.0
+					3566.251,
+					11.0,
+					-477.592
 				],
 				"min": [
-					3328.0,
-					0.004,
-					-768.0
+					3287.826,
+					0.0,
+					-805.882
 				]
 			},
-			"bytes": 2922,
+			"bytes": 32358,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6265,10 +6265,10 @@
 				"ground_quads": 8,
 				"lane_quads": 0,
 				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"massing": 81,
+				"occluders": 81,
 				"placeholders": 0,
-				"ribbons": 0,
+				"ribbons": 22,
 				"shore_quads": 0,
 				"tie_quads": 0,
 				"water_tris": 0
@@ -6277,92 +6277,92 @@
 			"cx": 13,
 			"cz": -3,
 			"file": "chunk_13_-3.json",
-			"sha256": "2d301d8b3e9529c885b491d97f8b7c80cef67059413ca8aaf9e41bb1c34926cc"
+			"sha256": "d9d65ba638508d7ac6a3428a25877be1d3193f1caa87ab894585a17772ec4d1d"
 		},
 		{
 			"aabb": {
 				"max": [
-					3360.0,
-					8.0,
-					-256.0
+					3570.299,
+					16.0,
+					-253.963
 				],
 				"min": [
-					3328.0,
+					3289.01,
 					0.0,
-					-512.0
+					-516.63
 				]
 			},
-			"bytes": 4491,
+			"bytes": 26055,
 			"counts": {
-				"ballast_quads": 0,
+				"ballast_quads": 19,
 				"creek_quads": 0,
 				"crossings": 0,
 				"ground_quads": 8,
 				"lane_quads": 0,
-				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"lawn_tris": 14,
+				"massing": 32,
+				"occluders": 32,
 				"placeholders": 8,
-				"ribbons": 0,
+				"ribbons": 18,
 				"shore_quads": 0,
-				"tie_quads": 0,
+				"tie_quads": 19,
 				"water_tris": 0
 			},
 			"crossings": [],
 			"cx": 13,
 			"cz": -2,
 			"file": "chunk_13_-2.json",
-			"sha256": "de32c1ca3bded0d016b1603c95a271483f034ca91626c3c2033ddb33176d4d30"
+			"sha256": "7f36bfd5915288ba4a22da229ce8032792481f8b23c9c96262f917ce614a8497"
 		},
 		{
 			"aabb": {
 				"max": [
-					3437.0,
+					3585.606,
 					38.0,
 					0.0
 				],
 				"min": [
-					3328.0,
+					3327.159,
 					0.0,
-					-256.0
+					-258.885
 				]
 			},
-			"bytes": 5485,
+			"bytes": 37403,
 			"counts": {
-				"ballast_quads": 0,
+				"ballast_quads": 33,
 				"creek_quads": 0,
 				"crossings": 0,
 				"ground_quads": 14,
-				"lane_quads": 0,
+				"lane_quads": 28,
 				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"massing": 24,
+				"occluders": 24,
 				"placeholders": 7,
-				"ribbons": 0,
+				"ribbons": 49,
 				"shore_quads": 0,
-				"tie_quads": 0,
+				"tie_quads": 33,
 				"water_tris": 0
 			},
 			"crossings": [],
 			"cx": 13,
 			"cz": -1,
 			"file": "chunk_13_-1.json",
-			"sha256": "284d35ec08db22e829673eb99b79c628caed78d5c50d2f7fe7d0587bd15d7a5d"
+			"sha256": "0a9e51864156d68dda0fe2bcdbc7fdffdf6e7aca9e5eefeb62005a8be7411882"
 		},
 		{
 			"aabb": {
 				"max": [
-					3392.0,
-					0.004,
-					256.0
+					3554.382,
+					14.0,
+					262.93
 				],
 				"min": [
-					3328.0,
-					0.004,
-					0.0
+					3314.43,
+					0.0,
+					-2.036
 				]
 			},
-			"bytes": 4506,
+			"bytes": 16878,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6370,10 +6370,10 @@
 				"ground_quads": 16,
 				"lane_quads": 0,
 				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"massing": 25,
+				"occluders": 25,
 				"placeholders": 0,
-				"ribbons": 0,
+				"ribbons": 28,
 				"shore_quads": 0,
 				"tie_quads": 0,
 				"water_tris": 0
@@ -6382,22 +6382,22 @@
 			"cx": 13,
 			"cz": 0,
 			"file": "chunk_13_0.json",
-			"sha256": "ed267c21b3da06d62fec23f3b79c78ec34db05e405ea55a060e5d204dcd10b86"
+			"sha256": "84230554b53c87f7a6ec14c0b44212f1641d90f77adabb80d25286f658428676"
 		},
 		{
 			"aabb": {
 				"max": [
-					3392.0,
-					0.004,
-					512.0
+					3575.284,
+					14.0,
+					514.89
 				],
 				"min": [
-					3328.0,
-					0.004,
+					3321.796,
+					0.0,
 					256.0
 				]
 			},
-			"bytes": 4542,
+			"bytes": 6637,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6405,10 +6405,10 @@
 				"ground_quads": 16,
 				"lane_quads": 0,
 				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"massing": 4,
+				"occluders": 4,
 				"placeholders": 0,
-				"ribbons": 0,
+				"ribbons": 5,
 				"shore_quads": 0,
 				"tie_quads": 0,
 				"water_tris": 0
@@ -6417,22 +6417,22 @@
 			"cx": 13,
 			"cz": 1,
 			"file": "chunk_13_1.json",
-			"sha256": "0888d78d3332e00baa34931f994a51a90cd690a33ee6431f2ad9431744083fe5"
+			"sha256": "6c4dbe54b0c4935baa633af5c6509f8eaf9418faa4f250bfc78164133283df69"
 		},
 		{
 			"aabb": {
 				"max": [
-					3490.0,
+					3569.83,
 					30.0,
 					768.0
 				],
 				"min": [
-					3328.0,
+					3319.38,
 					0.0,
 					512.0
 				]
 			},
-			"bytes": 5123,
+			"bytes": 8959,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6440,10 +6440,10 @@
 				"ground_quads": 16,
 				"lane_quads": 0,
 				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"massing": 7,
+				"occluders": 7,
 				"placeholders": 3,
-				"ribbons": 0,
+				"ribbons": 10,
 				"shore_quads": 0,
 				"tie_quads": 0,
 				"water_tris": 0
@@ -6452,22 +6452,22 @@
 			"cx": 13,
 			"cz": 2,
 			"file": "chunk_13_2.json",
-			"sha256": "3b0a5ef69ca7faed7f5216192c954f13a41f6ee2a6b4bf40326ad1e892b40343"
+			"sha256": "2c09bddd25b8ba9bff5b08359cd7c337c08a89ca0cc8ea12380c66a7a7452cee"
 		},
 		{
 			"aabb": {
 				"max": [
-					3392.0,
-					0.004,
+					3505.36,
+					14.0,
 					1024.0
 				],
 				"min": [
-					3328.0,
-					0.004,
+					3322.1,
+					0.0,
 					768.0
 				]
 			},
-			"bytes": 4548,
+			"bytes": 6725,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6475,8 +6475,8 @@
 				"ground_quads": 16,
 				"lane_quads": 0,
 				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"massing": 7,
+				"occluders": 7,
 				"placeholders": 0,
 				"ribbons": 0,
 				"shore_quads": 0,
@@ -6487,31 +6487,31 @@
 			"cx": 13,
 			"cz": 3,
 			"file": "chunk_13_3.json",
-			"sha256": "a4cfc385e5d345ce8e5a6dba5d0e9c902cf85ed38a0298cd8fdb10e7db3d1731"
+			"sha256": "5965b706eb8af79f58bd293a2b3bfbc85a295a12ff9f6b58488fa54ee71cb6c9"
 		},
 		{
 			"aabb": {
 				"max": [
-					3392.0,
-					0.004,
+					3567.264,
+					11.0,
 					1248.0
 				],
 				"min": [
-					3328.0,
-					0.004,
-					1024.0
+					3322.852,
+					0.0,
+					1020.653
 				]
 			},
-			"bytes": 3977,
+			"bytes": 6993,
 			"counts": {
 				"ballast_quads": 0,
-				"creek_quads": 0,
+				"creek_quads": 10,
 				"crossings": 0,
 				"ground_quads": 13,
 				"lane_quads": 0,
 				"lawn_tris": 0,
-				"massing": 0,
-				"occluders": 0,
+				"massing": 4,
+				"occluders": 4,
 				"placeholders": 0,
 				"ribbons": 0,
 				"shore_quads": 0,
@@ -6522,7 +6522,7 @@
 			"cx": 13,
 			"cz": 4,
 			"file": "chunk_13_4.json",
-			"sha256": "b82f8bba4d7e3ca2f7d75daffba9980379d6e5b47e2d8fd4e679655b4f30e6d1"
+			"sha256": "b24679a2dc52373309fcfc69d066fdbd6285285b3dffab5e25110744d9e1f2d0"
 		}
 	],
 	"heroes": [
@@ -6530,38 +6530,39 @@
 		"way/183041212",
 		"way/183224150",
 		"way/260524827",
+		"way/269752151",
 		"way/33725619",
 		"way/33725897",
 		"way/613735866",
 		"way/861201396"
 	],
 	"pack": "ames_core",
-	"pack_schema": "ames_core/v1",
-	"pack_version": 1,
+	"pack_schema": "ames_core/v2",
+	"pack_version": 2,
 	"schema": "ames_chunks/v3",
-	"total_sha256": "bff6c21115f85c4dca89aa9082c6cf035b441d715807de1175fe3ca7d4631427",
+	"total_sha256": "dd7a8a332b60a6f9d725dcf2fce035692eef2c1a5b50b6cc5ebebcb2ccf5e726",
 	"totals": {
-		"ballast_quads": 1055,
-		"bytes": 3649663,
+		"ballast_quads": 1115,
+		"bytes": 3839771,
 		"chunks": 184,
-		"creek_quads": 397,
+		"creek_quads": 407,
 		"crossings": 9,
 		"districts": {
 			"campus": 290,
 			"campustown": 117,
-			"downtown": 269,
-			"lincolnway": 291,
-			"residential": 2770
+			"downtown": 272,
+			"lincolnway": 366,
+			"residential": 3089
 		},
 		"ground_quads": 3359,
-		"lane_quads": 1647,
-		"lawn_tris": 1264,
-		"massing": 3737,
-		"occluders": 3737,
+		"lane_quads": 1678,
+		"lawn_tris": 1288,
+		"massing": 4134,
+		"occluders": 4134,
 		"placeholders": 105,
-		"ribbons": 3750,
+		"ribbons": 3945,
 		"shore_quads": 117,
-		"tie_quads": 1055,
+		"tie_quads": 1115,
 		"water_tris": 113
 	}
 }

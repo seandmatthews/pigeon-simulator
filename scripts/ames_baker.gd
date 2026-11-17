@@ -293,6 +293,15 @@ const HERO_BUILDING_IDS: Array[String] = [
 	"way/183224150", ## Memorial Union.
 	"way/33725897", ## Parks Library.
 	"way/260524827", ## The 1906 depot (today's "Main Street Station").
+	## (T-203) The Durham Bandshell's own OSM way (named "Durham Bandshell",
+	## 25.4 × 14.6 m) — outside the v1 core box, so its massing never existed
+	## until the bbox east landed it. Its slot is superseded 1:1 by the T-192
+	## hero (the copper arch over the mint shells at this exact footprint —
+	## `_bandshell_parts` from the park POI), so the way joins the hero set:
+	## `_hero_parts` has no case for it (returns empty — the hero's parts are
+	## the POI-built arc), and the manifest `heroes` law hides the bbox box
+	## exactly like every hero above.
+	"way/269752151", ## Durham Bandshell (T-203: the way came inside).
 ]
 
 ## Venue fixup box (m): the census §2 storefront anchor — 2 levels of
