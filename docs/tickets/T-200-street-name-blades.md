@@ -1,6 +1,6 @@
 # T-200 — Ames R4 · street name blades: wayfinding by reading
 
-- **Status:** doing · **Category:** visual-design · **Ring:** R4 The Names ·
+- **Status:** done · **Category:** visual-design · **Ring:** R4 The Names ·
   **Value (1-5):** 4 · **Risk (1-5):** 1
 - **Depends on:** T-197, T-180 (the intersection set)
 - **Refs:** `osm/SUMMARY.md` (spine streets; Lincoln Way becomes East
@@ -40,6 +40,15 @@ Gate 1 · Gate 1b + one row · Gate 2 · Gate 3: screenshot pass; owner
 eyeball in T-202.
 
 ## Run record (2026-11-16, implementer)
+
+**Reviewer sign-off 2026-11-16** — ticket accepted against this branch on
+the recorded evidence below (the four criteria ticked on the recorded
+runs: the 70-corner/85-blade set with byte-exact data names incl. the
+seam stack; the `street_blades_pins` Gate 1b row green in the
+156 PASS / 0 FAIL suite; the Lincoln Way × Welch screenshot set vs
+`images/lincolnway/01`; Gate 1 clean on the provisioned worktree and
+Gate 2 `ok=true … restart=true`). The tuned values stand as recorded.
+Ticket flipped to done on that sign-off.
 
 - **The STREET typology** (T-197's component, extended in-ticket): the
   fifth family in `SignText.SPEC` — the MUTCD green blade plate
@@ -91,9 +100,17 @@ eyeball in T-202.
   the pack street-name set); the plate length fits the name through the
   component's own font metrics (width + 2×0.15, min 1.2 — the overflow
   guard's fit law holds by construction).
-- **Gate 1** — `--import` exit 0 (only the documented benign addon
-  line); `--quit-after 120` exit 0, zero error lines beyond the addon
-  triad (re-run on the final tree).
+- **Gate 1** — first recorded WRONG, and the workflow's gate re-run
+  caught it: the fresh worktree had not provisioned the untracked
+  per-machine `addons/godot_mcp/` addon (VERIFICATION.md's
+  known-tooling notice — fresh worktrees must copy it in before
+  import/boot pass), so import/boot logged the missing-autoload ERROR
+  triad and the gate failed both. Provisioned (copied from the main
+  checkout, stays untracked — `git status` clean, `git check-ignore`
+  confirms) and re-run on the final tree: `--import` exit 0 with only
+  the notice's accepted line ("33 resources still in use at exit");
+  `--quit-after 120` exit 0 with ZERO ERROR lines (the lone ObjectDB
+  leak WARNING is the notice's acceptable class).
 - **Gate 1b** — full suite `godot --headless --fixed-fps 60 --path .
   res://tests/sim_test.tscn`: exit 0, **156 PASS / 0 FAIL** (the new
   `street_blades_pins` row green; every existing row untouched — the
