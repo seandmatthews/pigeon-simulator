@@ -840,8 +840,9 @@ def _cut_one_hole(outer, hole):
     out = outer[:j + 1]
     out.append((px, ey))            # P — seam split on the outer edge
     out.append((ex, ey))            # E — the bridge out to the hole
-    for k in range(1, len(hole) + 1):
-        out.append(hole[(e_i + k) % len(hole)])
+    for k in range(1, len(hole)):   # the hole WITHOUT its E vertex — the
+        out.append(hole[(e_i + k) % len(hole)])  # walk must NOT revisit E,
+        # or the ring split at the bake would re-cut the hole loop out.
     out.append((ex, ey - HOLE_EPS_M))   # E' — 3 cm south of E (distinct key)
     out.append((px, ey - HOLE_EPS_M))   # P' — 3 cm south of P
     out.extend(outer[j + 1:])

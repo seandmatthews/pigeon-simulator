@@ -1,14 +1,14 @@
 {
 	"aabb": {
 		"max": [
-			1144.88,
+			1252.42,
 			11.0,
-			-5556.71
+			-5503.91
 		],
 		"min": [
-			1019.717,
+			989.04,
 			0.0,
-			-5650.059
+			-5661.39
 		]
 	},
 	"ballast_quads": [],
@@ -74,7 +74,7 @@
 		"crossings": 0,
 		"ground_quads": 0,
 		"lane_quads": 0,
-		"lawn_tris": 0,
+		"lawn_tris": 1,
 		"massing": 6,
 		"occluders": 6,
 		"placeholders": 0,
@@ -88,7 +88,21 @@
 	"crossings": [],
 	"ground_quads": [],
 	"lane_quads": [],
-	"lawn_tris": [],
+	"lawn_tris": [
+		{
+			"v": [
+				989.04,
+				0.04,
+				-5503.91,
+				1149.08,
+				0.04,
+				-5617.32,
+				1252.42,
+				0.04,
+				-5661.39
+			]
+		}
+	],
 	"massing": [
 		{
 			"a": false,
