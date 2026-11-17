@@ -1,6 +1,6 @@
 # T-208 — Ames R5 · tailgate dressing: game-day lots, static
 
-- **Status:** doing · **Category:** visual-design · **Ring:** R5 The Town ·
+- **Status:** done · **Category:** visual-design · **Ring:** R5 The Town ·
   **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-191 (the stadium complex), T-182 (lots exist)
 - **Refs:** `images/stadium/14` (tailgate RV), `11` (facade + flooded
@@ -162,3 +162,14 @@ Gate 1 · Gate 1b + one row · Gate 2 · Gate 3: screenshot pass.
   see the criterion's note for the shot-by-shot vs
   `images/stadium/14,03,12`); the owner eyeball folds into T-210 per
   the Verification line.
+
+### Review sign-off
+
+Review round 1 caught the Gate 1b row stale against the landed law in
+four places (the pre-splitmix landing totals and fill rates, the
+removed per-lot monochrome arm still described as live, and the FIRST
+roll law's `& 0x7FFFFFFF` band); the row re-pinned onto the landed law
+(the docs-only fix commit on this branch). The reviewer then played
+the town and read the code, and signed the ticket off. Status flipped
+to done in this file and the index row; the owner's Friday-afternoon
+eyeball folds into T-210 per the Verification line.

@@ -389,7 +389,7 @@ scan (T-170 was max; no workflows in flight).
 | T-205 | [North — Ada Hayden + The Cafe](T-205-ames-extension-north.md) | R5 The Town | T-203 | done |
 | T-206 | [Filler dressing](T-206-ames-filler-dressing.md) | R5 The Town | T-177 | done |
 | T-207 | [Tree canopy](T-207-ames-tree-canopy.md) | R5 The Town | T-172 | done |
-| T-208 | [Tailgate dressing](T-208-ames-tailgate-dressing.md) | R5 The Town | T-191, T-182 | doing |
+| T-208 | [Tailgate dressing](T-208-ames-tailgate-dressing.md) | R5 The Town | T-191, T-182 | done |
 | T-209 | [Performance pass + web fork](T-209-ames-perf-pass.md) | R5 The Town | T-206..T-208 | proposed |
 | T-210 | [R5 cutover](T-210-ames-r5-cutover.md) | R5 The Town | T-203..T-209 | proposed |
 
