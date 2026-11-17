@@ -1589,9 +1589,9 @@ func _scenario_ames_extension_north() -> void:
 		if absf(float(ada_park.get("area_m2", 0.0)) - 1278476.0) > 1300.0:
 			bad.append("ada hayden park area %s want 1278476 (±1300, the "
 					+ "bridged ring)" % str(ada_park.get("area_m2")))
-		var holes: Array = ada_park.get("holes_cut", [])
-		if holes != ["Ada Hayden Lake"]:
-			bad.append("holes_cut %s want [Ada Hayden Lake]" % str(holes))
+		var holes_cut: Array = ada_park.get("holes_cut", [])
+		if holes_cut != ["Ada Hayden Lake"]:
+			bad.append("holes_cut %s want [Ada Hayden Lake]" % str(holes_cut))
 		var pc: Array = ada_park.get("center", [])
 		if pc.size() < 2 or absf(float(pc[0]) - 1588.24) > 1.0 \
 				or absf(float(pc[1]) - -5031.9) > 1.0:

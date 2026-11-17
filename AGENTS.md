@@ -129,7 +129,7 @@ the street graph doubled (560 → 1,035 entries, 261.27 km; the traffic
 graph 2,044 runs / 1,003 stops; the blades 99 → 130 over the north
 spine corners — the unreached-spine ledger stays [Mortensen Road,
 Stange Road], corner-driven), the text ledger 162 → 194, and the bake
-grew 251 → 551 tiles / 8.22 MB (the draw ceiling scales with the tile
+grew 251 → 552 tiles / 8.26 MB (the draw ceiling scales with the tile
 set: 800 × 551/251 ≈ 1800).
 
 ## Stack & tooling
