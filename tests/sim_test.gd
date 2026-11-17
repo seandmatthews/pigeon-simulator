@@ -12728,11 +12728,14 @@ func _scenario_campus_plaques_pins() -> void:
 						behind])
 			## The clip leg: NO hero box penetrates the slab's own volume
 			## (the Beardshear column law) — shrink the slab a hair so the
-			## designed 0.01 wall gap can never false-fail.
-			var half_x := slab.x * 0.5 if absf(normal.x) > 0.5 \
-					else slab.z * 0.5
-			var half_z := slab.z * 0.5 if absf(normal.x) > 0.5 \
+			## designed 0.01 wall gap can never false-fail. The slab's
+			## along-wall axis carries the WIDTH, the normal axis the
+			## THICKNESS: for E/W faces (normal ±x) the AABB's x extent is
+			## the thickness and z the width; N/S the other way.
+			var half_x := slab.z * 0.5 if absf(normal.x) > 0.5 \
 					else slab.x * 0.5
+			var half_z := slab.x * 0.5 if absf(normal.x) > 0.5 \
+					else slab.z * 0.5
 			var slab_aabb := AABB(want_pos - Vector3(half_x, slab.y * 0.5,
 					half_z), Vector3(half_x * 2.0, slab.y, half_z * 2.0))
 			slab_aabb = slab_aabb.grow(-0.002)

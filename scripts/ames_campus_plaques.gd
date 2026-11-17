@@ -131,7 +131,9 @@ const PLAQUES: Array[Dictionary] = [
 		"text": "Memorial Union — 1928",
 		"hero": "mu",
 		"face": "S", ## Lincoln Way — the front door of campus (2229 Lincoln Way).
-		"plane": -43.58, ## The hero's south face plane (main block + tower).
+		"plane": -43.56, ## The entry apron's OWN proud face (the apron box
+			## reaches 0.02 past the main block's −43.58 — the clip law mounts
+			## on the outermost face).
 		"wall_u": 313.02, ## The entry bay under the corner tower (the apron).
 		"mount_y": 2.4, ## On the 4.6 m entry apron band.
 		"letter": 0.22, ## 11.150 × 0.22 = 2.45 ≤ 2.6 — the widened slab.
@@ -139,8 +141,9 @@ const PLAQUES: Array[Dictionary] = [
 		"staged": false,
 		"note": "LANDMARKS C5 (opened Sept 23, 1928; 2229 Lincoln Way at "
 			+ "Morrill/Lynn). The T-189 entry apron (x 311.52..314.52, to 4.6 m, "
-			+ "proud 0.02) IS the entrance bay — the plaque rides its face, the "
-			+ "tower block recessed 0.02 behind the same plane.",
+			+ "proud 0.02 of the main block) IS the entrance bay — the plaque "
+			+ "rides the apron's own outer face (−43.56), the plane the clip "
+			+ "law mounts on.",
 	},
 	{
 		"id": "parks",
