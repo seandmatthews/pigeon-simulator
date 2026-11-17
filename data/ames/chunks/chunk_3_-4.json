@@ -1210,6 +1210,11 @@
 			0.267,
 			0.227
 		],
+		"trail_quads": [
+			0.725,
+			0.663,
+			0.518
+		],
 		"water_tris": [
 			0.275,
 			0.329,
@@ -1229,6 +1234,7 @@
 		"ribbons": 25,
 		"shore_quads": 0,
 		"tie_quads": 72,
+		"trail_quads": 0,
 		"water_tris": 0
 	},
 	"creek_quads": [],
@@ -1815,7 +1821,7 @@
 			]
 		}
 	],
-	"schema": "ames_chunks/v3",
+	"schema": "ames_chunks/v4",
 	"shore_quads": [],
 	"tie_quads": [
 		{
@@ -2981,5 +2987,6 @@
 			-1024.0
 		]
 	},
+	"trail_quads": [],
 	"water_tris": []
 }

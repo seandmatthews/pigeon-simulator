@@ -330,22 +330,33 @@ const SIGNS: Array[Dictionary] = [
 		"id": "the_cafe",
 		"venue": "The Cafe",
 		"form": "plaque",
-		"body": "", ## STAGED ONLY — north Ames is outside the v1 bake core.
-		"face": "poi",
-		"wall_u": 0.0,
-		"mount_y": 5.4,
+		## (T-205 placement — the staged pin un-staged) The v4 north bake
+		## landed the venue's own building: way/114039922, the unnamed
+		## 32.7 × 18.5 m procedural massing at 2616 Northridge Pkwy (the
+		## census addr node sits inside it, 2 m off its centroid). The
+		## signboard hangs on the building's own NORTH wall — Northridge
+		## Parkway fronts it there (the street's nearest point (513.2,
+		## −2904.7) lies 21 m north of the face; the pack facing 359.9°
+		## points the same way), wall_u the POI's own x along the wall.
+		"body": "massing:way/114039922",
+		"face": "N",
+		"wall_u": 536.49,
+		"mount_y": 5.4, ## The tier-1 plaque band on the 11 m massing.
 		"letter": 0.16, ## 3.858 × 0.16 = 0.62 ≤ 2.0.
 		"band": Vector3.ZERO,
 		"body_color": Color(0, 0, 0, 0),
 		"text_color": Color(0, 0, 0, 0),
 		"lit": 0,
-		"staged": true,
-		"note": "VENUES 1.13 (2616 Northridge Pkwy): NORTH Ames near the "
-			+ "research park — the honest dependency: the v1 bake core ends "
-			+ "long south of it (tile (2,-12) unbaked, ≈2.6 km north of the "
-			+ "origin), so the sign stages ready here and PLACES when T-205 "
-			+ "(North — Ada Hayden + The Cafe) extends the bake. NOT a south-"
-			+ "east slot: The Cafe is north, the ticket's own correction.",
+		"staged": false,
+		"note": "VENUES 1.13 (2616 Northridge Pkwy): NORTH Ames — the last "
+			+ "staged tier-1 spec PLACED by T-205 (the v4 bbox north landed "
+			+ "the whole Northridge corridor + Ada Hayden). The building "
+			+ "way (unnamed in OSM — the census §6 north strip keeps it "
+			+ "procedural, the authored set stays closed) rides the bake as "
+			+ "the venue's own massing; the T-175 venue fixup box also "
+			+ "lands at the POI now it is in-core and authored-uncovered — "
+			+ "fully swallowed by the massing box, the same buried-box "
+			+ "grain the eleven named fixups carry.",
 	},
 	{
 		"id": "great_plains_sauce_dough",

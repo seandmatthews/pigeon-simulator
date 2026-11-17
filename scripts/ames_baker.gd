@@ -10,8 +10,9 @@ class_name AmesBaker
 ## on the same machine produce byte-identical files, proven per chunk by the
 ## SHA-256 determinism manifest (`ames_bake_determinism`, Gate 1b).
 ##
-## What each chunk carries (ames_chunks/v3 — v2 plus the T-175 placeholder
-## family and the massing `a` flag; every family is optional at read time):
+## What each chunk carries (ames_chunks/v4 — v3 plus the T-205 trail_quads
+## family; v2 before that carried the T-175 placeholder family and the
+## massing `a` flag; every family is optional at read time):
 ## - `massing`: ONE axis-aligned box per building footprint — position,
 ##   size, district and vertex color (city.gd's MultiMesh + vertex-color
 ##   house style, ported to data), plus `a` (T-175): TRUE when the building
@@ -72,17 +73,17 @@ class_name AmesBaker
 ## keys; files are written in sorted (cx, cz) order; colors are picked by a
 ## stable hash of the building id (no RNG anywhere).
 
-const SCHEMA := "ames_chunks/v3"
+const SCHEMA := "ames_chunks/v4"
 const CHUNK_SIZE := 256.0
 
 ## Every per-chunk array family (the `_chunk_at` template, the finalize doc,
 ## the per-chunk counts and the manifest totals — ONE list, kept in one
-## place; v1's eight, the T-174 dressing families, and T-175's
-## placeholders).
+## place; v1's eight, the T-174 dressing families, T-175's placeholders, and
+## T-205's trail_quads).
 const FAMILY_KEYS: Array[String] = [
 	"massing", "ribbons", "lane_quads", "water_tris", "shore_quads",
 	"creek_quads", "lawn_tris", "ballast_quads", "tie_quads",
-	"ground_quads", "occluders", "placeholders", "crossings",
+	"ground_quads", "trail_quads", "occluders", "placeholders", "crossings",
 ]
 
 ## Bake y conventions (m). Flats stack above 0 so the ground plate (top at
@@ -94,8 +95,12 @@ const FAMILY_KEYS: Array[String] = [
 ## surrounds, or the coplanar/top-heavy faces depth-fight the water away
 ## (the first landing had cells topping at exactly the water's 0.02 and the
 ## lake read as lawn). Stack, by rendered top: plate 0 < cells 0.014 <
-## shore 0.018 < water 0.02 < lawn 0.04 < creek-top 0.06 < ribbon-top 0.09
-## < ballast/marks-top 0.11 < tie-top 0.13.
+## shore 0.018 < water 0.02 < lawn 0.04 < creek-top 0.06 < trail-top 0.07
+## (T-205) < ribbon-top 0.09 < ballast/marks-top 0.11 < tie-top 0.13. The
+## quarry shore band (T-205) is the ONE shore variant that rides ABOVE the
+## lawn: its park-lake hole cut leaves the lawn as the surrounding ground,
+## so the band centers on LAWN_Y (top 0.05) — over the lawn, clear of the
+## water flat it rings.
 const WATER_Y := 0.02
 const CREEK_Y := 0.05
 const LAWN_Y := 0.04
@@ -103,6 +108,8 @@ const RIBBON_Y := 0.08
 const BALLAST_Y := 0.1
 const GROUND_Y := 0.004 ## District ground cells (T-174): box tops at 0.014.
 const SHORE_Y := 0.008 ## Shore band (T-174): box tops at 0.018, under the water.
+const QUARRY_SHORE_Y := 0.04 ## Quarry bank (T-205): box tops at 0.05, over the lawn.
+const TRAIL_Y := 0.06 ## Trail stripes (T-205): box tops at 0.07, over the creek top.
 const MARK_Y := 0.1 ## Lane dashes (T-174): box tops at 0.11, over the ribbon top 0.09.
 const TIE_Y := 0.12 ## Tie stripe (T-174): box tops at 0.13, over the ballast top 0.11.
 
@@ -130,10 +137,16 @@ const DISTRICT_GROUND: Dictionary = {
 ## (#46543F, unchanged); the creeks become GREEN-BLUE ribbons (they must not
 ## read as more lake); the shore is the §1.2 mown shore lawn; the lane dash
 ## a weathered centerline yellow; the tie stripe a creosote brown-gray.
+## T-205 adds the north parks: the trail stripe is MODELING-SPECS §2's
+## "Prairie/gravel trail" hex (`nature/04-adahayden-prairie-trail.jpg`) and
+## the quarry bank the IMAGE_INDEX nature-note's pale gravel shore ("flat
+## quarry-banked shoreline") — a survey estimate, recorded here.
 const COLOR_CREEK := Color(0.275, 0.4, 0.388) ## #466663 green-blue (T-174).
 const COLOR_SHORE := Color(0.435, 0.561, 0.31) ## #6F8F4F mown shore lawn (§1.2).
 const COLOR_LANE_MARK := Color(0.78, 0.7, 0.353) ## #C7B35A centerline yellow.
 const COLOR_TIE := Color(0.29, 0.267, 0.227) ## #4A443A tie/track stripe.
+const COLOR_TRAIL := Color(0.725, 0.663, 0.518) ## #B9A984 prairie/gravel trail (§2).
+const COLOR_QUARRY_BANK := Color(0.659, 0.631, 0.580) ## #A8A194 pale gravel (estimate).
 
 ## Lane-dash geometry (m): a 3 m dash / 6 m gap urban centerline, 0.4 m wide
 ## — real paint would be ~0.15 m, but a HINT must survive a 60 m cruise read.
@@ -221,6 +234,13 @@ const COLOR_WATER := Color(0.275, 0.329, 0.247) ## #46543F olive-brown.
 const COLOR_LAWN := Color(0.435, 0.561, 0.31) ## #6F8F4F mown lawn.
 const COLOR_BALLAST := Color(0.545, 0.522, 0.471) ## #8B8578 gravel.
 const CREEK_WIDTH := 6.0
+## Trail stripe widths by pack `kind` (T-205): the mapped cycleway loops read
+## as the paved park loop (3 m), the footway/path crushed-rock paths (2 m),
+## park connector walks (2.5 m). Survey anchors: LANDMARKS T10's paved loops
+## vs ~3.2 km (2 mi) of crushed-rock paths.
+const TRAIL_WIDTH_BY_KIND: Dictionary = {
+	"cycleway": 3.0, "footway": 2.0, "path": 2.0, "pedestrian": 2.5,
+}
 const BALLAST_WIDTH := 5.0 ## Single main-line track ballast (bake constant).
 ## Rail segments are subdivided to at most this length (m) so the crossing
 ## gaps hug the roads (a sub-segment is skipped whole, so the step bounds the
@@ -514,10 +534,22 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 	for wtr: Dictionary in AmesDataPack.water():
 		if str(wtr.get("kind", "")) == "lake" and wtr.has("polygon"):
 			var poly := _pack_points(wtr.get("polygon", []))
+			# The quarry-banked lakes (T-205) ring their band in PALE GRAVEL
+			# at lawn level (the park's lawn hole leaves the band over open
+			# ground — see the QUARRY_SHORE_Y note); every other lake keeps
+			# the T-174 mown band under the water edge. Per-entry color
+			# override rides the flat-family render's `c` field.
+			var quarry := str(wtr.get("bank", "")) == "quarry"
+			var shore_y := QUARRY_SHORE_Y if quarry else SHORE_Y
+			var shore_c: Array = []
+			if quarry:
+				shore_c = [_rc(COLOR_QUARRY_BANK.r), _rc(COLOR_QUARRY_BANK.g),
+						_rc(COLOR_QUARRY_BANK.b)]
 			for ring: PackedVector2Array in _split_rings(poly):
 				# Shore band (T-174): mown-lawn ring extruded OUTWARD from
 				# every ring edge. Baked BELOW the water top so an overlap
 				# can never paint the lake — the water flat renders above.
+				# (The quarry variant rides at lawn level instead.)
 				var ccw := _signed_area(ring) >= 0.0
 				for e: int in ring.size():
 					var sa := ring[e]
@@ -530,13 +562,16 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 					var q0 := sa + nrm * SHORE_WIDTH
 					var q1 := sb + nrm * SHORE_WIDTH
 					var shore: Array = [
-						_r(q0.x), _r(SHORE_Y), _r(q0.y),
-						_r(q1.x), _r(SHORE_Y), _r(q1.y),
-						_r(sb.x), _r(SHORE_Y), _r(sb.y),
-						_r(sa.x), _r(SHORE_Y), _r(sa.y),
+						_r(q0.x), _r(shore_y), _r(q0.y),
+						_r(q1.x), _r(shore_y), _r(q1.y),
+						_r(sb.x), _r(shore_y), _r(sb.y),
+						_r(sa.x), _r(shore_y), _r(sa.y),
 					]
 					var smid := (sa + sb) * 0.5
-					(_chunk_at(tiles, _chunk_of(smid.x, smid.y))["shore_quads"] as Array).append({"q": shore})
+					var entry: Dictionary = {"q": shore}
+					if not shore_c.is_empty():
+						entry["c"] = shore_c
+					(_chunk_at(tiles, _chunk_of(smid.x, smid.y))["shore_quads"] as Array).append(entry)
 				for tri: Vector3i in _triangulate(ring):
 					var v: Array = [
 						_r(ring[tri.x].x), _r(WATER_Y), _r(ring[tri.x].y),
@@ -572,6 +607,25 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 					_r(ring[tri.z].x), _r(LAWN_Y), _r(ring[tri.z].y),
 				]
 				(_chunk_at(tiles, _chunk_of(tri_centroid.x, tri_centroid.y))["lawn_tris"] as Array).append({"v": v})
+
+	# --- trails: the north parks' mapped runs (T-205) ----------------------
+	# Gravel stripes extruded along every pack trail run, ribbon-style. The
+	# stack sits the stripe top (TRAIL_Y + half thickness = 0.07) above the
+	# lawn flats (0.04) and the creek tops (0.06), under the road ribbons
+	# (0.09) — a trail crossing a creek reads as the ford/bridge deck it is.
+	for trail: Dictionary in AmesDataPack.trails():
+		var width := float(TRAIL_WIDTH_BY_KIND.get(str(trail.get("kind", "")), 2.0))
+		var pts: Array = trail.get("points", [])
+		for i: int in range(pts.size() - 1):
+			var a: Array = pts[i]
+			var b3: Array = pts[i + 1]
+			var quad := _extrude_quad(Vector2(float(a[0]), float(a[1])),
+					Vector2(float(b3[0]), float(b3[1])), width, TRAIL_Y)
+			if quad.is_empty():
+				continue
+			var mid := (Vector2(float(a[0]), float(a[1]))
+					+ Vector2(float(b3[0]), float(b3[1]))) * 0.5
+			(_chunk_at(tiles, _chunk_of(mid.x, mid.y))["trail_quads"] as Array).append({"q": quad})
 
 	# --- rail: ballast strip, gapped geometrically at crossing roads ------
 	# The blocker set is the ACTUAL road geometry near the 9 at-grade
@@ -691,8 +745,11 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 		"lawn_tris": [_rc(COLOR_LAWN.r), _rc(COLOR_LAWN.g), _rc(COLOR_LAWN.b)],
 		"ballast_quads": [_rc(COLOR_BALLAST.r), _rc(COLOR_BALLAST.g), _rc(COLOR_BALLAST.b)],
 		"tie_quads": [_rc(COLOR_TIE.r), _rc(COLOR_TIE.g), _rc(COLOR_TIE.b)],
+		"trail_quads": [_rc(COLOR_TRAIL.r), _rc(COLOR_TRAIL.g), _rc(COLOR_TRAIL.b)],
 		## ground_quads entries carry per-cell colors (`c`) — the family entry
 		## is only the renderer's never-fired fallback (residential seed).
+		## shore_quads entries carry `c` too, for the quarry-banked lakes
+		## (T-205) whose band overrides the mown family color per entry.
 		"ground_quads": [_rc(DISTRICT_GROUND["residential"].r),
 				_rc(DISTRICT_GROUND["residential"].g), _rc(DISTRICT_GROUND["residential"].b)],
 	}

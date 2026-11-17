@@ -45,6 +45,7 @@ static var _buildings: Array[Dictionary] = []
 static var _pois: Array[Dictionary] = []
 static var _water: Array[Dictionary] = []
 static var _parks: Array[Dictionary] = []
+static var _trails: Array[Dictionary] = []
 static var _parking: Array[Dictionary] = []
 static var _trees: PackedVector2Array = PackedVector2Array()
 static var _rail: Dictionary = {}
@@ -81,6 +82,9 @@ static func load_pack() -> Dictionary:
 	_parks.clear()
 	for e: Dictionary in _pack.get("parks", []):
 		_parks.append(e)
+	_trails.clear()
+	for e: Dictionary in _pack.get("trails", []):
+		_trails.append(e)
 	_parking.clear()
 	for e: Dictionary in _pack.get("parking", []):
 		_parking.append(e)
@@ -188,6 +192,15 @@ static func rail() -> Dictionary:
 static func parks() -> Array[Dictionary]:
 	load_pack()
 	return _parks
+
+
+## The north parks' trail runs (T-205) — the pack `trails` layer: footway/
+## path/cycleway runs whose midpoints sit inside the Ada Hayden / Inis Grove
+## / Moore Memorial park rings, `{park, kind, km, points}` each (points in
+## pack-local meters). The bake paints them as the trail_quads family.
+static func trails() -> Array[Dictionary]:
+	load_pack()
+	return _trails
 
 
 ## The amenity=parking stock (T-182) — the census §3 layer, distilled verbatim
