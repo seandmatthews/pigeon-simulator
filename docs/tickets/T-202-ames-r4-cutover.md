@@ -1,6 +1,6 @@
 # T-202 — Ames R4 · CUTOVER: the town has its name on things
 
-- **Status:** proposed · **Category:** worldbuilding · **Ring** R4 The Names ·
+- **Status:** doing · **Category:** worldbuilding · **Ring** R4 The Names ·
   **Value (1-5):** 5 · **Risk (1-5):** 3
 - **Depends on:** T-198, T-199, T-200, T-201
 - **Refs:** the cutover pattern (T-177/T-184/T-196) · the owner's
