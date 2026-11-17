@@ -261,7 +261,11 @@ const PLAQUES: Array[Dictionary] = [
 		"hero": "reiman_gardens",
 		"face": "E", ## University Blvd — the arrival face (the town's south gate).
 		"plane": 984.35, ## The T-204 envelope's east face (slot center 955.0 + 29.35).
-		"wall_u": 1233.08, ## The slot center line (the main entrance bay).
+		"wall_u": 1241.5, ## (Round 2 re-station) The open-walk bay south of the
+			## Butterfly Wing bake box (its south face z 1233.56 buried the v1
+			## station 1233.08 — the slab stood inside that mass and read only
+			## from south-of-the-Wing approaches); the mount now faces the
+			## open arrival walk the canopy shares.
 		"mount_y": 2.6, ## On the 10 m glass wall, above eye height.
 		"letter": 0.20, ## 21 chars — the widened depot slab; face-fit 2.35 ≤ 2.6.
 		"band": Vector3(2.8, 0.6, 0.1),

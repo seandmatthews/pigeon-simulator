@@ -6499,7 +6499,14 @@ const REIMAN_GLASSHOUSE_Z := 6.9 ## The volume's center, SOUTH of the slot cente
 ## over the east arrival walk, on two posts. Estimate: span 14.2 m E–W ×
 ## 10.0 m N–S, eaves 4.2, spine 6.8.
 const REIMAN_CANOPY_X := 993.0 ## The walk center, east of the east face (984.35).
-const REIMAN_CANOPY_Z := 1233.08 ## On the envelope center line (the main bay).
+## (Round 2 re-station) The spine stands mid-gap on the OPEN arrival walk
+## south of the Christina Reiman Butterfly Wing's bake box — the v1 station
+## (z 1233.08, the envelope center line) sat INSIDE that mass (its south
+## face z 1233.56; the gate walk point (992, 1240.5) is the read): shells
+## z 1236.50..1246.50 clear the Wing by 2.94 m and the Mahlstede box's
+## north face (z 1250.07) by 3.57 m; the west post edge (x 985.69) clears
+## the envelope face (x 984.35) by 1.34 m.
+const REIMAN_CANOPY_Z := 1241.5 ## Mid-gap on the open walk (see above).
 const REIMAN_CANOPY_SHELL := Vector2(7.5, 10.0) ## Slope length × N–S depth (m).
 const REIMAN_CANOPY_RIDGE := 6.8 ## The spine crown (m).
 const REIMAN_CANOPY_EAVE := 4.2 ## The wing tips (m).

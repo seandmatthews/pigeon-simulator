@@ -1,6 +1,6 @@
 # T-204 — Ames R5 · south: Reiman Gardens and the butterfly wing
 
-- **Status:** doing · **Category:** worldbuilding · **Ring:** R5 The Town ·
+- **Status:** done · **Category:** worldbuilding · **Ring:** R5 The Town ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-203 (the extension pattern proven)
 - **Refs:** QA item 1 (the conservatory split — the WHOLE building is
@@ -168,7 +168,11 @@ text ledger 151 → 162 · skipped massing ids 14 → 15 · curb runs 92
   the tan Mahlstede Center mass, Hunziker House beside it and LIVE
   University Boulevard traffic (the south fleet stages and drives);
   the east-face read shows the canopy shells over the arrival walk
-  between the conservatory and the Butterfly Wing building; the wide
+  between the conservatory and the Butterfly Wing building [ROUND-2
+  CORRECTION: this line recorded what the staged screenshot showed, not
+  what a player at the walk sees — the v1 station was buried in the
+  Butterfly Wing's bake box (see the round-2 record below); the station
+  moved and the read re-shot in session `rv2b`]; the wide
   west aerial shows the gardens lawn, the Reiman parking stock dressed
   and the grounds' green inside the core. Recorded honestly: the roof
   planes wash toward white in full sun (the palette pin holds in the
@@ -179,6 +183,63 @@ text ledger 151 → 162 · skipped massing ids 14 → 15 · curb runs 92
   teleport's `yaw_deg` is the raw rotation (90 = west), learned on two
   occluded shots, then the reads landed.
 
-**Reviewer sign-off:** pending — the Status stays `doing` until the
-reviewer signs this record off (the flip to `done` is the sign-off
-commit, per the house rule).
+**Reviewer round 2 (2026-11-17) — the canopy/plaque station defect,
+fixed:** the reviewer played the site (pilot session `rv2`, east-walk
+teleports at t=187s/241s/289s) and found the entrance-canopy set piece
+BURIED inside the Christina Reiman Butterfly Wing authored slot's box:
+the bake mass `way/479976960` (chunk_3_4: p=[988.41,5.0,1223.26]
+s=[23.8,10.0,20.6] → x 976.51..1000.31, z 1212.96..1233.56, y 0..10 —
+re-measured from the committed chunk this round, numbers matching the
+reviewer's) contains the v1 canopy station entirely: REIMAN_CANOPY_Z
+1233.08 put the spine cap, BOTH posts and the north 5.48 m of the
+shells' 10 m depth inside that mass — in play only the south ~4.5 m of
+the shells read, as a pale-blue shelf clipped into the gray building,
+and the "two posts" were invisible; the plaque mount (984.41, 2.6,
+1233.08) sat inside the Wing box volume too, reading only from
+south-of-the-Wing approaches. The same staging mistake class this
+ticket already fixed elsewhere (the Hickory pylon). The round-2
+observation also notes the Wing slot box interpenetrating the hero
+envelope (7.84 m in x × 20.6 m in z, both 10 m tall) — that overlap is
+the pre-existing bbox-grain artifact of two adjacent OSM footprints'
+axis-aligned boxes (the same grain every massing pair in the build
+carries; the real buildings do not touch), recorded here as data grain,
+not staged set piece — the ticket's scope (the What list) owns the
+staged set piece, and that is what moved.
+
+**The fix (the reviewer's own suggested station class):** the canopy
+re-stationed mid-gap on the OPEN arrival walk south of the Wing box —
+REIMAN_CANOPY_Z 1233.08 → 1241.5 (REIMAN_CANOPY_X 993.0 kept): shells z
+1236.50..1246.50 clear the Wing's south face (1233.56) by 2.94 m and
+the Mahlstede box's north face (1250.07) by 3.57 m; the west post edge
+(x 985.69) clears the envelope face (x 984.35) by 1.34 m. The plaque
+re-stationed to the same open-walk bay: wall_u 1233.08 → 1241.5
+(mount 984.41, 2.6, 1241.5) — it now faces the walk over open air, the
+mount the canopy shares. The gate grew the clearance law: the scenario
+walks the Wing + Mahlstede bake boxes independently from the chunk
+files and pins the shells' z span inside the gap [1233.56, 1250.07]
+with NO canopy part and NO plaque slab intersecting either mass — the
+burial regression fails the suite by name.
+
+**Round-2 gates:** `--headless --fixed-fps 60 --path .
+res://tests/sim_test.tscn` → SIM SUMMARY: 0 failure(s), exit 0 (the
+`reiman_gardens_dims` PASS carrying the new clearance legs); Gate 1
+import/boot re-run green; Gate 3 re-shot (pilot session `rv2b` — the
+canopy now reads as the free-standing wing shells over the open walk
+with both posts visible, and the plaque faces the walk; the honest
+residual: the gray Wing box still abuts the blue east face at the
+data-grain overlap recorded above).
+
+**Final tuned values** (as shipped, round 2): conservatory envelope
+58.7 × 87.8 × 10.0 m at the slot center (955.0, 1233.08) — the QA-split
+whole building; Hughes glasshouse 31.0 × 15.0 m = 465 m², full-height
+inside, center z-offset +6.9; wing roof ridge 14.0 + spine cap → crown
+14.3, eave return 10.3, inner run 12.0, band t 0.35; canopy station
+(993.0, 1241.5), shells 7.5 slope × 10.0 depth, ridge 6.8 / eaves 4.2 /
+post-top 3.6, shell t 0.25, span 14.63 / top 7.03 as recorded; plaque
+station (984.41, 2.6, 1241.5), letter 0.20 on the 2.8 × 0.6 × 0.1 slab;
+clearances — Wing 2.94 m, Mahlstede 3.57 m, envelope 1.34 m; butterflies
+8 (≤ 12), ring center (1028, 1310) r 21, hover y 1.5.
+
+**Reviewer sign-off:** ACCEPTED 2026-11-17 — the reviewer signed the
+round-2 record off and this commit flips the Status to `done` (the
+sign-off commit, per the house rule).

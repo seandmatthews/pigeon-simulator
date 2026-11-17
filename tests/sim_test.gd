@@ -10912,11 +10912,25 @@ func _scenario_reiman_gardens_dims() -> void:
 		bad.append("manifest heroes missing %s — the supersede never joined" % WAY_ID)
 	var slot: Dictionary = {}
 	var lawn_tile := Vector2i(-999, -999)
+	## (Round 2) The bake masses flanking the arrival walk — the clearance
+	## law's independent subjects (the v1 canopy station buried itself in
+	## the Wing box; these boxes are the regression guard's subjects).
+	var neighbor_boxes: Array[Dictionary] = []
 	for entry: Dictionary in manifest.get("chunks", []):
 		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
 		for m: Dictionary in doc.get("massing", []):
 			if str(m.get("id", "")) == WAY_ID:
 				slot = m
+			elif str(m.get("id", "")) in ["way/479976960", "way/180765069"]:
+				var np: Array = m.get("p", [0.0, 0.0, 0.0])
+				var ns: Array = m.get("s", [0.0, 0.0, 0.0])
+				neighbor_boxes.append({
+					"id": str(m.get("id", "")),
+					"box": AABB(Vector3(float(np[0]) - float(ns[0]) * 0.5,
+							float(np[1]) - float(ns[1]) * 0.5,
+							float(np[2]) - float(ns[2]) * 0.5),
+							Vector3(float(ns[0]), float(ns[1]), float(ns[2]))),
+				})
 		## The gardens lawn: the tile under the POI (the pack's own tile law)
 		## carries the park flat.
 		var px := gardens_poi.x
@@ -10926,6 +10940,9 @@ func _scenario_reiman_gardens_dims() -> void:
 			lawn_tile = Vector2i(int(entry["cx"]), int(entry["cz"]))
 			if (doc.get("lawn_tris", []) as Array).is_empty():
 				bad.append("tile (%d,%d) paints no gardens lawn" % [lawn_tile.x, lawn_tile.y])
+	if neighbor_boxes.size() != 2:
+		bad.append("neighbor masses %d want the Wing + Mahlstede boxes"
+				% neighbor_boxes.size())
 	if slot.is_empty():
 		bad.append("the conservatory slot massing missing from the bake")
 	else:
@@ -11046,6 +11063,24 @@ func _scenario_reiman_gardens_dims() -> void:
 			bad.append("canopy top %.2f want the recorded 7.03 estimate" % canopy_top)
 		if shell_lo_y < 3.5:
 			bad.append("canopy eaves %.2f below the recorded 4.2 walk clearance" % shell_lo_y)
+		## (Round 2) THE CLEARANCE LAW: the set piece stands on the OPEN walk
+		## — the shells' z span sits inside the gap between the Wing box's
+		## south face (1233.56) and the Mahlstede box's north face (1250.07),
+		## and NO canopy part intersects a flanking bake mass (the v1 station
+		## buried the posts + spine + the north 5.48 m of the shells inside
+		## the Wing box — the regression this leg pins).
+		if canopy_lo.z <= 1233.56:
+			bad.append("canopy north edge %.2f inside the Wing box's south face "
+					+ "1233.56 — the set piece is buried" % canopy_lo.z)
+		if canopy_hi.z >= 1250.07:
+			bad.append("canopy south edge %.2f inside the Mahlstede box's north "
+					+ "face 1250.07 — the set piece is buried" % canopy_hi.z)
+		for nb2: Dictionary in neighbor_boxes:
+			var mass_box: AABB = nb2["box"]
+			var canopy_box := AABB(canopy_lo, canopy_hi - canopy_lo)
+			if canopy_box.intersects(mass_box):
+				bad.append("canopy intersects the %s bake mass — the set piece "
+						+ "is buried" % str(nb2["id"]))
 	## E. the accents: exactly 8, ambient only, on the pinned ring.
 	if world.butterflies.size() != 8:
 		bad.append("butterfly accents %d want exactly 8 (the ≤ 12 count law)" % world.butterflies.size())
@@ -11084,8 +11119,18 @@ func _scenario_reiman_gardens_dims() -> void:
 		var pp: Vector3 = reiman_plaque["pos"]
 		if pp.x < wall_hi.x:
 			bad.append("plaque %.2f not proud of the arrival face %.2f" % [pp.x, wall_hi.x])
-		if pp.distance_to(Vector3(984.41, 2.6, 1233.08)) > 0.05:
+		## (Round 2) The station moved onto the open-walk bay (1241.5) — the
+		## v1 station (1233.08) stood inside the Butterfly Wing bake box.
+		if pp.distance_to(Vector3(984.41, 2.6, 1241.5)) > 0.05:
 			bad.append("plaque mount %s off the pinned east-face station" % str(pp))
+		## The slab reads over open air: it must not sit inside any NEIGHBOR
+		## bake mass (the Butterfly Wing's box buried the v1 mount).
+		var slab_aabb := AABB(pp - Vector3(0.05, 0.3, 1.4),
+				Vector3(0.1, 0.6, 2.8))
+		for nb: Dictionary in neighbor_boxes:
+			if slab_aabb.intersects(nb["box"] as AABB):
+				bad.append("plaque slab intersects the %s bake mass — the "
+						+ "mount is buried again" % str(nb["id"]))
 	## G. playable: the roof answers the envelope top (off the ridge strip),
 	## the ridge the crown, the arrival walk the plate; the hero roof crumb
 	## moved to the spine.
