@@ -17724,7 +17724,10 @@ func _read_pilot_events(dir: String) -> Dictionary:
 	if f == null:
 		return out
 	while not f.eof_reached():
-		var parsed: Variant = JSON.parse_string(f.get_line())
+		var line := f.get_line()
+		if line.strip_edges().is_empty():
+			continue ## A trailing empty line parses as noise — skip it.
+		var parsed: Variant = JSON.parse_string(line)
 		if typeof(parsed) == TYPE_DICTIONARY and parsed.has("ev"):
 			out[parsed["ev"]] = true
 	return out
@@ -18703,15 +18706,31 @@ func _scenario_bread_steal_favor_deltas() -> void:
 	## Leg A — the TABLE steal through the real tabletop feed path.
 	var table_crumb: BreadCrumb = null
 	var table_ordinal := -1
+	## The TABLE-kind spots are TWO layers since T-183: the café tabletops
+	## (each seeded 1:1 with a `cafe_spots` entry) AND the favor-bench spots
+	## (no café counterpart). The v3 ordinal walk — counting TABLE kinds
+	## before the crumb and indexing `cafe_spots` — silently assumed every
+	## TABLE spot was a café table; the v4 north box added The Cafe's own
+	## tabletop and the count desynced (index 12 past a 7-entry array —
+	## SCRIPT ERROR the gate reads as a failure). The walk now matches the
+	## crumb's stored spot POSITION against the café seeding law
+	## (`cafe_spot.origin + basis.x × CAFE_CRUMB_SIT_INSET + lift`, the exact
+	## `_add_cafe_tables` emission), giving the crumb's true café ordinal and
+	## skipping bench spots — correct for any spot mix.
 	for crumb in rig.living_crumbs():
 		if crumb.spot_index >= 0 \
 				and _city.bread_spot_kinds[crumb.spot_index] == City.BreadKind.TABLE:
-			table_crumb = crumb
-			table_ordinal = 0
-			for i in crumb.spot_index:
-				if _city.bread_spot_kinds[i] == City.BreadKind.TABLE:
-					table_ordinal += 1
-			break
+			var spot_pos: Vector3 = _city.bread_spots[crumb.spot_index]
+			for ci: int in _city.cafe_spots.size():
+				var cs: Transform3D = _city.cafe_spots[ci]
+				var seeded: Vector3 = cs.origin + cs.basis.x * City.CAFE_CRUMB_SIT_INSET \
+						+ Vector3(0.0, City.CAFE_CRUMB_TABLE_LIFT, 0.0)
+				if seeded.distance_to(spot_pos) < 0.05:
+					table_crumb = crumb
+					table_ordinal = ci
+					break
+			if table_crumb != null:
+				break
 	var table_ok := false
 	if table_crumb != null:
 		var cafe_rig := CafeSpawner.new()

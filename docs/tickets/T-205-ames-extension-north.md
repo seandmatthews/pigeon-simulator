@@ -1,6 +1,6 @@
 # T-205 — Ames R5 · north: Ada Hayden and the north parks
 
-- **Status:** doing · **Category:** worldbuilding · **Ring:** R5 The Town ·
+- **Status:** done · **Category:** worldbuilding · **Ring:** R5 The Town ·
   **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-203
 - **Refs:** `osm/SUMMARY.md` (+1.6 km north option) ·
@@ -205,3 +205,59 @@ bays 31 unchanged · venue tiers 14/17/17 and landmarks 15 unchanged.
   the clean re-run and is recorded as load-flaky (I re-baked
   concurrently with that suite run — never again: the bakes change the
   chunk files under a live harness).
+
+**The workflow-gate sim failure, found and fixed (2026-11-17).** The
+orchestrator's gate run flagged the sim leg on this tree. My own
+re-runs exited 0 with `SIM SUMMARY: 0 failure(s)` — but the log carried
+ERROR-class lines my exit-code read had missed. Three classes, two
+mine:
+1. `SCRIPT ERROR: Out of bounds get index '12'` at
+   `sim_test.gd:18721` (`bread_steal_favor_deltas`) — NEW with the v4
+   box, and mine: the scenario's TABLE-ordinal walk counted TABLE-kind
+   spots before the crumb and indexed `cafe_spots` with the count —
+   silently assuming every TABLE spot is a café table. The T-183
+   favor-bench spots already broke that assumption conceptually (7
+   bench spots carry no `cafe_spots` entry), and the v4 box's 14 TABLE
+   spots (7 café + 7 bench) finally desynced it past the array's end.
+   FIXED at the cause: the walk now matches the crumb's stored spot
+   POSITION against the café seeding law (`cafe_spot.origin + basis.x ×
+   CAFE_CRUMB_SIT_INSET + CAFE_CRUMB_TABLE_LIFT`, the exact
+   `_add_cafe_tables` emission) and takes the crumb's true café
+   ordinal — correct for any café/bench mix, no assertion weakened.
+2. `ERROR: Parse JSON failed` ×2 from `_read_pilot_events`
+   (`sim_test.gd`) — the reader parsed the session events.jsonl's
+   trailing empty line; the sibling `_read_pilot_event_list` already
+   skipped empties. FIXED with the same guard.
+3. The `SitterTorso`/`SitHair` cafe-visuals `Node not found` family —
+   PRE-EXISTING: T-194 and T-195's own gate records document the class
+   reproducing on unmodified trees; my count is unchanged (6 lines in
+   every run, mine and theirs), the fix would touch imported animation
+   data outside this ticket, and it stays recorded here as the known
+   world-noise residue.
+
+Post-fix verification on the final tree: parse check 0 errors; the
+suite re-run → **exit 0, SIM SUMMARY: 0 failure(s)**, the `Out of
+bounds` and `Parse JSON failed` classes GONE (0/0), the Sitter family
+at its documented 6 lines; Gate 1 re-run → import exit 0 (the accepted
+godot_mcp line only) + boot exit 0 with zero error lines.
+
+**Reviewer sign-off:** ACCEPTED 2026-11-17 — the workflow's full gate
+re-run passed on the fixed tree (import ok / boot ok / sim ok /
+autoplay ok) and this commit flips the Status to `done` (the
+sign-off commit, per the house rule).
+
+**Final tuned values** (as shipped): core bbox W−93.6590 S42.0030
+E−93.6070 **N42.0780** (+4,720.6 m north past the whole park; pack v4,
+schema ames_core/v4, byte-identical re-distill a78fadaf…); Ada Hayden
+Lake water flat 860.1 × 1125.1 m, 521,167 m², bank=quarry, the
+twin-lobed ring with its dry waist at (1793.4, −5046.8); quarry shore
+band 7 m wide at lawn level (top 0.05), #A8A194 (the recorded survey
+estimate), 264 per-entry overrides; Ada Hayden park entry 1,278,476 m²
+= the 180-ha tract ring minus the hole, `holes` carried as data; trails
+69 runs / 9.36 km (Ada Hayden 5.31, Moore 2.43, Inis Grove 1.62), the
+bake's trail_quads #B9A984 at tops 0.07, 3 m paved / 2 m rock by class;
+The Cafe sign on massing:way/114039922's north wall, wall_u 536.49,
+mount_y 5.4, letter 0.16, the tight-lot frontage band [1, 30] with the
+0.75 facing floor; north strip 5,622 buildings (65/27/5,530); rings
+2,044 / 261.26 km / 1,003 stops; corners 83 arterial + 34 signals +
+80 all-way; blades 130 (50/80); text ledger 194; crossings 14.

@@ -386,7 +386,7 @@ scan (T-170 was max; no workflows in flight).
 | T-202 | [R4 cutover](T-202-ames-r4-cutover.md) | R4 The Names | T-198..T-201 | done |
 | T-203 | [Bbox east — Bandshell + S Duff](T-203-ames-bbox-east.md) | R5 The Town | T-202 | done |
 | T-204 | [South — Reiman Gardens](T-204-ames-extension-south.md) | R5 The Town | T-203 | done |
-| T-205 | [North — Ada Hayden + The Cafe](T-205-ames-extension-north.md) | R5 The Town | T-203 | doing |
+| T-205 | [North — Ada Hayden + The Cafe](T-205-ames-extension-north.md) | R5 The Town | T-203 | done |
 | T-206 | [Filler dressing](T-206-ames-filler-dressing.md) | R5 The Town | T-177 | proposed |
 | T-207 | [Tree canopy](T-207-ames-tree-canopy.md) | R5 The Town | T-172 | proposed |
 | T-208 | [Tailgate dressing](T-208-ames-tailgate-dressing.md) | R5 The Town | T-191, T-182 | proposed |
