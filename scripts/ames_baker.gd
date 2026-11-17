@@ -426,10 +426,12 @@ const TREE_SHORE_DIST := 30.0
 
 ## Crown blob tessellation (the renderer's mesh, one table so the bake's
 ## AABB and the drawn geometry agree): radial segments × rings over the
-## ellipsoid — the house-style low-poly read.
+## ellipsoid — the house-style low-poly read. The trunk hint is a
+## TREE_TRUNK_SEGMENTS-sided prism.
 const TREE_CROWN_SEGMENTS := 9
 const TREE_CROWN_RINGS := 4
 const TREE_CROWN_LOBES := 0.16 ## Deterministic radius jitter spread (±0.08).
+const TREE_TRUNK_SEGMENTS := 6
 
 
 ## lawn; asphalt = city.gd's COLOR_ASPHALT; ballast gravel gray).
@@ -1898,12 +1900,18 @@ static func _tree_tint(grove: bool, roll: int) -> Color:
 	return Color(lum * rj, lum, lum * bj)
 
 
-## Band `k`'s fraction into [0, 1) — each band re-hashes the roll (the
-## string hash is 32-bit; a bit-field spread would run out of entropy past
-## band 4), so consecutive bands decorrelate (the T-206 `_variant_of`
-## roll-spread discipline). `hash()` is unseeded and deterministic.
+## Band `k`'s fraction into [0, 1) — a splitmix-style integer finalizer over
+## (roll, band). The first draft re-hashed the roll as a STRING per band and
+## the bands came out correlated: the polynomial string hash perturbs only
+## its low bits when the band suffix changes, so every band rode ~the same
+## fraction (sx ≈ sy ≈ sz on most trees). The finalizer avalanches both
+## inputs — GDScript int64 arithmetic wraps deterministically, no RNG.
 static func _frac01(roll: int, k: int) -> float:
-	return float(hash("%d/%d" % [roll, k]) & 0x1FFF) / 8192.0
+	var h := roll ^ (k * -7046029254386353131) ## 0x9E3779B97F4A7C15 as signed.
+	h = (h ^ (h >> 30)) * -4658895280553007687 ## 0xBF58476D1CE4E5B9.
+	h = (h ^ (h >> 27)) * -7905916399975552669 ## 0x94D049BB133111EB.
+	h = h ^ (h >> 31)
+	return float((h >> 11) & 0x1FFF) / 8192.0
 
 
 ## Precomputed point clouds for the district rule + crossing gap table.

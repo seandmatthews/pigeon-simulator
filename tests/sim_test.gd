@@ -175,6 +175,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_bake_census() ## T-172 — pure data over the committed chunk bake; still no rig and no city.
 	await _scenario_ames_bake_determinism() ## T-172 — re-bake in-scenario must reproduce the committed manifest hash.
 	await _scenario_ames_filler_variants() ## T-206 — the district-variant set: the §3 roof/setback/porch law over the committed bake, per-district distribution pinned, footprints identical, determinism re-manifested.
+	await _scenario_ames_tree_canopy() ## T-207 — the mapped canopy: all 6,753 pack tree nodes at their mapped positions (±0 m), the archetype law over the four placements, the per-chunk MultiMesh discipline, the foliage convention.
 	await _scenario_ames_bbox_east() ## T-203 — the v2 bbox east: the new consts, Bandshell Park playable inside the core (ground, hero supersede, bread reach), the census re-pins diff-proven against the recorded v1 pins.
 	await _scenario_ames_extension_north() ## T-205 — the v4 bbox north: the consts, Ada Hayden's twin quarry lakes at data geometry (the twin-lobed ring, the quarry shore), the trail ring walkable-adjacent, The Cafe placed at its true Northridge position, the north parks per data.
 	await _scenario_ames_world_render_budget() ## T-173 — the resident bake inside the draw/memory budget.
@@ -1262,6 +1263,394 @@ func _scenario_ames_filler_variants() -> void:
 	_check(S, bad.is_empty(), "; ".join(bad))
 
 
+## (T-207) The mapped canopy: all 6,753 pack `natural=tree` nodes (the census
+## §5 5,637 was the v1 box; T-204 + T-205 grew the layer, recorded in the
+## pack) are ONE baked instance each at the mapped position (±0 m — the data
+## is the point), the archetype law over the ticket's four placements (the
+## LaVerne shore ring → shore, a park polygon → oak with the grove tint, the
+## campus district → oak, else the residential boulevard), per-instance
+## scale/yaw/tint by the stable index hash, the per-chunk MultiMesh
+## discipline at render (one node per archetype present), and the foliage
+## convention (no collision, no ground record — the pigeon brushes through).
+## Expected values recomputed INDEPENDENTLY from the committed bake + pack
+## (the no-self-test rule): the position law re-walks the pack into per-tile
+## multisets; the law arm transcribes the hash formula and re-derives
+## shore/park/campus membership with its OWN ring math (this file's
+## `_pack_split_rings`/`_point_in_ring` — never the baker's); the mix is
+## pinned exactly as consts beside the assertion (the filler row's
+## convention); the render leg instantiates the resident world once.
+func _scenario_ames_tree_canopy() -> void:
+	const S := "ames_tree_canopy"
+	## Today's landing, pinned exactly (re-pinned per re-bake like the filler
+	## row's VARIANT_TOTALS).
+	const ARCHETYPE_TOTALS := {"oak": 4587, "boulevard": 2050, "shore": 116}
+	## The pack v4 pin (`ames_data_integrity` pins the same layer).
+	const PACK_TREES := 6753
+	## The baker's shore-ring law, transcribed (no-self-test).
+	const SHORE_DIST := 30.0
+	## The campus-district legs of the v0 rule, transcribed (the anchor/street
+	## lists are the baker's own consts; the distances are the rule's law).
+	const CAMPUS_DIST_ANCHOR := 300.0
+	const CAMPUS_DIST_STREET := 140.0
+	## The scale/tint bands, transcribed.
+	const SCALE_LO := 0.82
+	const SCALE_HI := 1.18
+	const TINT_LO := 0.86
+	const TINT_HI := 1.08
+	const GROVE_LO := 0.74
+	const GROVE_HI := 0.86
+	const HUE_JITTER := 0.18
+	const SNAP := 0.002 ## The JSON round-trip tolerance (the census convention).
+	var bad: PackedStringArray = PackedStringArray()
+	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	if manifest.is_empty():
+		_check(S, false, "no committed bake at %s" % AMES_CHUNKS_DIR)
+		return
+
+	# --- the scenario's own pack walks (never the baker's) ------------------
+	var shore_rings: Array[PackedVector2Array] = []
+	for w: Dictionary in AmesDataPack.water():
+		if str(w.get("kind", "")) == "lake" and w.has("polygon") \
+				and str(w.get("name", "")).contains("LaVerne"):
+			shore_rings.append_array(AmesBaker._split_rings(
+					AmesBaker._pack_points(w.get("polygon", []))))
+	## Ring AABBs — the membership walks pre-filter by box so a tree never
+	## tests 500 park rings (the walks stay honest: a box miss can never
+	## contain the point, a box hit still runs the full even-odd).
+	var shore_boxes: Array[Rect2] = []
+	for ring: PackedVector2Array in shore_rings:
+		shore_boxes.append(_ring_bounds(ring))
+	var park_rings: Array[PackedVector2Array] = []
+	var park_boxes: Array[Rect2] = []
+	for park: Dictionary in AmesDataPack.parks():
+		for ring: PackedVector2Array in AmesBaker._split_rings(
+				AmesBaker._pack_points(park.get("polygon", []))):
+			park_rings.append(ring)
+			park_boxes.append(_ring_bounds(ring))
+	var campus_anchor_pts := PackedVector2Array()
+	var campus_street_pts := PackedVector2Array()
+	var lw_pts := PackedVector2Array()
+	var downtown_pts := PackedVector2Array()
+	for poi: Dictionary in AmesDataPack.pois():
+		if str(poi.get("id", "")) in AmesBaker.CAMPUS_ANCHOR_IDS \
+				and poi.get("position") != null:
+			var pp: Array = poi["position"]
+			campus_anchor_pts.append(Vector2(float(pp[0]), float(pp[1])))
+	for st: Dictionary in AmesDataPack.streets():
+		var sname := str(st.get("name", ""))
+		if sname in AmesBaker.CAMPUS_STREET_NAMES:
+			for pt: Array in st.get("points", []):
+				campus_street_pts.append(Vector2(float(pt[0]), float(pt[1])))
+		if sname == "Lincoln Way":
+			for pt: Array in st.get("points", []):
+				lw_pts.append(Vector2(float(pt[0]), float(pt[1])))
+		if sname in AmesBaker.DOWNTOWN_STREET_NAMES:
+			for pt: Array in st.get("points", []):
+				downtown_pts.append(Vector2(float(pt[0]), float(pt[1])))
+
+	## Nearest distance from `p` to any ring's SEGMENTS (the scenario's own
+	## point-to-segment walk — the shore band reads the ring edges).
+	var rings_min_dist := func(p: Vector2, rings: Array[PackedVector2Array],
+			boxes: Array[Rect2]) -> float:
+		var best := 1e18
+		for ri: int in rings.size():
+			if not boxes[ri].grow(SHORE_DIST).has_point(p):
+				continue
+			var ring := rings[ri]
+			for i: int in ring.size():
+				var a := ring[i]
+				var b := ring[(i + 1) % ring.size()]
+				var ab := b - a
+				var l2 := ab.length_squared()
+				var t := 0.0 if l2 < 1e-12 \
+						else clampf((p - a).dot(ab) / l2, 0.0, 1.0)
+				best = minf(best, p.distance_to(a + ab * t))
+		return best
+
+	## The campus leg UNDER THE v0 RULE'S PRIORITY (the law the bake
+	## runs): campustown (the L/W corridor band) and downtown (the Main
+	## band) win over the campus anchor/street rings — a Campustown tree
+	## inside a campus anchor's 300 m ring is a Campustown boulevard, not
+	## a lawn oak. The strict `<` comparisons are the rule's own.
+	var pts_min_dist := func(p: Vector2, pts: PackedVector2Array) -> float:
+		var best := 1e18
+		for q: Vector2 in pts:
+			best = minf(best, p.distance_to(q))
+		return best
+	var campus_at := func(p: Vector2) -> bool:
+		if p.x >= AmesBaker.CAMPUSTOWN_X_BAND.x \
+				and p.x <= AmesBaker.CAMPUSTOWN_X_BAND.y \
+				and p.y >= AmesBaker.CAMPUSTOWN_Z_BAND.x \
+				and p.y <= AmesBaker.CAMPUSTOWN_Z_BAND.y \
+				and pts_min_dist.call(p, lw_pts) < AmesBaker.DISTRICT_DIST_LW_BAND:
+			return false
+		if p.x >= AmesBaker.DOWNTOWN_X_BAND.x \
+				and p.x <= AmesBaker.DOWNTOWN_X_BAND.y \
+				and pts_min_dist.call(p, downtown_pts) < AmesBaker.DISTRICT_DIST_SPINE:
+			return false
+		for q: Vector2 in campus_anchor_pts:
+			if p.distance_to(q) < CAMPUS_DIST_ANCHOR:
+				return true
+		for q2: Vector2 in campus_street_pts:
+			if p.distance_to(q2) < CAMPUS_DIST_STREET:
+				return true
+		return false
+
+	## The hash-spread formula, transcribed: band `k` re-hashes the roll and
+	## takes 13 bits (the baker's `_frac01` law; `hash()` is unseeded).
+	## The band spread, transcribed: a splitmix-style integer finalizer
+	## over (roll, band) — the avalanche the string-hash spread lacked
+	## (int64 arithmetic wraps deterministically, no RNG).
+	var frac01 := func(roll: int, k: int) -> float:
+		var h := roll ^ (k * -7046029254386353131)
+		h = (h ^ (h >> 30)) * -4658895280553007687
+		h = (h ^ (h >> 27)) * -7905916399975552669
+		h = h ^ (h >> 31)
+		return float((h >> 11) & 0x1FFF) / 8192.0
+
+	# --- 1. the pack is the point: the law recomputed, the bake compared ----
+	## Two multisets per tile: positions alone (the ±0 arm) and whole-entry
+	## law keys (archetype, scale axes, yaw, tint — the filler row's form).
+	var want_pos: Dictionary = {}
+	var want_law: Dictionary = {}
+	var want_mix: Dictionary = {}
+	var tree_pts := AmesDataPack.trees()
+	for i: int in tree_pts.size():
+		var x := tree_pts[i].x
+		var z := tree_pts[i].y
+		var p := Vector2(x, z)
+		var roll := hash("tree/%d" % i)
+		var arch := "boulevard"
+		var grove := false
+		if rings_min_dist.call(p, shore_rings, shore_boxes) <= SHORE_DIST:
+			arch = "shore"
+		elif _rings_contain(p, park_rings, park_boxes):
+			arch = "oak"
+			grove = true
+		elif campus_at.call(p):
+			arch = "oak"
+		want_mix[arch] = int(want_mix.get(arch, 0)) + 1
+		var tile := Vector2i(floori(x / 256.0), floori(z / 256.0))
+		var tkey := "%d|%d" % [tile.x, tile.y]
+		var pos_key := "%d|%d" % [roundi(x * 1000.0), roundi(z * 1000.0)]
+		want_pos[tkey + ">" + pos_key] = int(want_pos.get(tkey + ">" + pos_key, 0)) + 1
+		var sx := snappedf(SCALE_LO + (SCALE_HI - SCALE_LO) * frac01.call(roll, 0), 0.001)
+		var sy := snappedf(SCALE_LO + (SCALE_HI - SCALE_LO) * frac01.call(roll, 1), 0.001)
+		var sz := snappedf(SCALE_LO + (SCALE_HI - SCALE_LO) * frac01.call(roll, 2), 0.001)
+		var yaw := snappedf(frac01.call(roll, 3) * TAU, 0.001)
+		var lum_lo := GROVE_LO if grove else TINT_LO
+		var lum_hi := GROVE_HI if grove else TINT_HI
+		var lum: float = lum_lo + (lum_hi - lum_lo) * frac01.call(roll, 4)
+		var rj: float = 1.0 - HUE_JITTER * 0.5 + HUE_JITTER * frac01.call(roll, 5)
+		var bj: float = 1.0 - HUE_JITTER * 0.5 + HUE_JITTER * frac01.call(roll, 6)
+		## The tint through Color (the bake's own float32 channel storage —
+		## a float64 recompute straddles the 1e-4 snap boundary; the round
+		## trip through Color IS the law).
+		var tint := Color(lum * rj, lum, lum * bj)
+		var ckey := "%d|%d|%d" % [roundi(tint.r * 10000.0),
+				roundi(tint.g * 10000.0), roundi(tint.b * 10000.0)]
+		var law_key := "%s|%d|%d|%d|%d|%s" % [arch, roundi(sx * 1000.0),
+				roundi(sy * 1000.0), roundi(sz * 1000.0), roundi(yaw * 1000.0),
+				ckey]
+		var bucket := "%s>%s" % [tkey, law_key]
+		want_law[bucket] = int(want_law.get(bucket, 0)) + 1
+	if int(manifest.get("totals", {}).get("trees", -1)) != PACK_TREES:
+		bad.append("totals.trees=%s (want %d)" % [
+				manifest.get("totals", {}).get("trees"), PACK_TREES])
+	for arch: String in ARCHETYPE_TOTALS:
+		if int(want_mix.get(arch, -1)) != int(ARCHETYPE_TOTALS[arch]):
+			bad.append("law_recompute %s=%d (want pinned %d — the pack moved?)"
+					% [arch, int(want_mix.get(arch, -1)), int(ARCHETYPE_TOTALS[arch])])
+	if want_mix.size() != ARCHETYPE_TOTALS.size():
+		bad.append("law_recompute archetypes %s — unexpected keys" % [want_mix.keys()])
+	var got_pos: Dictionary = {}
+	var got_law: Dictionary = {}
+	var got_mix: Dictionary = {}
+	var tree_nodes := 0
+	var off_plate := 0
+	for entry: Dictionary in manifest.get("chunks", []):
+		var tile := Vector2i(int(entry["cx"]), int(entry["cz"]))
+		var chunk: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		if chunk.is_empty():
+			bad.append("chunk_file_missing:%s" % entry["file"])
+			continue
+		if int(chunk.get("counts", {}).get("trees", 0)) \
+				!= (chunk.get("trees", []) as Array).size():
+			bad.append("counts.trees drift in %s" % entry["file"])
+		var tkey := "%d|%d" % [tile.x, tile.y]
+		for tr: Dictionary in chunk.get("trees", []):
+			tree_nodes += 1
+			var p: Array = tr["p"]
+			if absf(float(p[1])) > SNAP:
+				off_plate += 1
+			var pos_key := "%d|%d" % [roundi(float(p[0]) * 1000.0),
+					roundi(float(p[2]) * 1000.0)]
+			got_pos[tkey + ">" + pos_key] = int(got_pos.get(tkey + ">" + pos_key, 0)) + 1
+			var c: Array = tr["c"]
+			var s: Array = tr["s"]
+			got_mix[str(tr["t"])] = int(got_mix.get(str(tr["t"]), 0)) + 1
+			var ckey := "%d|%d|%d" % [roundi(float(c[0]) * 10000.0),
+					roundi(float(c[1]) * 10000.0), roundi(float(c[2]) * 10000.0)]
+			var law_key := "%s|%d|%d|%d|%d|%s" % [str(tr["t"]),
+					roundi(float(s[0]) * 1000.0), roundi(float(s[1]) * 1000.0),
+					roundi(float(s[2]) * 1000.0), roundi(float(tr["a"]) * 1000.0),
+					ckey]
+			var bucket := "%s>%s" % [tkey, law_key]
+			got_law[bucket] = int(got_law.get(bucket, 0)) + 1
+	if tree_nodes != PACK_TREES:
+		bad.append("baked trees %d != pack %d" % [tree_nodes, PACK_TREES])
+	if off_plate > 0:
+		bad.append("%d tree bases off the plate" % off_plate)
+	for arch: String in ARCHETYPE_TOTALS:
+		if int(got_mix.get(arch, -1)) != int(ARCHETYPE_TOTALS[arch]):
+			bad.append("baked mix %s=%d (want pinned %d)" % [arch,
+					int(got_mix.get(arch, -1)), int(ARCHETYPE_TOTALS[arch])])
+	var pos_bad := _multiset_diff(want_pos, got_pos)
+	if not pos_bad.is_empty():
+		bad.append("mapped positions != baked positions 1:1 (%s)" % pos_bad)
+	var law_bad := _multiset_diff(want_law, got_law)
+	if not law_bad.is_empty():
+		bad.append("baked tree law != pack recompute (%s)" % law_bad)
+
+	# --- 2. the render leg: per-chunk MultiMeshes, no collision ------------
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var m: Dictionary = world.render_metrics()
+	var expect_tree_mm := 0
+	for entry2: Dictionary in manifest.get("chunks", []):
+		var chunk2: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+				str(entry2["file"]))
+		var present: Dictionary = {}
+		for tr2: Dictionary in chunk2.get("trees", []):
+			present[str(tr2["t"])] = true
+		expect_tree_mm += present.size()
+	var found_tree_mm := 0
+	var found_tree_instances := 0
+	var shader_mat_count := 0
+	var chunks_root := world.get_node_or_null("Chunks") as Node3D
+	if chunks_root == null:
+		bad.append("no Chunks root — the world did not build")
+	else:
+		for c: Node in chunks_root.get_children():
+			for node: Node in c.find_children("Trees*", "MultiMeshInstance3D",
+					true, false):
+				found_tree_mm += 1
+				var mmi := node as MultiMeshInstance3D
+				found_tree_instances += mmi.multimesh.instance_count
+				var mat: Material = mmi.multimesh.mesh.surface_get_material(0)
+				if mat is ShaderMaterial:
+					shader_mat_count += 1
+	if found_tree_mm != expect_tree_mm:
+		bad.append("tree MultiMeshes %d != per-chunk archetype presence %d"
+				% [found_tree_mm, expect_tree_mm])
+	if found_tree_instances != PACK_TREES:
+		bad.append("tree instances rendered %d != pack %d"
+				% [found_tree_instances, PACK_TREES])
+	if shader_mat_count != found_tree_mm:
+		bad.append("sway ShaderMaterial on %d of %d tree nodes"
+				% [shader_mat_count, found_tree_mm])
+	## The foliage convention: the canopy files NO ground record. Honest
+	## observable: at mapped trunks whose whole neighborhood the bake left
+	## box-free (no massing/placeholder box within TREE_SHORE_DIST — a tree
+	## under a mapped-inside-a-building node answers THAT building's own top,
+	## the api_seam law, not the canopy's), the API answers the plate 0.0.
+	var probed := 0
+	var skipped_covered := 0
+	var gh_worst := 0.0
+	var near_cache: Dictionary = {} ## tile -> the chunk doc (the 3×3 walks).
+	var near_doc := func(tile_v: Vector2i) -> Dictionary:
+		if not near_cache.has(tile_v):
+			near_cache[tile_v] = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+					"chunk_%d_%d.json" % [tile_v.x, tile_v.y])
+		return near_cache[tile_v]
+	for entry3: Dictionary in manifest.get("chunks", []):
+		var tile3 := Vector2i(int(entry3["cx"]), int(entry3["cz"]))
+		var chunk3: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+				str(entry3["file"]))
+		for tr3: Dictionary in chunk3.get("trees", []):
+			var p3: Array = tr3["p"]
+			var px := float(p3[0])
+			var pz := float(p3[2])
+			var covered := false
+			for nx: int in range(tile3.x - 1, tile3.x + 2):
+				for nz: int in range(tile3.y - 1, tile3.y + 2):
+					var near3: Dictionary = near_doc.call(Vector2i(nx, nz))
+					if near3.is_empty():
+						continue
+					for mb: Dictionary in near3.get("massing", []):
+						var mp: Array = mb["p"]
+						var ms: Array = mb["s"]
+						if absf(px - float(mp[0])) <= float(ms[0]) * 0.5 + SHORE_DIST 								and absf(pz - float(mp[2])) <= float(ms[2]) * 0.5 + SHORE_DIST:
+							covered = true
+							break
+					if covered:
+						break
+					for pb: Dictionary in near3.get("placeholders", []):
+						var pp2: Array = pb["p"]
+						var ps2: Array = pb["s"]
+						if absf(px - float(pp2[0])) <= float(ps2[0]) * 0.5 + SHORE_DIST 								and absf(pz - float(pp2[2])) <= float(ps2[2]) * 0.5 + SHORE_DIST:
+							covered = true
+							break
+					if covered:
+						break
+				if covered:
+					break
+			if covered:
+				skipped_covered += 1
+				continue
+			var gh := world.ground_height(world.to_global(
+					Vector3(px, 0.0, pz)))
+			gh_worst = maxf(gh_worst, absf(gh))
+			if absf(gh) > 0.05:
+				bad.append("ground_height %f at an open-lawn trunk %s (the canopy filed a box?)"
+						% [gh, str(p3)])
+			probed += 1
+			if probed >= 64:
+				break
+		if probed >= 64:
+			break
+	if probed < 64:
+		bad.append("only %d open-lawn trunks found for the ground arm" % probed)
+	print("SIM DATA %s: trees=%d mm_nodes=%d tree_mm=%d tree_instances=%d ground_probes=%d skipped_covered=%d gh_worst=%f" % [
+			S, tree_nodes, int(m.mm_nodes), found_tree_mm, found_tree_instances,
+			probed, skipped_covered, gh_worst])
+	_check(S, bad.is_empty(), "; ".join(bad))
+	world.queue_free()
+
+
+## A ring's bounding box (the membership walks' pre-filter).
+func _ring_bounds(ring: PackedVector2Array) -> Rect2:
+	var lo := ring[0]
+	var hi := lo
+	for v: Vector2 in ring:
+		lo = lo.min(v)
+		hi = hi.max(v)
+	return Rect2(lo, hi - lo)
+
+
+## TRUE when any ring whose box contains `p` passes the even-odd test.
+func _rings_contain(p: Vector2, rings: Array[PackedVector2Array],
+		boxes: Array[Rect2]) -> bool:
+	for ri: int in rings.size():
+		if boxes[ri].has_point(p) and _point_in_ring(p, rings[ri]):
+			return true
+	return false
+
+
+## A one-line multiset equality read: "want=N got=M <key>" at the first drift,
+## "" when equal (the law arms' shared form).
+func _multiset_diff(want: Dictionary, got: Dictionary) -> String:
+	if want.size() != got.size():
+		return "bucket count %d != %d" % [want.size(), got.size()]
+	for k: String in want:
+		if int(got.get(k, 0)) != int(want[k]):
+			return "want=%d got=%d at %s" % [int(want[k]), int(got.get(k, 0)),
+					k.substr(0, 40)]
+	return ""
+
+
 ## (T-203; T-204 + T-205 re-pins) The bbox east: the smallest map growth,
 ## fixing the census's own ⚠ (Bandshell Park sat ~30 m outside the v1 east
 ## edge). Data pack v2 — the E edge −93.6100 → −93.6070, +248 m east (the
@@ -1978,10 +2367,14 @@ func _scenario_ames_world_render_budget() -> void:
 	## it draws: 800 × 551/251 ≈ 1757, pinned 1800. (T-206) the dressing
 	## families joined — one Roofs prism MultiMesh + one Dress box MultiMesh
 	## per gabled/dressed tile, both fading with the massing band — lifting
-	## the every-chunk-visible worst case 1130 → 1829; pinned 1900. The
-	## gameplay pose ceilings below stay 1800 (measured 732 cruise / 71
-	## hover — the poses never see the whole world at once).
-	const DRAW_BUDGET := 1900
+	## the every-chunk-visible worst case 1130 → 1829; pinned 1900. (T-207)
+	## the mapped canopy joined — ONE MultiMesh per archetype present per
+	## tree-bearing tile (126 tiles; 81 single / 44 double / 1 triple = +172)
+	## lifting the worst case 1829 → 2001; pinned 2100. The gameplay pose
+	## ceilings below stay 1800 (measured 732 cruise / 71 hover at T-206,
+	## 841 / 81 with the canopy — the poses never see the whole world at
+	## once).
+	const DRAW_BUDGET := 2100
 	const POSE_DRAW_BUDGET := 1800 ## The gameplay poses' own budget, kept.
 	const MEMORY_BUDGET_BYTES := 400 * 1024 * 1024
 	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
@@ -2072,6 +2465,7 @@ func _scenario_ames_world_render_budget() -> void:
 			+ int(totals.get("trail_quads", 0)) \
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
 			+ int(totals.get("roofs", 0)) + int(totals.get("dress", 0)) \
+			+ int(totals.get("trees", 0)) \
 			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
 			- row_slot_parts - mu_parks_slot_parts - marston_slot_parts \
 			- complex_slot_parts - downtown_slot_parts - civic_tank_slot_parts \

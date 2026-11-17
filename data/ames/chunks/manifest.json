@@ -1889,7 +1889,7 @@
 					-1324.24
 				]
 			},
-			"bytes": 30835,
+			"bytes": 30827,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -1913,13 +1913,13 @@
 			"cx": -2,
 			"cz": -4,
 			"file": "chunk_-2_-4.json",
-			"sha256": "3792899190be589abdad98362c40fc9b6bc31d6e610486f40958f1a7dbd90f96"
+			"sha256": "592e4a0c29bab31192ceaa6ce5e4ba67ded3233aa3326e21cbe2f5fe341cc626"
 		},
 		{
 			"aabb": {
 				"max": [
 					-248.76,
-					16.38,
+					16.352,
 					-505.424
 				],
 				"min": [
@@ -1928,7 +1928,7 @@
 					-769.472
 				]
 			},
-			"bytes": 42904,
+			"bytes": 42930,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -1952,12 +1952,12 @@
 			"cx": -2,
 			"cz": -3,
 			"file": "chunk_-2_-3.json",
-			"sha256": "ca1a806324be3f27e9159b78291f971360f2329e8a96f4dbac9b1b2f45e624ee"
+			"sha256": "fc3c6845cb54130d51f48ad5bd546b066eb5211a4d0b602e44dda61b47210761"
 		},
 		{
 			"aabb": {
 				"max": [
-					-252.685,
+					-252.29,
 					20.485,
 					-242.606
 				],
@@ -1967,7 +1967,7 @@
 					-522.69
 				]
 			},
-			"bytes": 45831,
+			"bytes": 45802,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -1991,7 +1991,7 @@
 			"cx": -2,
 			"cz": -2,
 			"file": "chunk_-2_-2.json",
-			"sha256": "d75dd6610e7818543a12025b6de09b20f74e7386fd5e6156fcac930ae9c13016"
+			"sha256": "7a31ef33e5d3b7506ca950a87f79316373718faa352e7a3eaf2119dc141f7e3a"
 		},
 		{
 			"aabb": {
@@ -2006,7 +2006,7 @@
 					-278.365
 				]
 			},
-			"bytes": 36797,
+			"bytes": 36805,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -2030,7 +2030,7 @@
 			"cx": -2,
 			"cz": -1,
 			"file": "chunk_-2_-1.json",
-			"sha256": "0495d1740a85c137bdb3423a1eece32479cab423ea50aef78381950d0e5fbeca"
+			"sha256": "d8fac23abd58568798918340bd21f7c9208f9a202fdbdf4a2e15c1c457475b0a"
 		},
 		{
 			"aabb": {
@@ -2045,7 +2045,7 @@
 					-8.627
 				]
 			},
-			"bytes": 42142,
+			"bytes": 42143,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 12,
@@ -2069,7 +2069,7 @@
 			"cx": -2,
 			"cz": 0,
 			"file": "chunk_-2_0.json",
-			"sha256": "8621c5fe2a71ab2307a8e94f022369894f94eed22386ff4d90e414865a9dff43"
+			"sha256": "4739ad662c1cc6af8acfd0e28c7774c8e59ff32097051333a9240d9e9fb8d5ef"
 		},
 		{
 			"aabb": {
@@ -2942,7 +2942,7 @@
 					-1332.19
 				]
 			},
-			"bytes": 21670,
+			"bytes": 21648,
 			"counts": {
 				"ballast_quads": 20,
 				"creek_quads": 0,
@@ -2966,13 +2966,13 @@
 			"cx": -1,
 			"cz": -5,
 			"file": "chunk_-1_-5.json",
-			"sha256": "7716c9b55ecff5b8625e00a7b11b9367228bf2e13164b555eb23c238597df6da"
+			"sha256": "3038c4411f87ac390382d4f0bb15f53db1568e883087fc4057a5088ae2c0aa02"
 		},
 		{
 			"aabb": {
 				"max": [
-					2.41,
-					15.89,
+					3.27,
+					16.254,
 					-750.747
 				],
 				"min": [
@@ -2981,7 +2981,7 @@
 					-1115.77
 				]
 			},
-			"bytes": 42961,
+			"bytes": 42947,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -3005,12 +3005,12 @@
 			"cx": -1,
 			"cz": -4,
 			"file": "chunk_-1_-4.json",
-			"sha256": "f69c57f225d0a735e43bfb9506b4acff903c5c883bcaa8a0c5e7c92a1e9f66b4"
+			"sha256": "6060150e82046e3b02a8481f864ee5976dcceccf92009a17c49b1c3f98e9ec00"
 		},
 		{
 			"aabb": {
 				"max": [
-					4.73,
+					3.78,
 					41.6,
 					-498.61
 				],
@@ -3020,7 +3020,7 @@
 					-797.87
 				]
 			},
-			"bytes": 74761,
+			"bytes": 74764,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -3044,14 +3044,14 @@
 			"cx": -1,
 			"cz": -3,
 			"file": "chunk_-1_-3.json",
-			"sha256": "082acb367e2c1e19a6ef7eb4967a93abefec7326efa3cedaf486120b065d3d9a"
+			"sha256": "eb2a24ebf6c6f59b35bc2117f1020c7cacc724e1acdf1a0d82e294f13da71bac"
 		},
 		{
 			"aabb": {
 				"max": [
-					3.89,
+					4.24,
 					51.2,
-					-251.611
+					-251.175
 				],
 				"min": [
 					-327.04,
@@ -3059,7 +3059,7 @@
 					-529.896
 				]
 			},
-			"bytes": 75002,
+			"bytes": 74971,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -3083,7 +3083,7 @@
 			"cx": -1,
 			"cz": -2,
 			"file": "chunk_-1_-2.json",
-			"sha256": "2b8f521cfdc616fff6d1c7eca67cda388d773f9deff6fcf64f0917ebd9dc8ede"
+			"sha256": "c52bd8f55ad5834c8d1c4aa18f5e792b7fa94f58afa69985e7ca39326e05d042"
 		},
 		{
 			"aabb": {
@@ -3093,12 +3093,12 @@
 					11.205
 				],
 				"min": [
-					-259.752,
+					-259.208,
 					0.0,
 					-267.36
 				]
 			},
-			"bytes": 69887,
+			"bytes": 69865,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 6,
@@ -3122,7 +3122,7 @@
 			"cx": -1,
 			"cz": -1,
 			"file": "chunk_-1_-1.json",
-			"sha256": "9169e30e885e44dffb650262dcfc48b8945178052124d35cbb173132b01bcd22"
+			"sha256": "b51939d52bf9f4d20240eaf29c1a22c93078e26e6bdea3037e62856de229af85"
 		},
 		{
 			"aabb": {
@@ -3137,7 +3137,7 @@
 					-8.571
 				]
 			},
-			"bytes": 51064,
+			"bytes": 51035,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 9,
@@ -3161,7 +3161,7 @@
 			"cx": -1,
 			"cz": 0,
 			"file": "chunk_-1_0.json",
-			"sha256": "1869231828889011eee78846b0543c958b842cbdac60d32285f46efaa535a86c"
+			"sha256": "9010fd3981bc5cac90e1a411a737c8e664d4e1f6eeb1e681d9cfb357eaded6cb"
 		},
 		{
 			"aabb": {
@@ -3911,7 +3911,7 @@
 			"cx": 0,
 			"cz": -13,
 			"file": "chunk_0_-13.json",
-			"sha256": "08f77e47989d7708520cf498c0004ae0535ce74a2203bad7aeee8c8043b1fc0c"
+			"sha256": "c2b404bd41cf8d1f077053a7b1c3639ca0325bbf4c8e5f7c3088cf39affe53ac"
 		},
 		{
 			"aabb": {
@@ -3965,7 +3965,7 @@
 					-2822.954
 				]
 			},
-			"bytes": 26914,
+			"bytes": 26913,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -3989,7 +3989,7 @@
 			"cx": 0,
 			"cz": -11,
 			"file": "chunk_0_-11.json",
-			"sha256": "145c554a0d015fa123ea87a60245288b56afb3493df42ae2ef2878df58e15a5e"
+			"sha256": "4fd643040d2a9d47d75b490b6eb8c3a2a3574d9f991f434c8204898959ac99cc"
 		},
 		{
 			"aabb": {
@@ -4155,12 +4155,12 @@
 					-1022.15
 				],
 				"min": [
-					-3.222,
+					-2.866,
 					0.0,
 					-1284.652
 				]
 			},
-			"bytes": 46312,
+			"bytes": 46317,
 			"counts": {
 				"ballast_quads": 71,
 				"creek_quads": 0,
@@ -4184,7 +4184,7 @@
 			"cx": 0,
 			"cz": -5,
 			"file": "chunk_0_-5.json",
-			"sha256": "9078f06584da835eac1d181a306bf2da897a36b2b375881060ba0cfa2f355838"
+			"sha256": "4918c0c8da3e21cf4e2919525fbd87879251d90137e1b942cc719907c490c2b3"
 		},
 		{
 			"aabb": {
@@ -4199,7 +4199,7 @@
 					-1024.0
 				]
 			},
-			"bytes": 26352,
+			"bytes": 26351,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -4223,7 +4223,7 @@
 			"cx": 0,
 			"cz": -4,
 			"file": "chunk_0_-4.json",
-			"sha256": "157295fbca2d14fa0b2b6e6834562f5499384d4ee1ed401fb1fdb5664a465198"
+			"sha256": "16f688460c6e7a344b55a7f88cdc0664fcccb2b74da873983efa3065e8996fc4"
 		},
 		{
 			"aabb": {
@@ -4238,7 +4238,7 @@
 					-782.89
 				]
 			},
-			"bytes": 65904,
+			"bytes": 65929,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -4262,7 +4262,7 @@
 			"cx": 0,
 			"cz": -3,
 			"file": "chunk_0_-3.json",
-			"sha256": "4d9a16b9807b593431a53281bd794100e5c5dde99f1403e1b882a52402b76b97"
+			"sha256": "534f8a3cf972300f2bb7479d70f33ab24ed2e98c2db6b08da2750f3410b4edc3"
 		},
 		{
 			"aabb": {
@@ -4277,7 +4277,7 @@
 					-550.5
 				]
 			},
-			"bytes": 105160,
+			"bytes": 105111,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -4301,13 +4301,13 @@
 			"cx": 0,
 			"cz": -2,
 			"file": "chunk_0_-2.json",
-			"sha256": "899e7c54af16262a3ca4ce5812ce2966d93817bffef8f21f0757acd67b948925"
+			"sha256": "d5b9d182e4974bbff574e4b028ccd7df750d600c6cc370edc97a54efce3c919f"
 		},
 		{
 			"aabb": {
 				"max": [
 					297.587,
-					16.254,
+					16.044,
 					4.479
 				],
 				"min": [
@@ -4316,7 +4316,7 @@
 					-270.2
 				]
 			},
-			"bytes": 99297,
+			"bytes": 99304,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 6,
@@ -4340,7 +4340,7 @@
 			"cx": 0,
 			"cz": -1,
 			"file": "chunk_0_-1.json",
-			"sha256": "fe3bab177f4846833e9e47671c43d390df2fbaea6e2789706d660751876b235e"
+			"sha256": "959c14905af4cc913f2407ceaf99b751d650187f40d4d76222e80f39db082bc1"
 		},
 		{
 			"aabb": {
@@ -4355,7 +4355,7 @@
 					-6.43
 				]
 			},
-			"bytes": 45622,
+			"bytes": 45619,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -4379,7 +4379,7 @@
 			"cx": 0,
 			"cz": 0,
 			"file": "chunk_0_0.json",
-			"sha256": "ca84a5b6363be0e40dcb4de725a3321d053a5102461edeffc2f0c684f7623325"
+			"sha256": "ff312d3bc3fa9258eacdacd3cbc510f174f47333b18833c2a7d8b77f5726b2ae"
 		},
 		{
 			"aabb": {
@@ -4502,7 +4502,7 @@
 			"aabb": {
 				"max": [
 					269.957,
-					15.095,
+					16.17,
 					1278.681
 				],
 				"min": [
@@ -4535,7 +4535,7 @@
 			"cx": 0,
 			"cz": 4,
 			"file": "chunk_0_4.json",
-			"sha256": "aa6d79a13bba43427206c007054a7d16c082f18747859da1553bb4e2bf4009dc"
+			"sha256": "72225e29840273b5fa5213e754c9a12bd786b22f9df40dadee0fda7dc94a39e2"
 		},
 		{
 			"aabb": {
@@ -4550,7 +4550,7 @@
 					1278.607
 				]
 			},
-			"bytes": 20315,
+			"bytes": 20310,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -4574,7 +4574,7 @@
 			"cx": 0,
 			"cz": 5,
 			"file": "chunk_0_5.json",
-			"sha256": "491fa61aafae1b5ea531a1802c7f6f8b34faa74231272ac13c1ef01257bd1a30"
+			"sha256": "dee2392bbe17326d739cf15b03cf3d71cb2e13039046a4ce8151a19f89595990"
 		},
 		{
 			"aabb": {
@@ -4589,7 +4589,7 @@
 					1470.11
 				]
 			},
-			"bytes": 10519,
+			"bytes": 10522,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -4613,7 +4613,7 @@
 			"cx": 0,
 			"cz": 6,
 			"file": "chunk_0_6.json",
-			"sha256": "a5fc2d2368e3243345697f81197a3ae45f6595387a8e486606a7ceb10a6f1417"
+			"sha256": "d5d7a9124f11354c74c67fbfe0e2e578685114bd68897ebd7620bf33be3f536c"
 		},
 		{
 			"aabb": {
@@ -5081,7 +5081,7 @@
 			"cx": 1,
 			"cz": -14,
 			"file": "chunk_1_-14.json",
-			"sha256": "91a44c252896934a6457e29adb98975085ba0768908ff58569482195b964d0da"
+			"sha256": "f7a57a365aa9f63664c4bf84782cf42790067b854ad998dffda95298ea3b3808"
 		},
 		{
 			"aabb": {
@@ -5096,7 +5096,7 @@
 					-3332.462
 				]
 			},
-			"bytes": 43646,
+			"bytes": 43640,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5120,7 +5120,7 @@
 			"cx": 1,
 			"cz": -13,
 			"file": "chunk_1_-13.json",
-			"sha256": "3f4375ca9e9a5614716c1a343b5ef28d26424084efab04b862760270876ad5ec"
+			"sha256": "607fb3e10ae4302cf0b00734a4ca4336a44f1de901dcbec89a3d264445e9f2ce"
 		},
 		{
 			"aabb": {
@@ -5135,7 +5135,7 @@
 					-3090.726
 				]
 			},
-			"bytes": 57620,
+			"bytes": 57611,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5159,7 +5159,7 @@
 			"cx": 1,
 			"cz": -12,
 			"file": "chunk_1_-12.json",
-			"sha256": "39a30a090d83f4626b5eca914c56103deb7222cea1b345c5536d2768072ad19f"
+			"sha256": "28b95052c7bcce39fccc674861261b1a4dedd1d52a2a5eb0b6625f1639c3acae"
 		},
 		{
 			"aabb": {
@@ -5174,7 +5174,7 @@
 					-2850.424
 				]
 			},
-			"bytes": 56722,
+			"bytes": 56726,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5198,7 +5198,7 @@
 			"cx": 1,
 			"cz": -11,
 			"file": "chunk_1_-11.json",
-			"sha256": "0001758fa51480cac49ab52f2a92fa96de69734c409c46bcd159d231d0c00502"
+			"sha256": "559d1a658b90a02eaa1567bacf5e93437a8cdb58055111971f969520644a026c"
 		},
 		{
 			"aabb": {
@@ -5408,7 +5408,7 @@
 					-1301.28
 				]
 			},
-			"bytes": 37519,
+			"bytes": 37515,
 			"counts": {
 				"ballast_quads": 70,
 				"creek_quads": 0,
@@ -5432,7 +5432,7 @@
 			"cx": 1,
 			"cz": -5,
 			"file": "chunk_1_-5.json",
-			"sha256": "64a342bf565576712a9b28f3de1bad30e21f6ee11d0a6089bb78a70f74422c5a"
+			"sha256": "8611e93ce319984fe2bd6539c3653275c64c90a9deb2feb76ffeb9b97289c926"
 		},
 		{
 			"aabb": {
@@ -5447,7 +5447,7 @@
 					-1028.485
 				]
 			},
-			"bytes": 25014,
+			"bytes": 25009,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5471,7 +5471,7 @@
 			"cx": 1,
 			"cz": -4,
 			"file": "chunk_1_-4.json",
-			"sha256": "a6b94fd3d38f77bb012deaa143582eea72b83a2db2ca757ec043fee797746054"
+			"sha256": "6d20dadb5d983c7f6900033c60b0642742f8edbd3cb6aed42a5206a49561b41e"
 		},
 		{
 			"aabb": {
@@ -5486,7 +5486,7 @@
 					-768.0
 				]
 			},
-			"bytes": 67342,
+			"bytes": 67299,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5510,7 +5510,7 @@
 			"cx": 1,
 			"cz": -3,
 			"file": "chunk_1_-3.json",
-			"sha256": "78bd16bedadaac5d4a7afb9908969a7a2749f1792d8bfa08082322c2af480f53"
+			"sha256": "e01b1dd2515aeca845ec065734169b506446cadcdecf93c7bff5584ab1bae901"
 		},
 		{
 			"aabb": {
@@ -5525,7 +5525,7 @@
 					-550.5
 				]
 			},
-			"bytes": 91073,
+			"bytes": 91064,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5549,22 +5549,22 @@
 			"cx": 1,
 			"cz": -2,
 			"file": "chunk_1_-2.json",
-			"sha256": "08b46212533be5816fe850f0d453f78befaf41da823f3bedb15a92106a7603a8"
+			"sha256": "4fe46ba629da9123d0da0e6b12d14cc35d1d15220bde842d16162949072a522d"
 		},
 		{
 			"aabb": {
 				"max": [
-					515.43,
+					514.845,
 					29.0,
 					6.669
 				],
 				"min": [
 					236.48,
 					0.0,
-					-259.93
+					-260.69
 				]
 			},
-			"bytes": 82558,
+			"bytes": 82557,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 23,
@@ -5588,7 +5588,7 @@
 			"cx": 1,
 			"cz": -1,
 			"file": "chunk_1_-1.json",
-			"sha256": "4fe88ca64d43968ad6d70456a25ce736f9a13f63fdeafd47f2a789550d740b5b"
+			"sha256": "7d589af899ec667254482ee97011d6b05bef8b39e6a1512cbe2bf90d9ac57e4b"
 		},
 		{
 			"aabb": {
@@ -5627,7 +5627,7 @@
 			"cx": 1,
 			"cz": 0,
 			"file": "chunk_1_0.json",
-			"sha256": "abc42778c481434d3d260f9cfa484ad8693db5ef79e86227e741633747d40194"
+			"sha256": "c1bb7ef95f6a261a946d72746f785c5c49e5d373c3acbca1a313eaaa61a21731"
 		},
 		{
 			"aabb": {
@@ -5759,7 +5759,7 @@
 					966.701
 				]
 			},
-			"bytes": 17548,
+			"bytes": 17550,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5783,7 +5783,7 @@
 			"cx": 1,
 			"cz": 4,
 			"file": "chunk_1_4.json",
-			"sha256": "2118d326ec14a1324b05f3067e4822002431b96633968525e9d251b0afb0576f"
+			"sha256": "b7a12f56868a9ad94950c0045e9ad7658d38c16fcc9dfb4f4372be6f2eb3df80"
 		},
 		{
 			"aabb": {
@@ -5798,7 +5798,7 @@
 					1273.953
 				]
 			},
-			"bytes": 34667,
+			"bytes": 34668,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5822,13 +5822,13 @@
 			"cx": 1,
 			"cz": 5,
 			"file": "chunk_1_5.json",
-			"sha256": "9eccc590e2018f649f61cd44e6d47e22224e68be902411e93e4784273279e2c3"
+			"sha256": "3d1d714ac2c55698984fc7689594e0c848c49c68050fa049345f4632060d49cc"
 		},
 		{
 			"aabb": {
 				"max": [
 					646.72,
-					13.464,
+					13.157,
 					2002.41
 				],
 				"min": [
@@ -5837,7 +5837,7 @@
 					1504.1
 				]
 			},
-			"bytes": 12051,
+			"bytes": 12050,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -5861,7 +5861,7 @@
 			"cx": 1,
 			"cz": 6,
 			"file": "chunk_1_6.json",
-			"sha256": "4e39d96f2c8ce54175b299f48f26b803d50a8bd6df4181895b487f9b2c8b3c34"
+			"sha256": "0fa84b0c1a9e3655b3494201f43923ee643320cc00ef6f8be6473f4e4833706e"
 		},
 		{
 			"aabb": {
@@ -6392,7 +6392,7 @@
 					-3083.28
 				]
 			},
-			"bytes": 36086,
+			"bytes": 36079,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6416,14 +6416,14 @@
 			"cx": 2,
 			"cz": -12,
 			"file": "chunk_2_-12.json",
-			"sha256": "91c3789f834c58537c2ea57cd86909615fd82c5086af128904231cbdd927eada"
+			"sha256": "1af79e8f84eaff10f68e3714a76df99826a1c5ac27fee654156f00899479379c"
 		},
 		{
 			"aabb": {
 				"max": [
 					777.57,
 					19.925,
-					-2556.818
+					-2556.274
 				],
 				"min": [
 					488.746,
@@ -6431,7 +6431,7 @@
 					-2821.99
 				]
 			},
-			"bytes": 38031,
+			"bytes": 38039,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6455,7 +6455,7 @@
 			"cx": 2,
 			"cz": -11,
 			"file": "chunk_2_-11.json",
-			"sha256": "79e67158941ac9e123d2c2ecb12663c995bef632961580fd129bea2b893801b6"
+			"sha256": "8b982f07e08ac97ee05f5bdc8979c04f1d1cc4fcc17c09a7682194bbcc9cf8f9"
 		},
 		{
 			"aabb": {
@@ -6467,10 +6467,10 @@
 				"min": [
 					505.98,
 					0.0,
-					-2563.16
+					-2563.666
 				]
 			},
-			"bytes": 30581,
+			"bytes": 30594,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6494,7 +6494,7 @@
 			"cx": 2,
 			"cz": -10,
 			"file": "chunk_2_-10.json",
-			"sha256": "4fc1cd3204fa2bd9aa0da293e0d4a5f2aa12b3082bb107d3c08d79179553690e"
+			"sha256": "cdb774b2775f3674920034a7ac648cf761824a06da6fa49b973ec3156d0838df"
 		},
 		{
 			"aabb": {
@@ -6704,7 +6704,7 @@
 					-1026.837
 				]
 			},
-			"bytes": 45291,
+			"bytes": 45273,
 			"counts": {
 				"ballast_quads": 69,
 				"creek_quads": 0,
@@ -6728,14 +6728,14 @@
 			"cx": 2,
 			"cz": -4,
 			"file": "chunk_2_-4.json",
-			"sha256": "22d4c3c82a5930dc4b4012af238483df3952f356f5fbc8058fdc8b9556a99488"
+			"sha256": "09b10c4784868cc2fe623944ef0aa8c2d4406c0ee65d81b1505654a9192acc4d"
 		},
 		{
 			"aabb": {
 				"max": [
 					778.08,
 					41.6,
-					-508.227
+					-508.016
 				],
 				"min": [
 					478.92,
@@ -6743,7 +6743,7 @@
 					-811.0
 				]
 			},
-			"bytes": 54868,
+			"bytes": 54876,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6767,22 +6767,22 @@
 			"cx": 2,
 			"cz": -3,
 			"file": "chunk_2_-3.json",
-			"sha256": "49adc21d97b67a0e1685f7f2f1b6a033a543e3c30be875c68fbcf89d5d403688"
+			"sha256": "ceb14ab9919595d26c2077760bfa5f7909c38658ead99bddf201e4aa3ed18c94"
 		},
 		{
 			"aabb": {
 				"max": [
-					767.36,
+					767.348,
 					41.6,
 					-243.35
 				],
 				"min": [
-					508.04,
+					507.31,
 					0.0,
-					-515.73
+					-516.322
 				]
 			},
-			"bytes": 64382,
+			"bytes": 64353,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 10,
@@ -6806,13 +6806,13 @@
 			"cx": 2,
 			"cz": -2,
 			"file": "chunk_2_-2.json",
-			"sha256": "f18e5aa1015844194e877e58378d2aa07b5dd016675c3ab16753567a63b37d46"
+			"sha256": "9c62cbde466e050c1939adf78470d0f73f7418b0b6d74b2054d25e4c40ee1067"
 		},
 		{
 			"aabb": {
 				"max": [
 					838.818,
-					16.184,
+					15.862,
 					9.738
 				],
 				"min": [
@@ -6821,7 +6821,7 @@
 					-262.101
 				]
 			},
-			"bytes": 56056,
+			"bytes": 56028,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 11,
@@ -6845,7 +6845,7 @@
 			"cx": 2,
 			"cz": -1,
 			"file": "chunk_2_-1.json",
-			"sha256": "d6eb0214b71c525e1248d8e3af8b7cac5cd95108feb6f0984704ffa8e85c7b11"
+			"sha256": "e2565b3a9c2d2146d40b357ffd222f1e2f836b3ce80a88e7564bb503a7a9b762"
 		},
 		{
 			"aabb": {
@@ -6884,7 +6884,7 @@
 			"cx": 2,
 			"cz": 0,
 			"file": "chunk_2_0.json",
-			"sha256": "7d7395993c5fd91204c194741ec8a22cf243d4bff09c4d5e801874eeb920ef58"
+			"sha256": "366b9b8f719f96bd2d9de02c433edcf9a54a1bcc6e53c3646a202c75971f6653"
 		},
 		{
 			"aabb": {
@@ -6938,7 +6938,7 @@
 					502.977
 				]
 			},
-			"bytes": 43910,
+			"bytes": 43913,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -6962,7 +6962,7 @@
 			"cx": 2,
 			"cz": 2,
 			"file": "chunk_2_2.json",
-			"sha256": "f0ab8817d3f442ba6c1ea428ed3c95c2ad794828b90c780e9b014a67c9cafcab"
+			"sha256": "710fb30c79b3b3ca231436abced49d9a198251bc07b1368d044dea6df6cb1be7"
 		},
 		{
 			"aabb": {
@@ -7016,7 +7016,7 @@
 					1011.003
 				]
 			},
-			"bytes": 31653,
+			"bytes": 31655,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -7040,7 +7040,7 @@
 			"cx": 2,
 			"cz": 4,
 			"file": "chunk_2_4.json",
-			"sha256": "e5517b8dd1310104b9de19eb5b72f3aa56ae73edb0b3a7a46b71c94d0ea530ef"
+			"sha256": "e7610d0c5ce4a47f80bb82dab5a424deb692ebb2a3c9b83b9bd935864929099e"
 		},
 		{
 			"aabb": {
@@ -7055,7 +7055,7 @@
 					1278.05
 				]
 			},
-			"bytes": 38933,
+			"bytes": 38930,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -7079,7 +7079,7 @@
 			"cx": 2,
 			"cz": 5,
 			"file": "chunk_2_5.json",
-			"sha256": "43a002579185c7c7655ebdd3b4d1a31b7800057a417217257783ba61d63ca12e"
+			"sha256": "c3ff7cc285a063d9f1ae17e976f76883aa4c4c61927966e2dc3bc83f9663b3ce"
 		},
 		{
 			"aabb": {
@@ -7679,7 +7679,7 @@
 					-3346.296
 				]
 			},
-			"bytes": 33047,
+			"bytes": 33049,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -7703,12 +7703,12 @@
 			"cx": 3,
 			"cz": -13,
 			"file": "chunk_3_-13.json",
-			"sha256": "317b9c2123c6daa70140cb00e70e0a3b2b12070157c985053d902493d44af833"
+			"sha256": "6603907ba55263e2af454eb9b4d277e2b7ba59d983bfffe740915c75abfabe00"
 		},
 		{
 			"aabb": {
 				"max": [
-					990.124,
+					990.224,
 					20.345,
 					-2803.833
 				],
@@ -7718,7 +7718,7 @@
 					-3119.95
 				]
 			},
-			"bytes": 22809,
+			"bytes": 22808,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -7742,12 +7742,12 @@
 			"cx": 3,
 			"cz": -12,
 			"file": "chunk_3_-12.json",
-			"sha256": "e2ccd7e82240b1f7c00bb571df918a49f4ce0081e6c81170b7cbd433c12e5bb3"
+			"sha256": "ada4b597391c8f59cb62451c4fc037a2fb62537e15c552f624794fd158d43957"
 		},
 		{
 			"aabb": {
 				"max": [
-					1026.154,
+					1026.074,
 					19.47,
 					-2557.02
 				],
@@ -7757,7 +7757,7 @@
 					-2826.32
 				]
 			},
-			"bytes": 35634,
+			"bytes": 35630,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -7781,12 +7781,12 @@
 			"cx": 3,
 			"cz": -11,
 			"file": "chunk_3_-11.json",
-			"sha256": "8773cc02626319eea576e40edcac5ea826a92c7c0c019032c86d55e309d2cca3"
+			"sha256": "bb0cfd95abf9af209e5218352cae0401e6fbb2ee0331023fb00073bb46f5bdbb"
 		},
 		{
 			"aabb": {
 				"max": [
-					1026.838,
+					1026.218,
 					21.71,
 					-2294.209
 				],
@@ -7796,7 +7796,7 @@
 					-2584.157
 				]
 			},
-			"bytes": 28158,
+			"bytes": 28151,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -7820,7 +7820,7 @@
 			"cx": 3,
 			"cz": -10,
 			"file": "chunk_3_-10.json",
-			"sha256": "0007d604e9e606cdeea49f2df8a5958c5fb859aedddc27c75528b06809ea0e45"
+			"sha256": "f81d15c65dd04ea9df0e6a4818f6a4fa7ca82eb478a423bd4639d77c6fefe5b1"
 		},
 		{
 			"aabb": {
@@ -7944,7 +7944,7 @@
 				"max": [
 					1193.58,
 					30.4,
-					-1278.968
+					-1278.848
 				],
 				"min": [
 					745.77,
@@ -7976,14 +7976,14 @@
 			"cx": 3,
 			"cz": -6,
 			"file": "chunk_3_-6.json",
-			"sha256": "1819ac2914fe9f076ec23dc7a55de8d401429082470e592c037620f053c9aa25"
+			"sha256": "ac14a314257397db9ee5f613b0e931cddf9f778a4b39045490542947de7e080f"
 		},
 		{
 			"aabb": {
 				"max": [
 					1026.894,
 					30.4,
-					-1025.158
+					-1025.102
 				],
 				"min": [
 					741.85,
@@ -7991,7 +7991,7 @@
 					-1299.955
 				]
 			},
-			"bytes": 20639,
+			"bytes": 20622,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -8015,7 +8015,7 @@
 			"cx": 3,
 			"cz": -5,
 			"file": "chunk_3_-5.json",
-			"sha256": "850568318e3efd96f88be7f17aff91087fe78205e2055ec6d625ad675b9ae979"
+			"sha256": "d3a4322d9ca52a68062905e07866a097fd462271aa2163014a580f2038b91e8a"
 		},
 		{
 			"aabb": {
@@ -8030,7 +8030,7 @@
 					-1030.905
 				]
 			},
-			"bytes": 43214,
+			"bytes": 43204,
 			"counts": {
 				"ballast_quads": 72,
 				"creek_quads": 0,
@@ -8054,12 +8054,12 @@
 			"cx": 3,
 			"cz": -4,
 			"file": "chunk_3_-4.json",
-			"sha256": "68a3d3eca8f8791c8ef0b33024db321aa1c2ae10611b14f20fc80c97cfa34ac6"
+			"sha256": "8c22be26fd353751f64d5f2ce93b809479554a4760c22490bd6b76a039223949"
 		},
 		{
 			"aabb": {
 				"max": [
-					1027.908,
+					1027.232,
 					40.4,
 					-507.37
 				],
@@ -8069,7 +8069,7 @@
 					-779.921
 				]
 			},
-			"bytes": 27985,
+			"bytes": 27969,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -8093,7 +8093,7 @@
 			"cx": 3,
 			"cz": -3,
 			"file": "chunk_3_-3.json",
-			"sha256": "bbe784acf96108dae22b28b6146842cf6c9df88e3996348dc81034056113fb0d"
+			"sha256": "b0f63baacfd06e53519ce8bff84d713b1e32e4b7e00fe0fa712c08c12799440c"
 		},
 		{
 			"aabb": {
@@ -8105,10 +8105,10 @@
 				"min": [
 					725.061,
 					0.0,
-					-516.456
+					-515.448
 				]
 			},
-			"bytes": 28398,
+			"bytes": 28384,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 9,
@@ -8132,7 +8132,7 @@
 			"cx": 3,
 			"cz": -2,
 			"file": "chunk_3_-2.json",
-			"sha256": "d3dfecb3612590552d789c7d34ec07ddff54780756be8bda0350c5f2437f3dd7"
+			"sha256": "5c0bf50f6e61b1aad522d8bf2ff6280d79eed6b04ec4c73c34d33461e09ab633"
 		},
 		{
 			"aabb": {
@@ -8147,7 +8147,7 @@
 					-281.68
 				]
 			},
-			"bytes": 33175,
+			"bytes": 33173,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -8171,7 +8171,7 @@
 			"cx": 3,
 			"cz": -1,
 			"file": "chunk_3_-1.json",
-			"sha256": "adb39826542d63b3d0b8ba3551101f079c53cf4a83e9bebe97599695a6467ade"
+			"sha256": "38142de9d3744fc6266b28bb3815b261e47008baf894fb86fa826f65c5d821e9"
 		},
 		{
 			"aabb": {
@@ -8186,7 +8186,7 @@
 					-10.14
 				]
 			},
-			"bytes": 27749,
+			"bytes": 27745,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -8210,7 +8210,7 @@
 			"cx": 3,
 			"cz": 0,
 			"file": "chunk_3_0.json",
-			"sha256": "cacf238c2b67031352f61f64ab7dc419a4efbcc7603f3e4dff22d32a906563ec"
+			"sha256": "9e572cc85b3698f85e9cd8aa13ed03348ec14806d0fde89d24133ddc33dddd6f"
 		},
 		{
 			"aabb": {
@@ -8225,7 +8225,7 @@
 					236.67
 				]
 			},
-			"bytes": 32046,
+			"bytes": 32033,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -8249,14 +8249,14 @@
 			"cx": 3,
 			"cz": 1,
 			"file": "chunk_3_1.json",
-			"sha256": "882aaf210105644d0f4219153813684a039a6f36a40d41a6ed6cf1784de642bc"
+			"sha256": "c97c60882796217cfb0b67c229a140f99d95edc99445953f8fa173969bdee022"
 		},
 		{
 			"aabb": {
 				"max": [
 					1031.581,
 					30.4,
-					770.22
+					770.328
 				],
 				"min": [
 					760.807,
@@ -8264,7 +8264,7 @@
 					485.24
 				]
 			},
-			"bytes": 31817,
+			"bytes": 31802,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -8288,14 +8288,14 @@
 			"cx": 3,
 			"cz": 2,
 			"file": "chunk_3_2.json",
-			"sha256": "b457c6f5dbe4622aef4d104d720f4c075883dc5d625454fcf68da135b03bf92c"
+			"sha256": "d3546959d141d1289773b269dc4764928aea135a949f120e3e20194269afaa26"
 		},
 		{
 			"aabb": {
 				"max": [
 					1040.92,
 					17.23,
-					1027.15
+					1027.44
 				],
 				"min": [
 					758.78,
@@ -8327,7 +8327,7 @@
 			"cx": 3,
 			"cz": 3,
 			"file": "chunk_3_3.json",
-			"sha256": "b57c65e25d92314a641ff234aba0a3e92936241f1b1771fc33ae4526394e35e2"
+			"sha256": "2e039f6cf48af76ff4147ea7b7e252b99f0aa6a1250a67738376e72da8e16fec"
 		},
 		{
 			"aabb": {
@@ -8342,7 +8342,7 @@
 					1012.547
 				]
 			},
-			"bytes": 26368,
+			"bytes": 26355,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -8366,7 +8366,7 @@
 			"cx": 3,
 			"cz": 4,
 			"file": "chunk_3_4.json",
-			"sha256": "5fb3cd0c4842d661e47d0155fc12b07f079f24afbec07904c6e8e78f8f3d9e0c"
+			"sha256": "d1cc6c5490e3ebac25071175a624885eb97c38849f84b92c25ed16c2485b64b5"
 		},
 		{
 			"aabb": {
@@ -8381,7 +8381,7 @@
 					1258.56
 				]
 			},
-			"bytes": 60753,
+			"bytes": 60748,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -8405,7 +8405,7 @@
 			"cx": 3,
 			"cz": 5,
 			"file": "chunk_3_5.json",
-			"sha256": "c60fdd0f0d3b3c4521959539c40ad39c49daec88bbf52999fddfe554583408d5"
+			"sha256": "2f02ca538afcbd57238432fbde505e1655387532e873ec443eaddbb396ec86aa"
 		},
 		{
 			"aabb": {
@@ -8420,7 +8420,7 @@
 					1443.78
 				]
 			},
-			"bytes": 18534,
+			"bytes": 18538,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -8444,7 +8444,7 @@
 			"cx": 3,
 			"cz": 6,
 			"file": "chunk_3_6.json",
-			"sha256": "150c2cc5394379fb5925fc1c9b9bc91389e6150fde7e1d86a0f264181abee135"
+			"sha256": "7089a9df956c4e5b6f1b832633110cec2c0bb21a7d8dd73f07c707af333ae094"
 		},
 		{
 			"aabb": {
@@ -8488,8 +8488,8 @@
 		{
 			"aabb": {
 				"max": [
-					972.018,
-					13.37,
+					972.346,
+					12.138,
 					2314.82
 				],
 				"min": [
@@ -8498,7 +8498,7 @@
 					1982.396
 				]
 			},
-			"bytes": 4651,
+			"bytes": 4650,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -8522,7 +8522,7 @@
 			"cx": 3,
 			"cz": 8,
 			"file": "chunk_3_8.json",
-			"sha256": "6ab327ef31a14180b8f937cbfade1406c366fdc26a9b7b00546b70799bc66ec8"
+			"sha256": "e96fe4d662855d144fbe7455489d19300e134f3e074aaeb31bfcaa757953ad68"
 		},
 		{
 			"aabb": {
@@ -8807,7 +8807,7 @@
 				"min": [
 					1012.01,
 					0.0,
-					-4586.21
+					-4586.68
 				]
 			},
 			"bytes": 23068,
@@ -8834,7 +8834,7 @@
 			"cx": 4,
 			"cz": -18,
 			"file": "chunk_4_-18.json",
-			"sha256": "4690b6f3cf8de74de42149d26ff5c2c715777235cd6c6a8414e7132f0c5cee75"
+			"sha256": "9caa3e531950ee655879f3f67ef93f89143e421d6a87c3d9ed66eb148f4f3530"
 		},
 		{
 			"aabb": {
@@ -9075,15 +9075,15 @@
 				"max": [
 					1331.096,
 					18.63,
-					-2558.744
+					-2559.136
 				],
 				"min": [
-					1021.344,
+					1022.268,
 					0.0,
 					-2858.235
 				]
 			},
-			"bytes": 19994,
+			"bytes": 20004,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -9107,7 +9107,7 @@
 			"cx": 4,
 			"cz": -11,
 			"file": "chunk_4_-11.json",
-			"sha256": "15092483ac7df72cff2f60affd49de3c7e40ac280b2e3742ec9b5904f69bba62"
+			"sha256": "73b32a436cadf2ae2fdc9d051194da1c23b2373a17d109b935e37b4612592ae6"
 		},
 		{
 			"aabb": {
@@ -9119,10 +9119,10 @@
 				"min": [
 					1003.183,
 					0.0,
-					-2557.514
+					-2557.114
 				]
 			},
-			"bytes": 19879,
+			"bytes": 19877,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -9155,7 +9155,7 @@
 			"cx": 4,
 			"cz": -10,
 			"file": "chunk_4_-10.json",
-			"sha256": "e6d964e6882cfe746cb7fe40d715eb8314f87ed725e3ffa43b592fe9ad41b313"
+			"sha256": "708cc5172b426fa67eaaabda827f68afed4db0deb858c4b2fd76b61e6890e16a"
 		},
 		{
 			"aabb": {
@@ -9317,16 +9317,16 @@
 			"aabb": {
 				"max": [
 					1308.0,
-					16.408,
+					16.352,
 					-985.57
 				],
 				"min": [
-					1027.824,
+					1028.564,
 					0.0,
 					-1300.45
 				]
 			},
-			"bytes": 10090,
+			"bytes": 10096,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 2,
@@ -9350,13 +9350,13 @@
 			"cx": 4,
 			"cz": -5,
 			"file": "chunk_4_-5.json",
-			"sha256": "3742908d6abdfe946a3617c8faca0e777ac4463f91db81bfe0a695e77fed596e"
+			"sha256": "a8b7c8efb3327eb775e6a7c69b4a032e245a85f3095987bb9e75ea5e53301934"
 		},
 		{
 			"aabb": {
 				"max": [
 					1317.27,
-					16.422,
+					16.506,
 					-677.2
 				],
 				"min": [
@@ -9365,7 +9365,7 @@
 					-1199.38
 				]
 			},
-			"bytes": 19146,
+			"bytes": 19153,
 			"counts": {
 				"ballast_quads": 20,
 				"creek_quads": 0,
@@ -9389,7 +9389,7 @@
 			"cx": 4,
 			"cz": -4,
 			"file": "chunk_4_-4.json",
-			"sha256": "c086ad7b5230e6f24d5aac74271d289636c740ace8d2c4cc8a42138681aec560"
+			"sha256": "46fc4db1f1617003e1d3bdacb881c70ddcbafa722025b19bc4e5842512a2dd9b"
 		},
 		{
 			"aabb": {
@@ -9399,12 +9399,12 @@
 					-515.36
 				],
 				"min": [
-					1019.798,
+					1020.606,
 					0.0,
 					-842.15
 				]
 			},
-			"bytes": 45877,
+			"bytes": 45870,
 			"counts": {
 				"ballast_quads": 50,
 				"creek_quads": 0,
@@ -9428,22 +9428,22 @@
 			"cx": 4,
 			"cz": -3,
 			"file": "chunk_4_-3.json",
-			"sha256": "e847c90b7a5f92ee7aab36126a79ebf1053dfde66c9b20076f24aafd5222805b"
+			"sha256": "8f22de3b1c3e79ef7603ddfcd10bf296f9dd9156641e25bbb81e8e04629ea203"
 		},
 		{
 			"aabb": {
 				"max": [
-					1278.948,
+					1278.741,
 					30.4,
 					-265.0
 				],
 				"min": [
 					991.45,
 					0.0,
-					-511.084
+					-510.868
 				]
 			},
-			"bytes": 14737,
+			"bytes": 14742,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 30,
@@ -9467,7 +9467,7 @@
 			"cx": 4,
 			"cz": -2,
 			"file": "chunk_4_-2.json",
-			"sha256": "f3e932b7d6a236e1bbee01462f64f601002add7a6e162a474cca64b1b87b9789"
+			"sha256": "b432edf3a289edb9fcabda07009c67d2a4ca172cbb376e2632f2fcc60333b7a2"
 		},
 		{
 			"aabb": {
@@ -9479,10 +9479,10 @@
 				"min": [
 					968.711,
 					0.0,
-					-204.794
+					-204.862
 				]
 			},
-			"bytes": 14117,
+			"bytes": 14116,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -9506,14 +9506,14 @@
 			"cx": 4,
 			"cz": -1,
 			"file": "chunk_4_-1.json",
-			"sha256": "db638509cc8ed2589dd14cad1169c83a4541b0f90a6bf6615b7cde92ccd0b755"
+			"sha256": "97ebea0d54f46ea2ccda2bc0207245143b2bde4cab01a0c70a539d483bad1803"
 		},
 		{
 			"aabb": {
 				"max": [
 					1340.65,
 					25.0,
-					260.57
+					260.7
 				],
 				"min": [
 					1024.0,
@@ -9521,7 +9521,7 @@
 					-6.189
 				]
 			},
-			"bytes": 36941,
+			"bytes": 36929,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -9545,22 +9545,22 @@
 			"cx": 4,
 			"cz": 0,
 			"file": "chunk_4_0.json",
-			"sha256": "5a6846c8767ea43e96294ef29496b6c3a0dd98fb6c34105fa51b674a483a44d0"
+			"sha256": "f7b533949477621d9f39965f155efb3eea41738738e3a2769260173ec8753779"
 		},
 		{
 			"aabb": {
 				"max": [
 					1348.652,
-					13.782,
+					13.865,
 					512.0
 				],
 				"min": [
 					1003.533,
 					0.0,
-					252.04
+					251.75
 				]
 			},
-			"bytes": 24077,
+			"bytes": 24073,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -9584,22 +9584,22 @@
 			"cx": 4,
 			"cz": 1,
 			"file": "chunk_4_1.json",
-			"sha256": "87dc3a8d6fbac640caa53ddef50d7de49e22b163a983076379c82e8a2b730420"
+			"sha256": "269a77b0635240bfb468c02eb1c019e8b837d3d3aa3ffce38e02e69b5631d92e"
 		},
 		{
 			"aabb": {
 				"max": [
 					1280.0,
-					13.712,
+					15.162,
 					768.0
 				],
 				"min": [
-					1024.0,
+					1023.242,
 					0.0,
 					499.341
 				]
 			},
-			"bytes": 11304,
+			"bytes": 11302,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -9623,7 +9623,7 @@
 			"cx": 4,
 			"cz": 2,
 			"file": "chunk_4_2.json",
-			"sha256": "566522e7845b257bf4490647b343d0549daf972b290fe0eb142c6a6b0de210c2"
+			"sha256": "0a8a43f6ed9e8c21b0df530bf73ae41e159748370e78388e170253f049746b6d"
 		},
 		{
 			"aabb": {
@@ -9638,7 +9638,7 @@
 					751.93
 				]
 			},
-			"bytes": 27351,
+			"bytes": 27352,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -9662,12 +9662,12 @@
 			"cx": 4,
 			"cz": 3,
 			"file": "chunk_4_3.json",
-			"sha256": "652d7f6e7559faf5cd9eb5499c82616e94fbd36014976ce5405682210645f103"
+			"sha256": "5f1df1fdccc205cb118adec668aeb07f85b6b7700e8999eef7806c70c29f1e1d"
 		},
 		{
 			"aabb": {
 				"max": [
-					1282.39,
+					1282.975,
 					16.6,
 					1315.72
 				],
@@ -9677,7 +9677,7 @@
 					999.1
 				]
 			},
-			"bytes": 45691,
+			"bytes": 45692,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -9701,13 +9701,13 @@
 			"cx": 4,
 			"cz": 4,
 			"file": "chunk_4_4.json",
-			"sha256": "7fe833357e430e577cee2c0cf0d493a87a5f091518e6243bd82d0d4f6b533dd2"
+			"sha256": "5d299211971919a1d96231a8cc51950cff2d88040f501d3ca4b253f976dff3d0"
 		},
 		{
 			"aabb": {
 				"max": [
 					1316.687,
-					16.422,
+					16.282,
 					1543.142
 				],
 				"min": [
@@ -9716,7 +9716,7 @@
 					1258.56
 				]
 			},
-			"bytes": 14829,
+			"bytes": 14831,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -9740,7 +9740,7 @@
 			"cx": 4,
 			"cz": 5,
 			"file": "chunk_4_5.json",
-			"sha256": "1590a6dcd27da6044e6ce3cc06829363380c310617f0a5a80d7bf8094c7c4dd7"
+			"sha256": "2e2719e9feb0169b2cdcceccb03fef052a6f840917df3597c3f71a6741d5e713"
 		},
 		{
 			"aabb": {
@@ -10534,9 +10534,9 @@
 		{
 			"aabb": {
 				"max": [
-					1474.708,
-					16.324,
-					-1535.082
+					1474.448,
+					15.75,
+					-1534.61
 				],
 				"min": [
 					1416.74,
@@ -10544,7 +10544,7 @@
 					-1769.96
 				]
 			},
-			"bytes": 2824,
+			"bytes": 2821,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -10568,22 +10568,22 @@
 			"cx": 5,
 			"cz": -7,
 			"file": "chunk_5_-7.json",
-			"sha256": "c66c749141f43f5c840bcb06004071ca3e1b765b3ce0c7e2fb876cf9303f6090"
+			"sha256": "09b1adc43589b0a85b9ce719a59f5bbfb1af834eddf478a991ae5f6866fea176"
 		},
 		{
 			"aabb": {
 				"max": [
 					1625.987,
-					16.408,
+					16.492,
 					-1297.13
 				],
 				"min": [
 					1287.154,
 					0.0,
-					-1536.79
+					-1536.974
 				]
 			},
-			"bytes": 12626,
+			"bytes": 12621,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -10607,7 +10607,7 @@
 			"cx": 5,
 			"cz": -6,
 			"file": "chunk_5_-6.json",
-			"sha256": "2a588b650612f642a16ec8bf1ccc3347c95ad7b6d6fe70bcc604afc12cbb1f81"
+			"sha256": "61d370d1aee023007b9d3b233a35b98fc72d66b6b44d2f559d59e3b676f76ec5"
 		},
 		{
 			"aabb": {
@@ -10700,7 +10700,7 @@
 					-694.748
 				]
 			},
-			"bytes": 45040,
+			"bytes": 45031,
 			"counts": {
 				"ballast_quads": 71,
 				"creek_quads": 0,
@@ -10724,13 +10724,13 @@
 			"cx": 5,
 			"cz": -3,
 			"file": "chunk_5_-3.json",
-			"sha256": "49222c4de69d47e9deceb1403691cd85f61f2ab51563f8f94ad98ac67461ca67"
+			"sha256": "0c8c8656f35c81d7afa2378990861f30c890485a8eac32c0cfbcdfbebf0e9320"
 		},
 		{
 			"aabb": {
 				"max": [
 					1562.84,
-					16.338,
+					16.254,
 					-28.67
 				],
 				"min": [
@@ -10739,7 +10739,7 @@
 					-521.96
 				]
 			},
-			"bytes": 24018,
+			"bytes": 24011,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 20,
@@ -10763,13 +10763,13 @@
 			"cx": 5,
 			"cz": -2,
 			"file": "chunk_5_-2.json",
-			"sha256": "d4bd161b30cf482fb5fbaa9af686fa3e13daf25cb1e7c710e78be765c5335ef1"
+			"sha256": "0fdf34dff07dcbe25cdd2dca33e3cb82a36df7782a3eca9cbe4498664c0131bf"
 		},
 		{
 			"aabb": {
 				"max": [
 					1594.62,
-					15.988,
+					15.82,
 					1.504
 				],
 				"min": [
@@ -10778,7 +10778,7 @@
 					-518.49
 				]
 			},
-			"bytes": 25988,
+			"bytes": 25990,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -10802,7 +10802,7 @@
 			"cx": 5,
 			"cz": -1,
 			"file": "chunk_5_-1.json",
-			"sha256": "c697f23d709e99c9aef18bda9906820a90032139f2cf36357408548fafcfe92b"
+			"sha256": "c08fbe70dc98cf10e7fc6048b7af479bf1c2a4a3da267d50d51e460e5e9486b5"
 		},
 		{
 			"aabb": {
@@ -10817,7 +10817,7 @@
 					-10.769
 				]
 			},
-			"bytes": 55843,
+			"bytes": 55831,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -10841,13 +10841,13 @@
 			"cx": 5,
 			"cz": 0,
 			"file": "chunk_5_0.json",
-			"sha256": "d5ed036ae10ba7b18e15ed2632f212ebcdeae0cd477a8bf626cb016da6e62e0e"
+			"sha256": "bb652ee954ae6a555e873ff8081c0c5ddd9e3e7ded62108f91e140760e1a7c03"
 		},
 		{
 			"aabb": {
 				"max": [
 					1624.22,
-					13.841,
+					13.889,
 					710.27
 				],
 				"min": [
@@ -10856,7 +10856,7 @@
 					9.47
 				]
 			},
-			"bytes": 28169,
+			"bytes": 28155,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -10880,14 +10880,14 @@
 			"cx": 5,
 			"cz": 1,
 			"file": "chunk_5_1.json",
-			"sha256": "749119d2ffe9da76719dca7c3afc06e605216c9183f415f385311f8ab604a738"
+			"sha256": "65e7ecbec06d6a8c77aa1992cc9d3f4128939742c7a16f816d7dc29c1a2b6d65"
 		},
 		{
 			"aabb": {
 				"max": [
 					1543.22,
-					16.506,
-					771.65
+					16.226,
+					772.815
 				],
 				"min": [
 					1275.626,
@@ -10895,7 +10895,7 @@
 					417.96
 				]
 			},
-			"bytes": 19901,
+			"bytes": 19904,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -10919,22 +10919,22 @@
 			"cx": 5,
 			"cz": 2,
 			"file": "chunk_5_2.json",
-			"sha256": "819017b4fa40758079ddf21679ac05e25fc400c4676ea78e68629ca6297118b7"
+			"sha256": "613ba358c2c55ec0666e6b7e18b7bb4df530d0d5260ff5f574ebb2e88bf18119"
 		},
 		{
 			"aabb": {
 				"max": [
-					1541.385,
-					15.834,
-					1024.79
+					1540.945,
+					16.254,
+					1024.55
 				],
 				"min": [
-					1276.73,
+					1277.27,
 					0.0,
 					735.848
 				]
 			},
-			"bytes": 43290,
+			"bytes": 43308,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -10958,13 +10958,13 @@
 			"cx": 5,
 			"cz": 3,
 			"file": "chunk_5_3.json",
-			"sha256": "20f6ffd52f7d9bcb3f8cd622bb83d3af856cb2bcdd5775b5e413892afa442fa0"
+			"sha256": "4a79a1fad480c16071ced54424aad186dee63e83ffc1bc27632eceadedc6e58d"
 		},
 		{
 			"aabb": {
 				"max": [
 					1541.44,
-					13.912,
+					13.924,
 					1372.79
 				],
 				"min": [
@@ -10973,7 +10973,7 @@
 					781.11
 				]
 			},
-			"bytes": 35143,
+			"bytes": 35155,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -10997,13 +10997,13 @@
 			"cx": 5,
 			"cz": 4,
 			"file": "chunk_5_4.json",
-			"sha256": "0861a879cf4fc41e45c258c8bbf1f91c5966203ccca91624badf33be52efc5d5"
+			"sha256": "a5414d81a422cf1769fe5c19ba15767afadfd31d2d786cdcb48c46f7c8c6aa15"
 		},
 		{
 			"aabb": {
 				"max": [
 					1541.44,
-					16.352,
+					15.638,
 					1538.749
 				],
 				"min": [
@@ -11012,7 +11012,7 @@
 					1233.28
 				]
 			},
-			"bytes": 14666,
+			"bytes": 14667,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -11036,7 +11036,7 @@
 			"cx": 5,
 			"cz": 5,
 			"file": "chunk_5_5.json",
-			"sha256": "5984d2228323155d9675347b5029dcbf514afc88a6bbcd5d4f0f66f6e99060aa"
+			"sha256": "90fb38db11e90af2da2b3d2dec4e10aadc696f4414e92bae3f2bbb2034b35480"
 		},
 		{
 			"aabb": {
@@ -11048,7 +11048,7 @@
 				"min": [
 					1273.23,
 					0.0,
-					1532.374
+					1532.526
 				]
 			},
 			"bytes": 3856,
@@ -11075,7 +11075,7 @@
 			"cx": 5,
 			"cz": 6,
 			"file": "chunk_5_6.json",
-			"sha256": "e488f3c309eaf8039b0983dad45c30ef6536ea7b04b9ce9cc62983b41333009e"
+			"sha256": "9a9fd38a3201e8e455b71bc02351584248522176e4f2b0ddc20a3f2b736d16f1"
 		},
 		{
 			"aabb": {
@@ -11948,7 +11948,7 @@
 			"aabb": {
 				"max": [
 					1851.43,
-					13.9,
+					13.46,
 					-677.2
 				],
 				"min": [
@@ -11957,7 +11957,7 @@
 					-1289.48
 				]
 			},
-			"bytes": 9737,
+			"bytes": 9736,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 10,
@@ -11981,13 +11981,13 @@
 			"cx": 6,
 			"cz": -4,
 			"file": "chunk_6_-4.json",
-			"sha256": "03cfd08c9b7331452c6dd696d0effe7990d9e404db5402b46186bf0ffaa8404a"
+			"sha256": "84242169b6465b9c7d2cd44d2a9df74a7d149dd98c2de6e753226e96cd83d5de"
 		},
 		{
 			"aabb": {
 				"max": [
 					1937.67,
-					12.779,
+					12.55,
 					-429.76
 				],
 				"min": [
@@ -11996,7 +11996,7 @@
 					-806.64
 				]
 			},
-			"bytes": 23599,
+			"bytes": 23598,
 			"counts": {
 				"ballast_quads": 41,
 				"creek_quads": 6,
@@ -12020,7 +12020,7 @@
 			"cx": 6,
 			"cz": -3,
 			"file": "chunk_6_-3.json",
-			"sha256": "bc734329164b937dd9d2852a86a779faa67f43ac1ebe598102a31ae013e2ea3a"
+			"sha256": "208de49d835df6248110fc522ddee87e2c5ee1185d34bd97c8b54f1fbcb85489"
 		},
 		{
 			"aabb": {
@@ -12035,7 +12035,7 @@
 					-513.945
 				]
 			},
-			"bytes": 27763,
+			"bytes": 27765,
 			"counts": {
 				"ballast_quads": 30,
 				"creek_quads": 10,
@@ -12059,7 +12059,7 @@
 			"cx": 6,
 			"cz": -2,
 			"file": "chunk_6_-2.json",
-			"sha256": "364da2f9e8664a5b86cea83d0de48ede452fd0b23339c85096e149b8bd6a7b6a"
+			"sha256": "742892cc3523234443270159c8e4ddca09964e6aa70b2153062e59cc985afa3a"
 		},
 		{
 			"aabb": {
@@ -12142,8 +12142,8 @@
 		{
 			"aabb": {
 				"max": [
-					1795.178,
-					16.478,
+					1795.546,
+					16.394,
 					696.22
 				],
 				"min": [
@@ -12152,7 +12152,7 @@
 					9.47
 				]
 			},
-			"bytes": 24214,
+			"bytes": 24202,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 17,
@@ -12176,22 +12176,22 @@
 			"cx": 6,
 			"cz": 1,
 			"file": "chunk_6_1.json",
-			"sha256": "5d0c00b1b989c87ad78aed110d3de926da5b47e7f5a7c551e846337f1c989901"
+			"sha256": "89b73617b21a132a91b837d2ec42833e6216dd7e527bb48240b190e55a3e2db3"
 		},
 		{
 			"aabb": {
 				"max": [
 					1813.2,
-					15.33,
-					760.08
+					14.112,
+					761.0
 				],
 				"min": [
-					1531.3,
+					1530.955,
 					0.0,
 					438.71
 				]
 			},
-			"bytes": 23638,
+			"bytes": 23627,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 6,
@@ -12215,22 +12215,22 @@
 			"cx": 6,
 			"cz": 2,
 			"file": "chunk_6_2.json",
-			"sha256": "0042b3e64124de434690d7a90e3ac04c2c6b019ec018ee00e5617572a1a8bc38"
+			"sha256": "ad601097f16cb211d8b159ec40170cad7d389d768384ec65839bd58e4223a0ac"
 		},
 		{
 			"aabb": {
 				"max": [
 					1703.03,
-					13.9,
+					13.841,
 					1108.31
 				],
 				"min": [
 					1492.03,
 					0.0,
-					778.105
+					778.5
 				]
 			},
-			"bytes": 8341,
+			"bytes": 8345,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -12254,13 +12254,13 @@
 			"cx": 6,
 			"cz": 3,
 			"file": "chunk_6_3.json",
-			"sha256": "9e1d8565bedff69816f8cf1fd42b172783e11f13ef3e0074f18b9cf7fcfd0f3e"
+			"sha256": "7e8d34f79a9e16cbc461081a6d49b7a02a011ba160d9e771a7a5175795af52a7"
 		},
 		{
 			"aabb": {
 				"max": [
 					1704.49,
-					12.779,
+					12.366,
 					1374.2
 				],
 				"min": [
@@ -12269,7 +12269,7 @@
 					781.11
 				]
 			},
-			"bytes": 3637,
+			"bytes": 3635,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -12293,22 +12293,22 @@
 			"cx": 6,
 			"cz": 4,
 			"file": "chunk_6_4.json",
-			"sha256": "fab694581e7907949522dc778a381737ea28889594317c7f0856cf1b86534886"
+			"sha256": "b7942485941eeefaa921ef76481bff944f2dc636218a5294a28e8cd8bb131bd4"
 		},
 		{
 			"aabb": {
 				"max": [
 					1796.589,
-					15.974,
-					1539.53
+					15.456,
+					1538.446
 				],
 				"min": [
 					1526.751,
 					0.0,
-					1464.142
+					1463.866
 				]
 			},
-			"bytes": 4842,
+			"bytes": 4846,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -12332,7 +12332,7 @@
 			"cx": 6,
 			"cz": 5,
 			"file": "chunk_6_5.json",
-			"sha256": "0bf8526d506d49998adbe61e9e404b7cebe4f27e4f6a1090451121933b1dec59"
+			"sha256": "784d050e16ea446b6a98b258a25599c47c0ef9b71176040b78017baacbee7cca"
 		},
 		{
 			"aabb": {
@@ -12342,12 +12342,12 @@
 					1797.183
 				],
 				"min": [
-					1670.422,
+					1670.474,
 					0.0,
 					1510.59
 				]
 			},
-			"bytes": 3638,
+			"bytes": 3637,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -12371,7 +12371,7 @@
 			"cx": 6,
 			"cz": 6,
 			"file": "chunk_6_6.json",
-			"sha256": "f7114b5d9c37081cb59b098e50093b2880abd3af20e3b6bbba6ab9eaaf52444a"
+			"sha256": "d6e0ab2e83bb05372c951b2cd4be49ef5530655c35539df983279f94b5696490"
 		},
 		{
 			"aabb": {
@@ -13277,7 +13277,7 @@
 			"cx": 7,
 			"cz": -4,
 			"file": "chunk_7_-4.json",
-			"sha256": "99fd75769f723aaf2da5ed94e9d8798389435568094b868b8c056723a452fd8f"
+			"sha256": "8f1b3b53111ee04d2b68318df1b9a84284c6e63d5f97b388c64bb9d27f7ea571"
 		},
 		{
 			"aabb": {
@@ -13316,7 +13316,7 @@
 			"cx": 7,
 			"cz": -3,
 			"file": "chunk_7_-3.json",
-			"sha256": "94c4ecd37017b9a9d624b73203379b0b3aac65e373e6a96cc82c8bed66c1048b"
+			"sha256": "4ee220109ba7086aad038ddc43c1e519b445ef73611ccd71b00c10c1ebbdf42e"
 		},
 		{
 			"aabb": {
@@ -13465,7 +13465,7 @@
 					251.43
 				]
 			},
-			"bytes": 43687,
+			"bytes": 43679,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -13489,7 +13489,7 @@
 			"cx": 7,
 			"cz": 1,
 			"file": "chunk_7_1.json",
-			"sha256": "25e53c2c7c9401cc8d7155d9cf357123538a51c7dbf03e6831ab324d5343f970"
+			"sha256": "f756ef854422639fe43b04fce4ea0b7ea73229ab6ee3aa16e551ba9ea1e20fcc"
 		},
 		{
 			"aabb": {
@@ -13573,7 +13573,7 @@
 			"aabb": {
 				"max": [
 					2096.04,
-					13.841,
+					14.756,
 					1568.76
 				],
 				"min": [
@@ -13582,7 +13582,7 @@
 					1387.47
 				]
 			},
-			"bytes": 4265,
+			"bytes": 4263,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -13606,7 +13606,7 @@
 			"cx": 7,
 			"cz": 5,
 			"file": "chunk_7_5.json",
-			"sha256": "298979c5bedea94e6e56ed43103b27ffa133a399337e52de7d48e8850bbebf1b"
+			"sha256": "a2737ca5457e0c5792e9493c669117abc47267601eaac732f830295059e883e9"
 		},
 		{
 			"aabb": {
@@ -13621,7 +13621,7 @@
 					1490.95
 				]
 			},
-			"bytes": 64052,
+			"bytes": 64053,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -13645,7 +13645,7 @@
 			"cx": 7,
 			"cz": 6,
 			"file": "chunk_7_6.json",
-			"sha256": "dee6ca1cb5a6b30a9e6fa41becc3eaa036a4ddbe7320df86d6e37fe34a6c4c74"
+			"sha256": "bb35c2a963a0a4c8245573b94b407a59b2d48c971c5e815c26f817ca5f600f2b"
 		},
 		{
 			"aabb": {
@@ -14556,8 +14556,8 @@
 		{
 			"aabb": {
 				"max": [
-					2308.014,
-					16.394,
+					2307.846,
+					13.89,
 					-252.414
 				],
 				"min": [
@@ -14566,7 +14566,7 @@
 					-559.142
 				]
 			},
-			"bytes": 61668,
+			"bytes": 61667,
 			"counts": {
 				"ballast_quads": 61,
 				"creek_quads": 0,
@@ -14599,7 +14599,7 @@
 			"cx": 8,
 			"cz": -2,
 			"file": "chunk_8_-2.json",
-			"sha256": "1b0458a3e578cfd645914a2d1b01239c6e8988531fb2b4b577654261f3d5ffbc"
+			"sha256": "222e133683a0a5c185e1f52cc6c9e632f504b85af42c93b115cfb40d537b7c30"
 		},
 		{
 			"aabb": {
@@ -14692,7 +14692,7 @@
 					206.2
 				]
 			},
-			"bytes": 17575,
+			"bytes": 17563,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -14716,7 +14716,7 @@
 			"cx": 8,
 			"cz": 1,
 			"file": "chunk_8_1.json",
-			"sha256": "6145692a061196e1fce2657537b598567eabbad60b7f897cf50a880d8afa5070"
+			"sha256": "4388e156eddedaca675b19726e45abcdaca1d4e38c77174feb6b4c1d9db83b2e"
 		},
 		{
 			"aabb": {
@@ -14848,7 +14848,7 @@
 					1513.93
 				]
 			},
-			"bytes": 41990,
+			"bytes": 41989,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -14872,7 +14872,7 @@
 			"cx": 8,
 			"cz": 6,
 			"file": "chunk_8_6.json",
-			"sha256": "7e0465d73dea6b6757485b0d5a854b724c836c1943904d980e0f9769750d3718"
+			"sha256": "d2aac58142b3ede01f2b5befb5dd268a8ff5806b6ee40d317a26107acff3db8a"
 		},
 		{
 			"aabb": {
@@ -15814,7 +15814,7 @@
 			"aabb": {
 				"max": [
 					2560.71,
-					16.478,
+					16.506,
 					-249.905
 				],
 				"min": [
@@ -15823,7 +15823,7 @@
 					-535.95
 				]
 			},
-			"bytes": 73680,
+			"bytes": 73687,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -15847,7 +15847,7 @@
 			"cx": 9,
 			"cz": -2,
 			"file": "chunk_9_-2.json",
-			"sha256": "a575d7af3724bd5fbf85f99b1d99ef682992adaba5ea012867b4f6146045cecd"
+			"sha256": "e44805ad737e4c112a87e53eab72910effc260a0e7bba0d2d2ebefd7698e9a2b"
 		},
 		{
 			"aabb": {
@@ -15862,7 +15862,7 @@
 					-278.918
 				]
 			},
-			"bytes": 77957,
+			"bytes": 77942,
 			"counts": {
 				"ballast_quads": 64,
 				"creek_quads": 0,
@@ -15895,7 +15895,7 @@
 			"cx": 9,
 			"cz": -1,
 			"file": "chunk_9_-1.json",
-			"sha256": "948d234a9fc1b343fce350b79cfc59900192c77ab46ba7fac2643df791f2f3b1"
+			"sha256": "9d2ea30650aaf36249ae7bca743efbc576b5edb7412927dc69ec27bd99d61e23"
 		},
 		{
 			"aabb": {
@@ -17071,7 +17071,7 @@
 			"aabb": {
 				"max": [
 					2817.99,
-					16.492,
+					16.478,
 					-253.358
 				],
 				"min": [
@@ -17080,7 +17080,7 @@
 					-512.0
 				]
 			},
-			"bytes": 46376,
+			"bytes": 46347,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -17104,7 +17104,7 @@
 			"cx": 10,
 			"cz": -2,
 			"file": "chunk_10_-2.json",
-			"sha256": "c86a242cada128915b80ad6e1e16bb8dff9ab6c10695c6a8929bcba3474450ab"
+			"sha256": "88844ff2d10c637727349746ea93c2ad16617e5ddd700946e335044a40d8cd00"
 		},
 		{
 			"aabb": {
@@ -17119,7 +17119,7 @@
 					-260.159
 				]
 			},
-			"bytes": 73898,
+			"bytes": 73900,
 			"counts": {
 				"ballast_quads": 62,
 				"creek_quads": 0,
@@ -17152,7 +17152,7 @@
 			"cx": 10,
 			"cz": -1,
 			"file": "chunk_10_-1.json",
-			"sha256": "10304ddccf9253c90988bdede95fea7f3b535f320677770e62b851ffef6b2ccb"
+			"sha256": "4b2ca1fda4af1866abd1a9662bf078f5ce981d2a9b49b88cf81478af21c5f14b"
 		},
 		{
 			"aabb": {
@@ -17830,7 +17830,7 @@
 					-3079.7
 				]
 			},
-			"bytes": 40951,
+			"bytes": 40952,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -17854,7 +17854,7 @@
 			"cx": 11,
 			"cz": -12,
 			"file": "chunk_11_-12.json",
-			"sha256": "dd3777b13fd960ca7f01bc175ba1c022efd65ea34062740f7b9b0cb80456cf01"
+			"sha256": "f30f45011657aeb3a0c97e969b73881f780d09651d251074b41024a0cb782bff"
 		},
 		{
 			"aabb": {
@@ -17869,7 +17869,7 @@
 					-2947.02
 				]
 			},
-			"bytes": 54483,
+			"bytes": 54501,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -17893,7 +17893,7 @@
 			"cx": 11,
 			"cz": -11,
 			"file": "chunk_11_-11.json",
-			"sha256": "4179ff8eee41cdc81bbc933df3948a41f992ccf80d71018a3d41232602088399"
+			"sha256": "5f3e9cd343067932f50ce691ace9467a06731e05636e4c8b9250fd92b8b73c33"
 		},
 		{
 			"aabb": {
@@ -18211,7 +18211,7 @@
 			"aabb": {
 				"max": [
 					3079.707,
-					16.1,
+					16.268,
 					-250.491
 				],
 				"min": [
@@ -18220,7 +18220,7 @@
 					-543.33
 				]
 			},
-			"bytes": 51421,
+			"bytes": 51420,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -18244,7 +18244,7 @@
 			"cx": 11,
 			"cz": -2,
 			"file": "chunk_11_-2.json",
-			"sha256": "4209c670a074484b969983625956011f281155c8e8e93a00be9050c02e7f27f8"
+			"sha256": "5cbfd3672b22a397b7da709dea740c16a99a7e715ddf54ce53aed7fddfe72d1f"
 		},
 		{
 			"aabb": {
@@ -18259,7 +18259,7 @@
 					-261.489
 				]
 			},
-			"bytes": 75684,
+			"bytes": 75677,
 			"counts": {
 				"ballast_quads": 60,
 				"creek_quads": 0,
@@ -18292,7 +18292,7 @@
 			"cx": 11,
 			"cz": -1,
 			"file": "chunk_11_-1.json",
-			"sha256": "70ce0b53d371911e385d34fe64e676f0c9eb8fb38ce649c6e88d3845234de45f"
+			"sha256": "35de3c5eb8b30e72551404fa8050abc2e6abf5037a3f1dcb423ce74d2da4df96"
 		},
 		{
 			"aabb": {
@@ -18609,17 +18609,17 @@
 		{
 			"aabb": {
 				"max": [
-					2999.068,
-					15.428,
-					2052.788
+					2999.304,
+					15.848,
+					2051.98
 				],
 				"min": [
-					2990.252,
+					2990.016,
 					0.0,
-					2043.972
+					2044.78
 				]
 			},
-			"bytes": 1703,
+			"bytes": 1699,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -18643,7 +18643,7 @@
 			"cx": 11,
 			"cz": 8,
 			"file": "chunk_11_8.json",
-			"sha256": "a11c1722e2beb61d37473de904faa2fefaa47769078242301d7724cf2d5eff8d"
+			"sha256": "9fc4cea3d49ce6392a2590ff33a66af0ed6672f5719b6f5b55bf8e181282d479"
 		},
 		{
 			"aabb": {
@@ -19040,7 +19040,7 @@
 				"max": [
 					3329.28,
 					17.93,
-					-2811.695
+					-2810.78
 				],
 				"min": [
 					2937.41,
@@ -19048,7 +19048,7 @@
 					-3079.7
 				]
 			},
-			"bytes": 13668,
+			"bytes": 13672,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -19072,13 +19072,13 @@
 			"cx": 12,
 			"cz": -12,
 			"file": "chunk_12_-12.json",
-			"sha256": "c23741d610b8b395f516f824e2f910a91429e570a40ef46f4f90d852bc7fe987"
+			"sha256": "fbb20237c33be1339ed9ec77f20912810a60a12f52c58eb28d2aef05e0f97d3d"
 		},
 		{
 			"aabb": {
 				"max": [
-					3252.355,
-					13.912,
+					3251.815,
+					13.853,
 					-2552.55
 				],
 				"min": [
@@ -19087,7 +19087,7 @@
 					-2947.02
 				]
 			},
-			"bytes": 43894,
+			"bytes": 43900,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -19111,7 +19111,7 @@
 			"cx": 12,
 			"cz": -11,
 			"file": "chunk_12_-11.json",
-			"sha256": "8d532722dc4faf2e90733d0d77929d360839fe96aa62fc207e43e29505d04d00"
+			"sha256": "67c45d5bf43b9cf585bab4615298d4016251c1aa72730beb810bd3c29d20aa1f"
 		},
 		{
 			"aabb": {
@@ -19123,10 +19123,10 @@
 				"min": [
 					3065.41,
 					0.0,
-					-2563.14
+					-2563.02
 				]
 			},
-			"bytes": 23254,
+			"bytes": 23255,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -19150,7 +19150,7 @@
 			"cx": 12,
 			"cz": -10,
 			"file": "chunk_12_-10.json",
-			"sha256": "852922ba30be4cdfc0a1e5f639106ed239a8b4f1d47a025d9ce63a3dfdbae45d"
+			"sha256": "4293a2bdbd9e56fa98856cc1e7be71a55744defe46e55af8198f1ddf27a1cca0"
 		},
 		{
 			"aabb": {
@@ -19282,7 +19282,7 @@
 					-1581.665
 				]
 			},
-			"bytes": 62999,
+			"bytes": 63004,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -19306,7 +19306,7 @@
 			"cx": 12,
 			"cz": -6,
 			"file": "chunk_12_-6.json",
-			"sha256": "f77dd63f48d20e80bd3ad839ecfb7b490090842c832c85a673bcb9d6e2eec0ff"
+			"sha256": "5e26faac4609685c5c06cee30622eb7c978b364d24ef29f76636a10f8d10772d"
 		},
 		{
 			"aabb": {
@@ -19429,7 +19429,7 @@
 			"aabb": {
 				"max": [
 					3350.81,
-					16.17,
+					16.254,
 					-253.329
 				],
 				"min": [
@@ -19438,7 +19438,7 @@
 					-528.27
 				]
 			},
-			"bytes": 66502,
+			"bytes": 66490,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -19462,22 +19462,22 @@
 			"cx": 12,
 			"cz": -2,
 			"file": "chunk_12_-2.json",
-			"sha256": "55d7dfa0fe6aa6ffd3a1df3f723b473e4f1e087a95d4138765b3219069a03543"
+			"sha256": "8ed3505b994b86a69091162d059daa138e4f5a23110b40fda15c149b4a95e3df"
 		},
 		{
 			"aabb": {
 				"max": [
 					3343.529,
-					16.17,
+					16.464,
 					1.549
 				],
 				"min": [
 					3067.938,
 					0.0,
-					-260.198
+					-260.322
 				]
 			},
-			"bytes": 79535,
+			"bytes": 79528,
 			"counts": {
 				"ballast_quads": 63,
 				"creek_quads": 0,
@@ -19510,7 +19510,7 @@
 			"cx": 12,
 			"cz": -1,
 			"file": "chunk_12_-1.json",
-			"sha256": "e1f9ef24a773fc618d36bdce785e5af3232e989a8899a641e655a703c1710c99"
+			"sha256": "6764b26d2306bbb3384b67393aa25f2dae20f6d534cf1d700c9b8a325a597c9c"
 		},
 		{
 			"aabb": {
@@ -19798,7 +19798,7 @@
 					1773.02
 				]
 			},
-			"bytes": 21187,
+			"bytes": 21193,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -19822,22 +19822,22 @@
 			"cx": 12,
 			"cz": 7,
 			"file": "chunk_12_7.json",
-			"sha256": "faf7a511e7bcc50699c4a6969554b0e5241a358472990395a0694fc64d0b937b"
+			"sha256": "9e6e357482ab7a19a34bc22c8a8013f6b34675dbbfe68f5a84126ace91f52db9"
 		},
 		{
 			"aabb": {
 				"max": [
 					3328.0,
-					16.478,
+					16.044,
 					2304.0
 				],
 				"min": [
-					3129.014,
+					3128.422,
 					0.0,
 					2048.0
 				]
 			},
-			"bytes": 13229,
+			"bytes": 13228,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -19861,7 +19861,7 @@
 			"cx": 12,
 			"cz": 8,
 			"file": "chunk_12_8.json",
-			"sha256": "72c6625f24b5503b3652166c320f3464ab0563f1206b02ce5082496cba1053bb"
+			"sha256": "1072c46ed692b3b08f53a756f9dcd5f59f8851d971b1321087acc55d897a2cef"
 		},
 		{
 			"aabb": {
@@ -20656,7 +20656,7 @@
 					-517.03
 				]
 			},
-			"bytes": 49326,
+			"bytes": 49315,
 			"counts": {
 				"ballast_quads": 19,
 				"creek_quads": 0,
@@ -20680,7 +20680,7 @@
 			"cx": 13,
 			"cz": -2,
 			"file": "chunk_13_-2.json",
-			"sha256": "87cf0aad3919e6862eb4822358c5a401edc07894c1b5ae7280d8ce5d77cc0456"
+			"sha256": "7ae6328a89d9d6ccb31ac7322b19fd4009216ec787f76070410b909682ceaea9"
 		},
 		{
 			"aabb": {
@@ -20998,7 +20998,7 @@
 			"aabb": {
 				"max": [
 					3558.12,
-					16.408,
+					16.45,
 					2061.101
 				],
 				"min": [
@@ -21007,7 +21007,7 @@
 					1754.926
 				]
 			},
-			"bytes": 18980,
+			"bytes": 18976,
 			"counts": {
 				"ballast_quads": 0,
 				"creek_quads": 0,
@@ -21031,7 +21031,7 @@
 			"cx": 13,
 			"cz": 7,
 			"file": "chunk_13_7.json",
-			"sha256": "b18d5794eee8c376ba36b3efce9316980c45039c367b996fb712163808df6630"
+			"sha256": "a66f717f4d30faa7089f330b4aa5ce99b5afc9840751b60e87ec26783500ef09"
 		},
 		{
 			"aabb": {
@@ -21713,10 +21713,10 @@
 	"pack_schema": "ames_core/v4",
 	"pack_version": 4,
 	"schema": "ames_chunks/v6",
-	"total_sha256": "66bbb93c4e653bda7bdf418bcb395aca281bb494bbce53d3b2d239888831d353",
+	"total_sha256": "8f93295957b29fa6f1746392efb95b748e405121ec2362326c5357c64d040175",
 	"totals": {
 		"ballast_quads": 1115,
-		"bytes": 13459783,
+		"bytes": 13459317,
 		"chunks": 553,
 		"creek_quads": 525,
 		"crossings": 14,
