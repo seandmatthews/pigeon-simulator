@@ -343,6 +343,16 @@ var ghost_plaques: Array[Dictionary] = []
 ## the gate like the venue-sign arrays.
 var street_blades: Array[Dictionary] = []
 
+## (T-201) The campus + civic name plaques — one record per nominative
+## building-name plaque under the `CampusPlaques` root: the pinned building
+## list's names in plain type (name + survey year only, no marks — the legal
+## line), hung on the R3 heroes' own faces (the Marston tower as the one
+## free-standing base marker). The staged Reiman Gardens spec (out of core,
+## the T-204 dependency) builds nothing and rides only in
+## `AmesCampusPlaques.PLAQUES`. World-local (= the pack frame), retained for
+## the gate like the other sign arrays.
+var campus_plaques: Array[Dictionary] = []
+
 ## (T-192) The frontage-row slots collected while the chunks parse (the
 ## authored downtown massing in the Main/5th frontage bands), consumed by
 ## the step-3 fabric build — the cornice hints ride the bake's own slot
@@ -588,6 +598,7 @@ func generate_step_finish() -> void:
 	_build_venue_signs() ## (T-198) The Tier-1 venue names on their street walls.
 	_build_venue_signs_tiers() ## (T-199) Tiers 2–3 + the mourned ghost plaques.
 	_build_street_blades() ## (T-200) The spine street-name blades at the pinned corners.
+	_build_campus_plaques() ## (T-201) The campus + civic name plaques on the heroes.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -643,6 +654,7 @@ func generate_step_finish() -> void:
 		"venue_signs_t23": venue_signs_t23.size(), ## (T-199) The tiers 2–3 signs are live.
 		"ghost_plaques": ghost_plaques.size(), ## (T-199) The mourned plaques are live.
 		"street_blades": street_blades.size(), ## (T-200) The street-name blades are live.
+		"campus_plaques": campus_plaques.size(), ## (T-201) The name plaques are live.
 		"cq_truck_parts": _cq_truck_parts(),
 		"crossbuck_crossings": crossbuck_pins.size(),
 		"crossbuck_posts": _crossbuck_post_xfs.size(),
@@ -7004,6 +7016,24 @@ func _build_street_blades() -> void:
 	root.name = "StreetBlades"
 	add_child(root)
 	street_blades = AmesStreetBlades.build(traffic_graph, root)
+
+
+## --- T-201 the campus + civic name plaques ----------------------------------
+## The pinned building list's nominative names in plain type (name + the
+## survey's year, nothing else — no wordmark, no Cy, no athletics marks, no
+## railroad brands), hung one gap off the R3 heroes' own pinned faces through
+## `AmesCampusPlaques` (the mount table lives there; this is only the world
+## wiring). The Marston tower rides the free-standing base-marker form; the
+## staged Reiman Gardens spec (out of core, the T-204 dependency) places when
+## that bake extension lands. Visual-only (the T-197 scope), pack-frame
+## coordinates, zero RNG — a rebuild reproduces every mount byte-identically.
+## Runs AFTER the heroes (built in the chunk walk) so the gate's re-derivation
+## against the hero part records sees the finished geometry.
+func _build_campus_plaques() -> void:
+	var root := Node3D.new()
+	root.name = "CampusPlaques"
+	add_child(root)
+	campus_plaques = AmesCampusPlaques.build(root)
 
 
 ## The Superdog cart's part count for the report (0 before the signs build).

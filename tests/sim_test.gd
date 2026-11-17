@@ -209,6 +209,7 @@ func _run_scenarios() -> void:
 	await _scenario_venue_signs_tier1() ## T-198 — the fourteen Tier-1 venue names at their verified mounts, re-derived from the bake + pack.
 	await _scenario_venue_signs_tiers() ## T-199 — the tiers 2–3 names + the mourned ghost plaques at their verified mounts, re-derived from the bake + pack.
 	await _scenario_street_blades_pins() ## T-200 — the spine street-name blades at the pinned corners: the corner list + text pins, re-derived from the graph + pack.
+	await _scenario_campus_plaques_pins() ## T-201 — the campus + civic name plaques: the building list + text pins, re-derived from the hero records.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -12429,6 +12430,337 @@ func _blade_member_of(graph: AmesTrafficGraph, anchor: int, edge: int) -> int:
 			if e == edge:
 				return member
 	return graph.intersection_head(anchor)
+
+
+## T-201 — the campus + civic name plaques, live on the resident world: the
+## pinned building list's NOMINATIVE names in plain type (name + the survey's
+## own year, nothing else — no university wordmark, no Cy, no athletics
+## marks, no logo shields, no railroad brands: "Ames Depot", never C&NW),
+## hung on the R3 heroes' own faces, with the Marston tower as the one
+## free-standing base marker and Reiman Gardens as the one staged spec (the
+## pack marks it in_core false — the honest T-204 dependency). Every leg
+## re-derives independently of the module table: the texts byte-exact against
+## the typed survey names + the year-suffix law, the EXCLUDED-MARK scan over
+## every text, the plain-typography law on the live nodes (one slab mesh +
+## one unshaded type face, the typology's cream/ink, zero emission, zero
+## outline — a logo shield would be a second mesh, which cannot exist here),
+## the budget + face-fit laws through the component, and the mounts against
+## the LIVE hero part records (`AmesWorld`'s `*_hero_parts` arrays — the
+## geometry the player flies past): the wall-exists leg (the point behind the
+## slab is inside a real hero box), the CLIP leg (no hero box penetrates the
+## slab's own volume — the Beardshear column law), the span/top/ground legs,
+## and the marker's clear-of-the-union leg.
+func _scenario_campus_plaques_pins() -> void:
+	const S := "campus_plaques_pins"
+	var bad: PackedStringArray = []
+	var world := _city as AmesWorld
+	if world == null:
+		_check(S, false, "the harness world is not an AmesWorld")
+		return
+	var records := world.campus_plaques
+	## The ticket's pinned building list, typed here from the survey
+	## (LANDMARKS C1..C10 + T3, the depot per MODELING-SPECS §1.8) — the
+	## byte-exact texts: the name plus AT MOST the survey's own year.
+	var texts: Array[String] = [
+		"Campanile — 1897",
+		"Beardshear Hall — 1906",
+		"Morrill Hall — 1891",
+		"Farm House — 1860–61",
+		"Memorial Union — 1928",
+		"Parks Library — 1925",
+		"Marston Water Tower — 1897",
+		"Jack Trice Stadium — 1975",
+		"Hilton Coliseum — 1971",
+		"Ames City Hall",
+		"Ames Depot — 1906",
+		"Reiman Gardens — 1995",
+	]
+	## The year each plaque may carry ("" = the survey pins none — City Hall
+	## stays name-only rather than inventing a date; the ticket's "dates may
+	## appear" law).
+	var years: Dictionary = {
+		"campanile": "1897", "beardshear": "1906", "morrill": "1891",
+		"farm_house": "1860–61", "mu": "1928", "parks": "1925",
+		"marston_tower": "1897", "jack_trice": "1975", "hilton": "1971",
+		"city_hall": "", "depot": "1906", "reiman_gardens": "1995",
+	}
+	## THE EXCLUDED LIST (the ticket's legal line, machine-read): any of
+	## these in any plaque text fails the gate — names in plain type only.
+	var excluded: Array[String] = [
+		"Iowa State", "ISU", "Cyclone", "Cy", "MidAmerican", "C&NW",
+		"North Western", "Union Pacific", "Amtrak",
+	]
+	## The hero part records each plaque's mount re-derives against: the
+	## record array property + the `hero` tag inside it ("" = whole array).
+	var hero_arrays: Dictionary = {
+		"campanile": ["campanile_hero_parts", ""],
+		"beardshear": ["campus_row_hero_parts", "beardshear"],
+		"morrill": ["campus_row_hero_parts", "morrill"],
+		"farm_house": ["campus_row_hero_parts", "farm_house"],
+		"mu": ["mu_parks_hero_parts", "memorial_union"],
+		"parks": ["mu_parks_hero_parts", "parks_library"],
+		"marston_tower": ["marston_hero_parts", ""],
+		"jack_trice": ["stadium_hero_parts", ""],
+		"hilton": ["hilton_hero_parts", ""],
+		"city_hall": ["civic_hero_parts", "cityhall"],
+		"depot": ["depot_hero_parts", ""],
+	}
+	## Table shape: the ticket's 12, exactly one staged (Reiman), 11 placed.
+	if AmesCampusPlaques.PLAQUES.size() != 12:
+		bad.append("module table %d entries want 12"
+				% AmesCampusPlaques.PLAQUES.size())
+	var staged_ids: Array[String] = []
+	for e: Dictionary in AmesCampusPlaques.PLAQUES:
+		if bool(e["staged"]):
+			staged_ids.append(str(e["id"]))
+		if not (e["text"] as String) in texts:
+			bad.append("table text not a pinned survey text: %s" % e["text"])
+	if staged_ids != ["reiman_gardens"]:
+		bad.append("staged set %s want exactly reiman_gardens" % [staged_ids])
+	else:
+		var staged_entry: Dictionary = {}
+		for e: Dictionary in AmesCampusPlaques.PLAQUES:
+			if str(e["id"]) == "reiman_gardens":
+				staged_entry = e
+		if not (staged_entry["note"] as String).contains("T-204"):
+			bad.append("the staged Reiman note drops the T-204 dependency")
+	if records.size() != 11:
+		bad.append("placed records %d want 11" % records.size())
+	## The staged spec builds nothing.
+	var plaque_root := world.get_node_or_null("CampusPlaques") as Node3D
+	if plaque_root == null:
+		bad.append("no CampusPlaques root")
+	else:
+		for c: Node in plaque_root.get_children():
+			if c.name.begins_with("Plaque_reiman_gardens"):
+				bad.append("the staged Reiman Gardens built a world node")
+	for rec: Dictionary in records:
+		if str(rec["id"]) == "reiman_gardens":
+			bad.append("the staged Reiman Gardens produced a placed record")
+	## The pack leg: the staged POI really is out of the bake core.
+	for p: Dictionary in AmesDataPack.pois():
+		if str(p.get("id", "")) != "reiman_gardens":
+			continue
+		if bool(p.get("in_core", true)):
+			bad.append("reiman_gardens pack POI claims in_core — the staged "
+					+ "dependency is stale")
+	## Per-record legs.
+	for rec: Dictionary in records:
+		var id := str(rec["id"])
+		var text := str(rec["text"])
+		if not text in texts:
+			bad.append("%s text not in the pinned list" % id)
+		## The year-suffix law: name + at most one " — year" matching the
+		## survey's pinned year.
+		var parts := text.split(" — ")
+		if parts.size() > 2:
+			bad.append("%s text carries more than a name + year" % id)
+		var want_year := str(years.get(id, "?"))
+		var got_year := parts[1] if parts.size() == 2 else ""
+		if got_year != want_year:
+			bad.append("%s year '%s' want '%s'" % [id, got_year, want_year])
+		## THE EXCLUDED-MARK SCAN (the legal line, machine-read).
+		for token: String in excluded:
+			if text.contains(token):
+				bad.append("%s text carries excluded mark '%s'" % [id, token])
+		var sign: SignText = rec["node"]
+		if sign == null or not is_instance_valid(sign):
+			bad.append("%s record node is gone" % id)
+			continue
+		if sign.typology != SignText.Typology.PLAQUE:
+			bad.append("%s typology %d want PLAQUE" % [id, sign.typology])
+		if sign.display_text() != text:
+			bad.append("%s display '%s' want '%s'" % [id, sign.display_text(),
+					text])
+		## The plain-typography law: exactly ONE body slab mesh + ONE type
+		## face (a logo shield, wordmark graphic or mascot art would be a
+		## second mesh / a decoration — the PLAQUE build cannot make one).
+		var spec: Dictionary = SignText.SPEC[SignText.Typology.PLAQUE]
+		var meshes := 0
+		var faces := 0
+		var body_mesh: MeshInstance3D = null
+		for c2: Node in sign.get_children():
+			if c2 is MeshInstance3D:
+				meshes += 1
+				body_mesh = c2
+			elif c2 is Label3D:
+				faces += 1
+		if meshes != 1 or faces != 1:
+			bad.append("%s carries %d meshes / %d faces want 1/1 (zero "
+					+ "mark-like graphics)" % [id, meshes, faces])
+		if body_mesh != null and body_mesh.mesh != null:
+			var mat := body_mesh.mesh.surface_get_material(0) \
+					as StandardMaterial3D
+			if mat != null and mat.emission_enabled:
+				bad.append("%s slab carries emission (plaques are not lit)" % id)
+			if mat != null and not (mat.albedo_color as Color).is_equal_approx(
+					spec["body_color"]):
+				bad.append("%s slab is not the typology cream (no brand color)"
+						% id)
+		for c3: Node in sign.get_children():
+			if c3 is Label3D:
+				var label := c3 as Label3D
+				if label.outline_size != 0:
+					bad.append("%s type carries an outline (plain type only)"
+							% id)
+				if not (label.modulate as Color).is_equal_approx(
+						spec["text_color"]):
+					bad.append("%s type is not the typology ink" % id)
+				if label.shaded:
+					bad.append("%s face is shaded" % id)
+		## The budget law + the face-fit law.
+		var letter := float(rec["letter"])
+		if absf(sign.effective_letter_height() - letter) > 0.0001:
+			bad.append("%s letter %.3f != pinned %.3f" % [id,
+					sign.effective_letter_height(), letter])
+		if not is_equal_approx(sign.readable_distance(),
+				letter * float(spec["budget"])):
+			bad.append("%s readable %.2f want %.2f" % [id,
+					sign.readable_distance(), letter * float(spec["budget"])])
+		var band: Vector3 = rec["band"]
+		if (sign.body_scale - band).length() > 0.0001:
+			bad.append("%s band %s want %s" % [id, sign.body_scale, band])
+		var slab: Vector3 = band if band != Vector3.ZERO \
+				else (spec["body"] as Vector3)
+		var px := letter / (float(SignText.FONT_SIZE_PX) * SignText.CAP_HEIGHT_EM)
+		var w := SignText.FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT,
+				-1, SignText.FONT_SIZE_PX).x * px
+		if w > slab.x - 0.2:
+			bad.append("%s lettering %.2f m overflows its %.2f m face" % [id,
+					w, slab.x])
+		## Visual-only + placement rides the mount.
+		if _has_collision(sign):
+			bad.append("%s carries collision (visual-only law)" % id)
+		## The mount, re-derived from the entry literals (the same face
+		## formulas the module encodes).
+		var face := str(rec["face"])
+		var plane := float(rec["plane"])
+		var u := float(rec["wall_u"])
+		var y := float(rec["mount_y"])
+		var stand := slab.z * 0.5 + AmesCampusPlaques.WALL_GAP
+		var want_pos := Vector3.ZERO
+		var want_yaw := 0.0
+		var normal := Vector3.ZERO ## The outward face normal (for the legs).
+		match face:
+			"marker":
+				want_pos = rec["marker_pos"] as Vector3
+				want_yaw = atan2(1.0, 0.0)
+				normal = Vector3(1.0, 0.0, 0.0)
+			"E":
+				want_pos = Vector3(plane + stand, y, u)
+				want_yaw = atan2(1.0, 0.0)
+				normal = Vector3(1.0, 0.0, 0.0)
+			"W":
+				want_pos = Vector3(plane - stand, y, u)
+				want_yaw = atan2(-1.0, 0.0)
+				normal = Vector3(-1.0, 0.0, 0.0)
+			"N":
+				want_pos = Vector3(u, y, plane - stand)
+				want_yaw = atan2(0.0, -1.0)
+				normal = Vector3(0.0, 0.0, -1.0)
+			_:
+				want_pos = Vector3(u, y, plane + stand)
+				want_yaw = atan2(0.0, 1.0)
+				normal = Vector3(0.0, 0.0, 1.0)
+		if sign.position.distance_to(want_pos) > 0.001:
+			bad.append("%s mount %s off the re-derived wall mount %s" % [id,
+					sign.position, want_pos])
+		if absf(wrapf(float(rec["yaw"]) - want_yaw, -PI, PI)) > 0.001:
+			bad.append("%s yaw %.3f want %.3f" % [id, rec["yaw"], want_yaw])
+		## The hero legs — against the LIVE hero part records.
+		var ha: Array = hero_arrays.get(id, [])
+		if ha.is_empty():
+			bad.append("%s has no hero record map" % id)
+			continue
+		var parts_all: Array[Dictionary] = []
+		for part: Dictionary in world.get(str(ha[0])):
+			if str(ha[1]) == "" or str(part.get("hero", "")) == str(ha[1]):
+				parts_all.append(part)
+		if parts_all.is_empty():
+			bad.append("%s hero records empty (%s.%s)" % [id, str(ha[0]),
+					str(ha[1])])
+			continue
+		var union := AABB()
+		var first := true
+		for part: Dictionary in parts_all:
+			var p: Vector3 = part["p"]
+			var s: Vector3 = part["s"]
+			var box := AABB(p - s * 0.5, s)
+			union = box if first else union.merge(box)
+			first = false
+		if face == "marker":
+			## The marker stands CLEAR of the hero union (the Marston
+			## trestle reaches x −43.83; the marker hangs east of it) and
+			## rides its post from the ground.
+			var mp := want_pos
+			if mp.x <= union.end.x + 0.5:
+				bad.append("%s marker not clear of the tower (%.2f vs %.2f)"
+						% [id, mp.x, union.end.x])
+			var post := plaque_root.get_node_or_null(
+					"MarkerPost_%s" % id) as MeshInstance3D
+			if post == null:
+				bad.append("%s marker post missing" % id)
+			else:
+				var pm := post.mesh.surface_get_material(0) \
+						as StandardMaterial3D
+				if pm == null or not pm.albedo_color.is_equal_approx(
+						AmesCampusPlaques.MARKER_POST_COLOR):
+					bad.append("%s marker post not the post gray" % id)
+				if absf(post.position.y * 2.0
+						- AmesCampusPlaques.MARKER_POST_H) > 0.01:
+					bad.append("%s marker post height off the slab bottom" % id)
+				if post.position.distance_to(Vector3(mp.x,
+						post.position.y, mp.z)) > 0.01:
+					bad.append("%s marker post not under its slab" % id)
+		else:
+			## Wall-exists: the point BEHIND the slab is inside a real hero
+			## box — the plaque hangs on the wall the player sees.
+			var behind := want_pos - normal * (slab.z * 0.5 + 0.1)
+			var on_wall := false
+			for part: Dictionary in parts_all:
+				var p2: Vector3 = part["p"]
+				var s2: Vector3 = part["s"]
+				if AABB(p2 - s2 * 0.5, s2).has_point(behind):
+					on_wall = true
+					break
+			if not on_wall:
+				bad.append("%s mounts off any hero wall (behind %s)" % [id,
+						behind])
+			## The clip leg: NO hero box penetrates the slab's own volume
+			## (the Beardshear column law) — shrink the slab a hair so the
+			## designed 0.01 wall gap can never false-fail.
+			var half_x := slab.x * 0.5 if absf(normal.x) > 0.5 \
+					else slab.z * 0.5
+			var half_z := slab.z * 0.5 if absf(normal.x) > 0.5 \
+					else slab.x * 0.5
+			var slab_aabb := AABB(want_pos - Vector3(half_x, slab.y * 0.5,
+					half_z), Vector3(half_x * 2.0, slab.y, half_z * 2.0))
+			slab_aabb = slab_aabb.grow(-0.002)
+			for part: Dictionary in parts_all:
+				var p3: Vector3 = part["p"]
+				var s3: Vector3 = part["s"]
+				if slab_aabb.intersects(AABB(p3 - s3 * 0.5, s3)):
+					bad.append("%s slab clips a hero box (band/patch law)"
+							% id)
+					break
+			## Span + height legs: the slab inside the face span, below the
+			## hero top, above the ground.
+			var along_x := absf(normal.z) > 0.5
+			var half_u := half_x if along_x else half_z
+			var u_lo := union.position.x if along_x else union.position.z
+			var u_hi := union.end.x if along_x else union.end.z
+			if u - half_u < u_lo - 0.01 or u + half_u > u_hi + 0.01:
+				bad.append("%s slab exceeds its face span" % id)
+			if y + slab.y * 0.5 > union.end.y + 0.01:
+				bad.append("%s mounts above its hero top" % id)
+			if y - slab.y * 0.5 < 0.2:
+				bad.append("%s mounts at the ground line" % id)
+	## The world report key.
+	var report: Dictionary = world.last_report
+	if int(report.get("campus_plaques", -1)) != records.size():
+		bad.append("report campus_plaques %s want %d"
+				% [str(report.get("campus_plaques")), records.size()])
+	_check(S, bad.is_empty(), "; ".join(bad) if not bad.is_empty() else "-")
 
 
 ## The nearest segment of ONE NAMED street to a world position (y ignored) —
