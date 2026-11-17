@@ -380,7 +380,7 @@ scan (T-170 was max; no workflows in flight).
 | T-196 | [R3 cutover](T-196-ames-r3-cutover.md) | R3 The Landmarks | T-185..T-195 | done |
 | T-197 | [Text capability](T-197-ames-text-capability.md) | R4 The Names | T-196 | done |
 | T-198 | [Venue signs tier 1](T-198-venue-signs-tier1.md) | R4 The Names | T-197 | done |
-| T-199 | [Venue signs tiers 2–3 + ghost plaques](T-199-venue-signs-tier2-3.md) | R4 The Names | T-198 | doing |
+| T-199 | [Venue signs tiers 2–3 + ghost plaques](T-199-venue-signs-tier2-3.md) | R4 The Names | T-198 | done |
 | T-200 | [Street name blades](T-200-street-name-blades.md) | R4 The Names | T-197, T-180 | proposed |
 | T-201 | [Campus name plaques](T-201-campus-name-plaques.md) | R4 The Names | T-197 | proposed |
 | T-202 | [R4 cutover](T-202-ames-r4-cutover.md) | R4 The Names | T-198..T-201 | proposed |
