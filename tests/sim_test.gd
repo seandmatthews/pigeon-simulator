@@ -174,6 +174,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_data_integrity() ## T-171 — FIRST: pure data over the committed Ames pack; touches no rig and no city.
 	await _scenario_ames_bake_census() ## T-172 — pure data over the committed chunk bake; still no rig and no city.
 	await _scenario_ames_bake_determinism() ## T-172 — re-bake in-scenario must reproduce the committed manifest hash.
+	await _scenario_ames_filler_variants() ## T-206 — the district-variant set: the §3 roof/setback/porch law over the committed bake, per-district distribution pinned, footprints identical, determinism re-manifested.
 	await _scenario_ames_bbox_east() ## T-203 — the v2 bbox east: the new consts, Bandshell Park playable inside the core (ground, hero supersede, bread reach), the census re-pins diff-proven against the recorded v1 pins.
 	await _scenario_ames_extension_north() ## T-205 — the v4 bbox north: the consts, Ada Hayden's twin quarry lakes at data geometry (the twin-lobed ring, the quarry shore), the trail ring walkable-adjacent, The Cafe placed at its true Northridge position, the north parks per data.
 	await _scenario_ames_world_render_budget() ## T-173 — the resident bake inside the draw/memory budget.
@@ -1006,6 +1007,261 @@ func _scenario_ames_bake_determinism() -> void:
 	_check(S, bad.is_empty(), "; ".join(bad))
 
 
+## (T-206) The filler-dressing law over the committed chunks — pure data (beside
+## the census/determinism rows, no rig), the acceptance's "variant distribution
+## pins per district; bake determinism re-manifested". MODELING-SPECS §3:
+## gabled residential (§3.6, the §1.10 house portraits' pitch classes), porch
+## hints + chimneys as the lot-level variation (§1.10 LOD), the downtown
+## cornice band (§3.2), the Campustown scruff mix (§3.3), the campus flat +
+## mechanical screens (§3.7), the Lincoln Way strip mix (§3.4). Arms:
+## 1. RE-MANIFESTED — an in-scenario re-bake reproduces the committed
+##    total_sha256 (per-chunk identity stays the `ames_bake_determinism` law).
+## 2. THE LAW — every non-hero massing entry carries a legal `v` for its
+##    district and baked height; the ten hero slots carry none (the
+##    silhouettes supersede 1:1 at every layer) and no roof/dress id is a
+##    hero; every roof/dress entry shares its building's chunk.
+## 3. FOOTPRINTS IDENTICAL — every massing p/s equals the census §7.4
+##    recompute from the pack (height clamp + level ladder + footprint
+##    bands, the §3.10 cap), so the collision feed (the authored boxes'
+##    transforms) is unchanged by dressing; the authored count equals the
+##    pack's authored class count; the district totals equal the v4
+##    distribution dressing inherited (regenerated nothing).
+## 4. DERIVED GEOMETRY 1:1 — roofs == gable variants; dress == the lot/roof
+##    law recomputed from the massing ids (porch deck+canopy pairs, chimneys,
+##    cornices, parapets, screen pairs, penthouses). Today's landing pinned
+##    exactly: roofs 9,163; dress 7,223 (2,100 porch pairs, 1,688 chimneys,
+##    271 cornices, 729 parapets, 156 screen pairs, 23 penthouses).
+func _scenario_ames_filler_variants() -> void:
+	const S := "ames_filler_variants"
+	## The v4 district totals the dressing inherited (the committed manifest's
+	## own pre-T-206 totals; the bbox scenario pins their pack derivation).
+	const DISTRICT_TOTALS := {
+		"residential": 9480, "lincolnway": 622, "campus": 292,
+		"downtown": 272, "campustown": 117,
+	}
+	## Today's landing, pinned exactly (re-pinned per re-bake like bbox_east).
+	const VARIANT_TOTALS := {
+		"residential/gable_hi": 4603, "residential/gable_lo": 4560,
+		"residential/parapet": 316,
+		"downtown/cornice": 271,
+		"campustown/parapet": 47, "campustown/flat": 47,
+		"campustown/penthouse": 23,
+		"campus/screen": 156, "campus/parapet": 47, "campus/flat": 82,
+		"lincolnway/parapet": 319, "lincolnway/flat": 302,
+	}
+	const ROOF_TOTAL := 9163
+	const DRESS_TOTALS := {
+		"porch_deck": 2100, "porch_canopy": 2100, "chimney": 1688,
+		"cornice": 271, "parapet": 729, "screen": 312, "penthouse": 23,
+	}
+	const GABLE_MAX_HEIGHT := 11.5 ## The baker's law, transcribed (no-self-test).
+	var bad: PackedStringArray = PackedStringArray()
+	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	if manifest.is_empty():
+		_check(S, false, "no committed bake at %s" % AMES_CHUNKS_DIR)
+		return
+
+	# --- 1. determinism re-manifested -------------------------------------
+	const REBAKE_DIR := "user://ames_rebake_t206"
+	var rebaked: Dictionary = AmesBaker.bake_to_dir(REBAKE_DIR)
+	if rebaked.is_empty():
+		bad.append("re-bake failed (no manifest)")
+	elif str(rebaked.get("total_sha256", "")) != str(manifest.get("total_sha256", "")):
+		bad.append("re-bake total_sha256 %s != committed %s" % [
+				rebaked.get("total_sha256"), manifest.get("total_sha256")])
+	var sweep := DirAccess.open(REBAKE_DIR)
+	if sweep != null:
+		for f: String in sweep.get_files():
+			sweep.remove(f)
+		DirAccess.remove_absolute(REBAKE_DIR)
+
+	# --- load every chunk once; collect the families -----------------------
+	var heroes: Dictionary = {} ## Hero id -> true (the manifest's supersede law).
+	for h: Variant in manifest.get("heroes", []):
+		heroes[str(h)] = true
+	var var_counts: Dictionary = {} ## "district/variant" -> count.
+	var dress_counts: Dictionary = {} ## role -> count.
+	var want_lot_dress: Dictionary = {"porch_deck": 0, "porch_canopy": 0, "chimney": 0}
+	var roof_count := 0
+	var district_totals: Dictionary = {}
+	var authored_count := 0
+	var massing_by_id: Dictionary = {} ## id -> entry (the footprint arm).
+	for entry: Dictionary in manifest.get("chunks", []):
+		var tile := Vector2i(int(entry["cx"]), int(entry["cz"]))
+		var chunk: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		if chunk.is_empty():
+			bad.append("chunk_file_missing:%s" % entry["file"])
+			continue
+		var id_set: Dictionary = {}
+		for m: Dictionary in chunk.get("massing", []):
+			var mid := str(m.get("id", ""))
+			id_set[mid] = true
+			massing_by_id[mid] = m
+			var dist := str(m.get("d", ""))
+			district_totals[dist] = int(district_totals.get(dist, 0)) + 1
+			if bool(m.get("a", false)):
+				authored_count += 1
+			if heroes.has(mid):
+				if m.has("v"):
+					bad.append("hero slot carries variant: %s" % mid)
+				continue
+			var v := str(m.get("v", ""))
+			if v.is_empty():
+				bad.append("massing without variant: %s" % mid)
+				continue
+			var key := "%s/%s" % [dist, v]
+			var_counts[key] = int(var_counts.get(key, 0)) + 1
+			# The per-district law over the entry's own baked fields.
+			var h := float(m["s"][1])
+			var area := float(m["s"][0]) * float(m["s"][2])
+			var roll := mid.hash()
+			var legal := false
+			match dist:
+				"residential":
+					if h <= GABLE_MAX_HEIGHT:
+						legal = (v == "gable_hi") if roll % 2 == 0 else (v == "gable_lo")
+						# The lot-hint law recomputed for this gabled house
+						# (porch deck+canopy pairs, chimneys) — accumulate.
+						# House-scale only, like the bake's PORCH_HOUSE_MAX_DIM.
+						var bucket0 := (roll / 2) % 10
+						var house_scale := maxf(float(m["s"][0]), float(m["s"][2])) <= 16.0
+						var porch0 := bucket0 < 4 or (bucket0 >= 7 and bucket0 <= 8)
+						var chimney0 := (bucket0 >= 4 and bucket0 <= 6) \
+								or (bucket0 >= 7 and bucket0 <= 8)
+						if porch0 and house_scale:
+							want_lot_dress["porch_deck"] += 1
+							want_lot_dress["porch_canopy"] += 1
+						if chimney0 and house_scale:
+							want_lot_dress["chimney"] += 1
+					else:
+						legal = v == "parapet"
+				"downtown":
+					legal = v == "cornice"
+				"campus":
+					if area >= 400.0:
+						legal = v == "screen"
+					else:
+						legal = v == ("parapet" if roll % 3 == 0 else "flat")
+				"campustown":
+					var bucket := (roll / 2) % 5
+					var want := "parapet" if bucket < 2 else ("flat" if bucket < 4 else "penthouse")
+					legal = v == want
+				_:
+					legal = v == ("parapet" if roll % 2 == 0 else "flat")
+			if not legal:
+				bad.append("illegal variant %s for %s (%s)" % [v, mid, dist])
+		var roof_ids: Dictionary = {}
+		for rf: Dictionary in chunk.get("roofs", []):
+			roof_count += 1
+			roof_ids[str(rf.get("id", ""))] = true
+		for dr: Dictionary in chunk.get("dress", []):
+			var role := str(dr.get("role", ""))
+			dress_counts[role] = int(dress_counts.get(role, 0)) + 1
+			if heroes.has(str(dr.get("id", ""))):
+				bad.append("hero id in dress: %s" % str(dr.get("id", "")))
+			if not id_set.has(str(dr.get("id", ""))):
+				bad.append("dress id not in its chunk's massing: %s" % str(dr.get("id", "")))
+		for rid: String in roof_ids:
+			if heroes.has(rid):
+				bad.append("hero id in roofs: %s" % rid)
+			if not id_set.has(rid):
+				bad.append("roof id not in its chunk's massing: %s" % rid)
+
+	# --- 2. totals: districts unchanged, distribution pinned ---------------
+	for dist: String in DISTRICT_TOTALS:
+		if int(district_totals.get(dist, -1)) != int(DISTRICT_TOTALS[dist]):
+			bad.append("district_%s=%d (want %d — dressing regenerated buildings?)"
+					% [dist, int(district_totals.get(dist, -1)), int(DISTRICT_TOTALS[dist])])
+	for key: String in VARIANT_TOTALS:
+		if int(var_counts.get(key, -1)) != int(VARIANT_TOTALS[key]):
+			bad.append("variants %s=%d (want %d)" % [key, int(var_counts.get(key, -1)),
+					int(VARIANT_TOTALS[key])])
+
+	# --- 3. footprints identical: the census §7.4 recompute from the pack --
+	var pack_authored := 0
+	var checked := 0
+	for b: Dictionary in AmesDataPack.buildings():
+		var bid := str(b.get("id", ""))
+		var m: Dictionary = massing_by_id.get(bid, {})
+		if m.is_empty():
+			bad.append("pack building missing from bake: %s" % bid)
+			continue
+		if str(b.get("class", "")) == "authored":
+			pack_authored += 1
+		# Independent census-§7.4 height: clamp, ladder, footprint bands.
+		var size: Array = b.get("bbox_m", [10.0, 10.0])
+		var w := maxf(float(size[0]), 2.0)
+		var d := maxf(float(size[1]), 2.0)
+		var h: float
+		var hv: Variant = b.get("height_m")
+		if hv != null:
+			h = clampf(float(hv), 2.5, 40.0)
+		else:
+			var lv: Variant = b.get("levels")
+			if lv != null:
+				var n := int(roundf(clampf(float(lv), 1.0, 11.0)))
+				h = [4.0, 8.0, 11.0, 14.0][n - 1] if n <= 4 \
+						else 14.0 + 3.0 * float(n - 4)
+			else:
+				var area := float(size[0]) * float(size[1])
+				h = 8.0 if area < 300.0 else (11.0 if area < 1000.0 else 14.0)
+		var centroid: Array = b.get("centroid", [0.0, 0.0])
+		var want_p := [snappedf(float(centroid[0]), 0.001), snappedf(h * 0.5, 0.001),
+				snappedf(float(centroid[1]), 0.001)]
+		var want_s := [snappedf(w, 0.001), snappedf(h, 0.001), snappedf(d, 0.001)]
+		var gp: Array = m["p"]
+		var gs: Array = m["s"]
+		# Tolerance compare (the census row's convention): the chunk files went
+		# through a JSON round-trip, so a recompute can sit one float ULP from
+		# the stored value while printing identically — 0.002 (half the snap
+		# step) sees real dressing drift, never storage noise.
+		var fp_bad := false
+		for k in 3:
+			if absf(float(gp[k]) - float(want_p[k])) > 0.002 \
+					or absf(float(gs[k]) - float(want_s[k])) > 0.002:
+				fp_bad = true
+		if fp_bad:
+			bad.append("footprint changed by dressing: %s" % bid)
+		checked += 1
+	var district_sum := 0
+	for dist: String in DISTRICT_TOTALS:
+		district_sum += int(DISTRICT_TOTALS[dist])
+	if checked != district_sum:
+		bad.append("pack walk %d != pinned district sum %d" % [checked, district_sum])
+	if district_totals.size() != DISTRICT_TOTALS.size():
+		bad.append("baked districts %s — unexpected district keys" % [district_totals.keys()])
+	if authored_count != pack_authored:
+		bad.append("authored count %d != pack %d (collision feed changed?)"
+				% [authored_count, pack_authored])
+
+	# --- 4. derived geometry 1:1 with the law ------------------------------
+	var gable_count := int(var_counts.get("residential/gable_hi", 0)) \
+			+ int(var_counts.get("residential/gable_lo", 0))
+	if roof_count != gable_count:
+		bad.append("roofs %d != gable variants %d" % [roof_count, gable_count])
+	var want_dress: Dictionary = {
+		"cornice": int(var_counts.get("downtown/cornice", 0)),
+		"parapet": int(var_counts.get("residential/parapet", 0))
+				+ int(var_counts.get("campus/parapet", 0))
+				+ int(var_counts.get("campustown/parapet", 0))
+				+ int(var_counts.get("lincolnway/parapet", 0)),
+		"screen": int(var_counts.get("campus/screen", 0)) * 2,
+		"penthouse": int(var_counts.get("campustown/penthouse", 0)),
+		"porch_deck": int(want_lot_dress["porch_deck"]),
+		"porch_canopy": int(want_lot_dress["porch_canopy"]),
+		"chimney": int(want_lot_dress["chimney"]),
+	}
+	for role: String in DRESS_TOTALS:
+		if int(dress_counts.get(role, -1)) != int(DRESS_TOTALS[role]):
+			bad.append("dress %s=%d (want pinned %d)" % [role,
+					int(dress_counts.get(role, -1)), int(DRESS_TOTALS[role])])
+		if int(dress_counts.get(role, -1)) != int(want_dress.get(role, -1)):
+			bad.append("dress %s=%d != law recompute %d" % [role,
+					int(dress_counts.get(role, -1)), int(want_dress.get(role, -1))])
+
+	_check(S, bad.is_empty(), "; ".join(bad))
+
+
 ## (T-203; T-204 + T-205 re-pins) The bbox east: the smallest map growth,
 ## fixing the census's own ⚠ (Bandshell Park sat ~30 m outside the v1 east
 ## edge). Data pack v2 — the E edge −93.6100 → −93.6070, +248 m east (the
@@ -1719,10 +1975,14 @@ func _scenario_ames_world_render_budget() -> void:
 	## bake grew the chunk set 251 → 551 tiles (the north strip's rows), and
 	## the draw story is PER-CHUNK (one box MultiMesh + one tri MultiMesh +
 	## the occluder per massing tile) — the ceiling scales with the tile set
-	## it draws: 800 × 551/251 ≈ 1757, pinned 1800. The whole-world ceiling
-	## is the every-chunk-visible worst case; the camera-pose ceilings below
-	## stay the gameplay budgets.
-	const DRAW_BUDGET := 1800
+	## it draws: 800 × 551/251 ≈ 1757, pinned 1800. (T-206) the dressing
+	## families joined — one Roofs prism MultiMesh + one Dress box MultiMesh
+	## per gabled/dressed tile, both fading with the massing band — lifting
+	## the every-chunk-visible worst case 1130 → 1829; pinned 1900. The
+	## gameplay pose ceilings below stay 1800 (measured 732 cruise / 71
+	## hover — the poses never see the whole world at once).
+	const DRAW_BUDGET := 1900
+	const POSE_DRAW_BUDGET := 1800 ## The gameplay poses' own budget, kept.
 	const MEMORY_BUDGET_BYTES := 400 * 1024 * 1024
 	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
 	world.position = AMES_WORLD_OFFSET
@@ -1811,6 +2071,7 @@ func _scenario_ames_world_render_budget() -> void:
 			+ int(totals.get("tie_quads", 0)) + int(totals.get("ground_quads", 0)) \
 			+ int(totals.get("trail_quads", 0)) \
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
+			+ int(totals.get("roofs", 0)) + int(totals.get("dress", 0)) \
 			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
 			- row_slot_parts - mu_parks_slot_parts - marston_slot_parts \
 			- complex_slot_parts - downtown_slot_parts - civic_tank_slot_parts \
@@ -1857,10 +2118,10 @@ func _scenario_ames_world_render_budget() -> void:
 	var hover_draws := _frustum_draw_ceiling(world, cam)
 	print("SIM DATA %s: mm_nodes=%d instances=%d buffer_bytes=%d max_mm_per_chunk=%d cruise_draws=%d hover_draws=%d" % [
 			S, m.mm_nodes, m.instances, m.buffer_bytes, mm_per_chunk, cruise_draws, hover_draws])
-	if cruise_draws > DRAW_BUDGET:
-		bad.append("cruise-over-Campustown draws %d > %d" % [cruise_draws, DRAW_BUDGET])
-	if hover_draws > DRAW_BUDGET:
-		bad.append("low-hover-over-downtown draws %d > %d" % [hover_draws, DRAW_BUDGET])
+	if cruise_draws > POSE_DRAW_BUDGET:
+		bad.append("cruise-over-Campustown draws %d > %d" % [cruise_draws, POSE_DRAW_BUDGET])
+	if hover_draws > POSE_DRAW_BUDGET:
+		bad.append("low-hover-over-downtown draws %d > %d" % [hover_draws, POSE_DRAW_BUDGET])
 	_check(S, bad.is_empty(), "; ".join(bad))
 	cam.queue_free()
 	world.queue_free()

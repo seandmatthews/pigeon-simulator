@@ -2,7 +2,7 @@
 	"aabb": {
 		"max": [
 			963.158,
-			14.0,
+			14.4,
 			-5836.63
 		],
 		"min": [
@@ -27,6 +27,11 @@
 			0.4,
 			0.388
 		],
+		"dress": [
+			0.612,
+			0.612,
+			0.58
+		],
 		"ground_quads": [
 			0.38,
 			0.46,
@@ -46,6 +51,11 @@
 			0.29,
 			0.29,
 			0.31
+		],
+		"roofs": [
+			0.306,
+			0.306,
+			0.322
 		],
 		"shore_quads": [
 			0.435,
@@ -72,6 +82,7 @@
 		"ballast_quads": 0,
 		"creek_quads": 0,
 		"crossings": 0,
+		"dress": 1,
 		"ground_quads": 0,
 		"lane_quads": 0,
 		"lawn_tris": 14,
@@ -79,6 +90,7 @@
 		"occluders": 1,
 		"placeholders": 0,
 		"ribbons": 8,
+		"roofs": 0,
 		"shore_quads": 0,
 		"tie_quads": 0,
 		"trail_quads": 0,
@@ -86,6 +98,27 @@
 	},
 	"creek_quads": [],
 	"crossings": [],
+	"dress": [
+		{
+			"c": [
+				0.8361,
+				0.8262,
+				0.7974
+			],
+			"id": "way/1191304900",
+			"p": [
+				899.29,
+				14.2,
+				-6046.1
+			],
+			"role": "parapet",
+			"s": [
+				74.8,
+				0.4,
+				92.0
+			]
+		}
+	],
 	"ground_quads": [],
 	"lane_quads": [],
 	"lawn_tris": [
@@ -276,9 +309,9 @@
 		{
 			"a": true,
 			"c": [
-				0.894,
-				0.863,
-				0.784
+				0.929,
+				0.918,
+				0.886
 			],
 			"d": "residential",
 			"id": "way/1191304900",
@@ -291,7 +324,8 @@
 				74.2,
 				14.0,
 				91.4
-			]
+			],
+			"v": "parapet"
 		}
 	],
 	"occluders": [
@@ -437,7 +471,8 @@
 			]
 		}
 	],
-	"schema": "ames_chunks/v4",
+	"roofs": [],
+	"schema": "ames_chunks/v5",
 	"shore_quads": [],
 	"tie_quads": [],
 	"tile": {

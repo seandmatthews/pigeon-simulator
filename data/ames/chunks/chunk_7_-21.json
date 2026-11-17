@@ -2,7 +2,7 @@
 	"aabb": {
 		"max": [
 			2052.43,
-			8.0,
+			10.95,
 			-4993.191
 		],
 		"min": [
@@ -27,6 +27,11 @@
 			0.4,
 			0.388
 		],
+		"dress": [
+			0.612,
+			0.612,
+			0.58
+		],
 		"ground_quads": [
 			0.38,
 			0.46,
@@ -46,6 +51,11 @@
 			0.29,
 			0.29,
 			0.31
+		],
+		"roofs": [
+			0.306,
+			0.306,
+			0.322
 		],
 		"shore_quads": [
 			0.435,
@@ -72,6 +82,7 @@
 		"ballast_quads": 0,
 		"creek_quads": 0,
 		"crossings": 0,
+		"dress": 1,
 		"ground_quads": 0,
 		"lane_quads": 0,
 		"lawn_tris": 56,
@@ -79,6 +90,7 @@
 		"occluders": 1,
 		"placeholders": 0,
 		"ribbons": 0,
+		"roofs": 1,
 		"shore_quads": 21,
 		"tie_quads": 0,
 		"trail_quads": 8,
@@ -86,6 +98,27 @@
 	},
 	"creek_quads": [],
 	"crossings": [],
+	"dress": [
+		{
+			"c": [
+				0.588,
+				0.318,
+				0.227
+			],
+			"id": "way/1092175020",
+			"p": [
+				1861.26,
+				9.475,
+				-5227.98
+			],
+			"role": "chimney",
+			"s": [
+				0.9,
+				2.95,
+				0.9
+			]
+		}
+	],
 	"ground_quads": [],
 	"lane_quads": [],
 	"lawn_tris": [
@@ -823,8 +856,8 @@
 			"a": false,
 			"c": [
 				0.847,
-				0.796,
-				0.663
+				0.804,
+				0.706
 			],
 			"d": "residential",
 			"id": "way/1092175020",
@@ -837,7 +870,8 @@
 				4.3,
 				8.0,
 				4.2
-			]
+			],
+			"v": "gable_hi"
 		}
 	],
 	"occluders": [
@@ -854,7 +888,28 @@
 	],
 	"placeholders": [],
 	"ribbons": [],
-	"schema": "ames_chunks/v4",
+	"roofs": [
+		{
+			"a": "x",
+			"c": [
+				0.227,
+				0.227,
+				0.243
+			],
+			"id": "way/1092175020",
+			"p": [
+				1860.4,
+				8.0,
+				-5227.98
+			],
+			"s": [
+				5.1,
+				5.0,
+				1.75
+			]
+		}
+	],
+	"schema": "ames_chunks/v5",
 	"shore_quads": [
 		{
 			"c": [

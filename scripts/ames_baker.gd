@@ -10,9 +10,11 @@ class_name AmesBaker
 ## on the same machine produce byte-identical files, proven per chunk by the
 ## SHA-256 determinism manifest (`ames_bake_determinism`, Gate 1b).
 ##
-## What each chunk carries (ames_chunks/v4 — v3 plus the T-205 trail_quads
-## family; v2 before that carried the T-175 placeholder family and the
-## massing `a` flag; every family is optional at read time):
+## What each chunk carries (ames_chunks/v5 — v4 plus the T-206 filler-dressing
+## families `roofs` (gable prisms) and `dress` (porch/cornice/parapet/screen/
+## penthouse boxes); v3 carried the T-205 trail_quads family; v2 before that
+## carried the T-175 placeholder family and the massing `a` flag; every family
+## is optional at read time):
 ## - `massing`: ONE axis-aligned box per building footprint — position,
 ##   size, district and vertex color (city.gd's MultiMesh + vertex-color
 ##   house style, ported to data), plus `a` (T-175): TRUE when the building
@@ -23,7 +25,21 @@ class_name AmesBaker
 ##   authored buildings get their bbox massing too — the 8 hero buildings'
 ##   bbox boxes are SUPERSeded by their true-dim silhouettes (the renderer
 ##   hides the ids the manifest's `heroes` list names), the rest stay the
-##   LOD0 fallback exactly as before.
+##   LOD0 fallback exactly as before. (T-206) every non-hero entry also
+##   carries `v` — its district-variant id (see VARIANT_* below); the
+##   footprint/height/color fields are UNCHANGED by dressing.
+## - `roofs`: (T-206) ONE gable prism per residential house — the §3.6
+##   gable/hip roof form over the box top. Unit-prism instances (the
+##   renderer's own mesh), `a` = ridge axis ("x"|"z"), `p` = eave center at
+##   the box top, `s` = [ridge_len, span, ridge_h] in ridge-axis order, `c`
+##   = the shingle color. Visual-only: no collider, no ground record, no
+##   occluder, no roof-crumb host (the crumbs keep their T-176 box-top law).
+## - `dress`: (T-206) the per-district dressing boxes — porches (deck +
+##   canopy, §3.6/the house portraits), cornice bands (§3.2), parapets
+##   (§3.3), rooftop mechanical screens (§3.7), penthouses (§3.3) — ONE box
+##   each (`role` names it), vertex-colored, visual-only like the roofs.
+##   Both families SKIP the hero buildings entirely: the silhouettes
+##   supersede 1:1 at every layer (the T-175 law).
 ## - `ribbons`: street centerlines pre-extruded to asphalt quads at the
 ##   pack's per-class widths (primary 20 m four-lane … residential 11 m).
 ## - `lane_quads`: (T-174) center dashes on the four named arterials ONLY
@@ -73,17 +89,18 @@ class_name AmesBaker
 ## keys; files are written in sorted (cx, cz) order; colors are picked by a
 ## stable hash of the building id (no RNG anywhere).
 
-const SCHEMA := "ames_chunks/v4"
+const SCHEMA := "ames_chunks/v5"
 const CHUNK_SIZE := 256.0
 
 ## Every per-chunk array family (the `_chunk_at` template, the finalize doc,
 ## the per-chunk counts and the manifest totals — ONE list, kept in one
-## place; v1's eight, the T-174 dressing families, T-175's placeholders, and
-## T-205's trail_quads).
+## place; v1's eight, the T-174 dressing families, T-175's placeholders,
+## T-205's trail_quads, and T-206's roofs + dress).
 const FAMILY_KEYS: Array[String] = [
 	"massing", "ribbons", "lane_quads", "water_tris", "shore_quads",
 	"creek_quads", "lawn_tris", "ballast_quads", "tie_quads",
 	"ground_quads", "trail_quads", "occluders", "placeholders", "crossings",
+	"roofs", "dress",
 ]
 
 ## Bake y conventions (m). Flats stack above 0 so the ground plate (top at
@@ -189,13 +206,14 @@ const ROAD_WIDTH_BY_CLASS: Dictionary = {
 	"service": 7.0, "trunk": 20.0, "motorway": 24.0,
 }
 
-## District dressing palettes (MODELING-SPECS §3 + §1.2, hex in comments —
-## the first-pass read; R5·filler-dressing re-dresses onto these data):
+## District dressing palettes (MODELING-SPECS §3 + §1, hex in comments —
+## T-206 re-pinned onto the survey's own §1.10/§1.5/§1.6/§1.7 estimates):
 ## downtown §3.2 dark-to-mid brick + painted-concrete cream; campustown §3.3
-## cinderblock/brick storefront mix; campus §3.7 buff/tan + pale limestone
-## (the §1.2 MU sunlit limestone) + dark-red brick; lincolnway §3.4 set-back
-## one-story retail creams; residential §3.6 tan/cream/gray siding + brick
-## accent. Roof shingle #4E4E52 rides T-174 (single-box massing here).
+## the §1.5 strip-brick range #96513A…#7C4230 + cinderblock #B9B1A2…#C9C0AE;
+## campus §3.7 buff/tan + pale limestone (the §1.2 MU sunlit limestone) +
+## dark-red brick; lincolnway §3.4 set-back one-story retail creams + the
+## §1.6 strip brick; residential §3.6 the §1.10 siding range #D8CDB4 /
+## #EDEAE2 / #B7B7AD + the brick accent #96513A.
 const DISTRICT_PALETTES: Dictionary = {
 	"campus": [
 		Color(0.769, 0.745, 0.69), ## #C4BEB0 pale limestone (MU sunlit).
@@ -204,30 +222,121 @@ const DISTRICT_PALETTES: Dictionary = {
 		Color(0.867, 0.847, 0.788), ## #DDD8C9 pale concrete.
 	],
 	"campustown": [
-		Color(0.612, 0.357, 0.263), ## #9C5B43 brick storefront.
-		Color(0.722, 0.478, 0.333), ## #B87A55 warm brick.
-		Color(0.776, 0.749, 0.659), ## #C6BFA8 painted block.
-		Color(0.557, 0.522, 0.471), ## #8E8578 cinderblock gray.
+		Color(0.588, 0.318, 0.227), ## #96513A strip brick (range head).
+		Color(0.486, 0.259, 0.188), ## #7C4230 strip brick (range tail).
+		Color(0.722, 0.478, 0.333), ## #B87A55 warm brick mid.
+		Color(0.725, 0.694, 0.635), ## #B9B1A2 cinderblock (range head).
+		Color(0.788, 0.753, 0.682), ## #C9C0AE cinderblock cream (range tail).
 	],
 	"downtown": [
 		Color(0.541, 0.29, 0.212), ## #8A4A36 dark brick.
 		Color(0.659, 0.4, 0.247), ## #A8663F mid brick.
 		Color(0.812, 0.773, 0.706), ## #CFC5B4 painted-concrete cream.
+		Color(0.788, 0.753, 0.682), ## #C9C0AE painted facade cream (§1.7).
 	],
 	"lincolnway": [
 		Color(0.827, 0.788, 0.714), ## #D3C9B6 retail cream.
-		Color(0.761, 0.706, 0.604), ## #C2B49A tan box.
+		Color(0.761, 0.706, 0.604), ## #C2B49A tan box (§1.6 stucco).
 		Color(0.878, 0.851, 0.776), ## #E0D9C6 pale cream.
+		Color(0.612, 0.416, 0.282), ## #9C6A48 strip brick (§1.6).
 	],
 	"residential": [
-		Color(0.847, 0.796, 0.663), ## #D8CBA9 tan siding.
-		Color(0.894, 0.863, 0.784), ## #E4DCC8 cream siding.
-		Color(0.706, 0.682, 0.635), ## #B4AEA2 gray siding.
-		Color(0.659, 0.4, 0.247), ## #A8663F brick accent.
+		Color(0.847, 0.804, 0.706), ## #D8CDB4 tan siding (§1.10).
+		Color(0.929, 0.918, 0.886), ## #EDEAE2 cream-white siding (§1.10).
+		Color(0.718, 0.718, 0.678), ## #B7B7AD gray siding (§1.10).
+		Color(0.588, 0.318, 0.227), ## #96513A brick accent (§1.10).
 	],
 }
 
-## Flat colors (MODELING-SPECS §1.2 lake olive-brown overcast + mown shore
+## --- T-206 filler-dressing constants (MODELING-SPECS §3 district rules) -----
+##
+## The variant law: every non-hero building gets ONE district-variant id (`v`
+## on the massing entry) plus its baked dressing geometry (`roofs` prisms and
+## `dress` boxes). All picks are the stable id hash — no RNG (the bake's
+## determinism discipline). The §3 rules these implement:
+## - §3.6 residential grids: 1–2-story GABLE/hip houses (§1.10 portraits:
+##   "gabled residential"); porch rhythm as the lot-level hint; the tall
+##   (4+ level) slabs keep a flat roof + parapet, like Campustown's
+##   side-street apartments.
+## - §3.2 downtown rows: the continuous masonry wall wears a CORNICE band
+##   ("flat roofs, parapets, cornice band") — every downtown box, cornice
+##   stone #D6CDBB (§1.7).
+## - §3.3 Campustown strip: the scruffy MIX — parapet / plain flat / rooftop
+##   penthouse by hash.
+## - §3.7 campus-in-green: flat roofs + MECHANICAL SCREENS on the big blocks
+##   ("rooflines: flat + mechanical screens"); the small ones stay plain.
+## - §3.4/3.5 Lincoln Way + S Duff strip: set-back ONE-story retail — a
+##   hash mix of fascia PARAPET bands and plain flats (the strip's motels
+##   and car lots are plainer than downtown's wall).
+## Heights gate the gable: the census §1 histogram puts 85 % of tagged stock
+## at 1–3 levels (4/8/11 m on the LEVEL_LADDER) — gables ride the ≤ 3-level
+## residential band, so no school/apartment slab ever sprouts a house roof
+## and the §3.10 heights cap stays untouched (roof geometry is ABOVE the
+## massing, never a new tower).
+
+## Roof-variant ids (`v` values; also the `ames_filler_variants` pin set).
+const VARIANT_GABLE_LO := "gable_lo"
+const VARIANT_GABLE_HI := "gable_hi"
+const VARIANT_PARAPET := "parapet"
+const VARIANT_CORNICE := "cornice"
+const VARIANT_SCREEN := "screen"
+const VARIANT_PENTHOUSE := "penthouse"
+const VARIANT_FLAT := "flat"
+
+## A residential box gets a gable only at or under this massing height (m) —
+## the census §1 level ladder's 3-level rung (11 m) plus a 0.5 snap band.
+const GABLE_MAX_HEIGHT := 11.5
+## The two pitch classes, as rise/run tan: ≈24° and ≈35° (§1.10 house
+## portraits: moderate pitches, no cabins, no gothic steeples).
+const GABLE_PITCH_LO := 0.45
+const GABLE_PITCH_HI := 0.7
+## Eave overhang past the wall line (m) — roofs read deeper than the box.
+const GABLE_OVERHANG := 0.4
+
+## House-scale cap for the porch hint (m): the §1.10 p50 footprint 127 m²
+## sits around 12 × 10; porches ride houses at most this long dimension —
+## a church or barn never grows one.
+const PORCH_HOUSE_MAX_DIM := 16.0
+## Porch geometry (m): deck slab + flat canopy at the §1.10 portraits'
+## one-story porch height.
+const PORCH_DEPTH := 2.0
+const PORCH_SPAN_FRAC := 0.5
+const PORCH_DECK_T := 0.25
+const PORCH_CANOPY_TOP := 2.6
+const PORCH_CANOPY_T := 0.2
+## Chimney geometry (m): the §1.10 LOD's "chimney prop" — a small brick
+## stack through the roof plane near the ridge.
+const CHIMNEY_SIDE := 0.9
+const CHIMNEY_RISE := 1.2
+const CHIMNEY_RIDGE_FRAC := 0.3 ## From the ridge end, mirrored by hash.
+
+## Cornice band (m): §3.2's crowning course — proud of the wall both ways.
+const CORNICE_OUTSET := 0.4
+const CORNICE_HEIGHT := 0.6
+const CORNICE_RISE := 0.15
+## Parapet band (m): §3.3's low front wall rising past the roof line.
+const PARAPET_OUTSET := 0.3
+const PARAPET_HEIGHT := 0.4
+## Rooftop mechanical screen (m): §3.7's flat + screens campus read; big
+## blocks get TWO (hash-mirrored), placed by footprint fraction.
+const SCREEN_MIN_AREA := 400.0 ## m² of footprint before a block screens.
+const SCREEN_H := 1.6
+## Penthouse cap (m): §3.3's rooftop box on the taller infill slabs.
+const PENTHOUSE_MAX := 8.0
+const PENTHOUSE_H := 2.5
+
+## Variant-set colors (survey hexes, not the gray masses'):
+const ROOF_SHINGLES: Array[Color] = [
+	Color(0.306, 0.306, 0.322), ## #4E4E52 weathered shingle (§1.10 head).
+	Color(0.263, 0.263, 0.286), ## #43434A mid shingle.
+	Color(0.227, 0.227, 0.243), ## #3A3A3E dark shingle (§1.10 tail).
+]
+const DRESS_TRIM := Color(0.929, 0.918, 0.886) ## #EDEAE2 porch trim (§1.10).
+const DRESS_BRICK := Color(0.588, 0.318, 0.227) ## #96513A chimney brick.
+const DRESS_CORNICE := Color(0.839, 0.804, 0.706) ## #D6CDBB cornice stone (§1.7).
+const DRESS_SCREEN := Color(0.612, 0.612, 0.58) ## #9C9C94 weathered screen concrete (§1.3).
+
+
 ## lawn; asphalt = city.gd's COLOR_ASPHALT; ballast gravel gray).
 const COLOR_ASPHALT := Color(0.29, 0.29, 0.31)
 const COLOR_WATER := Color(0.275, 0.329, 0.247) ## #46543F olive-brown.
@@ -402,7 +511,15 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 	# --- buildings: one massing box + one occluder outline each -----------
 	# (T-175) each entry carries `a`: the building is one of the 512 AUTHORED
 	# buildings — the renderer gives authored boxes collision (the placeholder
-	# slots); procedural filler stays visual-only massing.
+	# slots); procedural filler stays visual-only massing. (T-206) each entry
+	# also carries `v`: its district-variant id — and the variant's dressing
+	# geometry (a `roofs` gable prism and/or `dress` boxes) lands beside it.
+	# The hero buildings are SKIPPED by the variant pass entirely: their
+	# silhouettes supersede the slot 1:1 at every layer (the T-175 law), and
+	# a gable over a hidden box would float over a hero. Footprints and
+	# heights are UNCHANGED — the dressing is geometry beside the box, never
+	# a new footprint (collision untouched, the ground record reads the same
+	# tops).
 	for b: Dictionary in AmesDataPack.buildings():
 		var centroid: Array = b.get("centroid", [0.0, 0.0])
 		var x := float(centroid[0])
@@ -429,6 +546,31 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 			_r(x - hw), _r(z - hd), _r(x + hw), _r(z - hd),
 			_r(x + hw), _r(z + hd), _r(x - hw), _r(z + hd),
 		])
+		# (T-206) the variant pass — skipped for the superseded hero slots.
+		var bid := str(b.get("id", ""))
+		if bid in HERO_BUILDING_IDS:
+			continue
+		var variant := _variant_of(district, h, w * d, bid)
+		(chunk["massing"] as Array)[(chunk["massing"] as Array).size() - 1]["v"] = variant
+		if variant == VARIANT_GABLE_LO or variant == VARIANT_GABLE_HI:
+			_emit_roof_and_lot(chunk, bid, variant, x, z, w, d, h, color)
+		elif variant == VARIANT_CORNICE:
+			_emit_dress(chunk, bid, "cornice",
+					Vector3(x, h + CORNICE_RISE - CORNICE_HEIGHT * 0.5, z),
+					Vector3(w + CORNICE_OUTSET * 2.0, CORNICE_HEIGHT,
+							d + CORNICE_OUTSET * 2.0), DRESS_CORNICE)
+		elif variant == VARIANT_PARAPET:
+			_emit_dress(chunk, bid, "parapet",
+					Vector3(x, h + PARAPET_HEIGHT * 0.5, z),
+					Vector3(w + PARAPET_OUTSET * 2.0, PARAPET_HEIGHT,
+							d + PARAPET_OUTSET * 2.0), _dim(color, 0.9))
+		elif variant == VARIANT_SCREEN:
+			_emit_roof_screens(chunk, bid, x, z, w, d, h, bid.hash())
+		elif variant == VARIANT_PENTHOUSE:
+			_emit_dress(chunk, bid, "penthouse",
+					Vector3(x, h + PENTHOUSE_H * 0.5, z),
+					Vector3(minf(w * 0.4, PENTHOUSE_MAX), PENTHOUSE_H,
+							minf(d * 0.4, PENTHOUSE_MAX)), _dim(color, 0.85))
 
 	# --- placeholders (T-175): hero silhouettes + venue fixups ------------
 	# Hero parts first (their `p`/`s` are true-dim masses in world
@@ -769,6 +911,11 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 		"ballast_quads": [_rc(COLOR_BALLAST.r), _rc(COLOR_BALLAST.g), _rc(COLOR_BALLAST.b)],
 		"tie_quads": [_rc(COLOR_TIE.r), _rc(COLOR_TIE.g), _rc(COLOR_TIE.b)],
 		"trail_quads": [_rc(COLOR_TRAIL.r), _rc(COLOR_TRAIL.g), _rc(COLOR_TRAIL.b)],
+		## (T-206) roofs + dress entries all carry per-entry colors (`c`) —
+		## these two are only the renderer's never-fired fallbacks.
+		"roofs": [_rc(ROOF_SHINGLES[0].r), _rc(ROOF_SHINGLES[0].g),
+				_rc(ROOF_SHINGLES[0].b)],
+		"dress": [_rc(DRESS_SCREEN.r), _rc(DRESS_SCREEN.g), _rc(DRESS_SCREEN.b)],
 		## ground_quads entries carry per-cell colors (`c`) — the family entry
 		## is only the renderer's never-fired fallback (residential seed).
 		## shore_quads entries carry `c` too, for the quarry-banked lakes
@@ -938,6 +1085,125 @@ static func _district_of(x: float, z: float, ctx: Dictionary) -> String:
 static func _massing_color(district: String, id: String) -> Color:
 	var palette: Array = DISTRICT_PALETTES.get(district, DISTRICT_PALETTES["residential"])
 	return palette[id.hash() % palette.size()]
+
+
+## --- T-206 filler-dressing builders (pure pack/const arithmetic) -----------
+
+
+## The district-variant law (see the constants block for the §3 citations).
+## `roll` spreads the hash bits so pitch, porch and chimney picks decorrelate:
+## pitch takes bit 0, the lot bucket the next band, the porch side another.
+## Every pick is a pure function of the pack id — no RNG (determinism).
+static func _variant_of(district: String, h: float, area: float, id: String) -> String:
+	var roll := id.hash()
+	match district:
+		"residential":
+			if h <= GABLE_MAX_HEIGHT:
+				return VARIANT_GABLE_HI if roll % 2 == 0 else VARIANT_GABLE_LO
+			return VARIANT_PARAPET ## The 4+ level slabs: flat + parapet (§3.3 read).
+		"downtown":
+			return VARIANT_CORNICE ## §3.2: the continuous cornice band.
+		"campus":
+			if area >= SCREEN_MIN_AREA:
+				return VARIANT_SCREEN ## §3.7: flat + mechanical screens.
+			return VARIANT_PARAPET if roll % 3 == 0 else VARIANT_FLAT
+		"campustown":
+			var bucket := (roll / 2) % 5 ## 2/5 parapet, 2/5 flat, 1/5 penthouse.
+			if bucket < 2:
+				return VARIANT_PARAPET
+			if bucket < 4:
+				return VARIANT_FLAT
+			return VARIANT_PENTHOUSE
+		_:
+			return VARIANT_PARAPET if roll % 2 == 0 else VARIANT_FLAT ## §3.4/3.5 strip.
+
+
+## A color stepped toward dark (the parapet/penthouse read: the building's
+## own hue, one shade down — stays deterministic and palette-true).
+static func _dim(c: Color, k: float) -> Color:
+	return Color(c.r * k, c.g * k, c.b * k)
+
+
+## One `dress` box (porch deck/canopy, cornice, parapet, screen, penthouse):
+## the placeholders entry shape minus collision — visual-only dressing.
+static func _emit_dress(chunk: Dictionary, id: String, role: String,
+		center: Vector3, size: Vector3, color: Color) -> void:
+	(chunk["dress"] as Array).append({
+		"id": id,
+		"role": role,
+		"p": [_r(center.x), _r(center.y), _r(center.z)],
+		"s": [_r(size.x), _r(size.y), _r(size.z)],
+		"c": [_rc(color.r), _rc(color.g), _rc(color.b)],
+	})
+
+
+## The gabled house's full variant payload (§3.6): the roof prism (a closed
+## 5-face solid the renderer scales per instance), plus the hash-picked lot
+## hints — porch deck + canopy and/or chimney. The prism rides ridge-ALONG
+## the longer footprint axis (`a` = "x"|"z"), its eaves overhanging the wall
+## line by GABLE_OVERHANG; the ridge height is pitch × half the wall span
+## (the overhang stays level — eaves at the box top). The shingle color is
+## the id hash into ROOF_SHINGLES; hint picks reuse decorrelated hash bands.
+static func _emit_roof_and_lot(chunk: Dictionary, id: String, variant: String,
+		x: float, z: float, w: float, d: float, h: float, wall: Color) -> void:
+	var roll := id.hash()
+	var ridge_x := w >= d
+	var ridge_len := (w if ridge_x else d) + GABLE_OVERHANG * 2.0
+	var span := (d if ridge_x else w) + GABLE_OVERHANG * 2.0
+	var ridge_h := (GABLE_PITCH_HI if variant == VARIANT_GABLE_HI else GABLE_PITCH_LO) \
+			* span * 0.5
+	var shingle: Color = ROOF_SHINGLES[(roll / 4) % ROOF_SHINGLES.size()]
+	(chunk["roofs"] as Array).append({
+		"id": id,
+		"a": "x" if ridge_x else "z",
+		"p": [_r(x), _r(h), _r(z)],
+		"s": [_r(ridge_len), _r(span), _r(ridge_h)],
+		"c": [_rc(shingle.r), _rc(shingle.g), _rc(shingle.b)],
+	})
+	# Lot hints (house-scale only — the PORCH_HOUSE_MAX_DIM gate).
+	var max_dim := maxf(w, d)
+	if max_dim > PORCH_HOUSE_MAX_DIM:
+		return
+	var bucket := (roll / 2) % 10 ## 0-3 porch, 4-6 chimney, 7-8 both, 9 plain.
+	var porch := bucket < 4 or (bucket >= 7 and bucket <= 8)
+	var chimney := (bucket >= 4 and bucket <= 6) or (bucket >= 7 and bucket <= 8)
+	if chimney:
+		var along := (0.5 - CHIMNEY_RIDGE_FRAC) * (w if ridge_x else d)
+		if (roll / 32) % 2 == 1:
+			along = -along
+		var cx := x + (along if ridge_x else 0.0)
+		var cz := z + (0.0 if ridge_x else along)
+		_emit_dress(chunk, id, "chimney",
+				Vector3(cx, h + (ridge_h + CHIMNEY_RISE) * 0.5, cz),
+				Vector3(CHIMNEY_SIDE, ridge_h + CHIMNEY_RISE, CHIMNEY_SIDE),
+				DRESS_BRICK)
+	if porch:
+		var along_facade := w if ridge_x else d ## The ridge runs the facade.
+		var across := d if ridge_x else w
+		var side := 1.0 if (roll / 64) % 2 == 0 else -1.0
+		var px := x + (0.0 if ridge_x else side * (across * 0.5 + PORCH_DEPTH * 0.5))
+		var pz := z + (side * (across * 0.5 + PORCH_DEPTH * 0.5) if ridge_x else 0.0)
+		var pw := (along_facade * PORCH_SPAN_FRAC) if ridge_x else PORCH_DEPTH
+		var pd := PORCH_DEPTH if ridge_x else (along_facade * PORCH_SPAN_FRAC)
+		_emit_dress(chunk, id, "porch_deck", Vector3(px, PORCH_DECK_T * 0.5, pz),
+				Vector3(pw, PORCH_DECK_T, pd), _dim(wall, 0.85))
+		_emit_dress(chunk, id, "porch_canopy",
+				Vector3(px, PORCH_CANOPY_TOP - PORCH_CANOPY_T * 0.5, pz),
+				Vector3(pw, PORCH_CANOPY_T, pd), DRESS_TRIM)
+
+
+## The §3.7 campus mechanical screens: two rooftop boxes on the big blocks,
+## placed by footprint fraction and hash-mirrored (a stable skyline read).
+static func _emit_roof_screens(chunk: Dictionary, id: String, x: float, z: float,
+		w: float, d: float, h: float, roll: int) -> void:
+	var sx := -1.0 if roll % 2 == 0 else 1.0
+	var sz := -1.0 if (roll / 2) % 2 == 0 else 1.0
+	_emit_dress(chunk, id, "screen",
+			Vector3(x + sx * w * 0.22, h + SCREEN_H * 0.5, z + sz * d * 0.18),
+			Vector3(w * 0.3, SCREEN_H, d * 0.3), DRESS_SCREEN)
+	_emit_dress(chunk, id, "screen",
+			Vector3(x - sx * w * 0.18, h + SCREEN_H * 0.5, z - sz * d * 0.22),
+			Vector3(w * 0.2, SCREEN_H, d * 0.25), DRESS_SCREEN)
 
 
 ## --- T-175 placeholder builders (pure pack/const arithmetic) ---------------
@@ -1476,6 +1742,14 @@ static func _chunk_aabb(chunk: Dictionary) -> Dictionary:
 		_aabb_grow(acc, Vector3(float(pp[0]) + float(ps[0]) * 0.5,
 				float(pp[1]) + float(ps[1]) * 0.5,
 				float(pp[2]) + float(ps[2]) * 0.5))
+	for dr: Dictionary in chunk["dress"]: ## (T-206) dressing boxes join the AABB.
+		var dp: Array = dr["p"]
+		var ds: Array = dr["s"]
+		_aabb_grow(acc, Vector3(float(dp[0]) - float(ds[0]) * 0.5, 0.0,
+				float(dp[2]) - float(ds[2]) * 0.5))
+		_aabb_grow(acc, Vector3(float(dp[0]) + float(ds[0]) * 0.5,
+				float(dp[1]) + float(ds[1]) * 0.5,
+				float(dp[2]) + float(ds[2]) * 0.5))
 	for quad_key: String in ["ribbons", "lane_quads", "shore_quads",
 			"creek_quads", "ballast_quads", "tie_quads", "ground_quads"]:
 		for q: Dictionary in chunk[quad_key]:
@@ -1483,6 +1757,18 @@ static func _chunk_aabb(chunk: Dictionary) -> Dictionary:
 	for tri_key: String in ["water_tris", "lawn_tris"]:
 		for t: Dictionary in chunk[tri_key]:
 			_aabb_flat(acc, t["v"])
+	for rf: Dictionary in chunk["roofs"]: ## (T-206) gable prisms join the AABB:
+		## the prism rides its eave center `p` with `s` = [len, span, ridge_h]
+		## in RIDGE-AXIS order (`a` = "x" lengths along X), so grow by the
+		## full eave rectangle up to the ridge top.
+		var rp: Array = rf["p"]
+		var rs: Array = rf["s"]
+		var rlen_x := float(rs[0]) if str(rf["a"]) == "x" else float(rs[1])
+		var rlen_z := float(rs[1]) if str(rf["a"]) == "x" else float(rs[0])
+		_aabb_grow(acc, Vector3(float(rp[0]) - rlen_x * 0.5, float(rp[1]),
+				float(rp[2]) - rlen_z * 0.5))
+		_aabb_grow(acc, Vector3(float(rp[0]) + rlen_x * 0.5,
+				float(rp[1]) + float(rs[2]), float(rp[2]) + rlen_z * 0.5))
 	var lo: Vector3 = acc[0]
 	var hi: Vector3 = acc[1]
 	return {"min": [_r(lo.x), _r(lo.y), _r(lo.z)], "max": [_r(hi.x), _r(hi.y), _r(hi.z)]}

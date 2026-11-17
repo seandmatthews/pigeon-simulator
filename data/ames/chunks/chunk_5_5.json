@@ -27,6 +27,11 @@
 			0.4,
 			0.388
 		],
+		"dress": [
+			0.612,
+			0.612,
+			0.58
+		],
 		"ground_quads": [
 			0.38,
 			0.46,
@@ -46,6 +51,11 @@
 			0.29,
 			0.29,
 			0.31
+		],
+		"roofs": [
+			0.306,
+			0.306,
+			0.322
 		],
 		"shore_quads": [
 			0.435,
@@ -72,6 +82,7 @@
 		"ballast_quads": 0,
 		"creek_quads": 0,
 		"crossings": 0,
+		"dress": 0,
 		"ground_quads": 0,
 		"lane_quads": 0,
 		"lawn_tris": 9,
@@ -79,6 +90,7 @@
 		"occluders": 0,
 		"placeholders": 0,
 		"ribbons": 32,
+		"roofs": 0,
 		"shore_quads": 0,
 		"tie_quads": 0,
 		"trail_quads": 0,
@@ -86,6 +98,7 @@
 	},
 	"creek_quads": [],
 	"crossings": [],
+	"dress": [],
 	"ground_quads": [],
 	"lane_quads": [],
 	"lawn_tris": [
@@ -724,7 +737,8 @@
 			]
 		}
 	],
-	"schema": "ames_chunks/v4",
+	"roofs": [],
+	"schema": "ames_chunks/v5",
 	"shore_quads": [],
 	"tie_quads": [],
 	"tile": {
