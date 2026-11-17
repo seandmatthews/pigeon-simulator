@@ -33,8 +33,8 @@ mandatory either way. Photo credits already live per cluster in the survey.
 
 | | Windrow today | Ames core |
 |---|---|---|
-| Footprint | 7×7 block grid (~0.04 km²) | **10.6 km²** (4,050 × 2,610 m) — ~250× the area |
-| Buildings | ~49 blocks, ≤ 7.1 m lots | 3,737 (512 authored carry 55 % of footprint; 3,175 anonymous, median 127 m²) |
+| Footprint | 7×7 block grid (~0.04 km²) | **11.2 km²** (4,298 × 2,610 m; T-203's bbox east grew the v1 10.6 km² by +248 m east) — ~280× the area |
+| Buildings | ~49 blocks, ≤ 7.1 m lots | 4,134 (556 authored; 3,578 anonymous, median 127 m² — T-203's east strip added 397 to the v1 3,737) |
 | Streets | one loop grid, 125–140 m blocks (nice coincidence: same block rhythm) | 92.1 km drivable, 191.8 km footway, 727 named citywide |
 | Landmarks | four 17.3 m posts | a 33.5 m campanile, a 51.2 m water tower, a 61,500-seat bowl, a lake, a drum |
 | Boot | synchronous generate (already a web-perf ticket) | **nothing synchronous left to generate — boot renders baked chunks** |
@@ -86,8 +86,9 @@ Way × Welch (the campus/Campustown seam), +X east, −Z north, Y up. Equirectan
 scaling at lat 42.02 is fine at 10.6 km. Spawn fork below.
 
 **Float-precision check (external review, 2026-11-09):** with that origin the
-farthest v1-core point sits ≈ 3.3 km out on one axis (the east edge); with
-every R5 extension landed the worst case is still ≈ 3.5 km — inside the
+farthest v1-core point sits ≈ 3.3 km out on one axis (the east edge); T-203's
+bbox east takes that axis to ≈ 3.6 km and with every R5 extension landed the
+worst case stays ≈ 3.6 km — inside the
 ±4 km single-precision comfort zone. If the map ever doubles again,
 re-centering the origin is a data-pack version bump, not a refactor —
 everything is data-driven.

@@ -34,6 +34,13 @@ Coordinate convention (master plan §2, the ONE transform in to_local()):
   Re-centering the origin is a pack-version bump (bump `version`, change the
   `origin` constants, re-run) — never a refactor.
 
+Pack version history:
+  v1 (T-171): the census core bbox W−93.6590 S42.0120 E−93.6100 N42.0355.
+  v2 (T-203): the bbox-east — E −93.6100 → −93.6070 (+248 m; Bandshell Park
+      and the S Duff corridor's context blocks come inside; W/S/N and the
+      origin unchanged). Counts re-pinned against the grown box (the deltas
+      recorded in T-203's ticket).
+
 Census faithfulness: every count/geometry rule below is the census lane's rule
 (docs/references/ames-survey/census/scripts/ames_census.py), so the pack's
 numbers ARE the census's numbers. The script hard-fails if any pinned count
@@ -53,9 +60,22 @@ AUTHORED_CSV = os.path.join(SURVEY, "census", "authored-buildings.csv")
 TAGGED_NODES = os.path.join(SURVEY, "census", "tagged-nodes-core.json")
 OUT = os.path.join(REPO, "data", "ames", "ames_core.json")
 
-# --- census constants (BUILD-CENSUS.md definitions) -------------------------
+# --- core constants (BUILD-CENSUS.md definitions + the T-203 bbox-east) -----
 
-CORE = (-93.6590, 42.0120, -93.6100, 42.0355)  # game-core bbox W, S, E, N
+# Game-core bbox W, S, E, N. The v1 census box (E −93.6100) left Bandshell
+# Park ~30 m outside its east edge (census §5's own ⚠ — "decide: widen the E
+# edge"). T-203 widens it: E −93.6100 → −93.6070, +248 m east (the ticket's
+# 200–300 m band). The whole Bandshell Park way (129 × 102 m, bbox east
+# −93.60882) lands ~150 m inside, with the S Duff corridor's context blocks
+# (the east-downtown grid, the municipal power plant) and their trees.
+# W/S/N are the census lines, untouched.
+CORE = (-93.6590, 42.0120, -93.6070, 42.0355)  # game-core bbox W, S, E, N
+
+# The v1 census east edge — the window the committed census classification
+# (authored-buildings.csv) covers. Buildings east of it ride the census §6
+# rule mechanically (see build_buildings); the const is also stamped into
+# meta so consumers can derive strip membership from the pack alone.
+CENSUS_V1_EAST = -93.6100
 
 # --- coordinate convention (master plan §2) — THE transform -----------------
 
@@ -351,17 +371,43 @@ def flt(v):
         return None
 
 
+# The census §6 class rule (ames_census.py buildings mode, verbatim key set):
+# named -> authored-named; unnamed but use-tagged -> semi-tagged; else
+# procedural. Applied ONLY to the v2 east strip's CSV-less buildings.
+CENSUS_POI_TAGS = ("amenity", "shop", "leisure", "tourism", "historic",
+                   "office", "craft", "healthcare", "man_made")
+
+
+def census_class_of(tags):
+    if (tags.get("name") or "").strip():
+        return "authored-named"
+    if any(tags.get(k) for k in CENSUS_POI_TAGS):
+        return "semi-tagged"
+    return "procedural"
+
+
 def build_buildings(blds, authored_csv):
     entries = []
     missing_csv = []
+    strip_n = {"authored-named": 0, "semi-tagged": 0, "procedural": 0}
     for b in sorted(blds, key=lambda x: x["id"]):
         row = authored_csv.get(b["id"])
-        if row is None:
-            missing_csv.append(b["id"])
-            continue
         t = b["tags"]
         name = (t.get("name") or "").strip()
-        census_class = row["class"]
+        if row is None:
+            # The T-203 east strip: the census CSV classified the v1 core
+            # only, and every building east of the v1 edge (the guard below
+            # makes that an invariant, not an assumption) rides the census's
+            # OWN §6 rule, applied mechanically — named -> authored-named,
+            # unnamed + POI tag -> semi-tagged, else procedural. The authored
+            # set stays CLOSED: no hand curation ever happens here.
+            if b["c"][0] <= CENSUS_V1_EAST:
+                missing_csv.append(b["id"])
+                continue
+            census_class = census_class_of(t)
+            strip_n[census_class] += 1
+        else:
+            census_class = row["class"]
         dims = bbox_dims_m(b["pts"])
         x, z = to_local(*b["c"])
         entries.append({
@@ -375,7 +421,7 @@ def build_buildings(blds, authored_csv):
             "bbox_m": [round(dims[0], 1), round(dims[1], 1)],
             "wgs84": [round(b["c"][0], 6), round(b["c"][1], 6)],
         })
-    return entries, missing_csv
+    return entries, missing_csv, strip_n
 
 
 def build_water(nodes, ways, rels):
@@ -953,17 +999,28 @@ def nearest_street_local(streets, x, z):
 # --- pack assembly ----------------------------------------------------------
 
 CENSUS_PINNED = {
-    "buildings": 3737,          # BUILD-CENSUS §1
-    "named_buildings": 512,     # §1 (the authored set, §6)
-    "trees": 5637,              # §5
+    # v2 counts — the T-203 bbox east (E −93.6100 → −93.6070) grew the box
+    # past the census's own window; each entry records the v1 census pin and
+    # the strip delta. The census-window rules are untouched; the strip's
+    # buildings classify by the census §6 rule (build_buildings).
+    "buildings": 4134,          # v1 3737 + the east strip's 397
+    "named_buildings": 556,     # v1 512 + 44 strip named (§6 rule)
+    "east_strip_buildings": 397,    # v1 0 — the CSV-less set, all east of
+                                    # CENSUS_V1_EAST (guarded per-building)
+    "east_strip_named": 44,     # §6 rule split of the 397
+    "east_strip_semi_tagged": 3,
+    "east_strip_procedural": 350,
+    "trees": 5715,              # v1 5637 + 78 strip tree nodes
     "rail_at_grade_vehicular": 9,   # §5/§7.11 (Grand, Clark, Kellogg, Duff,
                                     #  Hazel, Brookridge, 9th, 13th, 1 service)
-    "venues": 48,               # VENUES.md (14 + 17 + 17)
+                                    # — unchanged by the east strip
+    "venues": 48,               # VENUES.md (14 + 17 + 17) — unchanged
     "venue_tiers": {1: 14, 2: 17, 3: 17},
-    "landmarks": 15,            # LANDMARKS §5 top-15
-    "parking_lots": 480,        # §3 (amenity=parking, bbox center in core)
-    "parking_ha": 73.6,         # §3 total (7.0 % of the core box)
-    "parking_tailgate_lots": 19,    # §3 Iowa State Center tailgate zone
+    "landmarks": 15,            # LANDMARKS §5 top-15 — unchanged
+    "parking_lots": 532,        # v1 480 + 52 strip lots (bbox center in core)
+    "parking_ha": 83.05,        # v1 73.6 + 9.45 strip ha
+    "parking_tailgate_lots": 19,    # §3 Iowa State Center tailgate zone —
+                                    # unchanged by the east strip
     "parking_tailgate_ha": 8.9,     # §3 tailgate total (the game's stock)
 }
 
@@ -992,13 +1049,16 @@ def main():
 
     extra3_km_raw, extra3_by_class = named_highway_extra3_km(nodes, ways)
     extra3_km = round(extra3_km_raw / 1000.0, 1)
-    # SUMMARY §3's figure must reproduce (extra3.py §5 prints 99.6 km)
-    if not (99.4 <= extra3_km <= 99.8):
-        raise SystemExit(f"extra3-rule named-road km {extra3_km} != SUMMARY "
-                         f"§3's 99.6 (rule drift — check named_highway_extra3_km)")
+    # The extra3 rule re-run over the v2 box (T-203): the v1 census figure
+    # was 99.6 km (SUMMARY §3); the east strip added 6.1 km of named road
+    # under the same rule. Band guards against rule drift, not history.
+    if not (105.2 <= extra3_km <= 106.2):
+        raise SystemExit(f"extra3-rule named-road km {extra3_km} outside the "
+                         f"v2 band [105.2, 106.2] (v1 census figure 99.6; "
+                         f"rule drift — check named_highway_extra3_km)")
 
     blds = collect_building_set(nodes, ways, rels)
-    buildings, missing_csv = build_buildings(blds, authored_csv)
+    buildings, missing_csv, strip_n = build_buildings(blds, authored_csv)
     named = [b for b in buildings if b["name"]]
     authored_n = sum(1 for b in buildings if b["class"] == "authored")
 
@@ -1011,11 +1071,21 @@ def main():
 
     # --- pinned-count guards (the pack IS the census, made load-bearing) ---
     if len(buildings) != CENSUS_PINNED["buildings"]:
-        raise SystemExit(f"buildings {len(buildings)} != census "
+        raise SystemExit(f"buildings {len(buildings)} != pinned "
                          f"{CENSUS_PINNED['buildings']}")
     if len(named) != CENSUS_PINNED["named_buildings"]:
-        raise SystemExit(f"named buildings {len(named)} != census "
+        raise SystemExit(f"named buildings {len(named)} != pinned "
                          f"{CENSUS_PINNED['named_buildings']}")
+    strip_total = sum(strip_n.values())
+    if strip_total != CENSUS_PINNED["east_strip_buildings"] \
+            or strip_n.get("authored-named") != CENSUS_PINNED["east_strip_named"] \
+            or strip_n.get("semi-tagged") != CENSUS_PINNED["east_strip_semi_tagged"] \
+            or strip_n.get("procedural") != CENSUS_PINNED["east_strip_procedural"]:
+        raise SystemExit(f"east strip split {strip_n} != pinned "
+                         f"{CENSUS_PINNED['east_strip_buildings']} "
+                         f"({CENSUS_PINNED['east_strip_named']}/"
+                         f"{CENSUS_PINNED['east_strip_semi_tagged']}/"
+                         f"{CENSUS_PINNED['east_strip_procedural']})")
     if len(trees) != CENSUS_PINNED["trees"]:
         raise SystemExit(f"trees {len(trees)} != census {CENSUS_PINNED['trees']}")
     at_grade = [c for c in rail["crossings"] if c["grade"] == "at_grade"]
@@ -1055,8 +1125,8 @@ def main():
     pack = {
         "meta": {
             "pack": "ames_core",
-            "version": 1,
-            "schema": "ames_core/v1",
+            "version": 2,
+            "schema": "ames_core/v2",
             "attribution": "Map data © OpenStreetMap contributors",
             "license": "ODbL — see docs/references/ames-survey/ODBL-NOTE.md",
             "source_date": "2026-11-08",
@@ -1064,6 +1134,11 @@ def main():
             "distill_commit": args.distill_commit,
             "distilled_by": "tools/ames_distill.py",
             "core_bbox_wsen": [CORE[0], CORE[1], CORE[2], CORE[3]],
+            "core_bbox_east_v1": CENSUS_V1_EAST,
+            "bbox_east_note": "v2 (T-203): east edge widened +248 m for "
+                              "Bandshell Park + the S Duff corridor context; "
+                              "buildings east of core_bbox_east_v1 classify "
+                              "by the census §6 rule (build_buildings)",
             "origin": {
                 "lon": ORIGIN_LON,
                 "lat": ORIGIN_LAT,
@@ -1082,6 +1157,10 @@ def main():
                 "named_buildings": len(named),
                 "authored_buildings": authored_n,
                 "procedural_buildings": len(buildings) - authored_n,
+                "buildings_east_strip": sum(strip_n.values()),
+                "buildings_east_strip_named": strip_n.get("authored-named", 0),
+                "buildings_east_strip_semi_tagged": strip_n.get("semi-tagged", 0),
+                "buildings_east_strip_procedural": strip_n.get("procedural", 0),
                 "trees": len(trees),
                 "street_entries": len(streets),
                 "venues": len(venues),
@@ -1140,7 +1219,11 @@ def main():
         f.write("\n")
 
     print(f"wrote {OUT} ({os.path.getsize(OUT) / 1e6:.2f} MB)")
-    print(f"buildings {len(buildings)} (named {len(named)}, authored {authored_n})")
+    print(f"buildings {len(buildings)} (named {len(named)}, authored "
+          f"{authored_n}; east strip {sum(strip_n.values())} = "
+          f"{strip_n.get('authored-named', 0)} named / "
+          f"{strip_n.get('semi-tagged', 0)} semi / "
+          f"{strip_n.get('procedural', 0)} procedural)")
     print(f"trees {len(trees)}; street entries {len(streets)} "
           f"(named drivable in-core {street_km_stored} km, census rule "
           f"{street_km_census / 1000.0:.2f} km, all drivable "

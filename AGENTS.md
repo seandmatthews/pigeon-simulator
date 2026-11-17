@@ -55,17 +55,27 @@ Cafe staged for T-205), the tiers 2–3 venue signs + the mourned ghost
 plaques (T-199 — 27 signed of the 34 tier-2/3 POIs, the unsigned set
 closed with reasons; 11 memorial plaques at their closed rooms), the
 MUTCD street-name blades (T-200 — 85 green blades over the 70 pinned
-spine corners, mast stacks at signals, posts at the all-way stops; the
+spine corners at the R4 landing; T-203's bbox east pinned four more
+all-way corners on East Lincoln Way, taking the set to 89 blades over
+74 corners, mast stacks at signals, posts at the all-way stops; the
 unreached spine names stay a closed ledger until R5 pins corners) and
 the campus + civic name plaques (T-201 — 11 nominative names in plain
 type on the R3 heroes' own faces + the Marston base marker, Reiman
 Gardens staged for T-204; no marks anywhere, names and years only).
 `r4_cutover_text_ledger` pins the whole ring joined: every family live
 at its pinned count on the default boot with the legibility law re-run
-over all 147 texts — the cutover's Gate 3 is the owner's
+over all 151 texts (T-203's re-pin of the 147-text R4 ring) — the
+cutover's Gate 3 is the owner's
 fly-to-your-bar test (the fly-by-reading sign-off recorded in T-202's
 ticket closes the ring). The tank diamond's letterforms stay the legal
-pass's honest remainder — no R4 ticket staged them.
+pass's honest remainder — no R4 ticket staged them. Since the **T-203
+bbox east the playable core reaches Bandshell Park**: the game-core box
+grew +248 m east (E edge −93.6100 → −93.6070, data pack v2 — the only
+version bump since T-171), landing Bandshell Park's block inside the
+core (the T-192 bandshell hero's ground is now playable around, the
+census §5 ⚠ closed) and the S Duff corridor's east context blocks with
+it; every count the citizen systems pin carries its recorded v1 + strip
+delta, diff-proven by the `ames_bbox_east` Gate 1b scenario.
 
 ## Stack & tooling
 
