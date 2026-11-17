@@ -21,10 +21,12 @@ extends Node3D
 ## names), no HUD/menu text (untouched), and T-090's blank plaques on the
 ## Windrow seam stay untouched — adoption is per-ticket.
 ##
-## Mount convention: PLAQUE/BOX/BLADE roots sit at their body CENTER (mount
-## −z / −z-back / −z-brackets against the wall); POLE roots stand on the
-## GROUND at the pole base. Text faces: plaque +z, box +z, blade ±x (reads
-## both directions along the street), pole ±z.
+## Mount convention: PLAQUE/BOX/BLADE/STREET roots sit at their body CENTER
+## (mount −z / −z-back / −z-brackets against the wall; STREET hangs under its
+## mast arm or tops its post — the mount module places the plate center).
+## POLE roots stand on the GROUND at the pole base. Text faces: plaque +z,
+## box +z, blade ±x (reads both directions along the street), pole ±z,
+## street ±z (double-faced — reads from both cross-street directions).
 
 ## The bundled OFL typeface (one file; license `assets/fonts/OFL.txt`).
 const FONT: FontFile = preload("res://assets/fonts/oswald_variable.ttf")
@@ -38,7 +40,10 @@ const CAP_HEIGHT_EM := 0.81
 const FACE_PROUD := 0.01
 
 ## Sign families (T-197 §What: plaque + the three photo-ref typologies).
-enum Typology { PLAQUE, BOX, BLADE, POLE }
+## (T-200) STREET joins as the fifth: the MUTCD street-name blade — the
+## T-134 sign family's flat plate at blade size, green over white, read
+## across its own street.
+enum Typology { PLAQUE, BOX, BLADE, POLE, STREET }
 
 ## Per-typology spec. All values pinned (sim `sign_text_legibility`):
 ## - `letter_h` — default capital-letter height (m) when `letter_height` is 0.
@@ -102,6 +107,30 @@ const SPEC := {
 		"vertical": false,
 		"text": "POLE", ## Short by design — big cabinets carry short words
 		## (the photo-04 read); "POLE SIGN" at this letter height overflows.
+	},
+	Typology.STREET: {
+		## (T-200) The MUTCD street-name blade: the T-134 sign family's flat
+		## plate at blade size — green face, white lettering, UNLIT (street
+		## name signs are retroreflective paint, not light sources — the
+		## T-134 stop-sign read). 0.22 m caps (the MUTCD 200 mm+ overhead
+		## blade range) with the lit-box 200 budget: white-on-green is the
+		## high-contrast driving read → 44 m of readable distance, which
+		## spans every stop-line-to-blade read in the pinned corner set.
+		## Double-faced (±z, one label per side — both street directions
+		## read correctly); the plate's LONG axis rides the named street,
+		## so its faces read across the street (the MUTCD orientation).
+		"letter_h": 0.22,
+		"budget": 200.0,
+		"body": Vector3(2.6, 0.44, 0.06), ## The default blade plate — the
+			## mount module widens it per name (real blades fit their text).
+		"body_color": Color(0.043, 0.42, 0.216), ## MUTCD street-name green.
+		"text_color": Color(0.94, 0.94, 0.92), ## The T-134 sign-face white.
+		"lit": false,
+		"emission": 0.0,
+		"faces": [{"n": Vector3(0, 0, 1), "yaw": 0.0},
+				{"n": Vector3(0, 0, -1), "yaw": PI}],
+		"vertical": false,
+		"text": "STREET NAME",
 	},
 }
 
@@ -169,7 +198,7 @@ func _build() -> void:
 		body_mat.emission_energy_multiplier = spec["emission"]
 	var size: Vector3 = spec["body"] if body_scale == Vector3.ZERO else body_scale
 	match typology:
-		Typology.PLAQUE, Typology.BOX:
+		Typology.PLAQUE, Typology.BOX, Typology.STREET:
 			_box_part("Body", size, Vector3.ZERO, body_mat)
 		Typology.BLADE:
 			## The vertical board with its rounded top (the photo-07 silhouette)
