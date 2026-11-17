@@ -335,6 +335,14 @@ var venue_signs_t23: Array[Dictionary] = []
 ## bake pins, at ground-floor memorial mounts.
 var ghost_plaques: Array[Dictionary] = []
 
+## (T-200) The street-name blades — one record per MUTCD green blade under the
+## `StreetBlades` root: one per SPINE street name at each T-180 pinned corner
+## that touches the spine set (the module derives every mount off the traffic
+## graph, mast-arm stacked at signal corners, post-mounted on the approach's
+## right at the all-way corners). World-local (= the pack frame), retained for
+## the gate like the venue-sign arrays.
+var street_blades: Array[Dictionary] = []
+
 ## (T-192) The frontage-row slots collected while the chunks parse (the
 ## authored downtown massing in the Main/5th frontage bands), consumed by
 ## the step-3 fabric build — the cornice hints ride the bake's own slot
@@ -579,6 +587,7 @@ func generate_step_finish() -> void:
 	_build_rail_corridor() ## (T-194) The depot rides its chunk; this is the corridor dress: crossbucks, fence, the coal drag.
 	_build_venue_signs() ## (T-198) The Tier-1 venue names on their street walls.
 	_build_venue_signs_tiers() ## (T-199) Tiers 2–3 + the mourned ghost plaques.
+	_build_street_blades() ## (T-200) The spine street-name blades at the pinned corners.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -633,6 +642,7 @@ func generate_step_finish() -> void:
 		"superdog_cart_parts": _venue_cart_parts(),
 		"venue_signs_t23": venue_signs_t23.size(), ## (T-199) The tiers 2–3 signs are live.
 		"ghost_plaques": ghost_plaques.size(), ## (T-199) The mourned plaques are live.
+		"street_blades": street_blades.size(), ## (T-200) The street-name blades are live.
 		"cq_truck_parts": _cq_truck_parts(),
 		"crossbuck_crossings": crossbuck_pins.size(),
 		"crossbuck_posts": _crossbuck_post_xfs.size(),
@@ -6976,6 +6986,24 @@ func _build_venue_signs_tiers() -> void:
 	plaque_root.name = "GhostPlaques"
 	add_child(plaque_root)
 	ghost_plaques = AmesVenueSigns.build_plaques(plaque_root)
+
+
+## --- T-200 the spine street-name blades -------------------------------------
+## The MUTCD green blades at the pinned corners (the wayfinding channel after
+## the venue names), mounted through `AmesStreetBlades` off the traffic graph's
+## own T-180 classification — one blade per spine street name at every pinned
+## corner the spine set touches, mast-arm stacked at signal corners, post-
+## mounted on the approach's right at the all-way stops. Visual-only (the
+## T-197 scope), pack-frame coordinates, zero RNG — a rebuild reproduces every
+## mount byte-identically. Runs AFTER the intersection furniture so the blades
+## hang on/stand beside the T-180 dress that shares their derivation.
+func _build_street_blades() -> void:
+	if traffic_graph == null:
+		return
+	var root := Node3D.new()
+	root.name = "StreetBlades"
+	add_child(root)
+	street_blades = AmesStreetBlades.build(traffic_graph, root)
 
 
 ## The Superdog cart's part count for the report (0 before the signs build).

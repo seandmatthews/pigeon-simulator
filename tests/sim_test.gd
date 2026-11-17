@@ -208,6 +208,7 @@ func _run_scenarios() -> void:
 	await _scenario_credits_screen_content() ## T-197 — the credits screen: the three attribution classes (OSM, photos, font) live on the title screen.
 	await _scenario_venue_signs_tier1() ## T-198 — the fourteen Tier-1 venue names at their verified mounts, re-derived from the bake + pack.
 	await _scenario_venue_signs_tiers() ## T-199 — the tiers 2–3 names + the mourned ghost plaques at their verified mounts, re-derived from the bake + pack.
+	await _scenario_street_blades_pins() ## T-200 — the spine street-name blades at the pinned corners: the corner list + text pins, re-derived from the graph + pack.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -12083,6 +12084,351 @@ func _scenario_venue_signs_tiers() -> void:
 	if int(report.get("cq_truck_parts", -1)) < 6:
 		bad.append("report cq_truck_parts %s" % str(report.get("cq_truck_parts")))
 	_check(S, bad.is_empty(), "; ".join(bad) if not bad.is_empty() else "-")
+
+
+## T-200 — the street-name blades live on the resident world: one MUTCD green
+## blade per SPINE street name at every T-180 pinned corner the spine set
+## touches (mast-arm stacked at signal corners, post-mounted on the approach's
+## right at the all-way stops). Every leg re-derives IN-SCENARIO from the
+## committed data, never echoed: the CORNER LIST walked off the traffic
+## graph's own pinned anchors (exact counts + the per-corner name lists),
+## the TEXTS byte-exact against the picked edge's run name AND the pack
+## street-name set (never retyped — the East Lincoln Way seam lands as the
+## data spells it), the seam corner pinned with its four stacked blades
+## (Duff/East Lincoln Way/Lincoln Way/South Duff at one corner), the
+## unreachable spine names pinned as a CLOSED ledger (Mortensen/Stange/16th
+## place nothing until their corners join the pinned set — a data change
+## forces the conscious re-pin), the mount laws re-derived per blade (the
+## mast-arm stack pose with the module's world-const twins pinned EQUAL,
+## the post position with the outset clamp into its run, plate bottom clear
+## of the octagon band), the MUTCD form pins (typology STREET, letter 0.22
+## → 44 m budget, green/white pair, UNLIT, double-faced, plate fits its
+## name through the component's own font metrics), the visual-only guard,
+## and the world report key.
+func _scenario_street_blades_pins() -> void:
+	const S := "street_blades_pins"
+	var bad: PackedStringArray = []
+	var world := _city as AmesWorld
+	if world == null:
+		_check(S, false, "the harness world is not an AmesWorld")
+		return
+	var graph := world.traffic_graph
+	if graph == null:
+		_check(S, false, "no traffic graph on the resident world")
+		return
+	var records := world.street_blades
+	## The spine set, typed here from the ticket (the module's own list is
+	## pinned EQUAL below — the ticket is the definition, the module carries
+	## it into the world build).
+	var spine: Array[String] = [
+		"Lincoln Way", "East Lincoln Way",
+		"Welch Avenue", "Hayward Avenue", "Sheldon Avenue", "Stanton Avenue",
+		"Main Street", "Duff Avenue", "South Duff Avenue",
+		"Grand Avenue", "South Grand Avenue",
+		"University Boulevard", "Mortensen Road",
+		"South 16th Street", "Southeast 16th Street",
+		"Stange Road", "Clark Avenue", "Burnett Avenue", "Douglas Avenue",
+	]
+	if AmesStreetBlades.SPINE_NAMES.size() != spine.size():
+		bad.append("module spine set %d entries want %d"
+				% [AmesStreetBlades.SPINE_NAMES.size(), spine.size()])
+	else:
+		for nm in spine:
+			if not AmesStreetBlades.SPINE_NAMES.has(nm):
+				bad.append("module spine set missing %s" % nm)
+	## (a) The corner list, re-derived off the graph's pinned anchors: per
+	## anchor, its spine names in `intersection_streets` order (the module's
+	## own walk order). Grouped against the records below.
+	var expect: Dictionary = {} ## anchor -> Array[String] spine names.
+	var expect_order: Array[int] = []
+	for a in graph.intersection_count():
+		if graph.intersection_pin(a) == AmesTrafficGraph.PIN_NONE:
+			continue
+		var hits: Array[String] = []
+		for nm in graph.intersection_streets(a):
+			if spine.has(nm):
+				hits.append(nm)
+		if not hits.is_empty():
+			expect[a] = hits
+			expect_order.append(a)
+	## The records group by anchor in the same walk order.
+	var got_order: Array[int] = []
+	var got: Dictionary = {} ## anchor -> Array[Dictionary] records.
+	for rec: Dictionary in records:
+		var a := int(rec["anchor"])
+		if not got.has(a):
+			got[a] = []
+			got_order.append(a)
+		got[a].append(rec)
+	if got_order != expect_order:
+		bad.append("corner order/size %d corners want %d (data drift — re-pin)"
+				% [got_order.size(), expect_order.size()])
+	else:
+		for a in expect_order:
+			var want_names: Array = expect[a]
+			var got_names: Array[String] = []
+			for rec: Dictionary in got[a]:
+				got_names.append(str(rec["street"]))
+			if got_names != want_names:
+				bad.append("corner %d blades %s want %s" % [a, got_names,
+						want_names])
+	## The landed counts (recorded from the data, probed 2026-11-16: 70
+	## pinned corners touch the spine set, 85 blades — 37 mast stacks /
+	## 48 posts).
+	var mast_count := 0
+	var post_count := 0
+	for rec: Dictionary in records:
+		if str(rec["mount"]) == "mast":
+			mast_count += 1
+		else:
+			post_count += 1
+	if records.size() != 85 or mast_count != 37 or post_count != 48:
+		bad.append("blade counts %d (%d mast / %d post) want 85 (37/48)"
+				% [records.size(), mast_count, post_count])
+	## (b) The text pins: every blade text IS its picked edge's run name,
+	## byte-exact, AND a committed pack street name (the exact-match law —
+	## the seam names land as the data spells them, never invented).
+	var pack_names: Dictionary = {}
+	for s: Dictionary in AmesDataPack.streets():
+		pack_names[str(s.get("name", ""))] = true
+	for rec: Dictionary in records:
+		var street := str(rec["street"])
+		if (rec["node"] as SignText).display_text() != street:
+			bad.append("%s display text '%s' != street '%s'" % [rec["id"],
+					(rec["node"] as SignText).display_text(), street])
+		if graph.edge_name(int(rec["edge"])) != street:
+			bad.append("%s edge %d runs '%s' want '%s'" % [rec["id"],
+					int(rec["edge"]), graph.edge_name(int(rec["edge"])), street])
+		if not pack_names.has(street):
+			bad.append("%s text '%s' is not a pack street name" % [rec["id"],
+					street])
+	## (c) The seam corner: the anchor where Lincoln Way renames carries all
+	## four data names — Duff Avenue / East Lincoln Way / Lincoln Way /
+	## South Duff Avenue — one mast stack, slots 0..3.
+	var seam_anchor := -1
+	for a in expect_order:
+		var names: Array = expect[a]
+		if names.has("East Lincoln Way") and names.has("Lincoln Way") \
+				and names.has("Duff Avenue") and names.has("South Duff Avenue"):
+			seam_anchor = a
+			break
+	if seam_anchor < 0:
+		bad.append("no seam corner (East+West Lincoln Way at Duff) in the set")
+	else:
+		var seam_names: Array[String] = []
+		var seam_slots: Array[int] = []
+		for rec: Dictionary in got[seam_anchor]:
+			seam_names.append(str(rec["street"]))
+			if str(rec["mount"]) != "mast":
+				bad.append("seam blade %s not mast-mounted" % rec["id"])
+			seam_slots.append(int(rec["stack"]))
+		var seam_want: Array[String] = ["Duff Avenue", "East Lincoln Way",
+				"Lincoln Way", "South Duff Avenue"]
+		if seam_names != seam_want:
+			bad.append("seam corner %d carries %s want the four data names"
+					% [seam_anchor, seam_names])
+		if seam_slots != [0, 1, 2, 3]:
+			bad.append("seam stack slots %s want 0..3" % [seam_slots])
+	## (d) The reachability ledger: the spine names NO pinned v1 corner
+	## touches (closed set — a bake extension that pins a Mortensen/Stange/
+	## 16th corner fails here until the ticket re-pins the ledger).
+	var reached: Dictionary = {}
+	for rec: Dictionary in records:
+		reached[str(rec["street"])] = true
+	var unreached: Array[String] = []
+	for nm in spine:
+		if not reached.has(nm):
+			unreached.append(nm)
+	var ledger_want: Array[String] = ["Mortensen Road", "South 16th Street",
+			"Southeast 16th Street", "Stange Road"]
+	if unreached != ledger_want:
+		bad.append("unreached spine names %s want the v1 ledger" % [unreached])
+	## (e) The mount-twin drift gate: the module's mast consts equal the
+	## world's — a mast retune that forgets the twins fails here.
+	if AmesStreetBlades.MAST_ARM_Y != AmesWorld.MAST_ARM_Y \
+			or AmesStreetBlades.MAST_POLE_CLEAR != AmesWorld.MAST_POLE_CLEAR \
+			or AmesStreetBlades.MAST_POLE_SIDE != AmesWorld.MAST_POLE_SIDE \
+			or AmesStreetBlades.MAST_ARM_END_CLEAR != AmesWorld.MAST_ARM_END_CLEAR:
+		bad.append("mast mount twins drifted off the world's mast consts")
+	## (f) Per-blade legs: typology/budget/form + the mount re-derivation.
+	var spec: Dictionary = SignText.SPEC[SignText.Typology.STREET]
+	var spec_ok := (spec["body_color"] as Color).is_equal_approx(
+			Color(0.043, 0.42, 0.216)) \
+			and (spec["text_color"] as Color).is_equal_approx(
+			Color(0.94, 0.94, 0.92)) \
+			and not bool(spec["lit"]) and not bool(spec["vertical"])
+	if not spec_ok:
+		bad.append("STREET spec off the MUTCD pins (green/white, unlit, horizontal)")
+	var stack_by_anchor: Dictionary = {} ## anchor -> seen slots (mast mounts).
+	for rec: Dictionary in records:
+		var id := str(rec["id"])
+		var sign: SignText = rec["node"]
+		if sign == null or not is_instance_valid(sign):
+			bad.append("%s record node is gone" % id)
+			continue
+		var street := str(rec["street"])
+		if sign.typology != SignText.Typology.STREET:
+			bad.append("%s typology %d want STREET" % [id, sign.typology])
+		if absf(sign.effective_letter_height() - AmesStreetBlades.BLADE_LETTER) > 0.0001:
+			bad.append("%s letter %.3f want %.3f" % [id,
+					sign.effective_letter_height(), AmesStreetBlades.BLADE_LETTER])
+		if not is_equal_approx(sign.readable_distance(),
+				AmesStreetBlades.BLADE_LETTER
+				* float(spec["budget"])):
+			bad.append("%s readable %.2f want %.2f" % [id, sign.readable_distance(),
+					AmesStreetBlades.BLADE_LETTER * float(spec["budget"])])
+		## The plate fits its name through the component's own metrics.
+		var plate: Vector3 = rec["plate"]
+		if (sign.body_scale - plate).length() > 0.0001:
+			bad.append("%s body_scale %s want %s" % [id, sign.body_scale, plate])
+		var px := AmesStreetBlades.BLADE_LETTER \
+				/ (float(SignText.FONT_SIZE_PX) * SignText.CAP_HEIGHT_EM)
+		var w := SignText.FONT.get_string_size(street, HORIZONTAL_ALIGNMENT_LEFT,
+				-1, SignText.FONT_SIZE_PX).x * px
+		var want_len := maxf(AmesStreetBlades.PLATE_MIN_LEN,
+				w + AmesStreetBlades.PLATE_PAD * 2.0)
+		if absf(plate.x - want_len) > 0.001 or absf(plate.y - 0.44) > 0.001 \
+				or absf(plate.z - 0.06) > 0.001:
+			bad.append("%s plate %s off its fitted dims (%.3f)" % [id, plate,
+					want_len])
+		## Double-faced: two unshaded labels, ±z proud, both the street name.
+		var faces: Array[Label3D] = []
+		_collect_faces(sign, faces)
+		if faces.size() != 2:
+			bad.append("%s faces %d want 2" % [id, faces.size()])
+		else:
+			var yaws: Array[float] = []
+			for face: Label3D in faces:
+				if face.shaded:
+					bad.append("%s face is shaded" % id)
+				if face.text != street:
+					bad.append("%s face text '%s' want '%s'" % [id, face.text,
+							street])
+				if face.font != SignText.FONT:
+					bad.append("%s face not on the bundled font" % id)
+				yaws.append(wrapf(face.rotation.y, -PI, PI))
+			yaws.sort()
+			if absf(yaws[0] - -PI) > 0.01 or absf(yaws[1]) > 0.01:
+				bad.append("%s face yaws %s want ±z pair" % [id, yaws])
+		## Unlit: the body material carries no emission (retroreflective
+		## paint, not a light source — the T-134 read).
+		for child: Node in sign.get_children():
+			if child is not MeshInstance3D:
+				continue
+			var mat := (child as MeshInstance3D).mesh.surface_get_material(0) \
+					as StandardMaterial3D
+			if mat != null and mat.emission_enabled:
+				bad.append("%s body carries emission" % id)
+		if _has_collision(sign):
+			bad.append("%s carries collision (visual-only law)" % id)
+		if sign.position.distance_to(rec["pos"] as Vector3) > 0.001:
+			bad.append("%s node drifted off its mount" % id)
+		## The anchor is pinned, and the mount follows the corner type.
+		var a := int(rec["anchor"])
+		if graph.intersection_pin(a) == AmesTrafficGraph.PIN_NONE:
+			bad.append("%s sits at an unpinned anchor" % id)
+		var axis := graph.edge_axis(int(rec["edge"]))
+		var want_yaw := atan2(-axis.z, axis.x)
+		if absf(wrapf(float(rec["yaw"]) - want_yaw, -PI, PI)) > 0.02:
+			bad.append("%s yaw %.3f want %.3f" % [id, rec["yaw"], want_yaw])
+		## The plate reads ACROSS its street: the face normal stands
+		## perpendicular to the street axis (the MUTCD orientation).
+		var face_n := Vector3(sin(float(rec["yaw"])), 0.0, cos(float(rec["yaw"])))
+		if absf(face_n.dot(axis)) > 0.02:
+			bad.append("%s plate faces along its street (dot %.3f)" % [id,
+					face_n.dot(axis)])
+		var pos := rec["pos"] as Vector3
+		if str(rec["mount"]) == "mast":
+			## The mast-arm stack pose, re-derived from the graph + twins.
+			if not graph.intersection_is_signal(a):
+				bad.append("%s mast mount at a non-signal corner" % id)
+			var sig_axis := graph.intersection_signal_axis(a)
+			var half := graph.intersection_signal_half_width(a)
+			var lane := graph.intersection_signal_lane_off(a)
+			var node := graph.intersection_signal_node(a)
+			var node_pos := graph.node_pos(node)
+			var right := Vector3(-sig_axis.z, 0.0, sig_axis.x)
+			var along := lane + AmesTrafficGraph._STOP_OUTSET_TAIL \
+					+ AmesStreetBlades.MAST_POLE_CLEAR
+			var pole_pos := node_pos - sig_axis * along \
+					+ right * (half + AmesStreetBlades.MAST_POLE_SIDE)
+			var arm_len := (half + AmesStreetBlades.MAST_POLE_SIDE) + half \
+					- AmesStreetBlades.MAST_ARM_END_CLEAR
+			var station := pole_pos - right * (arm_len
+					* AmesStreetBlades.ARM_BLADE_STATION)
+			var k := int(rec["stack"])
+			var want_y := AmesStreetBlades.MAST_ARM_Y \
+					- AmesStreetBlades.ARM_BLADE_CLEAR - plate.y * 0.5 \
+					- float(k) * (plate.y + AmesStreetBlades.ARM_BLADE_STACK_GAP)
+			var want_pos := Vector3(station.x, want_y, station.z)
+			if pos.distance_to(want_pos) > 0.02:
+				bad.append("%s mast pos %s want %s" % [id, pos, want_pos])
+			if not stack_by_anchor.has(a):
+				stack_by_anchor[a] = {}
+			var seen: Dictionary = stack_by_anchor[a]
+			if seen.has(k):
+				bad.append("corner %d reuses mast stack slot %d" % [a, k])
+			seen[k] = true
+		else:
+			## The post position, re-derived with the outset clamp — the
+			## offset rides the APPROACH axis (into the node, the stop-sign
+			## law's own axis; the yaw axis above is the plate's, ± freely).
+			if graph.intersection_is_signal(a):
+				bad.append("%s post mount at a signal corner" % id)
+			var member := _blade_member_of(graph, a, int(rec["edge"]))
+			var geo := graph.approach_geometry(member,
+					graph.edge_reverse(int(rec["edge"])))
+			var app_axis: Vector3 = geo["axis"]
+			var out := Vector3(-app_axis.z, 0.0, app_axis.x)
+			var outset := minf(float(geo["stop_outset"])
+					+ AmesTrafficGraph.SIGN_OUTSET_GAP,
+					float(geo["run_length"]) - AmesStreetBlades.BLADE_RUN_MARGIN)
+			var base: Vector3 = graph.node_pos(member) - app_axis * outset + out \
+					* (float(geo["half_width"]) + AmesTrafficGraph.SIGN_EDGE_OFFSET
+					+ AmesStreetBlades.POST_SEP)
+			var want_pos := Vector3(base.x,
+					AmesStreetBlades.POST_MOUNT_Y, base.z)
+			if pos.distance_to(want_pos) > 0.02:
+				bad.append("%s post pos %s want %s" % [id, pos, want_pos])
+			## The plate bottom clears the octagon band (border top 2.67).
+			if pos.y - plate.y * 0.5 < 2.8:
+				bad.append("%s plate bottom %.2f inside the stop-sign band" % [id,
+						pos.y - plate.y * 0.5])
+			## Its post mesh part exists under the root at the right spot.
+			var root := world.get_node_or_null("StreetBlades") as Node3D
+			var post_node := root.get_node_or_null("Post_%s" % id.replace("/", "_")
+					.replace(" ", "_")) as MeshInstance3D
+			if post_node == null:
+				bad.append("%s post mesh missing" % id)
+			else:
+				if absf(post_node.position.y * 2.0
+						- (AmesStreetBlades.POST_MOUNT_Y - plate.y * 0.5)) > 0.01:
+					bad.append("%s post height off the plate bottom" % id)
+				if post_node.position.distance_to(Vector3(pos.x,
+						post_node.position.y, pos.z)) > 0.01:
+					bad.append("%s post not under its plate" % id)
+				var pm := post_node.mesh.surface_get_material(0) \
+						as StandardMaterial3D
+				if pm == null or not pm.albedo_color.is_equal_approx(
+						AmesStreetBlades.POST_COLOR):
+					bad.append("%s post not the corner-post gray" % id)
+	## The world report key.
+	var report: Dictionary = world.last_report
+	if int(report.get("street_blades", -1)) != records.size():
+		bad.append("report street_blades %s want %d"
+				% [str(report.get("street_blades")), records.size()])
+	_check(S, bad.is_empty(), "; ".join(bad) if not bad.is_empty() else "-")
+
+
+## The intersection member node that owns a given out-edge at an anchor —
+## the T-200 post legs' read (the module picked the edge off a member; the
+## re-derivation needs that member's node position back).
+func _blade_member_of(graph: AmesTrafficGraph, anchor: int, edge: int) -> int:
+	for member in graph.intersection_members(anchor):
+		for e in graph.out_edges(member):
+			if e == edge:
+				return member
+	return graph.intersection_head(anchor)
 
 
 ## The nearest segment of ONE NAMED street to a world position (y ignored) —
