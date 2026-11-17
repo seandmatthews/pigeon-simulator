@@ -1,6 +1,6 @@
 # T-208 — Ames R5 · tailgate dressing: game-day lots, static
 
-- **Status:** proposed · **Category:** visual-design · **Ring:** R5 The Town ·
+- **Status:** doing · **Category:** visual-design · **Ring:** R5 The Town ·
   **Value (1-5):** 3 · **Risk (1-5):** 1
 - **Depends on:** T-191 (the stadium complex), T-182 (lots exist)
 - **Refs:** `images/stadium/14` (tailgate RV), `11` (facade + flooded

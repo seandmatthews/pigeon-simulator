@@ -203,6 +203,36 @@ func park_spots_near(lxz: Vector2, radius: float) -> Array[Dictionary]:
 	return out
 
 
+## --- T-208 the tailgate-dress guards -----------------------------------------
+
+
+## (T-208) The per-lot street-guard candidate list — the T-182 stall guard's
+## own short list (the runs whose grown AABBs overlap the lot's bbox) —
+## exposed for the world's tailgate prop walk. The props run the SAME guard
+## chain stalls do, so a prop and a car never disagree about where the
+## asphalt starts. Built once per lot, not per prop.
+func street_guard_candidates(dress: Lot) -> Array:
+	return _street_candidates(dress)
+
+
+## (T-208) One tailgate prop candidate's guard chain — the T-182 stall
+## guards verbatim (lake water, building ground, rail ballast, street
+## asphalt) minus the stall-specific kept/gap decision. `candidates` is the
+## lot's `street_guard_candidates` list.
+func prop_guard_ok(x: float, z: float, candidates: Array) -> bool:
+	if _in_polygon(x, z, _lake):
+		return false ## Never in the lake.
+	var ground := _world.ground_height(
+			_world.to_global(Vector3(x, 0.0, z)))
+	if ground > GROUND_COVER_MAX:
+		return false ## Inside a building footprint.
+	if _near_rail(x, z):
+		return false ## The rail corridor stays clear.
+	if _near_street(x, z, candidates):
+		return false ## Off the asphalt; the lots dress, the streets drive.
+	return true
+
+
 ## --- the curb marking -------------------------------------------------------
 
 
