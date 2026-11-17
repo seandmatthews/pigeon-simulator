@@ -1,6 +1,6 @@
 # T-205 — Ames R5 · north: Ada Hayden and the north parks
 
-- **Status:** proposed · **Category:** worldbuilding · **Ring:** R5 The Town ·
+- **Status:** doing · **Category:** worldbuilding · **Ring:** R5 The Town ·
   **Value (1-5):** 3 · **Risk (1-5):** 2
 - **Depends on:** T-203
 - **Refs:** `osm/SUMMARY.md` (+1.6 km north option) ·

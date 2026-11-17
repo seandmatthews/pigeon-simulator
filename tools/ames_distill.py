@@ -46,6 +46,24 @@ Pack version history:
       inside; W/E/N and the origin unchanged). Counts re-pinned against the
       grown box (the v2 pins and the south-strip deltas recorded in
       T-204's ticket).
+  v4 (T-205): the bbox-north — N 42.0355 → 42.0780 (+4.72 km north). The
+      ticket's parks/fabric/Cafe band (Moore Memorial + Inis Grove parks,
+      The Cafe at 2616 Northridge Pkwy, the north residential blocks) sits
+      inside SUMMARY §3's planned "+1.6 km north" window (N 42.0500); but
+      the ticket's own What/AC put ADA HAYDEN HERITAGE PARK in the build —
+      twin quarry lakes at data geometry, trail ring walkable-adjacent —
+      and the data places that park at lat 42.05999..42.07618 (relation
+      12032468, 1500 × 1798 m; SUMMARY §3 itself lists it "farther out").
+      Landing the acceptance criteria therefore grows the box past the
+      park: N 42.0780 covers the whole park way + its Ada Hayden Road +
+      Grand Avenue's north end. W/S/E and the origin unchanged; the v3
+      north edge is stamped `core_bbox_north_v3` and buildings north of it
+      ride the census §6 rule exactly like the east/south strips. v4 also
+      joins two data families the small windows never needed: NAMED
+      natural=water ways (≥ 1 ha in-core — Ada Hayden Lake 52.1 ha, Arnold
+      Lake 2.0 ha) and the R5-north parks' TRAILS (footway/path/cycleway
+      runs inside the Ada Hayden / Inis Grove / Moore Memorial park
+      polygons).
 
 Census faithfulness: every count/geometry rule below is the census lane's rule
 (docs/references/ames-survey/census/scripts/ames_census.py), so the pack's
@@ -76,10 +94,16 @@ OUT = os.path.join(REPO, "data", "ames", "ames_core.json")
 # "+1.0 km south" window, the town's garden gate): the whole Reiman Gardens
 # grounds (the 414 × 475 m garden way, bbox south 42.00633), the conservatory
 # (way/180765068), the ISU Vet Med campus and the south blocks + their trees
-# come inside. W/E/N are the census/T-203 lines, untouched. (The whole
-# "Reiman Gardens" garden way 180765023 spans lat 42.00843..42.01271 —
-# its south edge lands ~580 m inside the new box.)
-CORE = (-93.6590, 42.0030, -93.6070, 42.0355)  # game-core bbox W, S, E, N
+# come inside. T-205 widens north: N 42.0355 → 42.0780, +4.72 km north —
+# past the whole Ada Hayden Heritage Park (relation 12032468, bbox lat
+# 42.05999..42.07618: the ticket's twin-lakes/trail-ring acceptance criteria
+# need the park AT data geometry and walkable, and SUMMARY §3's own +1.6 km
+# north window (N 42.0500) stops ~2 km short of it — see the version
+# history), landing the park + its Ada Hayden Road (bbox north 42.07794) +
+# Grand Avenue's north end + the Moore Memorial / Inis Grove parks + The
+# Cafe (2616 Northridge Pkwy, lat 42.04874) + the north residential blocks.
+# W/S/E are the census/T-203/T-204 lines, untouched.
+CORE = (-93.6590, 42.0030, -93.6070, 42.0780)  # game-core bbox W, S, E, N
 
 # The v1 census east edge — the window the committed census classification
 # (authored-buildings.csv) covers. Buildings east of it ride the census §6
@@ -92,6 +116,12 @@ CENSUS_V1_EAST = -93.6100
 # the census §6 rule mechanically, the exact T-203 treatment mirrored; the
 # const is stamped into meta the same way.
 CENSUS_V2_SOUTH = 42.0120
+
+# The v3 north edge — the third boundary the census CSV window sits inside
+# (the v3 box = the CSV window grown east AND south). Buildings north of it
+# ride the census §6 rule mechanically, the T-204 treatment mirrored once
+# more; the const is stamped into meta the same way (T-205).
+CENSUS_V3_NORTH = 42.0355
 
 # --- coordinate convention (master plan §2) — THE transform -----------------
 
@@ -390,9 +420,10 @@ def flt(v):
 # The census §6 class rule (ames_census.py buildings mode, verbatim key set):
 # named -> authored-named; unnamed but use-tagged -> semi-tagged; else
 # procedural. Applied ONLY to the strips' CSV-less buildings: the T-203 east
-# strip (east of CENSUS_V1_EAST) and the T-204 south strip (south of
-# CENSUS_V2_SOUTH — the guards are disjoint, an SE-corner building counts in
-# the east strip, the first guard wins).
+# strip (east of CENSUS_V1_EAST), the T-204 south strip (south of
+# CENSUS_V2_SOUTH) and the T-205 north strip (north of CENSUS_V3_NORTH — the
+# guards are disjoint, an SE-corner building counts in the east strip and an
+# NE-corner one in the north strip, the first guard wins).
 CENSUS_POI_TAGS = ("amenity", "shop", "leisure", "tourism", "historic",
                    "office", "craft", "healthcare", "man_made")
 
@@ -410,6 +441,7 @@ def build_buildings(blds, authored_csv):
     missing_csv = []
     strip_n = {"authored-named": 0, "semi-tagged": 0, "procedural": 0}
     south_n = {"authored-named": 0, "semi-tagged": 0, "procedural": 0}
+    north_n = {"authored-named": 0, "semi-tagged": 0, "procedural": 0}
     for b in sorted(blds, key=lambda x: x["id"]):
         row = authored_csv.get(b["id"])
         t = b["tags"]
@@ -420,16 +452,21 @@ def build_buildings(blds, authored_csv):
             # rule, applied mechanically — named -> authored-named, unnamed
             # + POI tag -> semi-tagged, else procedural. East of the v1 edge
             # = the T-203 east strip; south of the v2 south edge = the T-204
-            # south strip (disjoint: the east guard wins an SE-corner
-            # building). The authored set stays CLOSED: no hand curation
-            # ever happens here — a CSV-less building inside BOTH edges is
-            # census-window drift and hard-fails.
+            # south strip; north of the v3 north edge = the T-205 north
+            # strip (disjoint: the east guard wins an SE-corner building,
+            # the north guard an NE-corner one). The authored set stays
+            # CLOSED: no hand curation ever happens here — a CSV-less
+            # building inside ALL edges is census-window drift and
+            # hard-fails.
             if b["c"][0] > CENSUS_V1_EAST:
                 census_class = census_class_of(t)
                 strip_n[census_class] += 1
             elif b["c"][1] < CENSUS_V2_SOUTH:
                 census_class = census_class_of(t)
                 south_n[census_class] += 1
+            elif b["c"][1] > CENSUS_V3_NORTH:
+                census_class = census_class_of(t)
+                north_n[census_class] += 1
             else:
                 missing_csv.append(b["id"])
                 continue
@@ -448,7 +485,7 @@ def build_buildings(blds, authored_csv):
             "bbox_m": [round(dims[0], 1), round(dims[1], 1)],
             "wgs84": [round(b["c"][0], 6), round(b["c"][1], 6)],
         })
-    return entries, missing_csv, strip_n, south_n
+    return entries, missing_csv, strip_n, south_n, north_n
 
 
 def build_water(nodes, ways, rels):
@@ -477,6 +514,54 @@ def build_water(nodes, ways, rels):
             "wgs84": [round(bbox_center(pts)[0], 6), round(bbox_center(pts)[1], 6)],
         })
         break
+    # Named water bodies (T-205): every NAMED natural=water CLOSED way whose
+    # bbox center sits in core and whose area clears 1 ha joins as a lake
+    # entry. This is the north-Ames rule the twin-quarry-lake read needs:
+    # Ada Hayden Lake (way/44802137, 52.1 ha over a 860 × 1125 m bbox — ONE
+    # closed ring tracing both quarry lobes around the isthmus pinch) and
+    # Arnold Lake (way/50107227, 2.0 ha farm pond at the park's SW). LaVerne
+    # predates the rule (admitted above, by relation) and its own shoreline
+    # ways are unnamed, so the two rules are disjoint. The lake ways'
+    # `bank` field carries the shore character the survey's cluster note
+    # gives ("flat quarry-banked shoreline", IMAGE_INDEX nature notes):
+    # Ada Hayden = "quarry" (the bake paints its shore band pale gravel),
+    # everything else the default mown shore.
+    for wid in sorted(ways):
+        w = ways[wid]
+        t = w.get("tags") or {}
+        if t.get("natural") != "water":
+            continue
+        name = (t.get("name") or "").strip()
+        if not name:
+            continue
+        pts = way_pts(w, nodes)
+        if not is_closed(pts):
+            continue
+        c = bbox_center(pts)
+        if not in_core(c):
+            continue
+        area = shoelace_m2(ring_of(pts))
+        if area < 10000.0:
+            continue
+        cx, cz = to_local(*c)
+        out.append({
+            "kind": "lake",
+            "name": name,
+            "bank": "quarry" if "hayden" in name.lower() else None,
+            "polygon": poly_local(ring_of(pts)),
+            "area_m2": round(area),
+            "bbox_m": [round(v, 1) for v in bbox_dims_m(pts)],
+            "center": [cx, cz],
+            "wgs84": [round(c[0], 6), round(c[1], 6)],
+        })
+    # The named lakes join AFTER LaVerne (biggest first): the v3 list order
+    # is load-bearing — the swan/gate consumers read the FIRST lake entry as
+    # Lake LaVerne, so LaVerne keeps index 0 exactly as the v1/v2/v3 packs
+    # carried it.
+    named_lakes = [e for e in out if e.get("name") != "Lake LaVerne"]
+    laverne = [e for e in out if e.get("name") == "Lake LaVerne"]
+    named_lakes.sort(key=lambda e: -e["area_m2"])
+    out = laverne + named_lakes
     # College / Ioway Creek centerlines (mapped waterway lines, in core).
     for creek in ("College Creek", "Ioway Creek"):
         runs = []
@@ -585,7 +670,7 @@ def build_rail(nodes, ways):
     }
 
 
-def build_parks(nodes, ways):
+def build_parks(nodes, ways, rels, lakes):
     entries = []
     for wid in sorted(ways):
         w = ways[wid]
@@ -611,7 +696,234 @@ def build_parks(nodes, ways):
             "center": [cx, cz],
             "wgs84": [round(c[0], 6), round(c[1], 6)],
         })
+    # Named leisure=park RELATIONS north of the v3 edge (T-205): the north
+    # parks' multipolygon law. Ada Hayden Heritage Park (relation 12032468 —
+    # one 180-ha outer ring, the city's full 437-acre bought tract; the
+    # city's own "~190 acres" figure is the DEVELOPED park inside it),
+    # Moore Memorial Park (14721919 — TWO DISJOINT outer rings) and Charles
+    # & June Calhoun Park (12463402) are mapped as relations, not tagged
+    # ways, so the ways-only census rule above never saw them. One entry per
+    # closed outer ring (a disjoint two-ring park lands two entries under
+    # one name — chaining disjoint rings would corrupt the shoelace and the
+    # bake's ring split); the census's ways-only rule south of the line is
+    # untouched (Emma McCarthy Lee Park, already in-core but relation-mapped,
+    # stays a recorded data grain of the pre-v4 rule).
+    for rid in sorted(rels):
+        r = rels[rid]
+        t = r.get("tags") or {}
+        if t.get("leisure") != "park" or not (t.get("name") or "").strip():
+            continue
+        member_rings = []
+        for m in r.get("members", []):
+            if m.get("type") != "way" or m.get("ref") not in ways:
+                continue
+            pts = way_pts(ways[m["ref"]], nodes)
+            if len(pts) >= 4 and is_closed(pts):
+                member_rings.append(ring_of(pts))
+        if not member_rings:
+            continue
+        all_pts = [p for ring in member_rings for p in ring]
+        c = bbox_center(all_pts)
+        if not in_core(c) or c[1] <= CENSUS_V3_NORTH:
+            continue
+        name = t["name"].strip()
+        for ring in member_rings:
+            area = shoelace_m2(ring)
+            cx, cz = to_local(*bbox_center(ring))
+            entries.append({
+                "name": name,
+                "polygon": poly_local(ring),
+                "area_m2": round(area),
+                "center": [cx, cz],
+                "wgs84": [round(bbox_center(ring)[0], 6),
+                          round(bbox_center(ring)[1], 6)],
+            })
+    # Park-lake hole cut (T-205): a park ring that strictly contains a named
+    # lake gives that lake its water flat back — the bake's flats stack lawn
+    # ABOVE water, so the uncut polygon would paint mown lawn over the whole
+    # lake. The keyhole-splice cut lands one simple bridged ring (see
+    # cut_ring_holes); the entry records what it lost.
+    lake_rings = [(l.get("name") or "", [tuple(p) for p in l["polygon"]])
+                  for l in lakes if l.get("kind") == "lake"]
+    for e in entries:
+        poly = [tuple(p) for p in e["polygon"]]
+        holes = [hr for nm, hr in lake_rings
+                 if all(_point_in_ring(p, poly) for p in hr)]
+        if holes:
+            e["polygon"] = [list(p) for p in cut_ring_holes(poly, holes)]
+            e["area_m2"] = round(_ring_abs_area_local(
+                [(p[0], p[1]) for p in e["polygon"]]))
+            e["holes_cut"] = [nm for nm, hr in lake_rings if hr in holes]
     entries.sort(key=lambda e: -e["area_m2"])
+    return entries
+
+
+# --- park-lake hole cutting (T-205) -----------------------------------------
+#
+# The Ada Hayden park ring CONTAINS its twin-quarry lake (52.1 ha inside the
+# 180-ha tract), and the bake's flats stack lawn (y 0.04) ABOVE water
+# (y 0.02) — an uncut park polygon would paint mown lawn over the whole
+# lake. The bake has no hole concept (its ring split sees only chained
+# loops), so the distiller cuts the hole structurally: the classic keyhole
+# splice — the hole's eastmost vertex bridges EAST to the nearest outer-edge
+# crossing, the hole walks once inside the outer ring, and the two seam
+# vertex pairs (P, E) get a 3 cm epsilon so their stored keys stay distinct
+# (the bake's ring-split can never re-split the loop, and a 3 cm slit is
+# sub-visible at park scale). Area conservation is asserted: the bridged
+# ring's shoelace must equal outer minus hole within 0.1 %.
+
+HOLE_EPS_M = 0.03  # the seam epsilon (m) — 3 grid steps at the 0.01 rounding
+
+
+def _ring_pts_local(ring_lonlat):
+    return [to_local_lonlat_free(p) for p in ring_lonlat]
+
+
+def _ring_area_local(pts):
+    s = 0.0
+    n = len(pts)
+    for i in range(n):
+        x1, y1 = pts[i]
+        x2, y2 = pts[(i + 1) % n]
+        s += x1 * y2 - x2 * y1
+    return s / 2.0
+
+
+def _ring_abs_area_local(pts):
+    return abs(_ring_area_local(pts))
+
+
+def _point_in_ring(pt, ring):
+    """Even-odd point-in-ring (planar local meters)."""
+    x, y = pt
+    inside = False
+    n = len(ring)
+    j = n - 1
+    for i in range(n):
+        xi, yi = ring[i]
+        xj, yj = ring[j]
+        if (yi > y) != (yj > y):
+            x_at = xj + (y - yj) / (yi - yj) * (xi - xj)
+            if x < x_at:
+                inside = not inside
+        j = i
+    return inside
+
+
+def _cut_one_hole(outer, hole):
+    """Splice one hole ring out of an outer ring (local meters)."""
+    e_i = max(range(len(hole)), key=lambda i: (hole[i][0], hole[i][1]))
+    ex, ey = hole[e_i]
+    best = None  # (dist, j, px) — nearest strictly-east outer-edge crossing
+    n = len(outer)
+    for j in range(n):
+        ax, ay = outer[j]
+        bx, by = outer[(j + 1) % n]
+        if (ay - ey) == 0 or (by - ey) == 0:
+            continue  # an endpoint ON the ray — skip the degenerate straddle
+        if (ay > ey) == (by > ey):
+            continue
+        px = ax + (ey - ay) / (by - ay) * (bx - ax)
+        if px <= ex:
+            continue
+        if best is None or (px - ex) < best[0] - 1e-9:
+            best = (px - ex, j, px)
+    if best is None:
+        raise SystemExit("cut_ring_holes: east ray found no outer crossing — "
+                         "hole is not strictly inside the outer ring")
+    _, j, px = best
+    # The hole must traverse OPPOSITE the outer for the shoelace subtraction.
+    if (_ring_area_local(outer) >= 0.0) == (_ring_area_local(hole) >= 0.0):
+        hole = list(reversed(hole))
+        e_i = max(range(len(hole)), key=lambda i: (hole[i][0], hole[i][1]))
+        ex, ey = hole[e_i]
+    out = outer[:j + 1]
+    out.append((px, ey))            # P — seam split on the outer edge
+    out.append((ex, ey))            # E — the bridge out to the hole
+    for k in range(1, len(hole) + 1):
+        out.append(hole[(e_i + k) % len(hole)])
+    out.append((ex, ey - HOLE_EPS_M))   # E' — 3 cm south of E (distinct key)
+    out.append((px, ey - HOLE_EPS_M))   # P' — 3 cm south of P
+    out.extend(outer[j + 1:])
+    return out
+
+
+def cut_ring_holes(outer_local, holes_local):
+    """Cut strictly-contained lake rings out of a park ring (LOCAL meters
+    in and out — one simple bridged ring). Asserts the area law: the
+    bridged ring's shoelace must equal outer minus holes within 0.1 %."""
+    for hr in holes_local:
+        if not all(_point_in_ring(p, outer_local) for p in hr):
+            raise SystemExit("cut_ring_holes: a hole ring is not strictly "
+                             "inside the park ring — refusing a partial cut")
+    ring = list(outer_local)
+    for hr in sorted(holes_local, key=_ring_abs_area_local, reverse=True):
+        ring = _cut_one_hole(ring, hr)
+    got = _ring_abs_area_local(ring)
+    want = _ring_abs_area_local(outer_local) - sum(_ring_abs_area_local(h)
+                                                   for h in holes_local)
+    if want <= 0.0 or abs(got - want) > want * 0.001:
+        raise SystemExit(f"cut_ring_holes: bridged area {got:.0f} m2 not the "
+                         f"outer-minus-holes {want:.0f} m2 (0.1% band)")
+    return [(round(p[0], 2), round(p[1], 2)) for p in ring]
+
+
+# --- trails (T-205): the R5-north parks' mapped trail runs -------------------
+
+TRAIL_KINDS = ("footway", "path", "cycleway", "pedestrian")
+
+# The parks whose mapped trails join the pack (T-205's What list: Ada Hayden
+# as the trail-ring hero, Inis Grove + Moore Memorial as green massing +
+# trails). Name-matched against the parks section (ways AND relation rings).
+NORTH_TRAIL_PARKS = ("Ada Hayden Heritage Park", "Inis Grove Park",
+                     "Moore Memorial Park")
+
+
+def build_trails(nodes, ways, parks):
+    """Trail runs (footway/path/cycleway/pedestrian) whose midpoints sit
+    inside a north-park ring AND in core, stitched per way like streets.
+    Park rings are the pack's OWN stored local-meter polygons."""
+    park_rings = [(e["name"], [(float(p[0]), float(p[1])) for p in e["polygon"]])
+                  for e in parks if e.get("name") in NORTH_TRAIL_PARKS]
+    entries = []
+    for wid in sorted(ways):
+        w = ways[wid]
+        t = w.get("tags") or {}
+        kind = t.get("highway")
+        if kind not in TRAIL_KINDS:
+            continue
+        pts = way_pts(w, nodes)
+        segs = []
+        for i in range(len(pts) - 1):
+            a, b = pts[i], pts[i + 1]
+            mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            if not in_core((mx, my)):
+                continue
+            p = to_local(mx, my)
+            for _, ring in park_rings:
+                if _point_in_ring(p, ring):
+                    segs.append((a, b))
+                    break
+        for run in runs_from_segments(segs):
+            points = poly_local(run)
+            km = polyline_km_local(points)
+            if km < 0.005:  # drop sub-5 m slivers
+                continue
+            mid = bbox_center(run)
+            park_name = None
+            for nm, ring in park_rings:
+                if _point_in_ring(to_local(*mid), ring):
+                    park_name = nm
+                    break
+            if park_name is None:
+                continue
+            entries.append({
+                "park": park_name,
+                "kind": kind,
+                "km": round(km, 3),
+                "points": points,
+            })
+    entries.sort(key=lambda e: (e["park"], e["kind"], e["points"][0]))
     return entries
 
 
@@ -1026,38 +1338,66 @@ def nearest_street_local(streets, x, z):
 # --- pack assembly ----------------------------------------------------------
 
 CENSUS_PINNED = {
-    # v3 counts — the T-204 bbox south (S 42.0120 → 42.0030) grew the box
-    # past the census's own window like T-203's east strip did; each entry
-    # records the v2 pin and the strip deltas. The census-window rules are
+    # v4 counts — the T-205 bbox north (N 42.0355 → 42.0780) grew the box
+    # past the census's own window like the east/south strips did; each entry
+    # records the v3 pin and the strip deltas. The census-window rules are
     # untouched; the strips' buildings classify by the census §6 rule
-    # (build_buildings — the east guard fires first, so the box's SE-corner
-    # growth rides the EAST strip bucket, and the south strip is the
+    # (build_buildings — the east guard fires first, so the box's NE-corner
+    # growth rides the EAST strip bucket, and the north strip is the
     # CSV-less set west of the v1 east edge).
-    "buildings": 4960,          # v2 4134 + south strip 713 + the east
-                                # strip's SE-corner growth 113
-    "named_buildings": 616,     # v2 556 + 47 south named + 13 east SE-growth
-    "east_strip_buildings": 510,    # v2 397 + 113 SE-corner buildings (the
-                                    # south widening grew the box past the
-                                    # east strip's own southern tail; the
+    "buildings": 10783,         # v3 4960 + north strip 5622 + the east
+                                # strip's NE-corner growth 201
+    "named_buildings": 682,     # v3 616 + 65 north named + 1 east NE-growth
+    "east_strip_buildings": 711,    # v3 510 + 201 NE-corner buildings (the
+                                    # north widening grew the box past the
+                                    # east strip's own northern tail; the
                                     # east guard still fires first)
-    "east_strip_named": 57,     # v2 44 + 13
+    "east_strip_named": 58,     # v3 57 + 1
     "east_strip_semi_tagged": 3,    # unchanged
-    "east_strip_procedural": 450,   # v2 350 + 100
-    "south_strip_buildings": 713,   # v2 0 — the CSV-less set, all south of
-                                    # CENSUS_V2_SOUTH AND west of the v1
-                                    # east edge (guarded per-building)
-    "south_strip_named": 47,    # §6 rule split of the 713
+    "east_strip_procedural": 650,   # v3 450 + 200
+    "south_strip_buildings": 713,   # v3 0 — unchanged: the north widening
+                                    # cannot touch the south strip (the
+                                    # guards are disjoint per building)
+    "south_strip_named": 47,
     "south_strip_semi_tagged": 9,
     "south_strip_procedural": 657,
-    "trees": 6106,              # v2 5715 + 391 south strip tree nodes
-    "rail_at_grade_vehicular": 9,   # §5/§7.11 (Grand, Clark, Kellogg, Duff,
-                                    #  Hazel, Brookridge, 9th, 13th, 1 service)
-                                    # — unchanged by the south strip
+    "north_strip_buildings": 5622,  # v3 0 — the CSV-less set, all north of
+                                    # CENSUS_V3_NORTH AND west of the v1
+                                    # east edge (guarded per-building; the
+                                    # north-Ames residential fabric the
+                                    # ticket's What names)
+    "north_strip_named": 65,    # §6 rule split of the 5622
+    "north_strip_semi_tagged": 27,
+    "north_strip_procedural": 5530,
+    "lakes": 2,                 # v3 1 — the named-water rule joins Ada
+                                # Hayden Lake (way/44802137, 52.1 ha, the
+                                # twin-quarry-lobed ring, bank=quarry);
+                                # LaVerne predates the rule (relation
+                                # 3329428) and its ways are unnamed, so
+                                # the rules are disjoint. Arnold Lake
+                                # (2.0 ha, named) sits EAST of the core
+                                # edge — bbox center −93.6014 > −93.607 —
+                                # and stays out.
+    "trail_runs": 69,           # v3 0 — the north parks' trails (T-205):
+                                # Ada Hayden 5.29 km (cycleway 4.27 + path
+                                # 0.84 + footway 0.18), Moore Memorial 2.44,
+                                # Inis Grove 1.62; longest single run 1.76
+                                # km (the survey's "outside loop 1.9 km"
+                                # through the park-ring clip)
+    "trail_km": 9.36,
+    "trees": 6753,              # v3 6106 + 647 north strip tree nodes
+    "rail_at_grade_vehicular": 14,  # §5/§7.11's 9 (Grand, Clark, Kellogg,
+                                    #  Duff, Hazel, Brookridge, 9th, 13th,
+                                    #  1 service) + the north strip's 5 the
+                                    # v3 box never saw: West 190th Street,
+                                    #  Bloomington Road, 24th, 20th, 16th
+                                    #  (the UP line exits town at grade)
     "venues": 48,               # VENUES.md (14 + 17 + 17) — unchanged
     "venue_tiers": {1: 14, 2: 17, 3: 17},
     "landmarks": 15,            # LANDMARKS §5 top-15 — unchanged
-    "parking_lots": 571,        # v2 532 + 39 strip lots (bbox center in core)
-    "parking_ha": 94.43,        # v2 83.05 + 11.38 strip ha
+    "parking_lots": 639,        # v3 571 + 68 north strip lots (bbox center
+                                # in core); bays stay 31
+    "parking_ha": 113.97,       # v3 94.43 + 19.54 north strip ha
     "parking_tailgate_lots": 33,    # §3 Iowa State Center tailgate zone —
                                     # the zone rule is the lat/lon window, not
                                     # the box: the census §3 record (and the
@@ -1093,24 +1433,28 @@ def main():
 
     extra3_km_raw, extra3_by_class = named_highway_extra3_km(nodes, ways)
     extra3_km = round(extra3_km_raw / 1000.0, 1)
-    # The extra3 rule re-run over the v3 box (T-204): the v1 census figure
+    # The extra3 rule re-run over the v4 box (T-205): the v1 census figure
     # was 99.6 km (SUMMARY §3); the east strip added 6.1 (v2 105.7); the
-    # south strip adds the rest (University Boulevard, Mortensen Parkway,
-    # South 16th Street, the Vet Med loops). Band guards against rule
-    # drift, not history.
-    if not (134.2 <= extra3_km <= 135.2):
+    # south strip added the rest (v3 134.7 — University Boulevard, Mortensen
+    # Parkway, South 16th Street, the Vet Med loops); the north strip adds
+    # the rest (275.9 — the north residential grid's named ways, whose
+    # node-filter rule rejoins its own gaps, folding cycleway/service/
+    # pedestrian names in). Band guards against rule drift, not history.
+    if not (275.4 <= extra3_km <= 276.4):
         raise SystemExit(f"extra3-rule named-road km {extra3_km} outside the "
-                         f"v3 band [134.2, 135.2] (v2 figure 105.7; rule "
+                         f"v4 band [275.4, 276.4] (v3 figure 134.7; rule "
                          f"drift — check named_highway_extra3_km)")
 
     blds = collect_building_set(nodes, ways, rels)
-    buildings, missing_csv, strip_n, south_n = build_buildings(blds, authored_csv)
+    buildings, missing_csv, strip_n, south_n, north_n = \
+        build_buildings(blds, authored_csv)
     named = [b for b in buildings if b["name"]]
     authored_n = sum(1 for b in buildings if b["class"] == "authored")
 
     water = build_water(nodes, ways, rels)
     rail = build_rail(nodes, ways)
-    parks = build_parks(nodes, ways)
+    parks = build_parks(nodes, ways, rels, water)
+    trails = build_trails(nodes, ways, parks)
     trees = build_trees(tagged)
     parking = build_parking(nodes, ways, tagged)
     pois = build_pois(nodes, ways, rels, tagged, rail, streets)
@@ -1142,6 +1486,27 @@ def main():
                          f"({CENSUS_PINNED['south_strip_named']}/"
                          f"{CENSUS_PINNED['south_strip_semi_tagged']}/"
                          f"{CENSUS_PINNED['south_strip_procedural']})")
+    north_total = sum(north_n.values())
+    if north_total != CENSUS_PINNED["north_strip_buildings"] \
+            or north_n.get("authored-named") != CENSUS_PINNED["north_strip_named"] \
+            or north_n.get("semi-tagged") != CENSUS_PINNED["north_strip_semi_tagged"] \
+            or north_n.get("procedural") != CENSUS_PINNED["north_strip_procedural"]:
+        raise SystemExit(f"north strip split {north_n} != pinned "
+                         f"{CENSUS_PINNED['north_strip_buildings']} "
+                         f"({CENSUS_PINNED['north_strip_named']}/"
+                         f"{CENSUS_PINNED['north_strip_semi_tagged']}/"
+                         f"{CENSUS_PINNED['north_strip_procedural']})")
+    lakes = [w for w in water if w.get("kind") == "lake"]
+    if len(lakes) != CENSUS_PINNED["lakes"]:
+        raise SystemExit(f"lakes {len(lakes)} != pinned "
+                         f"{CENSUS_PINNED['lakes']}: "
+                         + str([l["name"] for l in lakes]))
+    trail_km = round(sum(t["km"] for t in trails), 2)
+    if len(trails) != CENSUS_PINNED["trail_runs"] \
+            or abs(trail_km - CENSUS_PINNED["trail_km"]) > 0.05:
+        raise SystemExit(f"trails {len(trails)} runs / {trail_km} km != pinned "
+                         f"{CENSUS_PINNED['trail_runs']} / "
+                         f"{CENSUS_PINNED['trail_km']}")
     if len(trees) != CENSUS_PINNED["trees"]:
         raise SystemExit(f"trees {len(trees)} != census {CENSUS_PINNED['trees']}")
     at_grade = [c for c in rail["crossings"] if c["grade"] == "at_grade"]
@@ -1181,8 +1546,8 @@ def main():
     pack = {
         "meta": {
             "pack": "ames_core",
-            "version": 3,
-            "schema": "ames_core/v3",
+            "version": 4,
+            "schema": "ames_core/v4",
             "attribution": "Map data © OpenStreetMap contributors",
             "license": "ODbL — see docs/references/ames-survey/ODBL-NOTE.md",
             "source_date": "2026-11-08",
@@ -1192,6 +1557,7 @@ def main():
             "core_bbox_wsen": [CORE[0], CORE[1], CORE[2], CORE[3]],
             "core_bbox_east_v1": CENSUS_V1_EAST,
             "core_bbox_south_v2": CENSUS_V2_SOUTH,
+            "core_bbox_north_v3": CENSUS_V3_NORTH,
             "bbox_east_note": "v2 (T-203): east edge widened +248 m for "
                               "Bandshell Park + the S Duff corridor context; "
                               "buildings east of core_bbox_east_v1 classify "
@@ -1202,6 +1568,21 @@ def main():
                                "the south blocks; buildings south of "
                                "core_bbox_south_v2 classify by the census "
                                "§6 rule (build_buildings)",
+            "bbox_north_note": "v4 (T-205): north edge widened to 42.0780 "
+                               "past the whole Ada Hayden Heritage Park "
+                               "(relation 12032468, bbox lat 42.05999.."
+                               "42.07618 — the ticket's twin-lakes/trail-"
+                               "ring criteria need the park at data "
+                               "geometry and walkable; SUMMARY §3's own "
+                               "+1.6 km north window (42.0500) stops ~2 km "
+                               "short of it), landing the park + Moore "
+                               "Memorial + Inis Grove + The Cafe (2616 "
+                               "Northridge Pkwy) + the north blocks; "
+                               "buildings north of core_bbox_north_v3 "
+                               "classify by the census §6 rule. v4 also "
+                               "joins named water bodies (>= 1 ha) and the "
+                               "north parks' trails (build_water / "
+                               "build_trails).",
             "origin": {
                 "lon": ORIGIN_LON,
                 "lat": ORIGIN_LAT,
@@ -1228,6 +1609,13 @@ def main():
                 "buildings_south_strip_named": south_n.get("authored-named", 0),
                 "buildings_south_strip_semi_tagged": south_n.get("semi-tagged", 0),
                 "buildings_south_strip_procedural": south_n.get("procedural", 0),
+                "buildings_north_strip": sum(north_n.values()),
+                "buildings_north_strip_named": north_n.get("authored-named", 0),
+                "buildings_north_strip_semi_tagged": north_n.get("semi-tagged", 0),
+                "buildings_north_strip_procedural": north_n.get("procedural", 0),
+                "lakes": len(lakes),
+                "trail_runs": len(trails),
+                "trail_km": trail_km,
                 "trees": len(trees),
                 "street_entries": len(streets),
                 "venues": len(venues),
@@ -1276,6 +1664,7 @@ def main():
         "water": water,
         "rail": rail,
         "parks": parks,
+        "trails": trails,
         "parking": parking,
         "trees": trees,
     }
@@ -1294,7 +1683,11 @@ def main():
           f"{sum(south_n.values())} = "
           f"{south_n.get('authored-named', 0)} named / "
           f"{south_n.get('semi-tagged', 0)} semi / "
-          f"{south_n.get('procedural', 0)} procedural)")
+          f"{south_n.get('procedural', 0)} procedural; north strip "
+          f"{sum(north_n.values())} = "
+          f"{north_n.get('authored-named', 0)} named / "
+          f"{north_n.get('semi-tagged', 0)} semi / "
+          f"{north_n.get('procedural', 0)} procedural)")
     print(f"trees {len(trees)}; street entries {len(streets)} "
           f"(named drivable in-core {street_km_stored} km, census rule "
           f"{street_km_census / 1000.0:.2f} km, all drivable "
@@ -1310,7 +1703,9 @@ def main():
           f"[placed {sum(1 for v in venues if v['placed'])}], landmarks "
           f"{len(landmarks)} [placed {sum(1 for l in landmarks if l['placed'])}]); "
           f"unplaced: {', '.join(pack['meta']['unplaced_pois'])}")
-    print(f"water {len(water)}; parks {len(parks)}")
+    print(f"water {len(water)} (lakes {len(lakes)}: "
+          f"{', '.join(l['name'] for l in lakes)}); parks {len(parks)}; "
+          f"trails {len(trails)} runs / {trail_km} km")
     return 0
 
 
