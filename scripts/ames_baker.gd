@@ -10,8 +10,9 @@ class_name AmesBaker
 ## on the same machine produce byte-identical files, proven per chunk by the
 ## SHA-256 determinism manifest (`ames_bake_determinism`, Gate 1b).
 ##
-## What each chunk carries (ames_chunks/v3 — v2 plus the T-175 placeholder
-## family and the massing `a` flag; every family is optional at read time):
+## What each chunk carries (ames_chunks/v4 — v3 plus the T-205 trail_quads
+## family; v2 before that carried the T-175 placeholder family and the
+## massing `a` flag; every family is optional at read time):
 ## - `massing`: ONE axis-aligned box per building footprint — position,
 ##   size, district and vertex color (city.gd's MultiMesh + vertex-color
 ##   house style, ported to data), plus `a` (T-175): TRUE when the building
@@ -72,17 +73,17 @@ class_name AmesBaker
 ## keys; files are written in sorted (cx, cz) order; colors are picked by a
 ## stable hash of the building id (no RNG anywhere).
 
-const SCHEMA := "ames_chunks/v3"
+const SCHEMA := "ames_chunks/v4"
 const CHUNK_SIZE := 256.0
 
 ## Every per-chunk array family (the `_chunk_at` template, the finalize doc,
 ## the per-chunk counts and the manifest totals — ONE list, kept in one
-## place; v1's eight, the T-174 dressing families, and T-175's
-## placeholders).
+## place; v1's eight, the T-174 dressing families, T-175's placeholders, and
+## T-205's trail_quads).
 const FAMILY_KEYS: Array[String] = [
 	"massing", "ribbons", "lane_quads", "water_tris", "shore_quads",
 	"creek_quads", "lawn_tris", "ballast_quads", "tie_quads",
-	"ground_quads", "occluders", "placeholders", "crossings",
+	"ground_quads", "trail_quads", "occluders", "placeholders", "crossings",
 ]
 
 ## Bake y conventions (m). Flats stack above 0 so the ground plate (top at
@@ -94,8 +95,12 @@ const FAMILY_KEYS: Array[String] = [
 ## surrounds, or the coplanar/top-heavy faces depth-fight the water away
 ## (the first landing had cells topping at exactly the water's 0.02 and the
 ## lake read as lawn). Stack, by rendered top: plate 0 < cells 0.014 <
-## shore 0.018 < water 0.02 < lawn 0.04 < creek-top 0.06 < ribbon-top 0.09
-## < ballast/marks-top 0.11 < tie-top 0.13.
+## shore 0.018 < water 0.02 < lawn 0.04 < creek-top 0.06 < trail-top 0.07
+## (T-205) < ribbon-top 0.09 < ballast/marks-top 0.11 < tie-top 0.13. The
+## quarry shore band (T-205) is the ONE shore variant that rides ABOVE the
+## lawn: its park-lake hole cut leaves the lawn as the surrounding ground,
+## so the band centers on LAWN_Y (top 0.05) — over the lawn, clear of the
+## water flat it rings.
 const WATER_Y := 0.02
 const CREEK_Y := 0.05
 const LAWN_Y := 0.04
@@ -103,6 +108,8 @@ const RIBBON_Y := 0.08
 const BALLAST_Y := 0.1
 const GROUND_Y := 0.004 ## District ground cells (T-174): box tops at 0.014.
 const SHORE_Y := 0.008 ## Shore band (T-174): box tops at 0.018, under the water.
+const QUARRY_SHORE_Y := 0.04 ## Quarry bank (T-205): box tops at 0.05, over the lawn.
+const TRAIL_Y := 0.06 ## Trail stripes (T-205): box tops at 0.07, over the creek top.
 const MARK_Y := 0.1 ## Lane dashes (T-174): box tops at 0.11, over the ribbon top 0.09.
 const TIE_Y := 0.12 ## Tie stripe (T-174): box tops at 0.13, over the ballast top 0.11.
 
@@ -130,10 +137,16 @@ const DISTRICT_GROUND: Dictionary = {
 ## (#46543F, unchanged); the creeks become GREEN-BLUE ribbons (they must not
 ## read as more lake); the shore is the §1.2 mown shore lawn; the lane dash
 ## a weathered centerline yellow; the tie stripe a creosote brown-gray.
+## T-205 adds the north parks: the trail stripe is MODELING-SPECS §2's
+## "Prairie/gravel trail" hex (`nature/04-adahayden-prairie-trail.jpg`) and
+## the quarry bank the IMAGE_INDEX nature-note's pale gravel shore ("flat
+## quarry-banked shoreline") — a survey estimate, recorded here.
 const COLOR_CREEK := Color(0.275, 0.4, 0.388) ## #466663 green-blue (T-174).
 const COLOR_SHORE := Color(0.435, 0.561, 0.31) ## #6F8F4F mown shore lawn (§1.2).
 const COLOR_LANE_MARK := Color(0.78, 0.7, 0.353) ## #C7B35A centerline yellow.
 const COLOR_TIE := Color(0.29, 0.267, 0.227) ## #4A443A tie/track stripe.
+const COLOR_TRAIL := Color(0.725, 0.663, 0.518) ## #B9A984 prairie/gravel trail (§2).
+const COLOR_QUARRY_BANK := Color(0.659, 0.631, 0.580) ## #A8A194 pale gravel (estimate).
 
 ## Lane-dash geometry (m): a 3 m dash / 6 m gap urban centerline, 0.4 m wide
 ## — real paint would be ~0.15 m, but a HINT must survive a 60 m cruise read.
@@ -221,6 +234,13 @@ const COLOR_WATER := Color(0.275, 0.329, 0.247) ## #46543F olive-brown.
 const COLOR_LAWN := Color(0.435, 0.561, 0.31) ## #6F8F4F mown lawn.
 const COLOR_BALLAST := Color(0.545, 0.522, 0.471) ## #8B8578 gravel.
 const CREEK_WIDTH := 6.0
+## Trail stripe widths by pack `kind` (T-205): the mapped cycleway loops read
+## as the paved park loop (3 m), the footway/path crushed-rock paths (2 m),
+## park connector walks (2.5 m). Survey anchors: LANDMARKS T10's paved loops
+## vs ~3.2 km (2 mi) of crushed-rock paths.
+const TRAIL_WIDTH_BY_KIND: Dictionary = {
+	"cycleway": 3.0, "footway": 2.0, "path": 2.0, "pedestrian": 2.5,
+}
 const BALLAST_WIDTH := 5.0 ## Single main-line track ballast (bake constant).
 ## Rail segments are subdivided to at most this length (m) so the crossing
 ## gaps hug the roads (a sub-segment is skipped whole, so the step bounds the
@@ -514,10 +534,22 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 	for wtr: Dictionary in AmesDataPack.water():
 		if str(wtr.get("kind", "")) == "lake" and wtr.has("polygon"):
 			var poly := _pack_points(wtr.get("polygon", []))
+			# The quarry-banked lakes (T-205) ring their band in PALE GRAVEL
+			# at lawn level (the park's lawn hole leaves the band over open
+			# ground — see the QUARRY_SHORE_Y note); every other lake keeps
+			# the T-174 mown band under the water edge. Per-entry color
+			# override rides the flat-family render's `c` field.
+			var quarry := str(wtr.get("bank", "")) == "quarry"
+			var shore_y := QUARRY_SHORE_Y if quarry else SHORE_Y
+			var shore_c: Array = []
+			if quarry:
+				shore_c = [_rc(COLOR_QUARRY_BANK.r), _rc(COLOR_QUARRY_BANK.g),
+						_rc(COLOR_QUARRY_BANK.b)]
 			for ring: PackedVector2Array in _split_rings(poly):
 				# Shore band (T-174): mown-lawn ring extruded OUTWARD from
 				# every ring edge. Baked BELOW the water top so an overlap
 				# can never paint the lake — the water flat renders above.
+				# (The quarry variant rides at lawn level instead.)
 				var ccw := _signed_area(ring) >= 0.0
 				for e: int in ring.size():
 					var sa := ring[e]
@@ -530,13 +562,16 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 					var q0 := sa + nrm * SHORE_WIDTH
 					var q1 := sb + nrm * SHORE_WIDTH
 					var shore: Array = [
-						_r(q0.x), _r(SHORE_Y), _r(q0.y),
-						_r(q1.x), _r(SHORE_Y), _r(q1.y),
-						_r(sb.x), _r(SHORE_Y), _r(sb.y),
-						_r(sa.x), _r(SHORE_Y), _r(sa.y),
+						_r(q0.x), _r(shore_y), _r(q0.y),
+						_r(q1.x), _r(shore_y), _r(q1.y),
+						_r(sb.x), _r(shore_y), _r(sb.y),
+						_r(sa.x), _r(shore_y), _r(sa.y),
 					]
 					var smid := (sa + sb) * 0.5
-					(_chunk_at(tiles, _chunk_of(smid.x, smid.y))["shore_quads"] as Array).append({"q": shore})
+					var entry: Dictionary = {"q": shore}
+					if not shore_c.is_empty():
+						entry["c"] = shore_c
+					(_chunk_at(tiles, _chunk_of(smid.x, smid.y))["shore_quads"] as Array).append(entry)
 				for tri: Vector3i in _triangulate(ring):
 					var v: Array = [
 						_r(ring[tri.x].x), _r(WATER_Y), _r(ring[tri.x].y),
@@ -561,17 +596,59 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 					(_chunk_at(tiles, _chunk_of(mid.x, mid.y))["creek_quads"] as Array).append({"q": quad})
 
 	# --- parks: lawn polygon flats ----------------------------------------
+	# (T-205) A park entry may carry `holes` (a park-lake's stored ring): the
+	# ear clip triangulates the full ring — a simple polygon, no slits — and
+	# every park triangle is then CUT against the hole ring's boundary edges
+	# (BSP split, both sides kept) with the in-hole remainder dropped. The
+	# lawn flat therefore ends at the water's edge: the lake's own water
+	# flat (y 0.02) renders UNDER the lawn (y 0.04), so without the cut the
+	# lake read as mown lawn.
 	for park: Dictionary in AmesDataPack.parks():
 		var poly := _pack_points(park.get("polygon", []))
+		var holes: Array = park.get("holes", [])
+		var hole_rings: Array[PackedVector2Array] = []
+		for hole: Array in holes:
+			hole_rings.append_array(_split_rings(_pack_points(hole)))
 		for ring: PackedVector2Array in _split_rings(poly):
 			for tri: Vector3i in _triangulate(ring):
-				var tri_centroid := (ring[tri.x] + ring[tri.y] + ring[tri.z]) / 3.0
-				var v: Array = [
-					_r(ring[tri.x].x), _r(LAWN_Y), _r(ring[tri.x].y),
-					_r(ring[tri.y].x), _r(LAWN_Y), _r(ring[tri.y].y),
-					_r(ring[tri.z].x), _r(LAWN_Y), _r(ring[tri.z].y),
-				]
-				(_chunk_at(tiles, _chunk_of(tri_centroid.x, tri_centroid.y))["lawn_tris"] as Array).append({"v": v})
+				var tri_poly := PackedVector2Array()
+				tri_poly.append(ring[tri.x])
+				tri_poly.append(ring[tri.y])
+				tri_poly.append(ring[tri.z])
+				var pieces: Array[PackedVector2Array] = [tri_poly]
+				for hole_ring: PackedVector2Array in hole_rings:
+					pieces = _tri_minus_ring(pieces, hole_ring)
+				for piece: PackedVector2Array in pieces:
+					for pi: int in piece.size() - 2:
+						var pa := piece[0]
+						var pb := piece[pi + 1]
+						var pc := piece[pi + 2]
+						var pc_centroid := (pa + pb + pc) / 3.0
+						var v: Array = [
+							_r(pa.x), _r(LAWN_Y), _r(pa.y),
+							_r(pb.x), _r(LAWN_Y), _r(pb.y),
+							_r(pc.x), _r(LAWN_Y), _r(pc.y),
+						]
+						(_chunk_at(tiles, _chunk_of(pc_centroid.x, pc_centroid.y))["lawn_tris"] as Array).append({"v": v})
+
+	# --- trails: the north parks' mapped runs (T-205) ----------------------
+	# Gravel stripes extruded along every pack trail run, ribbon-style. The
+	# stack sits the stripe top (TRAIL_Y + half thickness = 0.07) above the
+	# lawn flats (0.04) and the creek tops (0.06), under the road ribbons
+	# (0.09) — a trail crossing a creek reads as the ford/bridge deck it is.
+	for trail: Dictionary in AmesDataPack.trails():
+		var width := float(TRAIL_WIDTH_BY_KIND.get(str(trail.get("kind", "")), 2.0))
+		var pts: Array = trail.get("points", [])
+		for i: int in range(pts.size() - 1):
+			var a: Array = pts[i]
+			var b3: Array = pts[i + 1]
+			var quad := _extrude_quad(Vector2(float(a[0]), float(a[1])),
+					Vector2(float(b3[0]), float(b3[1])), width, TRAIL_Y)
+			if quad.is_empty():
+				continue
+			var mid := (Vector2(float(a[0]), float(a[1]))
+					+ Vector2(float(b3[0]), float(b3[1]))) * 0.5
+			(_chunk_at(tiles, _chunk_of(mid.x, mid.y))["trail_quads"] as Array).append({"q": quad})
 
 	# --- rail: ballast strip, gapped geometrically at crossing roads ------
 	# The blocker set is the ACTUAL road geometry near the 9 at-grade
@@ -691,8 +768,11 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 		"lawn_tris": [_rc(COLOR_LAWN.r), _rc(COLOR_LAWN.g), _rc(COLOR_LAWN.b)],
 		"ballast_quads": [_rc(COLOR_BALLAST.r), _rc(COLOR_BALLAST.g), _rc(COLOR_BALLAST.b)],
 		"tie_quads": [_rc(COLOR_TIE.r), _rc(COLOR_TIE.g), _rc(COLOR_TIE.b)],
+		"trail_quads": [_rc(COLOR_TRAIL.r), _rc(COLOR_TRAIL.g), _rc(COLOR_TRAIL.b)],
 		## ground_quads entries carry per-cell colors (`c`) — the family entry
 		## is only the renderer's never-fired fallback (residential seed).
+		## shore_quads entries carry `c` too, for the quarry-banked lakes
+		## (T-205) whose band overrides the mown family color per entry.
 		"ground_quads": [_rc(DISTRICT_GROUND["residential"].r),
 				_rc(DISTRICT_GROUND["residential"].g), _rc(DISTRICT_GROUND["residential"].b)],
 	}
@@ -1148,6 +1228,101 @@ static func _triangulate(pts: PackedVector2Array) -> Array[Vector3i]:
 				tris.append(Vector3i(ring[0], ring[i], ring[i + 1]))
 			break
 	return tris
+
+
+## Cut the hole out of a convex triangle by BSP-style splitting against the
+## hole RING's own boundary edges: every piece the segment crosses is split
+## by the edge's LINE (both sides kept — the pieces tile the triangle), and
+## after the walk the pieces whose centroid sits inside the ring are
+## dropped. Deterministic, area-conserving, and bounded: only the ring's
+## boundary edges split, never a triangulation's interior web.
+static func _tri_minus_ring(pieces: Array[PackedVector2Array],
+		ring: PackedVector2Array) -> Array[PackedVector2Array]:
+	var aabb_lo := Vector2(INF, INF)
+	var aabb_hi := Vector2(-INF, -INF)
+	for piece: PackedVector2Array in pieces:
+		for v: Vector2 in piece:
+			aabb_lo = aabb_lo.min(v)
+			aabb_hi = aabb_hi.max(v)
+	for e: int in ring.size():
+		var a := ring[e]
+		var b := ring[(e + 1) % ring.size()]
+		var seg_lo := a.min(b)
+		var seg_hi := a.max(b)
+		if seg_hi.x < aabb_lo.x or seg_lo.x > aabb_hi.x \
+				or seg_hi.y < aabb_lo.y or seg_lo.y > aabb_hi.y:
+			continue
+		var nrm := (b - a).normalized()
+		var next_pieces: Array[PackedVector2Array] = []
+		for p: PackedVector2Array in pieces:
+			if not _convex_poly_crosses_seg(p, a, nrm, b):
+				next_pieces.append(p)
+				continue
+			if OS.has_environment("T205_DEBUG"):
+				print("DEBUG split at hole edge %d: piece n=%d" % [e, p.size()])
+			var left := PackedVector2Array()
+			var right := PackedVector2Array()
+			for i: int in p.size():
+				var cur := p[i]
+				var nxt := p[(i + 1) % p.size()]
+				var d_cur := (cur - a).cross(nrm)
+				var d_nxt := (nxt - a).cross(nrm)
+				if d_cur <= 0.0:
+					left.append(cur)
+				else:
+					right.append(cur)
+				if (d_cur <= 0.0) != (d_nxt <= 0.0):
+					var hit := cur.lerp(nxt, d_cur / (d_cur - d_nxt))
+					left.append(hit)
+					right.append(hit)
+			if left.size() >= 3:
+				next_pieces.append(left)
+			if right.size() >= 3:
+				next_pieces.append(right)
+		pieces = next_pieces
+	var kept: Array[PackedVector2Array] = []
+	var rings: Array[PackedVector2Array] = [ring]
+	for p: PackedVector2Array in pieces:
+		var c := Vector2.ZERO
+		for v2: Vector2 in p:
+			c += v2
+		c /= float(p.size())
+		if not _mid_in_lake(c, rings):
+			kept.append(p)
+	return kept
+
+
+## TRUE when the segment a→b (direction `nrm`) properly crosses the convex
+## polygon's interior: some edge pair straddles the line on both sides AND
+## the crossing span overlaps the segment's span.
+static func _convex_poly_crosses_seg(p: PackedVector2Array, a: Vector2,
+		nrm: Vector2, b: Vector2) -> bool:
+	var t_lo := INF
+	var t_hi := -INF
+	var poly_lo := INF
+	var poly_hi := -INF
+	for i: int in p.size():
+		var d := (p[i] - a).cross(nrm)
+		poly_lo = minf(poly_lo, d)
+		poly_hi = maxf(poly_hi, d)
+	if poly_lo > 0.0 or poly_hi < 0.0:
+		return false ## The whole polygon is on one side of the line.
+	var along := (b - a).normalized()
+	var seg_len := (b - a).length()
+	for i: int in p.size():
+		var cur := p[i]
+		var nxt := p[(i + 1) % p.size()]
+		var d_cur := (cur - a).cross(nrm)
+		var d_nxt := (nxt - a).cross(nrm)
+		if (d_cur <= 0.0) != (d_nxt <= 0.0):
+			var t := d_cur / (d_cur - d_nxt)
+			var hit := cur.lerp(nxt, t)
+			var s := (hit - a).dot(along)
+			t_lo = minf(t_lo, s)
+			t_hi = maxf(t_hi, s)
+	if t_lo == INF:
+		return false
+	return t_hi > 1e-9 and t_lo < seg_len - 1e-9
 
 
 ## Packs a JSON point list (`[[x, z], ...]`) into a PackedVector2Array.

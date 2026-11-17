@@ -96,7 +96,41 @@ canopy (spans UNVERIFIED, the estimate recorded) carry the silhouette,
 only), and the T-201 plaque reads the arrival face; the south strip's
 census §6 rule split is 47/9/657 over 713 buildings, and the tailgate
 zone's lat/lon window revealed its southern tail (19 → 33 lots /
-8.9 → 11.9 ha — the game's tailgate stock grows with the map).
+8.9 → 11.9 ha — the game's tailgate stock grows with the map). Since the
+**T-205 bbox north the town has its NORTH gate — Ada Hayden and The
+Cafe — at every boot** (data pack v4): the core box grew north to
+42.0780 (N 42.0355 → 42.0780, +4,720.6 m — past the whole Ada Hayden
+Heritage Park, because the ticket's twin-lakes/trail-ring criteria need
+the park AT data geometry and walkable, and the survey's own "+1.6 km
+north" sketch stops ~2 km short of it; the override is recorded in the
+pack's version history), landing the park's 180-ha
+tract with the 52.1-ha **Ada Hayden Lake** stored as DATA on the entry
+(`holes` — the bake subtracts the hole from the park's lawn
+triangulation, because the flats stack lawn above water and the unmarked
+polygon would paint the lake into mown lawn; the lawn flat ends at the
+water's edge, area re-pinned 1,278,476 m² = tract − lake), the
+twin-lobed quarry lake ringed by the pale gravel shore
+band (`bank: "quarry"` — the shore family's per-entry color override
+riding at lawn level) and the **north parks' trail ring** (the pack's
+new `trails` layer: 69 runs / 9.36 km across Ada Hayden, Inis Grove and
+Moore Memorial — 7 of 8 compass bearings from the lake center cross a
+trail within 650 m; the bake paints them as the v4 bake's new
+`trail_quads` family, #B9A984, the survey's prairie-trail hex), Moore
+Memorial's two disjoint rings as two park entries, Calhoun Park, the
+north residential fabric (the census §6 rule's THIRD strip: 5,622
+buildings, 65 named) and **The Cafe** (2616 Northridge Pkwy — the
+T-198 staged sign PLACED at last on its own landed massing, the tier-1
+staged set empty; its T-175 fixup box joined, buried in its own
+massing like the eleven). The named-water rule joined (named
+natural=water ways ≥ 1 ha in core → lake entries), the UP line's north
+tail revealed five MORE at-grade crossings (9 → 14: West 190th Street,
+Bloomington Road, 24th, 20th, 16th — the crossbucks grew with them),
+the street graph doubled (560 → 1,035 entries, 261.27 km; the traffic
+graph 2,044 runs / 1,003 stops; the blades 99 → 130 over the north
+spine corners — the unreached-spine ledger stays [Mortensen Road,
+Stange Road], corner-driven), the text ledger 162 → 194, and the bake
+grew 251 → 552 tiles / 8.26 MB (the draw ceiling scales with the tile
+set: 800 × 551/251 ≈ 1800).
 
 ## Stack & tooling
 

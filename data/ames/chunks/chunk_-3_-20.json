@@ -1,0 +1,173 @@
+{
+	"aabb": {
+		"max": [
+			-648.67,
+			11.0,
+			-4947.11
+		],
+		"min": [
+			-723.49,
+			0.0,
+			-4972.53
+		]
+	},
+	"ballast_quads": [],
+	"chunk": [
+		-3,
+		-20
+	],
+	"colors": {
+		"ballast_quads": [
+			0.545,
+			0.522,
+			0.471
+		],
+		"creek_quads": [
+			0.275,
+			0.4,
+			0.388
+		],
+		"ground_quads": [
+			0.38,
+			0.46,
+			0.3
+		],
+		"lane_quads": [
+			0.78,
+			0.7,
+			0.353
+		],
+		"lawn_tris": [
+			0.435,
+			0.561,
+			0.31
+		],
+		"ribbons": [
+			0.29,
+			0.29,
+			0.31
+		],
+		"shore_quads": [
+			0.435,
+			0.561,
+			0.31
+		],
+		"tie_quads": [
+			0.29,
+			0.267,
+			0.227
+		],
+		"trail_quads": [
+			0.725,
+			0.663,
+			0.518
+		],
+		"water_tris": [
+			0.275,
+			0.329,
+			0.247
+		]
+	},
+	"counts": {
+		"ballast_quads": 0,
+		"creek_quads": 0,
+		"crossings": 0,
+		"ground_quads": 0,
+		"lane_quads": 0,
+		"lawn_tris": 0,
+		"massing": 2,
+		"occluders": 2,
+		"placeholders": 0,
+		"ribbons": 0,
+		"shore_quads": 0,
+		"tie_quads": 0,
+		"trail_quads": 0,
+		"water_tris": 0
+	},
+	"creek_quads": [],
+	"crossings": [],
+	"ground_quads": [],
+	"lane_quads": [],
+	"lawn_tris": [],
+	"massing": [
+		{
+			"a": false,
+			"c": [
+				0.706,
+				0.682,
+				0.635
+			],
+			"d": "residential",
+			"id": "way/1150838043",
+			"p": [
+				-655.37,
+				4.0,
+				-4961.58
+			],
+			"s": [
+				13.4,
+				8.0,
+				21.9
+			]
+		},
+		{
+			"a": false,
+			"c": [
+				0.659,
+				0.4,
+				0.247
+			],
+			"d": "residential",
+			"id": "way/1150838044",
+			"p": [
+				-708.19,
+				5.5,
+				-4953.66
+			],
+			"s": [
+				30.6,
+				11.0,
+				13.1
+			]
+		}
+	],
+	"occluders": [
+		[
+			-662.07,
+			-4972.53,
+			-648.67,
+			-4972.53,
+			-648.67,
+			-4950.63,
+			-662.07,
+			-4950.63
+		],
+		[
+			-723.49,
+			-4960.21,
+			-692.89,
+			-4960.21,
+			-692.89,
+			-4947.11,
+			-723.49,
+			-4947.11
+		]
+	],
+	"placeholders": [],
+	"ribbons": [],
+	"schema": "ames_chunks/v4",
+	"shore_quads": [],
+	"tie_quads": [],
+	"tile": {
+		"max": [
+			-512.0,
+			-4864.0
+		],
+		"min": [
+			-768.0,
+			-5120.0
+		]
+	},
+	"trail_quads": [],
+	"water_tris": []
+}

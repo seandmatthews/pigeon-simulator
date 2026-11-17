@@ -89,12 +89,13 @@ const MASSING_RANGE_END := 1800.0
 const MASSING_RANGE_FADE := 250.0
 ## The flat rect families the renderer folds into ONE box MultiMesh per
 ## chunk — the bake's ribbons plus the T-174 dressing (district ground
-## cells, arterial lane dashes, LaVerne shore band, rail tie stripe). All
-## are baked rectangles with a family color from `chunk.colors` (ground
-## cells override per entry with their district color).
+## cells, arterial lane dashes, LaVerne shore band, rail tie stripe) and
+## T-205's north-parks trail stripes. All are baked rectangles with a family
+## color from `chunk.colors` (ground cells override per entry with their
+## district color; shore quads override per entry for the quarry banks).
 const FLAT_FAMILIES: Array[String] = [
 	"ground_quads", "ribbons", "lane_quads", "shore_quads", "creek_quads",
-	"ballast_quads", "tie_quads",
+	"ballast_quads", "tie_quads", "trail_quads",
 ]
 
 ## --- T-176 survival re-base constants --------------------------------------

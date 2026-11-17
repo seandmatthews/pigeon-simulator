@@ -1,0 +1,143 @@
+{
+	"aabb": {
+		"max": [
+			1196.37,
+			8.0,
+			-1819.25
+		],
+		"min": [
+			1182.77,
+			0.0,
+			-1840.15
+		]
+	},
+	"ballast_quads": [],
+	"chunk": [
+		4,
+		-8
+	],
+	"colors": {
+		"ballast_quads": [
+			0.545,
+			0.522,
+			0.471
+		],
+		"creek_quads": [
+			0.275,
+			0.4,
+			0.388
+		],
+		"ground_quads": [
+			0.38,
+			0.46,
+			0.3
+		],
+		"lane_quads": [
+			0.78,
+			0.7,
+			0.353
+		],
+		"lawn_tris": [
+			0.435,
+			0.561,
+			0.31
+		],
+		"ribbons": [
+			0.29,
+			0.29,
+			0.31
+		],
+		"shore_quads": [
+			0.435,
+			0.561,
+			0.31
+		],
+		"tie_quads": [
+			0.29,
+			0.267,
+			0.227
+		],
+		"trail_quads": [
+			0.725,
+			0.663,
+			0.518
+		],
+		"water_tris": [
+			0.275,
+			0.329,
+			0.247
+		]
+	},
+	"counts": {
+		"ballast_quads": 0,
+		"creek_quads": 0,
+		"crossings": 0,
+		"ground_quads": 0,
+		"lane_quads": 0,
+		"lawn_tris": 0,
+		"massing": 1,
+		"occluders": 1,
+		"placeholders": 0,
+		"ribbons": 0,
+		"shore_quads": 0,
+		"tie_quads": 0,
+		"trail_quads": 0,
+		"water_tris": 0
+	},
+	"creek_quads": [],
+	"crossings": [],
+	"ground_quads": [],
+	"lane_quads": [],
+	"lawn_tris": [],
+	"massing": [
+		{
+			"a": false,
+			"c": [
+				0.894,
+				0.863,
+				0.784
+			],
+			"d": "residential",
+			"id": "way/1089111016",
+			"p": [
+				1189.57,
+				4.0,
+				-1829.7
+			],
+			"s": [
+				13.6,
+				8.0,
+				20.9
+			]
+		}
+	],
+	"occluders": [
+		[
+			1182.77,
+			-1840.15,
+			1196.37,
+			-1840.15,
+			1196.37,
+			-1819.25,
+			1182.77,
+			-1819.25
+		]
+	],
+	"placeholders": [],
+	"ribbons": [],
+	"schema": "ames_chunks/v4",
+	"shore_quads": [],
+	"tie_quads": [],
+	"tile": {
+		"max": [
+			1280.0,
+			-1792.0
+		],
+		"min": [
+			1024.0,
+			-2048.0
+		]
+	},
+	"trail_quads": [],
+	"water_tris": []
+}
