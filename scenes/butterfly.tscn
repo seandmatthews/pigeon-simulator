@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/butterfly.gd" id="1_bfly"]
+
+; T-204: one ambient butterfly of the Reiman Gardens entrance beds. The
+; primitive rig is built in the script's _ready (rotations and scales stay
+; in code per the scene-file convention); the world hands the accent its
+; home bed, phase and flap offset before it enters the tree. No physics
+; body on purpose — the T-204 scope guard: the butterfly collides with
+; nothing (dressing, not a system).
+
+[node name="Butterfly" type="Node3D"]
+script = ExtResource("1_bfly")

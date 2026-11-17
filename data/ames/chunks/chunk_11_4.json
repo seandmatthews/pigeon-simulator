@@ -2,12 +2,12 @@
 	"aabb": {
 		"max": [
 			3166.42,
-			0.04,
-			1275.67
+			14.0,
+			1292.29
 		],
 		"min": [
 			2886.54,
-			0.04,
+			0.0,
 			955.39
 		]
 	},
@@ -70,8 +70,8 @@
 		"ground_quads": 0,
 		"lane_quads": 0,
 		"lawn_tris": 27,
-		"massing": 0,
-		"occluders": 0,
+		"massing": 1,
+		"occluders": 1,
 		"placeholders": 0,
 		"ribbons": 0,
 		"shore_quads": 0,
@@ -435,8 +435,40 @@
 			]
 		}
 	],
-	"massing": [],
-	"occluders": [],
+	"massing": [
+		{
+			"a": false,
+			"c": [
+				0.706,
+				0.682,
+				0.635
+			],
+			"d": "residential",
+			"id": "way/189412699",
+			"p": [
+				3059.32,
+				7.0,
+				1272.54
+			],
+			"s": [
+				36.3,
+				14.0,
+				39.5
+			]
+		}
+	],
+	"occluders": [
+		[
+			3041.17,
+			1252.79,
+			3077.47,
+			1252.79,
+			3077.47,
+			1292.29,
+			3041.17,
+			1292.29
+		]
+	],
 	"placeholders": [],
 	"ribbons": [],
 	"schema": "ames_chunks/v3",

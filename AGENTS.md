@@ -57,25 +57,46 @@ closed with reasons; 11 memorial plaques at their closed rooms), the
 MUTCD street-name blades (T-200 — 85 green blades over the 70 pinned
 spine corners at the R4 landing; T-203's bbox east pinned four more
 all-way corners on East Lincoln Way, taking the set to 89 blades over
-74 corners, mast stacks at signals, posts at the all-way stops; the
-unreached spine names stay a closed ledger until R5 pins corners) and
-the campus + civic name plaques (T-201 — 11 nominative names in plain
-type on the R3 heroes' own faces + the Marston base marker, Reiman
-Gardens staged for T-204; no marks anywhere, names and years only).
+74 corners, mast stacks at signals, posts at the all-way stops; T-204's
+bbox south pinned the south fabric's spine corners — University
+Boulevard × Mortensen Parkway / South 16th Street / McCarthy Road /
+Beach Avenue and the residential joins — taking the set to 99 blades
+over 79 corners; the unreached spine names stay a closed ledger,
+now just [Mortensen Road — the data spells it "Mortensen Parkway" —
+and Stange Road]) and
+the campus + civic name plaques (T-201 — the nominative names in plain
+type on the heroes' own faces + the Marston base marker; T-204 placed
+Reiman Gardens on its ticket's own hero, so the table places all 12 —
+no marks anywhere, names and years only).
 `r4_cutover_text_ledger` pins the whole ring joined: every family live
 at its pinned count on the default boot with the legibility law re-run
-over all 151 texts (T-203's re-pin of the 147-text R4 ring) — the
+over all 162 texts (T-204's re-pin: the blades ring 99 + the placed
+Reiman plaque 12; T-203's re-pin had carried the 151-text ring) — the
 cutover's Gate 3 is the owner's
 fly-to-your-bar test (the fly-by-reading sign-off recorded in T-202's
 ticket closes the ring). The tank diamond's letterforms stay the legal
 pass's honest remainder — no R4 ticket staged them. Since the **T-203
 bbox east the playable core reaches Bandshell Park**: the game-core box
-grew +248 m east (E edge −93.6100 → −93.6070, data pack v2 — the only
-version bump since T-171), landing Bandshell Park's block inside the
+grew +248 m east (E edge −93.6100 → −93.6070, data pack v2), landing
+Bandshell Park's block inside the
 core (the T-192 bandshell hero's ground is now playable around, the
 census §5 ⚠ closed) and the S Duff corridor's east context blocks with
 it; every count the citizen systems pin carries its recorded v1 + strip
-delta, diff-proven by the `ames_bbox_east` Gate 1b scenario.
+delta, diff-proven by the `ames_bbox_east` Gate 1b scenario. Since the
+**T-204 bbox south the town has its garden gate**: the core box grew
++1.0 km south (S edge 42.0120 → 42.0030, data pack v3 — SUMMARY §3's
+planned window), landing Reiman Gardens' whole 73,202 m² grounds, the
+ISU Vet Med campus and the south blocks inside; the QA's biggest
+blocks-build find got its structural fix here (the conservatory hero
+builds as the WHOLE 59 × 88 m building — way/180765068, superseded 1:1 —
+with the named Hughes glasshouse a DISTINCT 465 m² volume in the scene
+tree), the wing-form blue-glass roof + the butterfly-wing entrance
+canopy (spans UNVERIFIED, the estimate recorded) carry the silhouette,
+8 ambient butterflies dress the entrance beds (count ≤ 12, ambient
+only), and the T-201 plaque reads the arrival face; the south strip's
+census §6 rule split is 47/9/657 over 713 buildings, and the tailgate
+zone's lat/lon window revealed its southern tail (19 → 33 lots /
+8.9 → 11.9 ha — the game's tailgate stock grows with the map).
 
 ## Stack & tooling
 

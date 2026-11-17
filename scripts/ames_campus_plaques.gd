@@ -21,10 +21,10 @@ extends RefCounted
 ## gate re-derives all of it against the same records — the wall-exists leg
 ## (the point behind the slab is inside a real hero box), the clip leg (no
 ## hero box penetrates the slab's own volume — the Beardshear column law),
-## the span/top legs and the legibility budget. Reiman Gardens is the honest
-## staged spec (the pack marks it `in_core: false`, 1 km south of the v1
-## bake): it rides the table and PLACES when T-204 extends the bake south —
-## recorded, not worked around.
+## the span/top legs and the legibility budget. Reiman Gardens placed with
+## T-204 (the bbox south brought the POI in-core and the ticket built the
+## conservatory hero its plaque hangs on); The Cafe remains the honest
+## staged spec (T-198's staging note names T-205).
 ##
 ## Mount convention: wall plaques hang one GAP off their pinned plane with
 ## the type face reading away from the wall (`face` E/W/N/S of the hero's
@@ -259,19 +259,27 @@ const PLAQUES: Array[Dictionary] = [
 		"id": "reiman_gardens",
 		"text": "Reiman Gardens — 1995",
 		"hero": "reiman_gardens",
-		"face": "poi", ## STAGED — the pack marks it in_core false.
-		"plane": 0.0,
-		"wall_u": 0.0,
-		"mount_y": 2.6,
-		"letter": 0.22,
-		"band": Vector3.ZERO,
-		"staged": true,
+		"face": "E", ## University Blvd — the arrival face (the town's south gate).
+		"plane": 984.35, ## The T-204 envelope's east face (slot center 955.0 + 29.35).
+		"wall_u": 1241.5, ## (Round 2 re-station) The open-walk bay south of the
+			## Butterfly Wing bake box (its south face z 1233.56 buried the v1
+			## station 1233.08 — the slab stood inside that mass and read only
+			## from south-of-the-Wing approaches); the mount now faces the
+			## open arrival walk the canopy shares.
+		"mount_y": 2.6, ## On the 10 m glass wall, above eye height.
+		"letter": 0.20, ## 21 chars — the widened depot slab; face-fit 2.35 ≤ 2.6.
+		"band": Vector3(2.8, 0.6, 0.1),
+		"staged": false,
 		"note": "LANDMARKS C10 (1995, current site; 1407 University Blvd, the "
-			+ "town's south gate). The pack POI sits 1 km south of the v1 bake "
-			+ "core (in_core false) — THE T-204 DEPENDENCY: the plaque stages "
-			+ "ready here and PLACES when T-204 (South — Reiman Gardens) "
-			+ "extends the bake, exactly The Cafe's T-205 rule (T-198).",
+			+ "town's south gate). PLACED by T-204 (South — Reiman Gardens): "
+			+ "the bbox south brought the POI in-core and the ticket built the "
+			+ "conservatory hero (the whole 59 × 88 m building per QA item 1, "
+			+ "Hughes's 465 m² glasshouse a distinct volume inside it); the "
+			+ "plaque hangs on the hero's east glass face, the University Blvd "
+			+ "arrival read. Was the table's staged spec (the T-201 staging "
+			+ "note) — The Cafe now carries the staged law alone."
 	},
+
 ]
 
 
