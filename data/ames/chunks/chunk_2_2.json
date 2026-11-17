@@ -94,6 +94,7 @@
 		"shore_quads": 0,
 		"tie_quads": 0,
 		"trail_quads": 0,
+		"trees": 2,
 		"water_tris": 0
 	},
 	"creek_quads": [],
@@ -4162,7 +4163,7 @@
 			]
 		}
 	],
-	"schema": "ames_chunks/v5",
+	"schema": "ames_chunks/v6",
 	"shore_quads": [],
 	"tie_quads": [],
 	"tile": {
@@ -4176,5 +4177,45 @@
 		]
 	},
 	"trail_quads": [],
+	"trees": [
+		{
+			"a": 5.596,
+			"c": [
+				1.1303,
+				1.056,
+				1.1303
+			],
+			"p": [
+				740.69,
+				0.0,
+				740.35
+			],
+			"s": [
+				1.14,
+				1.141,
+				1.141
+			],
+			"t": "boulevard"
+		},
+		{
+			"a": 0.148,
+			"c": [
+				0.791,
+				0.8652,
+				0.7911
+			],
+			"p": [
+				764.13,
+				0.0,
+				739.96
+			],
+			"s": [
+				0.828,
+				0.828,
+				0.828
+			],
+			"t": "boulevard"
+		}
+	],
 	"water_tris": []
 }

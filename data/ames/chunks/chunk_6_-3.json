@@ -2,7 +2,7 @@
 	"aabb": {
 		"max": [
 			1937.67,
-			12.55,
+			12.779,
 			-429.76
 		],
 		"min": [
@@ -751,6 +751,7 @@
 		"shore_quads": 0,
 		"tie_quads": 41,
 		"trail_quads": 0,
+		"trees": 1,
 		"water_tris": 0
 	},
 	"creek_quads": [
@@ -1509,7 +1510,7 @@
 			]
 		}
 	],
-	"schema": "ames_chunks/v5",
+	"schema": "ames_chunks/v6",
 	"shore_quads": [],
 	"tie_quads": [
 		{
@@ -2180,5 +2181,26 @@
 		]
 	},
 	"trail_quads": [],
+	"trees": [
+		{
+			"a": 4.587,
+			"c": [
+				0.8619,
+				0.8276,
+				0.8619
+			],
+			"p": [
+				1641.3,
+				0.0,
+				-667.04
+			],
+			"s": [
+				1.083,
+				1.083,
+				1.083
+			],
+			"t": "oak"
+		}
+	],
 	"water_tris": []
 }

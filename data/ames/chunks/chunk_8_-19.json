@@ -94,6 +94,7 @@
 		"shore_quads": 9,
 		"tie_quads": 0,
 		"trail_quads": 0,
+		"trees": 0,
 		"water_tris": 13
 	},
 	"creek_quads": [],
@@ -1144,7 +1145,7 @@
 		}
 	],
 	"roofs": [],
-	"schema": "ames_chunks/v5",
+	"schema": "ames_chunks/v6",
 	"shore_quads": [
 		{
 			"c": [
@@ -1348,6 +1349,7 @@
 		]
 	},
 	"trail_quads": [],
+	"trees": [],
 	"water_tris": [
 		{
 			"v": [
