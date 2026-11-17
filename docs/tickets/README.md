@@ -387,7 +387,7 @@ scan (T-170 was max; no workflows in flight).
 | T-203 | [Bbox east — Bandshell + S Duff](T-203-ames-bbox-east.md) | R5 The Town | T-202 | done |
 | T-204 | [South — Reiman Gardens](T-204-ames-extension-south.md) | R5 The Town | T-203 | done |
 | T-205 | [North — Ada Hayden + The Cafe](T-205-ames-extension-north.md) | R5 The Town | T-203 | done |
-| T-206 | [Filler dressing](T-206-ames-filler-dressing.md) | R5 The Town | T-177 | doing |
+| T-206 | [Filler dressing](T-206-ames-filler-dressing.md) | R5 The Town | T-177 | done |
 | T-207 | [Tree canopy](T-207-ames-tree-canopy.md) | R5 The Town | T-172 | proposed |
 | T-208 | [Tailgate dressing](T-208-ames-tailgate-dressing.md) | R5 The Town | T-191, T-182 | proposed |
 | T-209 | [Performance pass + web fork](T-209-ames-perf-pass.md) | R5 The Town | T-206..T-208 | proposed |

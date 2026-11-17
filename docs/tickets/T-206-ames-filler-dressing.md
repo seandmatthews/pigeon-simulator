@@ -1,6 +1,6 @@
 # T-206 — Ames R5 · filler dressing: anonymous buildings start being Ames
 
-- **Status:** doing · **Category:** visual-design · **Ring:** R5 The Town ·
+- **Status:** done · **Category:** visual-design · **Ring:** R5 The Town ·
   **Value (1-5):** 4 · **Risk (1-5):** 2
 - **Depends on:** T-177 (filler is live), independent of R3/R4 timing
   (can move earlier if the owner steers)
@@ -118,9 +118,23 @@ measured 732 cruise / 71 hover). Instances 37,047 → 53,433; buffer
 ### Screenshot ledger (the before/after set, same vantages)
 
 Pilot hidden windows per T-170, the OS `shot` grab; poses teleported
-(`dev:teleport`, `reset_flight` hover), shots within the hover window.
-Stored in `.captures/session_t206shots/` (the run's own session dirs
-`session_t206before`/`session_t206after` hold the originals):
+(`dev:teleport`, `reset_flight` hover), the shot fired immediately
+after the teleport ack so the grab rides the hover window. Stored in
+`.captures/session_t206shots/`. PROVENANCE (corrected in review
+round 1): the before originals live in the MAIN checkout's
+`.captures/` (`session_t206before`, `session_t206b2`,
+`session_t206bcamp` — the worktree does not contain them); the after
+originals live in the worktree's `.captures/` (`session_t206after`
+and its retake sessions). The FIRST run's Campustown before grab was
+taken too late and caught the bird already GROUNDED (session
+`t206b2`: teleport acked t=6612 ms, `grounded` event t=7277 ms — the
+shot's HUD reads "Grounded! … city 0 m", the strip out of frame);
+that image is superseded by the round-1 RETAKE from the base code at
+the exact recorded pose — session `t206bcamp`: teleport acked
+t=15842 ms, `grounded` event t=21201 ms, the shot grabbed in between
+(the airborne HUD, the strip in frame). The other three shots are
+the original run's honest grabs (the residential pair airborne right
+after their teleport: "city 933 m" before / "930 m" after).
 
 - `before_campustown.png` / `after_campustown.png` — the Welch strip
   from (0, 42, 60) yaw 180: before, flat gray/tan boxes; after, the
@@ -168,3 +182,12 @@ altitudes) folds into T-210 per the Verification line.
   the prism made double-sided (cull disabled, declared per-face
   normals carry the shading) after the first AFTER screenshots read
   black wedges on culled slopes.
+
+### Review sign-off
+
+Reviewer round 1 fixed the Campustown before shot (retaken at the
+recorded aerial pose from base code — see the ledger's provenance
+note) and was otherwise accepted; the reviewer played the game and
+signed off. Status flipped to done in this ticket and the index row;
+the owner's filler-dressing eyeball folds into T-210 per the
+Verification line.
