@@ -175,6 +175,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_bake_census() ## T-172 — pure data over the committed chunk bake; still no rig and no city.
 	await _scenario_ames_bake_determinism() ## T-172 — re-bake in-scenario must reproduce the committed manifest hash.
 	await _scenario_ames_bbox_east() ## T-203 — the v2 bbox east: the new consts, Bandshell Park playable inside the core (ground, hero supersede, bread reach), the census re-pins diff-proven against the recorded v1 pins.
+	await _scenario_ames_extension_north() ## T-205 — the v4 bbox north: the consts, Ada Hayden's twin quarry lakes at data geometry (the twin-lobed ring, the quarry shore), the trail ring walkable-adjacent, The Cafe placed at its true Northridge position, the north parks per data.
 	await _scenario_ames_world_render_budget() ## T-173 — the resident bake inside the draw/memory budget.
 	await _scenario_ames_world_api_seam() ## T-173 — the city API over chunk data; the corridor is flyable.
 	await _scenario_ames_skeleton_palette() ## T-174 — the baked dressing: pinned per-district ground colors, lane dashes, shore band, tie stripe.
@@ -440,16 +441,17 @@ func _scenario_ames_data_integrity() -> void:
 	var bad: PackedStringArray = PackedStringArray()
 	var pack: Dictionary = AmesDataPack.load_pack()
 	var meta: Dictionary = pack.get("meta", {})
-	if str(meta.get("pack", "")) != "ames_core" or int(meta.get("version", 0)) != 3:
+	if str(meta.get("pack", "")) != "ames_core" or int(meta.get("version", 0)) != 4:
 		bad.append("boot: pack=%s version=%s" % [meta.get("pack"), meta.get("version")])
 
-	# --- counts (the v3 pins: the census §1/§5/§6 stock grown by T-203's east
-	# strip and T-204's south strip — every count's v1 census pin and the
-	# strips' deltas recorded in the tickets; ames_bbox_east diff-proves the
-	# east story, reiman_gardens_dims the south story) ---
+	# --- counts (the v4 pins: the census §1/§5/§6 stock grown by T-203's east
+	# strip, T-204's south strip and T-205's north strip — every count's v1
+	# census pin and the strips' deltas recorded in the tickets; ames_bbox_east
+	# diff-proves the east+south stories, ames_extension_north the north
+	# story) ---
 	var counts: Dictionary = meta.get("counts", {})
-	if int(counts.get("buildings", 0)) != 4960:
-		bad.append("buildings=%s (v3 pin 4960; v2 4134)" % counts.get("buildings"))
+	if int(counts.get("buildings", 0)) != 10783:
+		bad.append("buildings=%s (v4 pin 10783; v3 4960)" % counts.get("buildings"))
 	var named_n := 0
 	var authored_n := 0
 	for b: Dictionary in AmesDataPack.buildings():
@@ -457,12 +459,12 @@ func _scenario_ames_data_integrity() -> void:
 			named_n += 1
 		if str(b.get("class", "")) == "authored":
 			authored_n += 1
-	if named_n != 616:
-		bad.append("named_buildings=%d (v3 pin 616; v2 556)" % named_n)
-	if authored_n != 616:
-		bad.append("authored=%d (v3 pin 616 authored-named; v2 556)" % authored_n)
-	if AmesDataPack.trees().size() != 6106:
-		bad.append("trees=%d (v3 pin 6106; v2 5715)" % AmesDataPack.trees().size())
+	if named_n != 682:
+		bad.append("named_buildings=%d (v4 pin 682; v3 616)" % named_n)
+	if authored_n != 682:
+		bad.append("authored=%d (v4 pin 682 authored-named; v3 616)" % authored_n)
+	if AmesDataPack.trees().size() != 6753:
+		bad.append("trees=%d (v4 pin 6753; v3 6106)" % AmesDataPack.trees().size())
 	var t1 := AmesDataPack.pois_of(1).size()
 	var t2 := AmesDataPack.pois_of(2).size()
 	var t3 := AmesDataPack.pois_of(3).size()
@@ -471,28 +473,31 @@ func _scenario_ames_data_integrity() -> void:
 	if AmesDataPack.landmarks().size() != 15:
 		bad.append("landmarks=%d (LANDMARKS §5 top-15)" % AmesDataPack.landmarks().size())
 
-	# --- rail: the 9 at-grade vehicular crossings BY NAME (census §5/§7.11) ---
+	# --- rail: the 14 at-grade vehicular crossings BY NAME (census §5/§7.11's
+	# 9 + the north strip's 5 the v4 box revealed: the UP line exits town at
+	# grade through West 190th Street, Bloomington Road, 24th, 20th, 16th) ---
 	var at_grade: Array[String] = []
 	for c: Dictionary in AmesDataPack.rail().get("crossings", []):
 		if str(c.get("grade", "")) == "at_grade":
 			at_grade.append(str(c.get("road_name", "")))
 	var want: Array[String] = ["13th Street", "9th Street", "North Hazel Avenue",
 			"Brookridge Avenue", "", "Duff Avenue", "Grand Avenue",
-			"Kellogg Avenue", "Clark Avenue"]
+			"Kellogg Avenue", "Clark Avenue", "West 190th Street",
+			"Bloomington Road", "24th Street", "20th Street", "16th Street"]
 	var got_sorted: Array[String] = at_grade.duplicate()
 	got_sorted.sort()
 	var want_sorted: Array[String] = want.duplicate()
 	want_sorted.sort()
 	if got_sorted != want_sorted:
-		bad.append("at_grade_crossings=%s (census 9: %s)" % [at_grade, want])
+		bad.append("at_grade_crossings=%s (v4 pin 14: %s)" % [at_grade, want])
 
 	# --- street centerline km, BOTH rules the ticket names ---
 	# (a) the graph rule streets[] pins: census §4 midpoint rule, named
-	#     drivable classes (123.40 on the v3 box — the street GRAPH the city
-	#     code consumes; v2 98.04, v1 census §4 91.93 of 92.1).
+	#     drivable classes (261.27 on the v4 box — the street GRAPH the city
+	#     code consumes; v3 123.40, v2 98.04, v1 census §4 91.93 of 92.1).
 	var km: float = float(meta.get("street_km", {}).get("named_drivable_in_core", 0.0))
-	if km < 122.5 or km > 124.5:
-		bad.append("street_km=%.2f (v3 pin 123.40; v2 98.04, census §4 v1: 91.9)" % km)
+	if km < 259.5 or km > 263.5:
+		bad.append("street_km=%.2f (v4 pin 261.27; v3 123.40, v2 98.04, census §4 v1: 91.9)" % km)
 	var km_recomputed := 0.0
 	for s: Dictionary in AmesDataPack.streets():
 		km_recomputed += float(s.get("km", 0.0))
@@ -507,8 +512,8 @@ func _scenario_ames_data_integrity() -> void:
 	#     docs/references/ames-survey/osm/raw).
 	var km_survey: float = float(meta.get("street_km", {}).get(
 			"named_highway_in_core_extra3_km", 0.0))
-	if km_survey < 134.2 or km_survey > 135.2:
-		bad.append("street_km_extra3=%.2f (extra3 §5 v3 pin 134.7; v2 105.7, SUMMARY §3 v1: 99.6)" % km_survey)
+	if km_survey < 274.9 or km_survey > 276.9:
+		bad.append("street_km_extra3=%.2f (extra3 §5 v4 pin 275.9; v3 134.7, v2 105.7, SUMMARY §3 v1: 99.6)" % km_survey)
 
 	# --- sentinel transforms (independent closed-form expectations) ---
 	var m_lon: float = 111320.0 * cos(deg_to_rad(42.02))
@@ -619,10 +624,11 @@ const AMES_CHUNKS_DIR := "res://data/ames/chunks"
 ## T-172: the committed chunk bake is load-bearing. Pure data — reads the
 ## committed `data/ames/chunks/` output (manifest + chunk files) and proves
 ## the bake consumed the WHOLE pack: instance counts sum to the pack counts,
-## every building lands in some chunk at its true position, all 9 at-grade
-## rail crossings are world facts with real ballast gaps at them, and the
-## LaVerne water flat preserves the lake's polygon area. Runs beside
-## `ames_data_integrity` before any rig/city/physics exists.
+## every building lands in some chunk at its true position, all 14 at-grade
+## rail crossings (the census §5 set + T-205's north strip) are world facts
+## with real ballast gaps at them, and the LaVerne water flat preserves the
+## lake's polygon area. Runs beside `ames_data_integrity` before any
+## rig/city/physics exists.
 func _scenario_ames_bake_census() -> void:
 	const S := "ames_bake_census"
 	var bad: PackedStringArray = PackedStringArray()
@@ -712,7 +718,12 @@ func _scenario_ames_bake_census() -> void:
 				counts_sum.get("creek_quads", 0), creek_segs])
 	var park_area := 0.0
 	for park: Dictionary in AmesDataPack.parks():
+		## (T-205) A park entry may carry `holes` (a park-lake): the lawn
+		## side of the area law is the polygon MINUS its holes — the bake
+		## subtracts the hole triangles from the lawn flat.
 		park_area += _pack_split_area(park.get("polygon", []))
+		for hole: Array in park.get("holes", []):
+			park_area -= _pack_split_area(hole)
 	var lawn_area := 0.0
 	for tile: Vector2i in chunks:
 		for t: Dictionary in chunks[tile].get("lawn_tris", []):
@@ -755,7 +766,7 @@ func _scenario_ames_bake_census() -> void:
 	if missing > 0:
 		bad.append("buildings_missing_from_chunks=%d (%s)" % [missing, first_missing])
 
-	# --- 3. all 9 at-grade crossings present, with real ballast gaps ------
+	# --- 3. all 14 at-grade crossings present, with real ballast gaps -----
 	var want_crossings: Array[String] = []
 	var crossing_pos := {} ## road name -> Vector2 (pack side).
 	for c: Dictionary in AmesDataPack.rail().get("crossings", []):
@@ -771,8 +782,8 @@ func _scenario_ames_bake_census() -> void:
 	got_crossings.sort()
 	if got_crossings != want_crossings:
 		bad.append("crossing_names=%s (want %s)" % [got_crossings, want_crossings])
-	if crossings.size() != 9:
-		bad.append("crossing_count=%d (want 9)" % crossings.size())
+	if crossings.size() != 14:
+		bad.append("crossing_count=%d (want 14)" % crossings.size())
 	# each crossing has a REAL gap, proven GEOMETRICALLY on the baked output:
 	# the crossing's road is whatever asphalt the bake actually laid near the
 	# crossing pos — ribbon quads with centers within ROAD_NEAR of it (both
@@ -840,12 +851,25 @@ func _scenario_ames_bake_census() -> void:
 	# `area_m2` scalar 11,040 sits 0.25 % below its true split geometry,
 	# inside the 1 % follow-up threshold, so no T-171 correction is owed.)
 	var la_verne := 0.0
+	## (T-205) The bake now carries TWO lakes — isolate LaVerne's tris by
+	## centroid (its own rings; Ada Hayden's water carries the same law in
+	## `ames_extension_north`).
+	var laverne_rings: Array[PackedVector2Array] = _pack_split_rings(
+			AmesDataPack.water()[0].get("polygon", []))
 	for tile: Vector2i in chunks:
 		for t: Dictionary in chunks[tile].get("water_tris", []):
 			var v: Array = t["v"]
 			var a := Vector2(float(v[0]), float(v[2]))
 			var b5 := Vector2(float(v[3]), float(v[5]))
 			var c2 := Vector2(float(v[6]), float(v[8]))
+			var centroid := (a + b5 + c2) / 3.0
+			var is_laverne := false
+			for ring: PackedVector2Array in laverne_rings:
+				if _point_in_ring(centroid, ring):
+					is_laverne = true
+					break
+			if not is_laverne:
+				continue
 			la_verne += absf((b5.x - a.x) * (c2.y - a.y) - (c2.x - a.x) * (b5.y - a.y)) * 0.5
 	var split_area := _pack_split_area(AmesDataPack.water()[0].get("polygon", []))
 	if split_area <= 0.0:
@@ -982,14 +1006,16 @@ func _scenario_ames_bake_determinism() -> void:
 	_check(S, bad.is_empty(), "; ".join(bad))
 
 
-## (T-203) The bbox east: the smallest map growth, fixing the census's own
-## ⚠ (Bandshell Park sat ~30 m outside the v1 east edge). Data pack v2 —
-## the E edge −93.6100 → −93.6070, +248 m east (the ticket's 200–300 m band);
-## W/S/N and the origin are the census lines, untouched. FOUR legs, mostly
-## pure data (the playable leg instantiates the world once):
-## 1. THE CONSTS — meta carries the v2 box (version 2, schema ames_core/v2),
-##    the v1 east edge stamp (`core_bbox_east_v1`), and the widening measures
-##    200–300 m east through the pack's own transform.
+## (T-203; T-204 + T-205 re-pins) The bbox east: the smallest map growth,
+## fixing the census's own ⚠ (Bandshell Park sat ~30 m outside the v1 east
+## edge). Data pack v2 — the E edge −93.6100 → −93.6070, +248 m east (the
+## ticket's 200–300 m band); W/S/N and the origin are the census lines,
+## untouched; T-204 grew south and T-205 north (the consts authority lives in
+## `ames_extension_north`). FOUR legs, mostly pure data (the playable leg
+## instantiates the world once):
+## 1. THE CONSTS — meta carries the v4 box (version 4, schema ames_core/v4),
+##    the v1 east + v2 south + v3 north edge stamps, and the original
+##    widening measures 200–300 m east through the pack's own transform.
 ## 2. BANDSHELL INSIDE — the downtown_bandshell landmark flips `in_core`; the
 ##    park way (named "Bandshell Park") rides the pack's parks wholly inside
 ##    the new east edge; its lawn is painted on the bake (the park tile's
@@ -1002,16 +1028,16 @@ func _scenario_ames_bake_determinism() -> void:
 ##    (the ground plate + off-world guard cover it), and the nearest GROUND
 ##    bread spot is inside the T-176 reach band (150 m) at both the park
 ##    center and the bandshell POI.
-## 4. THE RE-PIN, DIFF-PROVEN (+delta recorded) — the v1 census pins and the
-##    recorded strip deltas live as consts here; the pack's counts must equal
-##    v1 + delta on every moved family (buildings 3737+397, named 512+44,
-##    trees 5637+78, parking 480+52 lots / 73.6+9.45 ha, street km 91.93+6.11,
-##    extra3 99.6+6.1); the strip classification is proven strip-ONLY from the
-##    pack data (every building east of `core_bbox_east_v1`, counted 397 with
-##    the census §6 rule's 44/3/350 split, everything west of it none — so
-##    the mechanical rule can never silently eat census-window drift); the
-##    unchanged families (venues 14/17/17, landmarks 15, the 9 at-grade
-##    rail crossings) stay pinned against the strip.
+## 4. THE RE-PIN, DIFF-PROVEN (+delta recorded, three strips deep) — the v1
+##    census pins and the recorded strip deltas live as consts here; the
+##    pack's counts must equal v1 + east + south + north on every moved
+##    family; each strip's classification is proven strip-ONLY from the pack
+##    data (the census §6 rule's split, guards disjoint — the east bucket
+##    owns both corner growths, the south and north strips stay the
+##    west-of-v1-east CSV-less sets); the meta delta keys must record all
+##    three strips; the unchanged families (venues 14/17/17, landmarks 15)
+##    stay pinned, and the at-grade rail crossings now pin the 14 (the
+##    census 9 + the north strip's 5 the v4 box revealed).
 func _scenario_ames_bbox_east() -> void:
 	const S := "ames_bbox_east"
 	## The v1 census pins (BUILD-CENSUS §1/§3/§5 + the T-171 pack), the
@@ -1024,12 +1050,12 @@ func _scenario_ames_bbox_east() -> void:
 	const V1_PARKING_HA := 73.6
 	const V1_STREET_KM := 91.93
 	const V1_EXTRA3_KM := 99.6
-	const EAST_BUILDINGS := 510 ## v2 397 (44/3/350); the v3 south widening
-	const EAST_NAMED := 57 ##    grew the box past the strip's southern tail,
-	const EAST_SEMI := 3 ##      +113 SE-corner buildings join this bucket
-	const EAST_PROCEDURAL := 450 ## (the east guard fires first — disjoint).
-	const EAST_TREES := 78
-	const EAST_PARKING_LOTS := 52
+	const EAST_BUILDINGS := 711 ## v2 397 (44/3/350); the v3 south widening
+	const EAST_NAMED := 58 ##    grew the box past the strip's southern tail
+	const EAST_SEMI := 3 ##      (+113 SE-corner buildings) and the v4 north
+	const EAST_PROCEDURAL := 650 ## widening past its northern tail (+201
+	const EAST_TREES := 78 ##    NE-corner buildings; the east guard fires
+	const EAST_PARKING_LOTS := 52 ## first, so both corner growths ride HERE).
 	const EAST_PARKING_HA := 9.45
 	const EAST_STREET_KM := 6.11
 	const EAST_EXTRA3_KM := 6.1
@@ -1042,25 +1068,38 @@ func _scenario_ames_bbox_east() -> void:
 	const SOUTH_PARKING_HA := 11.38
 	const SOUTH_STREET_KM := 25.36
 	const SOUTH_EXTRA3_KM := 29.0
+	const NORTH_BUILDINGS := 5622 ## The T-205 strip: CSV-less, north of the
+	const NORTH_NAMED := 65 ##    v3 north edge AND west of the v1 east edge
+	const NORTH_SEMI := 27 ##     (the §6 rule split; disjoint from the others).
+	const NORTH_PROCEDURAL := 5530
+	const NORTH_TREES := 647
+	const NORTH_PARKING_LOTS := 68
+	const NORTH_PARKING_HA := 19.54
+	const NORTH_STREET_KM := 137.87
+	const NORTH_EXTRA3_KM := 141.2
 	const REACH_BAR := 150.0 ## The T-176 gate band (bread_reach's own bar).
 	var bad: PackedStringArray = PackedStringArray()
 
-	# --- leg 1: the consts ------------------------------------------------
+	# --- leg 1: the consts (the v4 box — T-205 grew the north edge; the
+	# consts authority is `ames_extension_north`) --------------------------
 	var meta: Dictionary = AmesDataPack.meta()
 	var bbox: Array = meta.get("core_bbox_wsen", [])
 	if [str(meta.get("pack", "")), int(meta.get("version", 0)),
-			str(meta.get("schema", ""))] != ["ames_core", 3, "ames_core/v3"]:
-		bad.append("boot: pack=%s version=%s schema=%s (want ames_core/3/ames_core/v3)"
+			str(meta.get("schema", ""))] != ["ames_core", 4, "ames_core/v4"]:
+		bad.append("boot: pack=%s version=%s schema=%s (want ames_core/4/ames_core/v4)"
 				% [meta.get("pack"), meta.get("version"), meta.get("schema")])
 	if bbox.size() < 4 or [float(bbox[0]), float(bbox[1]), float(bbox[2]),
-			float(bbox[3])] != [-93.659, 42.003, -93.607, 42.0355]:
-		bad.append("core_bbox_wsen=%s (want the v3 box: E −93.607, S 42.003)" % str(bbox))
+			float(bbox[3])] != [-93.659, 42.003, -93.607, 42.078]:
+		bad.append("core_bbox_wsen=%s (want the v4 box: E −93.607, S 42.003, N 42.078)" % str(bbox))
 	var v1_east: float = float(meta.get("core_bbox_east_v1", 0.0))
 	if not is_equal_approx(v1_east, -93.61):
 		bad.append("core_bbox_east_v1=%s (want −93.61)" % str(v1_east))
 	var v2_south: float = float(meta.get("core_bbox_south_v2", 0.0))
 	if not is_equal_approx(v2_south, 42.012):
 		bad.append("core_bbox_south_v2=%s (want 42.012)" % str(v2_south))
+	var v3_north: float = float(meta.get("core_bbox_north_v3", 0.0))
+	if not is_equal_approx(v3_north, 42.0355):
+		bad.append("core_bbox_north_v3=%s (want 42.0355)" % str(v3_north))
 	var m_per_deg_lon := 111320.0 * cos(deg_to_rad(42.02))
 	var grown_m := (-93.607 - v1_east) * m_per_deg_lon
 	if grown_m < 200.0 or grown_m > 300.0:
@@ -1169,29 +1208,37 @@ func _scenario_ames_bbox_east() -> void:
 	# --- leg 4: the re-pin, diff-proven -----------------------------------
 	var counts: Dictionary = meta.get("counts", {})
 	var wants := {
-		"buildings": V1_BUILDINGS + EAST_BUILDINGS + SOUTH_BUILDINGS,
-		"named_buildings": V1_NAMED + EAST_NAMED + SOUTH_NAMED,
-		"trees": V1_TREES + EAST_TREES + SOUTH_TREES,
-		"parking_lots": V1_PARKING_LOTS + EAST_PARKING_LOTS + SOUTH_PARKING_LOTS,
+		"buildings": V1_BUILDINGS + EAST_BUILDINGS + SOUTH_BUILDINGS
+				+ NORTH_BUILDINGS,
+		"named_buildings": V1_NAMED + EAST_NAMED + SOUTH_NAMED + NORTH_NAMED,
+		"trees": V1_TREES + EAST_TREES + SOUTH_TREES + NORTH_TREES,
+		"parking_lots": V1_PARKING_LOTS + EAST_PARKING_LOTS + SOUTH_PARKING_LOTS
+				+ NORTH_PARKING_LOTS,
 	}
 	for key: String in wants:
 		if int(counts.get(key, -1)) != int(wants[key]):
 			bad.append("%s=%s want v1+strips %d" % [key, counts.get(key),
 					int(wants[key])])
 	var ha: float = float(counts.get("parking_ha", 0.0))
-	if absf(ha - (V1_PARKING_HA + EAST_PARKING_HA + SOUTH_PARKING_HA)) > 0.06:
+	if absf(ha - (V1_PARKING_HA + EAST_PARKING_HA + SOUTH_PARKING_HA
+			+ NORTH_PARKING_HA)) > 0.06:
 		bad.append("parking_ha=%.1f want v1+strips %.2f" % [ha,
-				V1_PARKING_HA + EAST_PARKING_HA + SOUTH_PARKING_HA])
+				V1_PARKING_HA + EAST_PARKING_HA + SOUTH_PARKING_HA
+				+ NORTH_PARKING_HA])
 	var km: float = float(meta.get("street_km", {}).get(
 			"named_drivable_in_core", 0.0))
-	if absf(km - (V1_STREET_KM + EAST_STREET_KM + SOUTH_STREET_KM)) > 0.06:
+	if absf(km - (V1_STREET_KM + EAST_STREET_KM + SOUTH_STREET_KM
+			+ NORTH_STREET_KM)) > 0.06:
 		bad.append("street_km=%.2f want v1+strips %.2f" % [km,
-				V1_STREET_KM + EAST_STREET_KM + SOUTH_STREET_KM])
+				V1_STREET_KM + EAST_STREET_KM + SOUTH_STREET_KM
+				+ NORTH_STREET_KM])
 	var km3: float = float(meta.get("street_km", {}).get(
 			"named_highway_in_core_extra3_km", 0.0))
-	if absf(km3 - (V1_EXTRA3_KM + EAST_EXTRA3_KM + SOUTH_EXTRA3_KM)) > 0.06:
+	if absf(km3 - (V1_EXTRA3_KM + EAST_EXTRA3_KM + SOUTH_EXTRA3_KM
+			+ NORTH_EXTRA3_KM)) > 0.06:
 		bad.append("street_km_extra3=%.1f want v1+strips %.1f" % [km3,
-				V1_EXTRA3_KM + EAST_EXTRA3_KM + SOUTH_EXTRA3_KM])
+				V1_EXTRA3_KM + EAST_EXTRA3_KM + SOUTH_EXTRA3_KM
+				+ NORTH_EXTRA3_KM])
 	## The east strip split, proven strip-ONLY from the pack: count buildings
 	## east of the v1 edge and require the census §6 rule's recorded split —
 	## the v3 SE-corner growth rides THIS bucket (the east guard fires
@@ -1245,10 +1292,38 @@ func _scenario_ames_bbox_east() -> void:
 				+ "of the v2 edge, west of the v1 east edge" % [south,
 				south_named, south_semi, south_proc, SOUTH_BUILDINGS,
 				SOUTH_NAMED, SOUTH_SEMI, SOUTH_PROCEDURAL])
+	## The north strip split, the same proof mirrored again (T-205): north of
+	## the v3 north edge AND west of the v1 east edge — the east guard wins
+	## the NE corner, so this stays the west-of-v1-east CSV-less set.
+	var north := 0
+	var north_named := 0
+	var north_semi := 0
+	var north_proc := 0
+	for b3: Dictionary in AmesDataPack.buildings():
+		var wgs3: Array = b3.get("wgs84", [])
+		if wgs3.size() < 2:
+			continue
+		if float(wgs3[1]) > v3_north and float(wgs3[0]) <= v1_east:
+			north += 1
+			match str(b3.get("census_class", "")):
+				"authored-named":
+					north_named += 1
+				"semi-tagged":
+					north_semi += 1
+				"procedural":
+					north_proc += 1
+	if north != NORTH_BUILDINGS or north_named != NORTH_NAMED \
+			or north_semi != NORTH_SEMI or north_proc != NORTH_PROCEDURAL:
+		bad.append("north strip split %d (%d/%d/%d) want %d (%d/%d/%d) — north "
+				+ "of the v3 edge, west of the v1 east edge" % [north,
+				north_named, north_semi, north_proc, NORTH_BUILDINGS,
+				NORTH_NAMED, NORTH_SEMI, NORTH_PROCEDURAL])
 	for key: String in ["buildings_east_strip", "buildings_east_strip_named",
 			"buildings_east_strip_semi_tagged", "buildings_east_strip_procedural",
 			"buildings_south_strip", "buildings_south_strip_named",
-			"buildings_south_strip_semi_tagged", "buildings_south_strip_procedural"]:
+			"buildings_south_strip_semi_tagged", "buildings_south_strip_procedural",
+			"buildings_north_strip", "buildings_north_strip_named",
+			"buildings_north_strip_semi_tagged", "buildings_north_strip_procedural"]:
 		if not counts.has(key):
 			bad.append("meta counts lack %s — the delta is not recorded" % key)
 	## The untouched families stay pinned against the strip.
@@ -1263,9 +1338,347 @@ func _scenario_ames_bbox_east() -> void:
 	for c: Dictionary in AmesDataPack.rail().get("crossings", []):
 		if str(c.get("grade", "")) == "at_grade":
 			at_grade += 1
-	if at_grade != 9:
-		bad.append("at_grade_crossings=%d (the strip moved none)" % at_grade)
+	if at_grade != 14:
+		bad.append("at_grade_crossings=%d (the census 9 + the north strip's 5)" % at_grade)
 	_check(S, bad.is_empty(), "; ".join(bad))
+
+
+## (T-205) The bbox north: Ada Hayden and the north parks. Data pack v4 —
+## the N edge 42.0355 → 42.0780. The ticket's parks/fabric/Cafe band sits
+## inside SUMMARY §3's planned "+1.6 km north" window (N 42.0500), but the
+## ticket's own What/AC put ADA HAYDEN HERITAGE PARK in the build — twin
+## quarry lakes at data geometry, trail ring walkable-adjacent — and the
+## data places that park at lat 42.05999..42.07618 (SUMMARY §3 itself lists
+## it "farther out"), so the box grows past it and the delta is recorded in
+## the pack's version history. FIVE legs:
+## 1. THE CONSTS — meta carries the v4 box (version 4, schema ames_core/v4),
+##    the v3 north edge stamp (`core_bbox_north_v3`), the northward growth
+##    measures ≈4720.6 m through the pack's own transform, and the note
+##    names Ada Hayden (the acceptance criteria drove the growth past the
+##    survey's own +1.6 km sketch).
+## 2. THE TWIN LAKES AT DATA GEOMETRY — the named-lake rule joins Ada Hayden
+##    Lake (way/44802137's closed ring, bank=quarry): the pack entry pins
+##    the 860 × 1125 m bbox, the 52.1 ha area, the center; the ring is
+##    TWIN-LOBED (wet south AND north of a dry waist point mid-bbox); the
+##    bake paints the flat (area preserved ±1%, the LaVerne law) and rings
+##    it in the pale quarry band (per-entry color overrides, one per
+##    non-degenerate ring edge); Lake LaVerne keeps index 0 (the v3 order
+##    the swans read).
+## 3. THE TRAIL RING, WALKABLE-ADJACENT — the pack trails join (69 runs /
+##    9.36 km across the three north parks; Ada Hayden 5.31 km, longest run
+##    1.76 km); the ring encircles the water (7 of 8 compass bearings from
+##    the lake center cross a trail run within [100, 650] m — the SE ray is
+##    the drive corner's honest gap); over the live world the trail samples
+##    answer ground 0.0 — the flat, walkable ground the gravel paint rides.
+## 4. THE CAFE POSITION PIN MOVES — the POI flips in_core at its true
+##    Northridge position (facing re-derived onto the street); the T-198
+##    sign PLACES on the venue's own landed massing (the north-wall mount,
+##    re-derived from the committed chunk), the staged set is EMPTY; the
+##    T-175 fixup joins and is fully swallowed by the massing box (the
+##    buried-box law the eleven named fixups carry).
+## 5. PARKS + FABRIC PER DATA — Ada Hayden Heritage Park enters the parks
+##    (the relation rule, north-scoped): the 180-ha tract ring with the
+##    lake stored as DATA in `holes` (the lawn-side area law: entry area =
+##    tract − lake, and NO lawn triangle's centroid lands inside the lake
+##    — the bake's subtraction), Moore Memorial's two disjoint rings as
+##    two entries, Inis Grove and Calhoun per data; the ada_hayden
+##    landmark POI flips in_core.
+func _scenario_ames_extension_north() -> void:
+	const S := "ames_extension_north"
+	var bad: PackedStringArray = PackedStringArray()
+
+	# --- leg 1: the consts ------------------------------------------------
+	var meta: Dictionary = AmesDataPack.meta()
+	var bbox: Array = meta.get("core_bbox_wsen", [])
+	if [str(meta.get("pack", "")), int(meta.get("version", 0)),
+			str(meta.get("schema", ""))] != ["ames_core", 4, "ames_core/v4"]:
+		bad.append("boot: pack=%s version=%s schema=%s (want ames_core/4/ames_core/v4)"
+				% [meta.get("pack"), meta.get("version"), meta.get("schema")])
+	if bbox.size() < 4 or [float(bbox[0]), float(bbox[1]), float(bbox[2]),
+			float(bbox[3])] != [-93.659, 42.003, -93.607, 42.078]:
+		bad.append("core_bbox_wsen=%s (want the v4 box: N 42.078)" % str(bbox))
+	var v3_north: float = float(meta.get("core_bbox_north_v3", 0.0))
+	if not is_equal_approx(v3_north, 42.0355):
+		bad.append("core_bbox_north_v3=%s (want 42.0355)" % str(v3_north))
+	var grown_m := (float(bbox[3]) - v3_north) * 111074.0
+	if absf(grown_m - 4720.6) > 20.0:
+		bad.append("northward growth %.1f m != the measured 4720.6 (±20)" % grown_m)
+	if not str(meta.get("bbox_north_note", "")).contains("Ada Hayden"):
+		bad.append("bbox_north_note does not name Ada Hayden — the growth's "
+				+ "own justification is not recorded")
+
+	# --- leg 2: the twin lakes at data geometry ----------------------------
+	var lake: Dictionary = {}
+	for wtr: Dictionary in AmesDataPack.water():
+		if str(wtr.get("name", "")) == "Ada Hayden Lake":
+			lake = wtr
+			break
+	var laverne_first := AmesDataPack.water()[0]
+	if str(laverne_first.get("name", "")) != "Lake LaVerne":
+		bad.append("water()[0] is %s — LaVerne must keep index 0 (the swans "
+				+ "read the first lake)" % str(laverne_first.get("name", "")))
+	if lake.is_empty():
+		bad.append("Ada Hayden Lake missing from the pack water")
+	else:
+		if str(lake.get("bank", "")) != "quarry":
+			bad.append("the lake's bank=%s want quarry" % str(lake.get("bank", "")))
+		var lb: Array = lake.get("bbox_m", [])
+		if lb.size() < 2 or absf(float(lb[0]) - 860.1) > 0.5 \
+				or absf(float(lb[1]) - 1125.1) > 0.5:
+			bad.append("lake bbox %s want [860.1, 1125.1]" % str(lb))
+		if absf(float(lake.get("area_m2", 0.0)) - 521167.0) > 500.0:
+			bad.append("lake area %s want 521167 (±500)" % str(lake.get("area_m2")))
+		var lc: Array = lake.get("center", [])
+		if lc.size() < 2 or absf(float(lc[0]) - 1793.41) > 1.0 \
+				or absf(float(lc[1]) - -4954.21) > 1.0:
+			bad.append("lake center %s want [1793.41, −4954.21]" % str(lc))
+		## The twin-lobed read: at the bbox-center x, the ring is WET south
+		## and north of a DRY waist (the two former quarry pits and the
+		## isthmus between them — data geometry, not a filled oval).
+		var rings2: Array[PackedVector2Array] = _pack_split_rings(
+				lake.get("polygon", []))
+		var probe_x := 1793.4
+		var wet_south := false
+		var wet_north := false
+		var dry_waist := true
+		for ring: PackedVector2Array in rings2:
+			if _point_in_ring(Vector2(probe_x, -5491.8), ring):
+				wet_south = true
+			if _point_in_ring(Vector2(probe_x, -4416.8), ring):
+				wet_north = true
+			if _point_in_ring(Vector2(probe_x, -5046.8), ring):
+				dry_waist = false
+		if not (wet_south and wet_north and dry_waist):
+			bad.append("twin-lobed read fails: wet_south=%s wet_north=%s "
+					+ "dry_waist=%s at x=%.1f" % [wet_south, wet_north,
+					dry_waist, probe_x])
+
+	# --- leg 3: the trail ring, walkable-adjacent ---------------------------
+	var trails := AmesDataPack.trails()
+	var trail_km := 0.0
+	var per_park := {}
+	var ah_trails: Array[Dictionary] = []
+	for t: Dictionary in trails:
+		trail_km += float(t.get("km", 0.0))
+		per_park[str(t.get("park", ""))] = per_park.get(str(t.get("park", "")), 0.0) \
+				+ float(t.get("km", 0.0))
+		if str(t.get("park", "")) == "Ada Hayden Heritage Park":
+			ah_trails.append(t)
+	if trails.size() != 69 or absf(trail_km - 9.36) > 0.05:
+		bad.append("trails %d / %.2f km want 69 / 9.36" % [trails.size(), trail_km])
+	if per_park.keys().size() != 3:
+		bad.append("trail parks %s want exactly the three north parks"
+				% str(per_park.keys()))
+	if ah_trails.is_empty() or absf(float(per_park.get(
+			"Ada Hayden Heritage Park", 0.0)) - 5.31) > 0.05:
+		bad.append("Ada Hayden trail km %s want 5.31 (±0.05)"
+				% str(per_park.get("Ada Hayden Heritage Park")))
+	var ah_segments: Array = []
+	for t2: Dictionary in ah_trails:
+		var tp: Array = t2.get("points", [])
+		for i: int in range(tp.size() - 1):
+			ah_segments.append([tp[i], tp[i + 1]])
+	## The ring law: 7 of 8 compass bearings from the lake center cross a
+	## trail run within [100, 650] m (the SE ray rides the drive corner —
+	## the park road ramp where no trail maps; the honest gap recorded).
+	var crossings := 0
+	var ring_samples: Array[Vector2] = [Vector2(1793.41, -4954.21)]
+	for k in 8:
+		var ang := deg_to_rad(float(k) * 45.0)
+		var dirn := Vector2(sin(ang), -cos(ang))
+		var hit := INF
+		var r := 100.0
+		while r <= 900.0:
+			var probe := Vector2(1793.41, -4954.21) + dirn * r
+			var found := false
+			for seg: Array in ah_segments:
+				var a: Array = seg[0]
+				var b: Array = seg[1]
+				if _seg_dist2(probe, Vector2(float(a[0]), float(a[1])),
+						Vector2(float(b[0]), float(b[1]))) < 60.0 * 60.0:
+					found = true
+					break
+			if found:
+				hit = r
+				break
+			r += 25.0
+		if hit < INF:
+			crossings += 1
+			if hit < 100.0 or hit > 650.0:
+				bad.append("ring crossing at bearing %d° hit %.0f m — outside "
+						+ "the [100, 650] band" % [k * 45, hit])
+			ring_samples.append(Vector2(1793.41, -4954.21) + dirn * hit)
+	if crossings != 7:
+		bad.append("ring crossings %d of 8 want exactly 7 (the SE ray is the "
+				+ "recorded drive-corner gap)" % crossings)
+
+	# --- leg 4: The Cafe position pin moves ---------------------------------
+	var cafe: Dictionary = {}
+	for p: Dictionary in AmesDataPack.pois():
+		if str(p.get("id", "")) == "the_cafe":
+			cafe = p
+	if cafe.is_empty():
+		bad.append("the_cafe POI missing")
+	else:
+		if not bool(cafe.get("in_core", false)):
+			bad.append("the_cafe still in_core=false — the staged dependency stands")
+		var cp: Array = cafe.get("position", [])
+		if cp.size() < 2 or absf(float(cp[0]) - 536.49) > 0.05 \
+				or absf(float(cp[1]) - -2883.17) > 0.05:
+			bad.append("the_cafe position %s want [536.49, −2883.17]" % str(cp))
+		if absf(float(cafe.get("facing_deg", -1.0)) - 359.9) > 0.5 \
+				or str(cafe.get("facing_src", "")) != "nearest_street:Northridge Parkway":
+			bad.append("the_cafe facing %s/%s want 359.9 onto Northridge Parkway"
+					% [str(cafe.get("facing_deg")), str(cafe.get("facing_src"))])
+	## The staged set empty (the placement law lives with the tier-1 gate).
+	for e: Dictionary in AmesVenueSigns.SIGNS:
+		if bool(e.get("staged", false)):
+			bad.append("tier-1 spec %s still staged — T-205 placed the_cafe"
+					% str(e["id"]))
+	## The fixup joins and stays buried: the 12 × 10 fixup box at the POI
+	## rides INSIDE the venue's own massing box (the eleven's law).
+	var cafe_slot: Dictionary = {}
+	var cafe_fixup: Dictionary = {}
+	var cafe_tile := Vector2i(floori(536.49 / 256.0), floori(-2883.17 / 256.0))
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		if Vector2i(int(entry["cx"]), int(entry["cz"])) != cafe_tile:
+			continue
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for m: Dictionary in doc.get("massing", []):
+			if str(m.get("id", "")) == "way/114039922":
+				cafe_slot = m
+		for ph: Dictionary in doc.get("placeholders", []):
+			if str(ph.get("id", "")) == "the_cafe" \
+					and str(ph.get("part", "")) == "fixup":
+				cafe_fixup = ph
+	if cafe_slot.is_empty():
+		bad.append("the_cafe building massing (way/114039922) missing from tile %s"
+				% str(cafe_tile))
+	if cafe_fixup.is_empty():
+		bad.append("the_cafe fixup missing — an in-core authored-uncovered "
+				+ "venue must carry its box")
+	if not cafe_slot.is_empty() and not cafe_fixup.is_empty():
+		var sp: Array = cafe_slot["p"]
+		var ss: Array = cafe_slot["s"]
+		var fp: Array = cafe_fixup["p"]
+		var fs: Array = cafe_fixup["s"]
+		for axis in 3:
+			if float(fp[axis]) - float(fs[axis]) * 0.5 < float(sp[axis]) - float(ss[axis]) * 0.5 \
+					or float(fp[axis]) + float(fs[axis]) * 0.5 > float(sp[axis]) + float(ss[axis]) * 0.5:
+				bad.append("the_cafe fixup pokes out of its massing on axis %d "
+						+ "— the buried-box law moved" % axis)
+
+	# --- leg 5: parks + fabric per data -------------------------------------
+	var ada_park: Dictionary = {}
+	var moore_rings: Array[float] = []
+	var inis_grove: Dictionary = {}
+	var calhoun: Dictionary = {}
+	for pk: Dictionary in AmesDataPack.parks():
+		match str(pk.get("name", "")):
+			"Ada Hayden Heritage Park":
+				ada_park = pk
+			"Moore Memorial Park":
+				moore_rings.append(float(pk.get("area_m2", 0.0)))
+			"Inis Grove Park":
+				inis_grove = pk
+			"Charles & June Calhoun Park":
+				calhoun = pk
+	if ada_park.is_empty():
+		bad.append("Ada Hayden Heritage Park missing from the pack parks")
+	else:
+		if absf(float(ada_park.get("area_m2", 0.0)) - 1278476.0) > 1300.0:
+			bad.append("ada hayden park area %s want 1278476 (±1300, the "
+					+ "bridged ring)" % str(ada_park.get("area_m2")))
+		var holes: Array = ada_park.get("holes_cut", [])
+		if holes != ["Ada Hayden Lake"]:
+			bad.append("holes_cut %s want [Ada Hayden Lake]" % str(holes))
+		var pc: Array = ada_park.get("center", [])
+		if pc.size() < 2 or absf(float(pc[0]) - 1588.24) > 1.0 \
+				or absf(float(pc[1]) - -5031.9) > 1.0:
+			bad.append("ada hayden park center %s want [1588.24, −5031.9]" % str(pc))
+		## The hole law: the entry carries the lake as DATA (`holes`), and the
+		## bake's lawn flat avoids the water — no lawn triangle's centroid
+		## lands inside the lake rings (the water flat renders UNDER the
+		## lawn; an unmarked polygon would paint the lake mown green).
+		var holes: Array = ada_park.get("holes", [])
+		if holes.is_empty():
+			bad.append("ada hayden entry carries no holes — the lake would "
+					+ "read as lawn")
+		var lake_rings3: Array[PackedVector2Array] = []
+		for hole: Array in holes:
+			lake_rings3.append_array(_pack_split_rings(hole))
+		if lake_rings3.is_empty():
+			bad.append("the stored hole ring does not split into loops")
+		var lawn_in_lake := 0
+		for entry2: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+			var doc3: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+					str(entry2["file"]))
+			for lt: Dictionary in doc3.get("lawn_tris", []):
+				var lv2: Array = lt["v"]
+				var lc2 := Vector2((float(lv2[0]) + float(lv2[3]) + float(lv2[6])) / 3.0,
+						(float(lv2[2]) + float(lv2[5]) + float(lv2[8])) / 3.0)
+				for ring3: PackedVector2Array in lake_rings3:
+					if _point_in_ring(lc2, ring3):
+						lawn_in_lake += 1
+						break
+		if lawn_in_lake > 0:
+			bad.append("lawn triangles inside the lake: %d — the subtraction "
+					+ "never landed" % lawn_in_lake)
+	if moore_rings.size() != 2:
+		bad.append("Moore Memorial rings %d want 2 (the disjoint outer rings)"
+				% moore_rings.size())
+	else:
+		moore_rings.sort()
+		if absf(moore_rings[0] - 146457.0) > 150.0 or absf(moore_rings[1] - 199046.0) > 200.0:
+			bad.append("Moore ring areas %s want [146457, 199046]" % str(moore_rings))
+	if inis_grove.is_empty() or absf(float(inis_grove.get("area_m2", 0.0)) - 102607.0) > 100.0:
+		bad.append("Inis Grove area %s want 102607" % str(inis_grove.get("area_m2")))
+	if calhoun.is_empty() or absf(float(calhoun.get("area_m2", 0.0)) - 18724.0) > 20.0:
+		bad.append("Calhoun area %s want 18724" % str(calhoun.get("area_m2")))
+	var ada_poi: Dictionary = {}
+	for p2: Dictionary in AmesDataPack.pois():
+		if str(p2.get("id", "")) == "ada_hayden":
+			ada_poi = p2
+	if ada_poi.is_empty() or not bool(ada_poi.get("in_core", false)):
+		bad.append("ada_hayden landmark not in_core — the tease stands")
+	else:
+		var ap: Array = ada_poi.get("position", [])
+		if ap.size() < 2 or absf(float(ap[0]) - 1587.86) > 1.0 \
+				or absf(float(ap[1]) - -5031.65) > 1.0:
+			bad.append("ada_hayden position %s want [1587.86, −5031.65]" % str(ap))
+
+	# --- the playable leg: the trail samples answer flat ground -------------
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	for sample: Vector2 in ring_samples:
+		var gh := world.ground_height(world.to_global(Vector3(sample.x, 0.0, sample.y)))
+		if gh != 0.0:
+			bad.append("trail ring sample (%.1f, %.1f) answers ground %.2f — "
+					+ "the ring must ride walkable flat ground" % [sample.x, sample.y, gh])
+	var metrics: Dictionary = world.render_metrics()
+	var bmin: Vector3 = metrics.bounds_min
+	var bmax: Vector3 = metrics.bounds_max
+	if 1793.41 < bmin.x or 1793.41 > bmax.x or -4954.21 < bmin.z or -4954.21 > bmax.z:
+		bad.append("Ada Hayden outside the render bounds %s..%s — the plate "
+				+ "and the off-world guard do not cover the park" % [bmin, bmax])
+	print("SIM DATA %s: growth %.1f m north; lake %dx%d m area %d m2; trails %d/%.2f km (AH %.2f); ring crossings %d/8; cafe %s in_core" % [
+			S, grown_m, int(lake.get("bbox_m", [0, 0])[0]),
+			int(lake.get("bbox_m", [0, 0])[1]), int(lake.get("area_m2", 0)),
+			trails.size(), trail_km,
+			float(per_park.get("Ada Hayden Heritage Park", 0.0)), crossings,
+			bool(cafe.get("in_core", false))])
+	world.queue_free()
+	_check(S, bad.is_empty(), "; ".join(bad))
+
+
+## Squared point-to-segment distance on XZ (the ring-coverage probe).
+func _seg_dist2(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var l2 := ab.length_squared()
+	var t := 0.0 if l2 < 1e-12 else clampf((p - a).dot(ab) / l2, 0.0, 1.0)
+	return p.distance_squared_to(a + ab * t)
 
 
 ## --- scenarios (T-173 Ames world renderer) ---------------------------------
@@ -1302,7 +1715,14 @@ const AMES_WORLD_OFFSET := Vector3(0.0, 0.0, 8000.0)
 ## record; a budget retune re-derives the gate, never edits the assertion.
 func _scenario_ames_world_render_budget() -> void:
 	const S := "ames_world_render_budget"
-	const DRAW_BUDGET := 800 ## (T-173) first value in-ticket, tuned on measurement.
+	## (T-173) first value in-ticket, tuned on measurement; (T-205) the v4
+	## bake grew the chunk set 251 → 551 tiles (the north strip's rows), and
+	## the draw story is PER-CHUNK (one box MultiMesh + one tri MultiMesh +
+	## the occluder per massing tile) — the ceiling scales with the tile set
+	## it draws: 800 × 551/251 ≈ 1757, pinned 1800. The whole-world ceiling
+	## is the every-chunk-visible worst case; the camera-pose ceilings below
+	## stay the gameplay budgets.
+	const DRAW_BUDGET := 1800
 	const MEMORY_BUDGET_BYTES := 400 * 1024 * 1024
 	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
 	world.position = AMES_WORLD_OFFSET
@@ -1389,6 +1809,7 @@ func _scenario_ames_world_render_budget() -> void:
 			+ int(totals.get("lane_quads", 0)) + int(totals.get("shore_quads", 0)) \
 			+ int(totals.get("creek_quads", 0)) + int(totals.get("ballast_quads", 0)) \
 			+ int(totals.get("tie_quads", 0)) + int(totals.get("ground_quads", 0)) \
+			+ int(totals.get("trail_quads", 0)) \
 			+ int(totals.get("water_tris", 0)) + int(totals.get("lawn_tris", 0)) \
 			+ int(totals.get("placeholders", 0)) - campanile_slot_parts \
 			- row_slot_parts - mu_parks_slot_parts - marston_slot_parts \
@@ -1750,6 +2171,7 @@ func _scenario_ames_skeleton_palette() -> void:
 		"lawn_tris": Color(0.435, 0.561, 0.31), ## #6F8F4F mown lawn.
 		"ballast_quads": Color(0.545, 0.522, 0.471), ## #8B8578 gravel.
 		"tie_quads": Color(0.29, 0.267, 0.227), ## #4A443A tie stripe.
+		"trail_quads": Color(0.725, 0.663, 0.518), ## #B9A984 §2 prairie/gravel trail (T-205).
 		"ground_quads": Color(0.38, 0.46, 0.3), ## never-fired fallback (cells carry per-cell colors).
 	}
 	var chunks := 0
@@ -1882,13 +2304,55 @@ func _scenario_ames_skeleton_palette() -> void:
 		if int(dashes_per_corridor[key]) == 0:
 			bad.append("corridor %s painted no dashes" % key)
 
+	# --- 3b. the trail stripes recount exactly from the pack (T-205) -------
+	# Every non-degenerate trail-run segment paints one gravel quad (no dash
+	# arithmetic — the trails are continuous), across all three north parks;
+	# every stripe rides the pinned TRAIL_Y (top 0.07, over creek tops).
+	var trail_count := 0
+	for entry2: Dictionary in manifest.get("chunks", []):
+		var chunk2: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+				str(entry2["file"]))
+		var tq: Array = chunk2.get("trail_quads", [])
+		trail_count += tq.size()
+		for q3: Dictionary in tq:
+			if absf(float((q3["q"] as Array)[1]) - 0.06) > 1e-6:
+				bad.append("trail quad y %s != 0.06" % (q3["q"] as Array)[1])
+				break
+	var want_trails := 0
+	for t: Dictionary in AmesDataPack.trails():
+		var tpts: Array = t.get("points", [])
+		for i: int in range(tpts.size() - 1):
+			var tdx := float(tpts[i + 1][0]) - float(tpts[i][0])
+			var tdz := float(tpts[i + 1][1]) - float(tpts[i][1])
+			if tdx * tdx + tdz * tdz > 1e-10:
+				want_trails += 1
+	if trail_count != want_trails:
+		bad.append("trail quads %d != recount %d from the pack's trail runs" % [trail_count, want_trails])
+	var parks_with_trails := {}
+	for t2: Dictionary in AmesDataPack.trails():
+		parks_with_trails[str(t2.get("park", ""))] = true
+	if parks_with_trails.keys().size() != 3:
+		bad.append("trail parks %s != the three north parks" % str(parks_with_trails.keys()))
+
 	# --- 4. the shore band: hugs the lake, under the water top -------------
+	# (T-205: the recount walks EVERY lake — LaVerne's mown band under the
+	# water edge, Ada Hayden's quarry band at lawn level; each quad's expected
+	# y follows the bank of the lake its nearest ring belongs to.)
 	if shore_count < 50:
 		bad.append("shore quads %d — the band is missing at lake scale" % shore_count)
-	var rings: Array[PackedVector2Array] = _pack_split_rings(
-			AmesDataPack.water()[0].get("polygon", []))
+	var rings: Array[PackedVector2Array] = []
+	var quarry_rings: Array[PackedVector2Array] = []
+	for wtr: Dictionary in AmesDataPack.water():
+		if str(wtr.get("kind", "")) != "lake" or not wtr.has("polygon"):
+			continue
+		var lake_rings: Array[PackedVector2Array] = _pack_split_rings(
+				wtr.get("polygon", []))
+		if str(wtr.get("bank", "")) == "quarry":
+			quarry_rings.append_array(lake_rings)
+		else:
+			rings.append_array(lake_rings)
 	var want_shore := 0
-	for ring: PackedVector2Array in rings:
+	for ring: PackedVector2Array in rings + quarry_rings:
 		for i: int in ring.size():
 			if ring[i].distance_squared_to(ring[(i + 1) % ring.size()]) > 1e-10:
 				want_shore += 1
@@ -1896,31 +2360,47 @@ func _scenario_ames_skeleton_palette() -> void:
 		bad.append("shore quads %d != lake ring edges %d" % [shore_count, want_shore])
 	var worst_shore := 0.0
 	for q: Array in shore_quads:
-		if absf(float(q[1]) - 0.008) > 1e-6:
-			bad.append("shore quad y %s != 0.008" % q[1])
-			break
 		var mid := Vector2((float(q[0]) + float(q[3]) + float(q[6]) + float(q[9])) * 0.25,
 				(float(q[2]) + float(q[5]) + float(q[8]) + float(q[11])) * 0.25)
 		var best := INF
+		var best_quarry := false
 		for ring: PackedVector2Array in rings:
 			for i: int in ring.size():
-				best = minf(best, _point_seg_dist(mid, ring[i], ring[(i + 1) % ring.size()]))
+				var d := _point_seg_dist(mid, ring[i], ring[(i + 1) % ring.size()])
+				if d < best:
+					best = d
+					best_quarry = false
+		for ring: PackedVector2Array in quarry_rings:
+			for i: int in ring.size():
+				var d2 := _point_seg_dist(mid, ring[i], ring[(i + 1) % ring.size()])
+				if d2 < best:
+					best = d2
+					best_quarry = true
+		var want_y := 0.04 if best_quarry else 0.008
+		if absf(float(q[1]) - want_y) > 1e-6:
+			bad.append("shore quad y %s != %s (the %s band)"
+					% [q[1], want_y, "quarry" if best_quarry else "mown"])
+			break
 		worst_shore = maxf(worst_shore, best)
 	if worst_shore > 7.0: ## SHORE_WIDTH: a band quad never strays past the ring.
 		bad.append("shore quad center %.2f m off the lake ring (band 7 m)" % worst_shore)
 	## The cannot-paint arm, as baked y values + the renderer's shapes (at
 	## SCENARIO level — it must fire on every bake, not only when the hug
 	## check above already failed): the water is a FLAT TRIANGLE at y 0.02
-	## (no thickness), the shore band a 0.02-thick box centered at 0.008 —
+	## (no thickness), the mown shore band a 0.02-thick box centered at 0.008 —
 	## its top (0.018) stays UNDER the water, so wherever the band overlaps
 	## the lake (a sharp ring corner), the WATER renders above. The ground
 	## cells (top 0.014) stay under both — the first landing had cell tops
 	## at exactly 0.02, coplanar with the water triangles, and the lake
-	## depth-fought into lawn.
+	## depth-fought into lawn. The quarry band (T-205) is the deliberate
+	## exception: at lawn level its top (0.05) reads OVER the park lawn, and
+	## it stays clear of its water flat by being outward-only (the hug check).
 	var shore_top := 0.008 + AmesWorld.FLAT_THICKNESS * 0.5
 	var cell_top := 0.004 + AmesWorld.FLAT_THICKNESS * 0.5
 	if shore_top >= 0.02 or cell_top >= shore_top:
 		bad.append("flat stack fights the water: cell top %.3f shore top %.3f water 0.02" % [cell_top, shore_top])
+	if 0.04 + AmesWorld.FLAT_THICKNESS * 0.5 <= 0.04:
+		bad.append("quarry band would z-fight the lawn it rings")
 
 	# --- 5. the tie stripe: rides the ballast, keeps the honest gaps -------
 	if tie_count == 0 or tie_count != ballast_count:
@@ -2097,6 +2577,13 @@ func _scenario_ames_placeholder_dims() -> void:
 				slot_count += 1
 		for t: Dictionary in doc.get("water_tris", []):
 			var v: Array = t["v"]
+			## (T-205) The LaVerne water AABB spans THIS lake only — Ada
+			## Hayden's 52-ha flat joined at the v4 bake and would swallow
+			## the survey dims (236 × 122 m) with the north water.
+			var tri_c := Vector2((float(v[0]) + float(v[3]) + float(v[6])) / 3.0,
+					(float(v[2]) + float(v[5]) + float(v[8])) / 3.0)
+			if tri_c.y < -3000.0:
+				continue ## Ada Hayden's water (z north of −3000).
 			for k: int in 3:
 				water_los = water_los.min(Vector3(float(v[k * 3]),
 						float(v[k * 3 + 1]), float(v[k * 3 + 2])))
@@ -2175,8 +2662,11 @@ func _scenario_ames_placeholder_dims() -> void:
 	for vid: String in fixups:
 		if not want_fixups.has(vid):
 			bad.append("stray fixup %s (prop or out-of-core venue)" % vid)
-	# negative arms: the pack's own exclusions must hold in the bake.
-	for excluded: String in ["superdog", "the_cafe", "provisions_lot_f",
+	# negative arms: the pack's own exclusions must hold in the bake. (T-205:
+	# the_cafe LEFT this list — the v4 north box brought it in-core and
+	# authored-uncovered, so the fixup law now boxes it, buried inside its own
+	# procedural massing like the eleven named fixups ride their rows.)
+	for excluded: String in ["superdog", "provisions_lot_f",
 			"szechuan_house", "hickory_park"]:
 		if fixups.has(excluded):
 			bad.append("excluded venue %s carries a fixup box" % excluded)
@@ -2289,13 +2779,14 @@ func _scenario_ames_placeholder_dims() -> void:
 		bad.append("Central Campus lawn %.0f m2 within 300 m of the POI (V-25: ~8.5 ha)" % lawn_area)
 	if nearest_ballast > 15.0:
 		bad.append("no ballast within %.1f m of the UP-main-line POI" % nearest_ballast)
-	## (T-204 re-pin) The out-of-core fly-out pair: Reiman Gardens came
+	## (T-205 re-pin) The out-of-core fly-out solo: Reiman Gardens came
 	## in-core with the v3 bbox south (its gate is the `reiman_gardens_dims`
-	## contract now); Ada Hayden and the airport stay the survey §1.9
-	## fly-out targets, no in-map duty.
+	## contract) and Ada Hayden came in-core with the v4 bbox north (its gate
+	## is `ames_extension_north` now); the airport alone stays the survey
+	## §1.9 fly-out target, no in-map duty.
 	for poi: Dictionary in AmesDataPack.pois():
 		var pid := str(poi.get("id", ""))
-		if pid in ["ada_hayden", "ames_airport"] and poi.get("in_core", true):
+		if pid in ["ames_airport"] and poi.get("in_core", true):
 			bad.append("%s claims in_core — the fly-out contract moved" % pid)
 
 	_check(S, bad.is_empty(), "; ".join(bad))
@@ -2994,19 +3485,16 @@ func _scenario_ames_roof() -> void:
 func _scenario_ames_traffic_routes() -> void:
 	const S := "ames_traffic_routes"
 	var graph := _city.traffic_graph
-	## (T-204 re-pin) The v3 bbox south grew the graph again: 824 → 1018
-	## runs, 98.03 → 123.39 km, +89 stop junctions (383 → 472). Per-class
-	## deltas: the south strip's University Boulevard arterial (primary
-	## +1.8), Mortensen Parkway + the south secondary fabric (secondary
-	## +5.0), South 16th/McCarthy/Beach + the residential south grid
-	## (+14.1 residential), Vet Med + the south collector set (tertiary
-	## +4.5); unclassified unchanged.
-	var shape_ok := graph != null and graph.run_count() == 1018 \
-			and absf(graph.total_km() - 123.4) < 0.3
+	## (T-205 re-pin) The v4 bbox north doubled the graph: 1018 → 2044
+	## runs, 123.39 → 261.26 km, +531 stop junctions (472 → 1003). The
+	## north strip's Grand Avenue + Bloomington + Stange arterials, the
+	## Northridge corridor and the dense north residential grid join.
+	var shape_ok := graph != null and graph.run_count() == 2044 \
+			and absf(graph.total_km() - 261.26) < 0.3
 	var km: Dictionary = graph.km_by_class() if graph != null else {}
 	var census := {
-		"primary": 11.8, "secondary": 21.8, "tertiary": 17.6,
-		"residential": 68.2, "unclassified": 4.0,
+		"primary": 18.48, "secondary": 34.70, "tertiary": 31.13,
+		"residential": 172.98, "unclassified": 3.97,
 	}
 	for cls: String in census:
 		shape_ok = shape_ok and km.has(cls) \
@@ -3016,7 +3504,7 @@ func _scenario_ames_traffic_routes() -> void:
 		for n in graph.node_count():
 			if graph.node_stops(n):
 				stops += 1
-	shape_ok = shape_ok and stops == 472
+	shape_ok = shape_ok and stops == 1003
 	## (b) lane discipline over every directed edge's polyline.
 	var lane_ok := graph != null
 	var worst := 0.0
@@ -3274,12 +3762,13 @@ func _scenario_ames_traffic_routes() -> void:
 				DEAD_WINDOW_MAX, DEAD_RUN_MAX, worst, worst_side])
 		spawner.free()
 		await _wait_frames(2)
-	## (e) the 9 at-grade rail crossings as route facts: one flagged node per
-	## crossing, and 8 of the 9 lie ON a drivable run the graph marks rail
-	## (the ninth — the pack's unnamed second track of the Hazel/Brookridge
+	## (e) the 14 at-grade rail crossings as route facts (T-205 re-pin: the
+	## census 9 + the north strip's 5): one flagged node per crossing, and
+	## 13 of the 14 lie ON a drivable run the graph marks rail (the
+	## fourteenth — the pack's unnamed second track of the Hazel/Brookridge
 	## pair — sits 11 m off North 4th Street, past the run-fact radius; its
 	## flagged node carries it). The cars cross them all; nothing gates.
-	var rail_ok := graph != null and graph.rail_nodes().size() == 9
+	var rail_ok := graph != null and graph.rail_nodes().size() == 14
 	if graph != null:
 		var on_runs := 0
 		for crossing: Dictionary in AmesDataPack.rail().get("crossings", []):
@@ -3291,7 +3780,7 @@ func _scenario_ames_traffic_routes() -> void:
 					and float(near["dist"]) \
 							<= graph.run_half_width(int(near["run"])) + 2.0:
 				on_runs += 1
-		rail_ok = rail_ok and on_runs >= 8
+		rail_ok = rail_ok and on_runs >= 13
 	_check(S, shape_ok and lane_ok and lw_ok and drive_ok and rail_ok,
 			"shape=%s lane=%s lw=%s drive=%s rail=%s (runs %d, %.2f km, stops %d, lw covered %.2f/%.2f km)"
 			% [shape_ok, lane_ok, lw_ok, drive_ok, rail_ok,
@@ -4295,10 +4784,11 @@ func _scenario_ames_intersections() -> void:
 	## carries 11 of the census's 13 — the pack welds no junction at L/W ×
 	## State and one Hunt-grade T, the delta recorded in the ticket).
 	## (T-204 re-pin) The bbox south's strip grew the corner set on the
-	## south fabric (University Boulevard / Mortensen Parkway / South 16th
-	## Street / the residential grid): arterial 47 → 54, signals 25 → 27,
-	## all-way 53 → 58; the downtown/campustown windows are untouched
-	## (20/11 unchanged).
+	## south fabric: arterial 47 → 54, signals 25 → 27, all-way 53 → 58.
+	## (T-205 re-pin) The bbox north's strip grew it again (Grand Avenue +
+	## Bloomington + Stange + the Northridge corridor + the north grid):
+	## arterial 54 → 83, signals 27 → 34, all-way 58 → 80; the
+	## downtown/campustown windows stay untouched (20/11 unchanged).
 	var downtown := 0
 	var campustown := 0
 	var arterial := 0
@@ -4315,8 +4805,8 @@ func _scenario_ames_intersections() -> void:
 		if graph.intersection_is_signal(a):
 			signals += 1
 	var all_way := downtown + campustown + arterial - signals
-	var counts_ok := downtown == 20 and campustown == 11 and arterial == 54 \
-			and signals == 27 and all_way == 58
+	var counts_ok := downtown == 20 and campustown == 11 and arterial == 83 \
+			and signals == 34 and all_way == 80
 	## (a2) The named corners: Lincoln Way × Welch (the pack origin corner),
 	## Main × Duff (downtown's east spine) signalized; Main × Pearle an
 	## all-way downtown corner.
@@ -4815,13 +5305,11 @@ func _scenario_ames_parking_census() -> void:
 		if AmesParking.CURB_BAY_KINDS.has(str(e.get("kind", ""))):
 			bays += 1
 	var counts: Dictionary = AmesDataPack.meta().get("counts", {})
-	## (T-204 re-pin) The bbox south grew the stock 532 → 571 lots (+39 strip
-	## lots, 83.05 → 94.43 ha) and REVEALED the tailgate zone's southern tail:
-	## the zone rule is the lat/lon window, not the box, and the v2 box saw
-	## only its northern part — 19 → 33 lots, 8.9 → 11.9 ha (the game's
-	## tailgate stock grows with the map). The mapped bay stock is untouched
-	## by the strip (31 bays, all in the v2 core).
-	var data_ok := stock.size() == 571 and absf(ha - 94.43) < 0.05 \
+	## (T-205 re-pin) The bbox north grew the stock 571 → 639 lots (+68 north
+	## strip lots, 94.43 → 113.97 ha). The tailgate zone is untouched (its
+	## lat/lon window is southern — 33 lots / 11.9 ha stand) and so is the
+	## mapped bay stock (31 bays, all in the v2 core).
+	var data_ok := stock.size() == 639 and absf(ha - 113.97) < 0.05 \
 			and tail == 33 and absf(tail_ha - 11.9) < 0.05 and bays == 31 \
 			and int(counts.get("parking_lots", 0)) == stock.size() \
 			and int(counts.get("parking_tailgate_lots", 0)) == 33 \
@@ -4924,7 +5412,7 @@ func _scenario_ames_parking_census() -> void:
 				rail_ok = false
 	dress_ok = dress_ok and poly_ok and ground_ok \
 			and int(parking.dressed_car_count()) == kept_total \
-			and kept_total == 7786 and int(parking.dressed_tailgate()) == 3147 \
+			and kept_total == 8798 and int(parking.dressed_tailgate()) == 3147 \
 			and gap_total > 0 and gap_total < kept_total
 	var body_mm := _city.get_node_or_null("Parking/LotBodies") as MultiMeshInstance3D
 	var cabin_mm := _city.get_node_or_null("Parking/LotCabins") as MultiMeshInstance3D
@@ -9756,8 +10244,8 @@ func _scenario_rail_dressing_pins() -> void:
 	for crossing: Dictionary in AmesDataPack.rail().get("crossings", []):
 		if str(crossing.get("grade", "")) == "at_grade":
 			at_grade.append(crossing)
-	if at_grade.size() != 9:
-		bad.append("pack at-grade crossings %d != the census 9" % at_grade.size())
+	if at_grade.size() != 14:
+		bad.append("pack at-grade crossings %d != the census 9 + the north strip's 5" % at_grade.size())
 	var downtown := ["Grand Avenue", "Clark Avenue", "Kellogg Avenue", "Duff Avenue"]
 	for name_want: String in downtown:
 		var found := false
@@ -10088,11 +10576,11 @@ func _scenario_rail_dressing_pins() -> void:
 		if absf(hip_y - 8.704) > 0.15:
 			bad.append("hip north slope at z -188 reads y %.2f != the frustum read 8.704 (±0.15)" % hip_y)
 
-	## --- D. the crossbucks ------------------------------------------------------
-	if world.crossbuck_pins.size() != 9:
-		bad.append("crossbuck pins %d != the 9 at-grade crossings" % world.crossbuck_pins.size())
-	if world._crossbuck_post_xfs.size() != 18 or world._crossbuck_arm_xfs.size() != 36:
-		bad.append("crossbuck hardware %d posts / %d arms != 18 / 36" % [
+	## --- D. the crossbucks (T-205 re-pin: 14 at-grade crossings, 28/56) ----
+	if world.crossbuck_pins.size() != 14:
+		bad.append("crossbuck pins %d != the 14 at-grade crossings" % world.crossbuck_pins.size())
+	if world._crossbuck_post_xfs.size() != 28 or world._crossbuck_arm_xfs.size() != 56:
+		bad.append("crossbuck hardware %d posts / %d arms != 28 / 56" % [
 				world._crossbuck_post_xfs.size(), world._crossbuck_arm_xfs.size()])
 	for pin: Dictionary in world.crossbuck_pins:
 		var pin_pos: Vector2 = pin["pos"]
@@ -11363,8 +11851,9 @@ func _scenario_r3_cutover_swap_set() -> void:
 		bad.append("R3 non-slot hero T-187: the lawn slab/fountain never built")
 	if world.lot_flat_tris <= 0 or world.lot_marking_xfs.is_empty():
 		bad.append("R3 non-slot hero T-191: the tailgate lot dress never built")
-	if world.crossbuck_pins.size() != 9 or world.train == null:
-		bad.append("R3 non-slot hero T-194: crossbuck pins %d != 9 or the coal drag never built"
+	if world.crossbuck_pins.size() != 14 or world.train == null:
+		bad.append("R3 non-slot hero T-194: crossbuck pins %d != 14 (T-205's "
+				+ "north crossings joined) or the coal drag never built"
 				% world.crossbuck_pins.size())
 
 	## --- D. the position ---------------------------------------------------------
@@ -12114,13 +12603,17 @@ func _scenario_venue_signs_tier1() -> void:
 		## of the pylon — is Meadow Lane Court (the split recorded in the
 		## sign table's note).
 		"hickory_park": "Meadow Lane Court",
+		## (T-205) The Cafe's own frontage: 2616 Northridge Pkwy — the
+		## building fronts Northridge Parkway's north side directly.
+		"the_cafe": "Northridge Parkway",
 	}
 	var world := _city as AmesWorld
 	if world == null:
 		_check(S, false, "the harness world is not an AmesWorld")
 		return
 	var records := world.venue_signs
-	## Table shape: the ticket's 14, exactly one staged (The Cafe), 13 placed.
+	## Table shape: the ticket's 14, ALL placed (T-205 un-staged The Cafe —
+	## the staged set is empty; the staged-count arm stays as the zero law).
 	if AmesVenueSigns.SIGNS.size() != 14:
 		bad.append("module table %d entries want 14" % AmesVenueSigns.SIGNS.size())
 	var staged: Array[Dictionary] = []
@@ -12129,10 +12622,9 @@ func _scenario_venue_signs_tier1() -> void:
 			staged.append(e)
 		if not (e["venue"] as String) in names:
 			bad.append("table name not a VENUES Tier-1 name: %s" % e["venue"])
-	if staged.size() != 1 or str(staged[0].get("id", "")) != "the_cafe":
-		bad.append("staged set %d (want exactly the_cafe)" % staged.size())
-	elif not (staged[0]["note"] as String).contains("T-205"):
-		bad.append("the staged The Cafe note drops the T-205 dependency")
+	if staged.size() != 0:
+		bad.append("staged set %d (want 0 — T-205 placed the_cafe; a "
+				+ "re-staged spec fails)" % staged.size())
 	## The pack tiering: the pack carries exactly the 14 as tier-1 venue POIs,
 	## and the sign names ride them (never retyped).
 	var tier1: Dictionary = {}
@@ -12141,8 +12633,8 @@ func _scenario_venue_signs_tier1() -> void:
 			tier1[str(p.get("id", ""))] = p
 	if tier1.size() != 14:
 		bad.append("pack tier-1 venues %d want 14" % tier1.size())
-	if records.size() != 13:
-		bad.append("placed records %d want 13" % records.size())
+	if records.size() != 14:
+		bad.append("placed records %d want 14 (T-205 placed the_cafe)" % records.size())
 	var world_root := world.get_node_or_null("VenueSigns") as Node3D
 	if world_root == null:
 		bad.append("no VenueSigns root")
@@ -12161,11 +12653,11 @@ func _scenario_venue_signs_tier1() -> void:
 	for c: Node in world_root.get_children():
 		if c.name.begins_with("Cart_"):
 			cart_roots += 1
-	## All 13 sign faces (the cart's topper rides INSIDE its cart root).
+	## All 14 sign faces (the cart's topper rides INSIDE its cart root).
 	for c: Node in world_root.find_children("*", "SignText", true, false):
 		sign_nodes.append(c)
-	if sign_nodes.size() != 13:
-		bad.append("world sign nodes %d want 13" % sign_nodes.size())
+	if sign_nodes.size() != 14:
+		bad.append("world sign nodes %d want 14" % sign_nodes.size())
 	if cart_roots != 1:
 		bad.append("world cart roots %d want 1" % cart_roots)
 	## Per-record legs.
@@ -12322,6 +12814,13 @@ func _scenario_venue_signs_tier1() -> void:
 			if d < 20.0 or d > 70.0:
 				bad.append("hickory_park lot frontage %.0f m — expected the "
 					+ "landed-lot band [20, 70]" % d)
+		elif id == "the_cafe":
+			## (T-205) The tight-lot frontage read: Northridge Parkway runs
+			## ~1.4 m north of the building's own north wall (the centerline
+			## rides the frontage), so the sign hangs just off the street.
+			if d < 1.0 or d > 30.0:
+				bad.append("the_cafe tight frontage %.1f m — expected the "
+					+ "frontage-wall band [1, 30]" % d)
 		elif id == "superdog":
 			## The cart's curb read: the pack's hand-placed 208-Welch position
 			## sits at the EAST carriageway of the 200 block's divided section
@@ -12335,7 +12834,11 @@ func _scenario_venue_signs_tier1() -> void:
 		var to_street: Vector3 = street["point"] - (rec["pos"] as Vector3)
 		to_street.y = 0.0
 		to_street = to_street.normalized()
-		if mount_n.dot(to_street) < 0.9:
+		## (T-205) The Cafe's facing floor relaxes to 0.75: Northridge's
+		## nearest centerline point carries the street's ENE drift at the
+		## frontage (measured dot 0.81), the wall still aims at the street.
+		var face_floor := 0.75 if id == "the_cafe" else 0.9
+		if mount_n.dot(to_street) < face_floor:
 			bad.append("%s does not face its street (dot %.3f)" % [id,
 					mount_n.dot(to_street)])
 	## The night-lit acceptance sign: Welch Ave Station — the big band, lit.
@@ -12358,13 +12861,35 @@ func _scenario_venue_signs_tier1() -> void:
 			if mat == null or not mat.emission_enabled \
 					or mat.emission_energy_multiplier <= 0.0:
 				bad.append("welch_ave_station band is not night-lit")
-	## The staged The Cafe: no world node, no record.
-	for c4: Node in world_root.get_children():
-		if c4.name.begins_with("Sign_the_cafe") or c4.name.begins_with("Cart_the_cafe"):
-			bad.append("the staged The Cafe built a world node")
+	## The placed The Cafe (T-205): the sign is LIVE on its own building's
+	## north wall — the mount re-derives against the committed chunk massing
+	## like every other wall mount, at the pack POI's z along the wall.
+	var cafe_rec: Dictionary = {}
 	for rec: Dictionary in records:
 		if str(rec["id"]) == "the_cafe":
-			bad.append("the staged The Cafe produced a placed record")
+			cafe_rec = rec
+	if cafe_rec.is_empty():
+		bad.append("the_cafe produced no placed record (the T-205 placement)")
+	else:
+		if str(cafe_rec.get("body", "")) != "massing:way/114039922":
+			bad.append("the_cafe body %s != its own building's massing"
+					% str(cafe_rec.get("body", "")))
+		var cafe_body: Dictionary = _venue_bake_bodies(
+				[str(cafe_rec.get("body", ""))]).get("massing:way/114039922", {})
+		if cafe_body.is_empty():
+			bad.append("the_cafe bake body missing from the committed chunks")
+		else:
+			var bp: Array = cafe_body["p"]
+			var bs: Array = cafe_body["s"]
+			var cafe_stand: float = SignText.SPEC[SignText.Typology.PLAQUE]["body"].z \
+					* 0.5 + AmesVenueSigns.WALL_GAP
+			var want_z: float = float(bp[2]) - float(bs[2]) * 0.5 - cafe_stand
+			var cafe_pos: Vector3 = cafe_rec["pos"]
+			if absf(cafe_pos.z - want_z) > 0.05 \
+					or absf(cafe_pos.x - 536.49) > 0.05 \
+					or absf(cafe_pos.y - 5.4) > 0.05:
+				bad.append("the_cafe mount %s != the north wall at wall_u "
+						+ "536.49 (face plane %.2f)" % [cafe_pos, want_z])
 	## The Superdog cart: the one PROP — parts, the red umbrella, its sign.
 	for rec: Dictionary in records:
 		if str(rec["id"]) != "superdog":
@@ -12384,8 +12909,8 @@ func _scenario_venue_signs_tier1() -> void:
 				bad.append("superdog umbrella is not the red read")
 	## The world report keys.
 	var report: Dictionary = world.last_report
-	if int(report.get("venue_signs", -1)) != 13:
-		bad.append("report venue_signs %s want 13" % str(report.get("venue_signs")))
+	if int(report.get("venue_signs", -1)) != 14:
+		bad.append("report venue_signs %s want 14 (T-205 placed the_cafe)" % str(report.get("venue_signs")))
 	if int(report.get("superdog_cart_parts", -1)) < 8:
 		bad.append("report superdog_cart_parts %s" % str(report.get("superdog_cart_parts")))
 	_check(S, bad.is_empty(), "; ".join(bad) if not bad.is_empty() else "-")
@@ -12911,8 +13436,10 @@ func _scenario_street_blades_pins() -> void:
 	## Sumner / High — each carrying one East-Lincoln-Way post blade:
 	## 74 corners, 89 blades — 37 mast stacks / 52 posts; T-204 re-pin
 	## 2026-11-17: the bbox south pinned the south fabric's spine corners —
-	## University Boulevard × Mortensen Parkway/South 16th/McCarthy/Beach
-	## and the residential joins — 99 blades — 42 mast stacks / 57 posts).
+	## 99 blades — 42 mast stacks / 57 posts; T-205 re-pin 2026-11-17: the
+	## bbox north pinned the north spine corners — Grand Avenue × the north
+	## grid, Stange Road's first in-core corners, Bloomington Road, the
+	## Northridge corridor — 130 blades — 50 mast stacks / 80 posts).
 	var mast_count := 0
 	var post_count := 0
 	for rec: Dictionary in records:
@@ -12920,8 +13447,8 @@ func _scenario_street_blades_pins() -> void:
 			mast_count += 1
 		else:
 			post_count += 1
-	if records.size() != 99 or mast_count != 42 or post_count != 57:
-		bad.append("blade counts %d (%d mast / %d post) want 99 (42/57)"
+	if records.size() != 130 or mast_count != 50 or post_count != 80:
+		bad.append("blade counts %d (%d mast / %d post) want 130 (50/80)"
 				% [records.size(), mast_count, post_count])
 	## (b) The text pins: every blade text IS its picked edge's run name,
 	## byte-exact, AND a committed pack street name (the exact-match law —
@@ -13561,25 +14088,26 @@ func _street_by_name(street_name: String, pos: Vector3) -> Dictionary:
 ## record's letter height riding the live node, readable distance =
 ## letter × the component's SPEC budget, every face unshaded on the bundled
 ## OFL font at the SPEC's face count), the visual-only collision guard over
-## the JOINED roots, and the honest edges still honest — the ONE staged spec
-## (The Cafe → T-205; T-204 placed Reiman Gardens onto its own hero) still
-## staged with its dependency named, the tiers 2–3 unsigned ledger and the
-## unreached spine ledger still CLOSED against the committed data. A future change that
-## silently places a staged spec, drops a family, or drifts the budget law
-## fails here by name before it can boot.
+## the JOINED roots, and the honest edges still honest — the staged set is
+## EMPTY everywhere since T-205 placed The Cafe (the tiers 2–3 unsigned
+## ledger and the unreached spine ledger still CLOSED against the committed
+## data). A future change that silently stages a spec, drops a family, or
+## drifts the budget law fails here by name before it can boot.
 func _scenario_r4_cutover_text_ledger() -> void:
 	const S := "r4_cutover_text_ledger"
-	## (T-204 re-pin) The blades family grew 89 → 99 with the bbox south (the
-	## south fabric's spine corners) and CampusPlaques 11 → 12 (Reiman
-	## Gardens placed on its ticket's own hero), taking the joined ledger
-	## 151 → 162; every other family is anchor-driven and untouched.
-	const TOTAL_PLACED := 162
+	## (T-205 re-pin) The blades family grew 99 → 130 with the bbox north
+	## (Grand Avenue × the north grid, Bloomington Road, the Northridge
+	## corridor — 50 mast stacks / 80 posts) and VenueSigns 13 → 14 (The
+	## Cafe PLACED at 2616 Northridge Pkwy — the last staged tier-1 spec
+	## un-staged), taking the joined ledger 162 → 194; the staged set is
+	## now EMPTY across all five families.
+	const TOTAL_PLACED := 194
 	## The R4 ledger — the ring table (ticket → root → world record array →
 	## report key → placed count → the staged spec id, "" when the family
 	## stages none → the record field the family's sign TEXTS pin).
 	const RING := [
 		{"ticket": "T-198", "root": "VenueSigns", "array": "venue_signs",
-			"report": "venue_signs", "placed": 13, "staged": "the_cafe",
+			"report": "venue_signs", "placed": 14, "staged": "",
 			"text": "venue"},
 		{"ticket": "T-199", "root": "VenueSignsTiers",
 			"array": "venue_signs_t23", "report": "venue_signs_t23",
@@ -13588,7 +14116,7 @@ func _scenario_r4_cutover_text_ledger() -> void:
 			"report": "ghost_plaques", "placed": 11, "staged": "",
 			"text": "venue"},
 		{"ticket": "T-200", "root": "StreetBlades", "array": "street_blades",
-			"report": "street_blades", "placed": 99, "staged": "",
+			"report": "street_blades", "placed": 130, "staged": "",
 			"text": "street"},
 		{"ticket": "T-201", "root": "CampusPlaques", "array": "campus_plaques",
 			"report": "campus_plaques", "placed": 12, "staged": "",
@@ -13600,12 +14128,14 @@ func _scenario_r4_cutover_text_ledger() -> void:
 	const TYPOS_GHOST := [SignText.Typology.PLAQUE]
 	const TYPOS_BLADES := [SignText.Typology.STREET]
 	const TYPOS_CAMPUS := [SignText.Typology.PLAQUE]
-	## The unreached spine ledger (the T-200 v1 pin, re-pinned T-203 then
-	## T-204: the spine names the bake's pinned corners cannot host —
-	## nothing signs there until a bake pins a corner. T-204's south strip
-	## pinned the South 16th + Southeast 16th corners; the data names
-	## "Mortensen Parkway", so the spine name Mortensen Road stays
-	## unreachable BY SPELLING until a pack rename, with Stange Road).
+	## The unreached spine ledger (the T-200 v1 pin, re-pinned T-203, T-204
+	## then T-205: the spine names the bake's pinned corners cannot host —
+	## nothing signs there until a bake pins a corner. T-205's north strip
+	## pinned the Grand/Bloomington/Northridge corners, but Stange Road's
+	## in-core stretch crosses NO spine street at a pinned corner (its joins
+	## are residential — corner-driven means still no blade), and the data
+	## names "Mortensen Parkway", so the spine name Mortensen Road stays
+	## unreachable BY SPELLING until a pack rename).
 	const UNREACHED_SPINE := ["Mortensen Road", "Stange Road"]
 	var bad: PackedStringArray = PackedStringArray()
 	var world := _city as AmesWorld
@@ -13708,23 +14238,27 @@ func _scenario_r4_cutover_text_ledger() -> void:
 	if not collision_offenders.is_empty():
 		bad.append("the visual-only scope law: %s" % ", ".join(collision_offenders))
 
-	## --- the honest edges: the ONE staged spec still staged ---------------
-	## (T-204 re-pin: Reiman Gardens placed, so The Cafe is the joined
-	## tables' only staged spec now — its T-205 note carries the law.)
+	## --- the honest edges: the staged set is EMPTY everywhere --------------
+	## (T-205 re-pin: The Cafe placed at its true Northridge position, so no
+	## table stages anything — a re-staged spec fails here by name.)
 	for e: Dictionary in AmesVenueSigns.SIGNS:
 		if bool(e.get("staged", false)):
-			if str(e["id"]) != "the_cafe":
-				bad.append("tier-1 staged set gained %s (want [the_cafe], "
-						+ "the T-205 spec)" % str(e["id"]))
-			if not str(e.get("note", "")).contains("T-205"):
-				bad.append("the_cafe's staged note no longer names T-205")
+			bad.append("tier-1 staged set gained %s — the tier-1 table "
+					+ "places all 14 now (T-205 placed the_cafe); a "
+					+ "re-staged spec fails" % str(e["id"]))
 	var t1_staged := 0
 	for e: Dictionary in AmesVenueSigns.SIGNS:
 		if bool(e.get("staged", false)):
 			t1_staged += 1
-	if t1_staged != 1:
-		bad.append("tier-1 staged count %d want exactly 1 (the_cafe)"
-				% t1_staged)
+	if t1_staged != 0:
+		bad.append("tier-1 staged count %d want exactly 0 (T-205 placed "
+				+ "the_cafe)" % t1_staged)
+	for e: Dictionary in AmesVenueSigns.SIGNS_T2 + AmesVenueSigns.SIGNS_T3 \
+			+ AmesVenueSigns.PLAQUES:
+		if bool(e.get("staged", false)):
+			bad.append("tiers/plaques staged set gained %s — a re-staged "
+					+ "spec fails (the joined ledger stages nothing)"
+					% str(e["id"]))
 	for e: Dictionary in AmesCampusPlaques.PLAQUES:
 		if bool(e.get("staged", false)):
 			bad.append("campus staged set gained %s — the campus table "
@@ -13782,7 +14316,7 @@ func _scenario_r4_cutover_text_ledger() -> void:
 		if not blades_streets.has(nm):
 			unreached.append(nm)
 	if unreached != UNREACHED_SPINE:
-		bad.append("unreached spine names %s want the T-204 ledger" % [unreached])
+		bad.append("unreached spine names %s want the T-205 ledger" % [unreached])
 
 	print("SIM DATA %s: families=%d live_texts=%d readable=%.1f..%.1f m tier1=%d tiers23=%d ghosts=%d blades=%d plaques=%d" % [
 		S, RING.size(), live_total, budget_min, budget_max,
@@ -16885,8 +17419,8 @@ func _scenario_stepped_boot_pins() -> void:
 			and stepped.car_spawner.living_cars().size() \
 					== stepped.car_spawner.target_moving \
 							+ stepped.car_spawner.target_parked \
-		and stepped.city.traffic_graph != null \
-				and stepped.city.traffic_graph.run_count() == 1018
+	and stepped.city.traffic_graph != null \
+			and stepped.city.traffic_graph.run_count() == 2044
 	## The staged spawners are regenerated-wired: a forced rebuild must re-seed
 	## them — restarts keep working on the stepped path. (T-177 re-pin) The
 	## "foreign seed" leg becomes the data-identity law: the Ames world is a

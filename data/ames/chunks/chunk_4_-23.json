@@ -74,7 +74,7 @@
 		"crossings": 0,
 		"ground_quads": 0,
 		"lane_quads": 0,
-		"lawn_tris": 1,
+		"lawn_tris": 0,
 		"massing": 16,
 		"occluders": 16,
 		"placeholders": 0,
@@ -88,21 +88,7 @@
 	"crossings": [],
 	"ground_quads": [],
 	"lane_quads": [],
-	"lawn_tris": [
-		{
-			"v": [
-				1252.42,
-				0.04,
-				-5661.39,
-				1252.5,
-				0.04,
-				-5733.73,
-				1278.47,
-				0.04,
-				-5733.53
-			]
-		}
-	],
+	"lawn_tris": [],
 	"massing": [
 		{
 			"a": false,

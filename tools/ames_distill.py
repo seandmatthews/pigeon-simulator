@@ -738,11 +738,13 @@ def build_parks(nodes, ways, rels, lakes):
                 "wgs84": [round(bbox_center(ring)[0], 6),
                           round(bbox_center(ring)[1], 6)],
             })
-    # Park-lake hole cut (T-205): a park ring that strictly contains a named
-    # lake gives that lake its water flat back — the bake's flats stack lawn
-    # ABOVE water, so the uncut polygon would paint mown lawn over the whole
-    # lake. The keyhole-splice cut lands one simple bridged ring (see
-    # cut_ring_holes); the entry records what it lost.
+    # Park-lake holes (T-205): a park ring that strictly contains a named
+    # lake lists that lake in `holes` — the bake subtracts the hole from the
+    # park's lawn triangulation (the flats stack lawn ABOVE water, so an
+    # unmarked polygon would paint mown lawn over the whole lake). The
+    # polygon stays the full tract ring (no slit, no bridging — a simple
+    # ring the ear clip triangulates cleanly); `area_m2` reports the lawn
+    # side: polygon minus holes, asserted positive.
     lake_rings = [(l.get("name") or "", [tuple(p) for p in l["polygon"]])
                   for l in lakes if l.get("kind") == "lake"]
     for e in entries:
@@ -750,30 +752,29 @@ def build_parks(nodes, ways, rels, lakes):
         holes = [hr for nm, hr in lake_rings
                  if all(_point_in_ring(p, poly) for p in hr)]
         if holes:
-            e["polygon"] = [list(p) for p in cut_ring_holes(poly, holes)]
-            e["area_m2"] = round(_ring_abs_area_local(
-                [(p[0], p[1]) for p in e["polygon"]]))
+            e["holes"] = [[list(p) for p in hr] for hr in holes]
+            e["area_m2"] = round(
+                _ring_abs_area_local([(p[0], p[1]) for p in poly])
+                - sum(_ring_abs_area_local(hr) for hr in holes))
+            if e["area_m2"] <= 0.0:
+                raise SystemExit(f"park '{e.get('name')}' area goes "
+                                 f"non-positive with its holes")
             e["holes_cut"] = [nm for nm, hr in lake_rings if hr in holes]
     entries.sort(key=lambda e: -e["area_m2"])
     return entries
 
 
-# --- park-lake hole cutting (T-205) -----------------------------------------
+# --- park-lake holes (T-205) -------------------------------------------------
 #
 # The Ada Hayden park ring CONTAINS its twin-quarry lake (52.1 ha inside the
 # 180-ha tract), and the bake's flats stack lawn (y 0.04) ABOVE water
-# (y 0.02) — an uncut park polygon would paint mown lawn over the whole
-# lake. The bake has no hole concept (its ring split sees only chained
-# loops), so the distiller cuts the hole structurally: the classic keyhole
-# splice — the hole's eastmost vertex bridges EAST to the nearest outer-edge
-# crossing, the hole walks once inside the outer ring, and the two seam
-# vertex pairs (P, E) get a 3 cm epsilon so their stored keys stay distinct
-# (the bake's ring-split can never re-split the loop, and a 3 cm slit is
-# sub-visible at park scale). Area conservation is asserted: the bridged
-# ring's shoelace must equal outer minus hole within 0.1 %.
-
-HOLE_EPS_M = 0.03  # the seam epsilon (m) — 3 grid steps at the 0.01 rounding
-
+# (y 0.02) — an unmarked park polygon would have its lawn triangulation
+# paint mown lawn right over the lake. The pack carries the hole as DATA:
+# the entry keeps the full tract ring in `polygon` and lists the strictly-
+# contained lake rings in `holes`; the bake subtracts the hole triangles
+# from the park triangulation (convex-convex clip, ames_baker). The entry's
+# `area_m2` reports the LAWN side of the law: polygon minus holes, asserted
+# positive and re-derivable from the stored rings alone.
 
 def _ring_pts_local(ring_lonlat):
     return [to_local_lonlat_free(p) for p in ring_lonlat]
@@ -810,65 +811,6 @@ def _point_in_ring(pt, ring):
     return inside
 
 
-def _cut_one_hole(outer, hole):
-    """Splice one hole ring out of an outer ring (local meters)."""
-    e_i = max(range(len(hole)), key=lambda i: (hole[i][0], hole[i][1]))
-    ex, ey = hole[e_i]
-    best = None  # (dist, j, px) — nearest strictly-east outer-edge crossing
-    n = len(outer)
-    for j in range(n):
-        ax, ay = outer[j]
-        bx, by = outer[(j + 1) % n]
-        if (ay - ey) == 0 or (by - ey) == 0:
-            continue  # an endpoint ON the ray — skip the degenerate straddle
-        if (ay > ey) == (by > ey):
-            continue
-        px = ax + (ey - ay) / (by - ay) * (bx - ax)
-        if px <= ex:
-            continue
-        if best is None or (px - ex) < best[0] - 1e-9:
-            best = (px - ex, j, px)
-    if best is None:
-        raise SystemExit("cut_ring_holes: east ray found no outer crossing — "
-                         "hole is not strictly inside the outer ring")
-    _, j, px = best
-    # The hole must traverse OPPOSITE the outer for the shoelace subtraction.
-    if (_ring_area_local(outer) >= 0.0) == (_ring_area_local(hole) >= 0.0):
-        hole = list(reversed(hole))
-        e_i = max(range(len(hole)), key=lambda i: (hole[i][0], hole[i][1]))
-        ex, ey = hole[e_i]
-    out = outer[:j + 1]
-    out.append((px, ey))            # P — seam split on the outer edge
-    out.append((ex, ey))            # E — the bridge out to the hole
-    for k in range(1, len(hole)):   # the hole WITHOUT its E vertex — the
-        out.append(hole[(e_i + k) % len(hole)])  # walk must NOT revisit E,
-        # or the ring split at the bake would re-cut the hole loop out.
-    out.append((ex, ey - HOLE_EPS_M))   # E' — 3 cm south of E (distinct key)
-    out.append((px, ey - HOLE_EPS_M))   # P' — 3 cm south of P
-    out.extend(outer[j + 1:])
-    return out
-
-
-def cut_ring_holes(outer_local, holes_local):
-    """Cut strictly-contained lake rings out of a park ring (LOCAL meters
-    in and out — one simple bridged ring). Asserts the area law: the
-    bridged ring's shoelace must equal outer minus holes within 0.1 %."""
-    for hr in holes_local:
-        if not all(_point_in_ring(p, outer_local) for p in hr):
-            raise SystemExit("cut_ring_holes: a hole ring is not strictly "
-                             "inside the park ring — refusing a partial cut")
-    ring = list(outer_local)
-    for hr in sorted(holes_local, key=_ring_abs_area_local, reverse=True):
-        ring = _cut_one_hole(ring, hr)
-    got = _ring_abs_area_local(ring)
-    want = _ring_abs_area_local(outer_local) - sum(_ring_abs_area_local(h)
-                                                   for h in holes_local)
-    if want <= 0.0 or abs(got - want) > want * 0.001:
-        raise SystemExit(f"cut_ring_holes: bridged area {got:.0f} m2 not the "
-                         f"outer-minus-holes {want:.0f} m2 (0.1% band)")
-    return [(round(p[0], 2), round(p[1], 2)) for p in ring]
-
-
 # --- trails (T-205): the R5-north parks' mapped trail runs -------------------
 
 TRAIL_KINDS = ("footway", "path", "cycleway", "pedestrian")
@@ -883,9 +825,17 @@ NORTH_TRAIL_PARKS = ("Ada Hayden Heritage Park", "Inis Grove Park",
 def build_trails(nodes, ways, parks):
     """Trail runs (footway/path/cycleway/pedestrian) whose midpoints sit
     inside a north-park ring AND in core, stitched per way like streets.
-    Park rings are the pack's OWN stored local-meter polygons."""
-    park_rings = [(e["name"], [(float(p[0]), float(p[1])) for p in e["polygon"]])
-                  for e in parks if e.get("name") in NORTH_TRAIL_PARKS]
+    Park rings are the pack's OWN stored local-meter polygons; a park's
+    `holes` (the park-lakes, T-205) are keep-outs — a mapped way crossing
+    open water is no park trail."""
+    park_rings = []
+    for e in parks:
+        if e.get("name") not in NORTH_TRAIL_PARKS:
+            continue
+        park_rings.append((e["name"],
+                           [(float(p[0]), float(p[1])) for p in e["polygon"]],
+                           [[(float(p[0]), float(p[1])) for p in hr]
+                            for hr in e.get("holes", [])]))
     entries = []
     for wid in sorted(ways):
         w = ways[wid]
@@ -901,8 +851,9 @@ def build_trails(nodes, ways, parks):
             if not in_core((mx, my)):
                 continue
             p = to_local(mx, my)
-            for _, ring in park_rings:
-                if _point_in_ring(p, ring):
+            for _, ring, holes in park_rings:
+                if _point_in_ring(p, ring) and not any(
+                        _point_in_ring(p, hr) for hr in holes):
                     segs.append((a, b))
                     break
         for run in runs_from_segments(segs):
@@ -912,8 +863,9 @@ def build_trails(nodes, ways, parks):
                 continue
             mid = bbox_center(run)
             park_name = None
-            for nm, ring in park_rings:
-                if _point_in_ring(to_local(*mid), ring):
+            for nm, ring, holes in park_rings:
+                if _point_in_ring(to_local(*mid), ring) and not any(
+                        _point_in_ring(to_local(*mid), hr) for hr in holes):
                     park_name = nm
                     break
             if park_name is None:

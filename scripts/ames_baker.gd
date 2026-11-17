@@ -596,17 +596,40 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 					(_chunk_at(tiles, _chunk_of(mid.x, mid.y))["creek_quads"] as Array).append({"q": quad})
 
 	# --- parks: lawn polygon flats ----------------------------------------
+	# (T-205) A park entry may carry `holes` (a park-lake's stored ring): the
+	# ear clip triangulates the full ring — a simple polygon, no slits — and
+	# every park triangle is then CUT against the hole ring's boundary edges
+	# (BSP split, both sides kept) with the in-hole remainder dropped. The
+	# lawn flat therefore ends at the water's edge: the lake's own water
+	# flat (y 0.02) renders UNDER the lawn (y 0.04), so without the cut the
+	# lake read as mown lawn.
 	for park: Dictionary in AmesDataPack.parks():
 		var poly := _pack_points(park.get("polygon", []))
+		var holes: Array = park.get("holes", [])
+		var hole_rings: Array[PackedVector2Array] = []
+		for hole: Array in holes:
+			hole_rings.append_array(_split_rings(_pack_points(hole)))
 		for ring: PackedVector2Array in _split_rings(poly):
 			for tri: Vector3i in _triangulate(ring):
-				var tri_centroid := (ring[tri.x] + ring[tri.y] + ring[tri.z]) / 3.0
-				var v: Array = [
-					_r(ring[tri.x].x), _r(LAWN_Y), _r(ring[tri.x].y),
-					_r(ring[tri.y].x), _r(LAWN_Y), _r(ring[tri.y].y),
-					_r(ring[tri.z].x), _r(LAWN_Y), _r(ring[tri.z].y),
-				]
-				(_chunk_at(tiles, _chunk_of(tri_centroid.x, tri_centroid.y))["lawn_tris"] as Array).append({"v": v})
+				var tri_poly := PackedVector2Array()
+				tri_poly.append(ring[tri.x])
+				tri_poly.append(ring[tri.y])
+				tri_poly.append(ring[tri.z])
+				var pieces: Array[PackedVector2Array] = [tri_poly]
+				for hole_ring: PackedVector2Array in hole_rings:
+					pieces = _tri_minus_ring(pieces, hole_ring)
+				for piece: PackedVector2Array in pieces:
+					for pi: int in piece.size() - 2:
+						var pa := piece[0]
+						var pb := piece[pi + 1]
+						var pc := piece[pi + 2]
+						var pc_centroid := (pa + pb + pc) / 3.0
+						var v: Array = [
+							_r(pa.x), _r(LAWN_Y), _r(pa.y),
+							_r(pb.x), _r(LAWN_Y), _r(pb.y),
+							_r(pc.x), _r(LAWN_Y), _r(pc.y),
+						]
+						(_chunk_at(tiles, _chunk_of(pc_centroid.x, pc_centroid.y))["lawn_tris"] as Array).append({"v": v})
 
 	# --- trails: the north parks' mapped runs (T-205) ----------------------
 	# Gravel stripes extruded along every pack trail run, ribbon-style. The
@@ -1205,6 +1228,101 @@ static func _triangulate(pts: PackedVector2Array) -> Array[Vector3i]:
 				tris.append(Vector3i(ring[0], ring[i], ring[i + 1]))
 			break
 	return tris
+
+
+## Cut the hole out of a convex triangle by BSP-style splitting against the
+## hole RING's own boundary edges: every piece the segment crosses is split
+## by the edge's LINE (both sides kept — the pieces tile the triangle), and
+## after the walk the pieces whose centroid sits inside the ring are
+## dropped. Deterministic, area-conserving, and bounded: only the ring's
+## boundary edges split, never a triangulation's interior web.
+static func _tri_minus_ring(pieces: Array[PackedVector2Array],
+		ring: PackedVector2Array) -> Array[PackedVector2Array]:
+	var aabb_lo := Vector2(INF, INF)
+	var aabb_hi := Vector2(-INF, -INF)
+	for piece: PackedVector2Array in pieces:
+		for v: Vector2 in piece:
+			aabb_lo = aabb_lo.min(v)
+			aabb_hi = aabb_hi.max(v)
+	for e: int in ring.size():
+		var a := ring[e]
+		var b := ring[(e + 1) % ring.size()]
+		var seg_lo := a.min(b)
+		var seg_hi := a.max(b)
+		if seg_hi.x < aabb_lo.x or seg_lo.x > aabb_hi.x \
+				or seg_hi.y < aabb_lo.y or seg_lo.y > aabb_hi.y:
+			continue
+		var nrm := (b - a).normalized()
+		var next_pieces: Array[PackedVector2Array] = []
+		for p: PackedVector2Array in pieces:
+			if not _convex_poly_crosses_seg(p, a, nrm, b):
+				next_pieces.append(p)
+				continue
+			if OS.has_environment("T205_DEBUG"):
+				print("DEBUG split at hole edge %d: piece n=%d" % [e, p.size()])
+			var left := PackedVector2Array()
+			var right := PackedVector2Array()
+			for i: int in p.size():
+				var cur := p[i]
+				var nxt := p[(i + 1) % p.size()]
+				var d_cur := (cur - a).cross(nrm)
+				var d_nxt := (nxt - a).cross(nrm)
+				if d_cur <= 0.0:
+					left.append(cur)
+				else:
+					right.append(cur)
+				if (d_cur <= 0.0) != (d_nxt <= 0.0):
+					var hit := cur.lerp(nxt, d_cur / (d_cur - d_nxt))
+					left.append(hit)
+					right.append(hit)
+			if left.size() >= 3:
+				next_pieces.append(left)
+			if right.size() >= 3:
+				next_pieces.append(right)
+		pieces = next_pieces
+	var kept: Array[PackedVector2Array] = []
+	var rings: Array[PackedVector2Array] = [ring]
+	for p: PackedVector2Array in pieces:
+		var c := Vector2.ZERO
+		for v2: Vector2 in p:
+			c += v2
+		c /= float(p.size())
+		if not _mid_in_lake(c, rings):
+			kept.append(p)
+	return kept
+
+
+## TRUE when the segment a→b (direction `nrm`) properly crosses the convex
+## polygon's interior: some edge pair straddles the line on both sides AND
+## the crossing span overlaps the segment's span.
+static func _convex_poly_crosses_seg(p: PackedVector2Array, a: Vector2,
+		nrm: Vector2, b: Vector2) -> bool:
+	var t_lo := INF
+	var t_hi := -INF
+	var poly_lo := INF
+	var poly_hi := -INF
+	for i: int in p.size():
+		var d := (p[i] - a).cross(nrm)
+		poly_lo = minf(poly_lo, d)
+		poly_hi = maxf(poly_hi, d)
+	if poly_lo > 0.0 or poly_hi < 0.0:
+		return false ## The whole polygon is on one side of the line.
+	var along := (b - a).normalized()
+	var seg_len := (b - a).length()
+	for i: int in p.size():
+		var cur := p[i]
+		var nxt := p[(i + 1) % p.size()]
+		var d_cur := (cur - a).cross(nrm)
+		var d_nxt := (nxt - a).cross(nrm)
+		if (d_cur <= 0.0) != (d_nxt <= 0.0):
+			var t := d_cur / (d_cur - d_nxt)
+			var hit := cur.lerp(nxt, t)
+			var s := (hit - a).dot(along)
+			t_lo = minf(t_lo, s)
+			t_hi = maxf(t_hi, s)
+	if t_lo == INF:
+		return false
+	return t_hi > 1e-9 and t_lo < seg_len - 1e-9
 
 
 ## Packs a JSON point list (`[[x, z], ...]`) into a PackedVector2Array.
