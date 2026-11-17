@@ -383,7 +383,7 @@ scan (T-170 was max; no workflows in flight).
 | T-199 | [Venue signs tiers 2–3 + ghost plaques](T-199-venue-signs-tier2-3.md) | R4 The Names | T-198 | done |
 | T-200 | [Street name blades](T-200-street-name-blades.md) | R4 The Names | T-197, T-180 | done |
 | T-201 | [Campus name plaques](T-201-campus-name-plaques.md) | R4 The Names | T-197 | done |
-| T-202 | [R4 cutover](T-202-ames-r4-cutover.md) | R4 The Names | T-198..T-201 | proposed |
+| T-202 | [R4 cutover](T-202-ames-r4-cutover.md) | R4 The Names | T-198..T-201 | done |
 | T-203 | [Bbox east — Bandshell + S Duff](T-203-ames-bbox-east.md) | R5 The Town | T-202 | proposed |
 | T-204 | [South — Reiman Gardens](T-204-ames-extension-south.md) | R5 The Town | T-203 | proposed |
 | T-205 | [North — Ada Hayden + The Cafe](T-205-ames-extension-north.md) | R5 The Town | T-203 | proposed |

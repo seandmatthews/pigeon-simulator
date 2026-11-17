@@ -210,6 +210,7 @@ func _run_scenarios() -> void:
 	await _scenario_venue_signs_tiers() ## T-199 — the tiers 2–3 names + the mourned ghost plaques at their verified mounts, re-derived from the bake + pack.
 	await _scenario_street_blades_pins() ## T-200 — the spine street-name blades at the pinned corners: the corner list + text pins, re-derived from the graph + pack.
 	await _scenario_campus_plaques_pins() ## T-201 — the campus + civic name plaques: the building list + text pins, re-derived from the hero records.
+	await _scenario_r4_cutover_text_ledger() ## T-202 — the R4 cutover: the four text tickets joined into ONE ledger — every family live at its pinned count on the default boot, the legibility law re-run over all 147 texts, the visual-only guard over the joined roots, both staged specs + both honest ledgers still closed.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -12798,6 +12799,246 @@ func _street_by_name(street_name: String, pos: Vector3) -> Dictionary:
 					"point": Vector3(px, 0.0, pz),
 				}
 	return best
+
+
+## --- (T-202) the R4 cutover — the four text tickets joined -----------------
+
+## (T-202) The R4 cutover's joined ledger: the four text tickets (T-198 the
+## Tier-1 venue signs, T-199 the tiers 2–3 signs + the ghost plaques, T-200
+## the street-name blades, T-201 the campus + civic plaques) walked as ONE
+## ring table on the resident DEFAULT boot. The per-ticket scenarios stay
+## the byte-exact mount authorities; the cutover's own claim is the JOIN:
+## every family LIVE at its pinned count under its own root with the world
+## report carrying the same number (the named town boots with no flag
+## anywhere — `Game.world` stays "ames", the only legal value since the
+## T-184 cutover), all 147 text instances alive as `SignText` nodes obeying
+## the T-197 legibility law in one re-run (typology pinned per family, the
+## record's letter height riding the live node, readable distance =
+## letter × the component's SPEC budget, every face unshaded on the bundled
+## OFL font at the SPEC's face count), the visual-only collision guard over
+## the JOINED roots, and the honest edges still honest — both staged specs
+## (The Cafe → T-205, Reiman Gardens → T-204) still staged with their
+## dependency named, the tiers 2–3 unsigned ledger and the unreached spine
+## ledger still CLOSED against the committed data. A future change that
+## silently places a staged spec, drops a family, or drifts the budget law
+## fails here by name before it can boot.
+func _scenario_r4_cutover_text_ledger() -> void:
+	const S := "r4_cutover_text_ledger"
+	const TOTAL_PLACED := 147
+	## The R4 ledger — the ring table (ticket → root → world record array →
+	## report key → placed count → the staged spec id, "" when the family
+	## stages none → the record field the family's sign TEXTS pin).
+	const RING := [
+		{"ticket": "T-198", "root": "VenueSigns", "array": "venue_signs",
+			"report": "venue_signs", "placed": 13, "staged": "the_cafe",
+			"text": "venue"},
+		{"ticket": "T-199", "root": "VenueSignsTiers",
+			"array": "venue_signs_t23", "report": "venue_signs_t23",
+			"placed": 27, "staged": "", "text": "venue"},
+		{"ticket": "T-199", "root": "GhostPlaques", "array": "ghost_plaques",
+			"report": "ghost_plaques", "placed": 11, "staged": "",
+			"text": "venue"},
+		{"ticket": "T-200", "root": "StreetBlades", "array": "street_blades",
+			"report": "street_blades", "placed": 85, "staged": "",
+			"text": "street"},
+		{"ticket": "T-201", "root": "CampusPlaques", "array": "campus_plaques",
+			"report": "campus_plaques", "placed": 11, "staged": "reiman_gardens",
+			"text": "text"},
+	]
+	## The per-family typology law (a record may carry only these).
+	const TYPOS_VENUE := [SignText.Typology.BOX, SignText.Typology.BLADE,
+			SignText.Typology.POLE, SignText.Typology.PLAQUE]
+	const TYPOS_GHOST := [SignText.Typology.PLAQUE]
+	const TYPOS_BLADES := [SignText.Typology.STREET]
+	const TYPOS_CAMPUS := [SignText.Typology.PLAQUE]
+	## The unreached spine ledger (the T-200 v1 pin: the spine names the v1
+	## bake's pinned corners cannot host — nothing signs there until an R5
+	## extension pins a corner).
+	const UNREACHED_SPINE := ["Mortensen Road", "South 16th Street",
+			"Southeast 16th Street", "Stange Road"]
+	var bad: PackedStringArray = PackedStringArray()
+	var world := _city as AmesWorld
+	if world == null:
+		_check(S, false, "the harness world is not the Ames world")
+		return
+
+	## --- the default-boot flip law: the named town boots with no flag -----
+	if Game.world != AmesWorld.WORLD_ID:
+		bad.append("Game.world '%s' want '%s' — the cutover law is ONE world"
+				% [Game.world, AmesWorld.WORLD_ID])
+	var report: Dictionary = world.last_report
+
+	## --- the ledger walk: every family live, every text obeying the law ---
+	var live_total := 0
+	var budget_min := INF
+	var budget_max := 0.0
+	var collision_offenders: Array[String] = []
+	for row: Dictionary in RING:
+		var root := world.get_node_or_null(str(row["root"])) as Node3D
+		var records_v: Variant = world.get(str(row["array"]))
+		if not (records_v is Array):
+			bad.append("%s: world array '%s' missing" % [row["ticket"],
+					row["array"]])
+			continue
+		var records: Array = records_v
+		if root == null:
+			bad.append("%s: root '%s' missing on the default boot"
+					% [row["ticket"], row["root"]])
+		if records.size() != int(row["placed"]):
+			bad.append("%s %s: %d placed want %d — the ledger moved, re-pin"
+					% [row["ticket"], row["root"], records.size(), row["placed"]])
+		if int(report.get(str(row["report"]), -1)) != records.size():
+			bad.append("%s: report '%s'=%s want %d" % [row["ticket"],
+					row["report"], str(report.get(str(row["report"]), "MISSING")),
+					records.size()])
+		var typos: Array = TYPOS_VENUE
+		match str(row["root"]):
+			"GhostPlaques":
+				typos = TYPOS_GHOST
+			"StreetBlades":
+				typos = TYPOS_BLADES
+			"CampusPlaques":
+				typos = TYPOS_CAMPUS
+		if root != null:
+			for kind in ["CollisionObject3D", "CollisionShape3D",
+					"CollisionPolygon3D"]:
+				if not root.find_children("*", kind, true, false).is_empty():
+					collision_offenders.append("%s/%s" % [row["root"], kind])
+		var text_field := str(row["text"])
+		for rec: Dictionary in records:
+			live_total += 1
+			var rid := str(rec.get("id", "?"))
+			var node := rec.get("node") as SignText
+			if node == null:
+				bad.append("%s %s '%s': record carries no live SignText"
+						% [row["ticket"], row["root"], rid])
+				continue
+			if root != null and not root.is_ancestor_of(node):
+				bad.append("%s %s '%s': sign node not under its root"
+						% [row["ticket"], row["root"], rid])
+			if not typos.has(node.typology):
+				bad.append("%s %s '%s': typology %d outside the family law"
+						% [row["ticket"], row["root"], rid, node.typology])
+			var want_text := str(rec.get(text_field, ""))
+			if want_text.is_empty() or node.text != want_text:
+				bad.append("%s %s '%s': text '%s' want '%s'"
+						% [row["ticket"], row["root"], rid, node.text, want_text])
+			var letter := float(rec.get("letter", -1.0))
+			if absf(node.effective_letter_height() - letter) > 0.001:
+				bad.append("%s %s '%s': letter %.3f want %.3f"
+						% [row["ticket"], row["root"], rid,
+						node.effective_letter_height(), letter])
+			var budget: float = SignText.SPEC[node.typology]["budget"]
+			var want_readable := node.effective_letter_height() * budget
+			var readable := node.readable_distance()
+			if absf(readable - want_readable) > 0.01:
+				bad.append("%s %s '%s': readable %.1f want letter×budget %.1f"
+						% [row["ticket"], row["root"], rid, readable,
+						want_readable])
+			budget_min = minf(budget_min, readable)
+			budget_max = maxf(budget_max, readable)
+			## The faces: the SPEC's face count, every one unshaded Oswald.
+			var faces := node.find_children("*", "Label3D", true, false)
+			var want_faces: int = SignText.SPEC[node.typology]["faces"].size()
+			if faces.size() != want_faces:
+				bad.append("%s %s '%s': %d faces want %d"
+						% [row["ticket"], row["root"], rid, faces.size(),
+						want_faces])
+			for face: Label3D in faces:
+				if face.shaded:
+					bad.append("%s %s '%s': a shaded face (the unshaded law)"
+							% [row["ticket"], row["root"], rid])
+				if face.font != SignText.FONT:
+					bad.append("%s %s '%s': a face off the bundled OFL font"
+							% [row["ticket"], row["root"], rid])
+	if live_total != TOTAL_PLACED:
+		bad.append("the joined ledger %d live texts want %d"
+				% [live_total, TOTAL_PLACED])
+	if not collision_offenders.is_empty():
+		bad.append("the visual-only scope law: %s" % ", ".join(collision_offenders))
+
+	## --- the honest edges: both staged specs still staged ------------------
+	for e: Dictionary in AmesVenueSigns.SIGNS:
+		if bool(e.get("staged", false)):
+			if str(e["id"]) != "the_cafe":
+				bad.append("tier-1 staged set gained %s (want [the_cafe], "
+						+ "the T-205 spec)" % str(e["id"]))
+			if not str(e.get("note", "")).contains("T-205"):
+				bad.append("the_cafe's staged note no longer names T-205")
+	var t1_staged := 0
+	for e: Dictionary in AmesVenueSigns.SIGNS:
+		if bool(e.get("staged", false)):
+			t1_staged += 1
+	if t1_staged != 1:
+		bad.append("tier-1 staged count %d want exactly 1 (the_cafe)"
+				% t1_staged)
+	for e: Dictionary in AmesCampusPlaques.PLAQUES:
+		if bool(e.get("staged", false)):
+			if str(e["id"]) != "reiman_gardens":
+				bad.append("campus staged set gained %s (want "
+						+ "[reiman_gardens], the T-204 spec)" % str(e["id"]))
+			if not str(e.get("note", "")).contains("T-204"):
+				bad.append("reiman_gardens' staged note no longer names T-204")
+	var campus_staged := 0
+	for e: Dictionary in AmesCampusPlaques.PLAQUES:
+		if bool(e.get("staged", false)):
+			campus_staged += 1
+	if campus_staged != 1:
+		bad.append("campus staged count %d want exactly 1 (reiman_gardens)"
+				% campus_staged)
+
+	## --- the tiers 2–3 unsigned ledger still closed (pack-derived) --------
+	var tier2: Dictionary = {}
+	var tier3: Dictionary = {}
+	for p: Dictionary in AmesDataPack.pois():
+		if str(p.get("kind", "")) != "venue":
+			continue
+		if int(p.get("tier", -1)) == 2:
+			tier2[str(p.get("id", ""))] = true
+		elif int(p.get("tier", -1)) == 3:
+			tier3[str(p.get("id", ""))] = true
+	if tier2.size() != 17 or tier3.size() != 17:
+		bad.append("pack tier-2/3 venues %d/%d want 17/17"
+				% [tier2.size(), tier3.size()])
+	var signed_ids: Dictionary = {}
+	for e: Dictionary in AmesVenueSigns.SIGNS_T2 + AmesVenueSigns.SIGNS_T3:
+		signed_ids[str(e["id"])] = true
+	var unsigned: Dictionary = {}
+	for id: String in tier2:
+		if not signed_ids.has(id):
+			unsigned[id] = true
+	for id: String in tier3:
+		if not signed_ids.has(id):
+			unsigned[id] = true
+	if unsigned.size() != AmesVenueSigns.UNSIGNED_T23.size():
+		bad.append("unsigned tiers set %d want %d (a name moved — re-pin)"
+				% [unsigned.size(), AmesVenueSigns.UNSIGNED_T23.size()])
+	else:
+		for id: String in unsigned:
+			if not AmesVenueSigns.UNSIGNED_T23.has(id):
+				bad.append("unsigned %s not recorded in UNSIGNED_T23" % id)
+			elif str(AmesVenueSigns.UNSIGNED_T23[id]).is_empty():
+				bad.append("unsigned %s carries no reason" % id)
+
+	## --- the unreached spine ledger still closed ---------------------------
+	var blades_streets: Array[String] = []
+	for rec: Dictionary in world.street_blades:
+		var nm := str(rec["street"])
+		if not blades_streets.has(nm):
+			blades_streets.append(nm)
+	var unreached: Array[String] = []
+	for nm: String in AmesStreetBlades.SPINE_NAMES:
+		if not blades_streets.has(nm):
+			unreached.append(nm)
+	if unreached != UNREACHED_SPINE:
+		bad.append("unreached spine names %s want the v1 ledger" % [unreached])
+
+	print("SIM DATA %s: families=%d live_texts=%d readable=%.1f..%.1f m tier1=%d tiers23=%d ghosts=%d blades=%d plaques=%d" % [
+		S, RING.size(), live_total, budget_min, budget_max,
+		world.venue_signs.size(), world.venue_signs_t23.size(),
+		world.ghost_plaques.size(), world.street_blades.size(),
+		world.campus_plaques.size()])
+	_check(S, bad.is_empty(), "; ".join(bad) if not bad.is_empty() else "-")
 
 
 ## --- scenarios (T-001 flight model) ----------------------------------------
