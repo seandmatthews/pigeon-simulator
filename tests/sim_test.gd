@@ -207,6 +207,7 @@ func _run_scenarios() -> void:
 	await _scenario_sign_text_legibility() ## T-197 — the sign capability: typology scenes at their pinned dims and letter heights, faces on the bundled OFL font at cap-true pixel sizes, the legibility budget locked per typology.
 	await _scenario_credits_screen_content() ## T-197 — the credits screen: the three attribution classes (OSM, photos, font) live on the title screen.
 	await _scenario_venue_signs_tier1() ## T-198 — the fourteen Tier-1 venue names at their verified mounts, re-derived from the bake + pack.
+	await _scenario_venue_signs_tiers() ## T-199 — the tiers 2–3 names + the mourned ghost plaques at their verified mounts, re-derived from the bake + pack.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -11682,6 +11683,440 @@ func _venue_bake_bodies(selectors: Array[String]) -> Dictionary:
 				out[key] = m
 				want.erase(key)
 	return out
+
+
+## T-199 — the tiers 2–3 venue signs + the mourned ghost plaques, live on the
+## resident Ames world: 27 signed venues (15 of the 17 Tier-2 POIs + 12 of the
+## 17 Tier-3 POIs) under `VenueSignsTiers` and 11 memorial plaques (the §6
+## closed venues whose rooms the committed bake pins) under `GhostPlaques`.
+## Every leg re-derives independently of the module tables: the mounts against
+## the COMMITTED bake bodies (the chunk files walked here) and the pack POIs,
+## the texts exact-matched against the survey names AND the pack names, the
+## street frontage against the pack street graph BY THE SURVEY STREET NAME
+## (corner venues: the nearest street overall can be the cross street — the
+## survey street is the pinned frontage), the budget law through the
+## component, the overflow fit law, the memorial styling constants (unlit
+## bronze at ground floor), and the visual-only guard. The unsigned tier-2/3
+## set is pinned too: pack POIs minus the signed tables == `UNSIGNED_T23`'s
+## keys, so an unsigned venue can never silently appear or vanish.
+## Law shape vs the tier-1 row (recorded): the tier-2/3 POI facings carry more
+## nearest_street artifacts (facing_src snaps to the street's DIRECTION, e.g.
+## BNC 1.3 / Time Out 89.3 while their walls front Welch/Kellogg), so for WALL
+## mounts the orientation pin is the frontage law itself (the sign faces its
+## survey street, dot ≥ 0.9) and the POI-facing hemisphere applies only to the
+## free-standing forms whose yaw IS the POI facing.
+func _scenario_venue_signs_tiers() -> void:
+	const S := "venue_signs_tiers"
+	var bad: PackedStringArray = []
+	## The VENUES.md §2/§3 heading names — the byte-exact sign texts (the
+	## exact-match law), typed here from the survey doc.
+	var names_t2: Array[String] = [
+		"Mother's Pub & Coffee", "Thumbs", "West Street Deli", "BNC Field House",
+		"Blue Owl Bar", "Cornbred Barbecue", "Whiskey River",
+		"London Underground", "Time Out", "The Mucky Duck Pub",
+		"Torrent Brewing Company", "Aunt Maude's", "The Grove Cafe",
+		"Provisions Lot F", "The Stan Tap", "Sam's Place",
+		"Lost and Found Lounge",
+	]
+	var names_t3: Array[String] = [
+		"Stomping Grounds Cafe", "Clouds", "Labyrinth Coffee",
+		"Ichiban Japanese Restaurant", "Blue Fish Poke Bowl", "Macubana",
+		"Dogtown University", "Thai Kitchen", "Szechuan House",
+		"888 Restaurant", "El Azteca", "Carlos Quesadilla",
+		"Iowa State Creamery", "Perfect Games", "Whatcha Smokin' BBQ",
+		"Morning Bell Coffee Roasters", "Cafe Diem",
+	]
+	## The §6 plaque texts — the mourned CLOSED venues whose rooms the bake
+	## pins (the year rides only where the survey pins a closure year).
+	var plaque_texts: Array[String] = [
+		"Es Tas Bar & Grill — 2024", "Wise Guys", "Little Taipei — 2024",
+		"Fighting Burrito — 2019", "The Scene", "Café Mood",
+		"DG's Tap House + Corner Pocket — 2019", "Olde Main Brewing — 2019",
+		"Legends — 2012", "Battle's Bar-B-Q — 2009",
+		"The Angry Irishmen — 2025",
+	]
+	## The survey street each venue fronts (pack street names — the frontage
+	## legs read the graph BY THIS NAME).
+	var frontage: Dictionary = {
+		"mothers_pub_coffee": "West Street", "thumbs": "West Street",
+		"west_street_deli": "West Street", "bnc_field_house": "Welch Avenue",
+		"blue_owl_bar": "Welch Avenue", "cornbred_barbecue": "Main Street",
+		"whiskey_river": "Main Street", "london_underground": "Main Street",
+		"time_out": "Kellogg Avenue", "torrent_brewing": "Burnett Avenue",
+		"aunt_maudes": "Main Street", "grove_cafe": "Main Street",
+		"the_stan_tap": "Stanton Avenue", "sams_place": "Main Street",
+		"stomping_grounds": "Welch Avenue", "clouds": "Stanton Avenue",
+		"ichiban": "Welch Avenue", "blue_fish_poke": "Welch Avenue",
+		"macubana": "Welch Avenue", "dogtown_university": "Welch Avenue",
+		"thai_kitchen": "Chamberlain Street", "morning_bell": "Main Street",
+		"cafe_diem": "Main Street",
+		"little_taipei": "Chamberlain Street",
+		"fighting_burrito": "Welch Avenue",
+		"the_scene": "Welch Avenue", "cafe_mood": "Welch Avenue",
+		"dgs_tap_house": "Main Street",
+		"olde_main_brewing": "Main Street",
+		"legends": "Stanton Avenue",
+		"battles_bar_b_q": "Hayward Avenue",
+		"angry_irishmen": "Main Street",
+		"es_tas_bar_grill": "Welch Avenue",
+		"wise_guys": "Welch Avenue",
+	}
+	## Frontage exceptions (the honest reads, each derived on the ticket):
+	## "apron" — the free-standing pylon stands past the bake core at the
+	## verified POI (the Hickory rule); "setback" — the depot fronts Main
+	## across its 56 m set-back; "interior" — no survey street exists in the
+	## graph where the mount stands (stadium interior / campus interior), the
+	## POI-position/facing law carries it.
+	var frontage_kind: Dictionary = {
+		"provisions_lot_f": "apron", "szechuan_house": "apron",
+		"cornbred_barbecue": "setback",
+		"carlos_quesadilla": "interior", "isu_creamery": "interior",
+	}
+	var world := _city as AmesWorld
+	if world == null:
+		_check(S, false, "the harness world is not an AmesWorld")
+		return
+	## Table shape: 15 + 12 signed, 11 plaques, no staged entries in either.
+	if AmesVenueSigns.SIGNS_T2.size() != 15:
+		bad.append("SIGNS_T2 %d entries want 15" % AmesVenueSigns.SIGNS_T2.size())
+	if AmesVenueSigns.SIGNS_T3.size() != 12:
+		bad.append("SIGNS_T3 %d entries want 12" % AmesVenueSigns.SIGNS_T3.size())
+	if AmesVenueSigns.PLAQUES.size() != 11:
+		bad.append("PLAQUES %d entries want 11" % AmesVenueSigns.PLAQUES.size())
+	var tier2: Dictionary = {}
+	var tier3: Dictionary = {}
+	for p: Dictionary in AmesDataPack.pois():
+		if str(p.get("kind", "")) != "venue":
+			continue
+		if int(p.get("tier", -1)) == 2:
+			tier2[str(p.get("id", ""))] = p
+		elif int(p.get("tier", -1)) == 3:
+			tier3[str(p.get("id", ""))] = p
+	if tier2.size() != 17 or tier3.size() != 17:
+		bad.append("pack tier-2/3 venues %d/%d want 17/17" % [tier2.size(), tier3.size()])
+	## The unsigned set is closed: POI ids minus the signed tables must equal
+	## `UNSIGNED_T23` exactly — no silent gaps in either direction.
+	var signed_ids: Dictionary = {}
+	for e: Dictionary in AmesVenueSigns.SIGNS_T2 + AmesVenueSigns.SIGNS_T3:
+		signed_ids[str(e["id"])] = true
+	var unsigned: Dictionary = {}
+	for id: String in tier2:
+		if not signed_ids.has(id):
+			unsigned[id] = true
+	for id: String in tier3:
+		if not signed_ids.has(id):
+			unsigned[id] = true
+	if unsigned.size() != AmesVenueSigns.UNSIGNED_T23.size():
+		bad.append("unsigned set %d want %d" % [unsigned.size(),
+				AmesVenueSigns.UNSIGNED_T23.size()])
+	else:
+		for id: String in unsigned:
+			if not AmesVenueSigns.UNSIGNED_T23.has(id):
+				bad.append("unsigned %s not recorded in UNSIGNED_T23" % id)
+			elif str(AmesVenueSigns.UNSIGNED_T23[id]).is_empty():
+				bad.append("unsigned %s carries no reason" % id)
+	var records := world.venue_signs_t23
+	var plaques := world.ghost_plaques
+	if records.size() != 27:
+		bad.append("placed tier records %d want 27" % records.size())
+	if plaques.size() != 11:
+		bad.append("plaque records %d want 11" % plaques.size())
+	var tiers_root := world.get_node_or_null("VenueSignsTiers") as Node3D
+	var plaque_root := world.get_node_or_null("GhostPlaques") as Node3D
+	if tiers_root == null or plaque_root == null:
+		bad.append("missing VenueSignsTiers/GhostPlaques roots")
+		tiers_root = tiers_root if tiers_root != null else Node3D.new()
+		plaque_root = plaque_root if plaque_root != null else Node3D.new()
+	## One walk of the committed chunks collects every mount body both record
+	## sets reference — the mounts re-derive against these.
+	var selectors: Array[String] = []
+	for rec: Dictionary in records + plaques:
+		var sel := str(rec["body"])
+		if sel != "" and not sel in selectors:
+			selectors.append(sel)
+	var bodies := _venue_bake_bodies(selectors)
+	var tier_nodes: Array[SignText] = []
+	var plaque_nodes: Array[SignText] = []
+	var truck_roots := 0
+	for c: Node in tiers_root.get_children():
+		if c.name.begins_with("Truck_"):
+			truck_roots += 1
+	for c: Node in tiers_root.find_children("*", "SignText", true, false):
+		tier_nodes.append(c)
+	for c: Node in plaque_root.find_children("*", "SignText", true, false):
+		plaque_nodes.append(c)
+	## The truck's topper rides INSIDE its truck root; the other 26 sign
+	## faces stand alone.
+	if tier_nodes.size() != 27:
+		bad.append("world tier sign nodes %d want 27" % tier_nodes.size())
+	if plaque_nodes.size() != 11:
+		bad.append("world plaque nodes %d want 11" % plaque_nodes.size())
+	if truck_roots != 1:
+		bad.append("world truck roots %d want 1" % truck_roots)
+	## The packs of names the tables must stay inside.
+	var all_names: Dictionary = {}
+	for n: String in names_t2 + names_t3:
+		all_names[n] = true
+	var plaque_set: Dictionary = {}
+	for n: String in plaque_texts:
+		plaque_set[n] = true
+	var pack_names: Dictionary = {}
+	for p: Dictionary in tier2.values() + tier3.values():
+		pack_names[str(p.get("name", ""))] = true
+	## Per-record legs (shared by the tier signs and the plaques).
+	for is_plaque: bool in [false, true]:
+		var rec_set: Array[Dictionary] = plaques if is_plaque else records
+		for rec: Dictionary in rec_set:
+			var id := str(rec["id"])
+			var venue := str(rec["venue"])
+			var form := str(rec["form"])
+			var face := str(rec["face"])
+			var yaw := float(rec["yaw"])
+			var sign: SignText = rec["node"]
+			if sign == null or not is_instance_valid(sign):
+				bad.append("%s record node is gone" % id)
+				continue
+			if sign.display_text() != venue:
+				bad.append("%s display '%s' want '%s'" % [id, sign.display_text(), venue])
+			if is_plaque:
+				if not plaque_set.has(venue):
+					bad.append("%s text not a pinned plaque text: %s" % [id, venue])
+			else:
+				if not all_names.has(venue):
+					bad.append("%s name not in the VENUES Tier-2/3 set" % id)
+				if not pack_names.has(venue):
+					bad.append("%s text not a pack tier-2/3 POI name" % id)
+			## Placement rides the pinned mount; the truck's record node is
+			## truck-local, so the truck root carries the mount.
+			var mount_node: Node3D = sign
+			if form == "truck":
+				mount_node = sign.get_parent()
+			if mount_node.position.distance_to(rec["pos"] as Vector3) > 0.001:
+				bad.append("%s node drifted off its mount" % id)
+			## The budget law: readable_distance == letter × the typology's
+			## factor; the letter rides the pin.
+			var letter := float(rec["letter"])
+			if absf(sign.effective_letter_height() - letter) > 0.0001:
+				bad.append("%s letter %.3f != pinned %.3f" % [id,
+						sign.effective_letter_height(), letter])
+			var budget := float(SignText.SPEC[sign.typology]["budget"])
+			if not is_equal_approx(sign.readable_distance(), letter * budget):
+				bad.append("%s readable %.2f want %.2f" % [id,
+						sign.readable_distance(), letter * budget])
+			## The band override rides the record.
+			if (sign.body_scale - (rec["band"] as Vector3)).length() > 0.0001:
+				bad.append("%s body_scale %s want %s" % [id, sign.body_scale,
+						rec["band"]])
+			## Visual-only law: no collision anywhere under the sign (or its
+			## truck).
+			if _has_collision(sign) or _has_collision(sign.get_parent()):
+				bad.append("%s carries collision (visual-only law)" % id)
+			## The overflow fit law, pre-computed: string width at the cap
+			## ≤ face width − 0.2.
+			var px := letter / (float(SignText.FONT_SIZE_PX) * SignText.CAP_HEIGHT_EM)
+			var face_w := (sign.body_scale if sign.body_scale != Vector3.ZERO
+					else SignText.SPEC[sign.typology]["body"] as Vector3).x
+			var width := SignText.FONT.get_string_size(venue,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, SignText.FONT_SIZE_PX).x * px
+			if width > face_w - 0.2:
+				bad.append("%s lettering %.2f m overflows its %.2f m face" % [id,
+						width, face_w])
+			## The mount legs — against the committed bake body + the pack.
+			var want_yaw := 0.0
+			if face == "poi":
+				## Free-standing forms stand at the pack POI, yawed onto the
+				## pack's verified facing — the facing vector IS the check,
+				## and the POI-facing hemisphere rides it by construction.
+				var poi: Dictionary = tier2.get(id, {}) if tier2.has(id) \
+						else tier3.get(id, {})
+				if poi.is_empty():
+					bad.append("%s is not a pack tier-2/3 venue POI" % id)
+					continue
+				if str(poi.get("name", "")) != venue:
+					bad.append("%s text '%s' != pack name '%s'" % [id, venue,
+							str(poi.get("name", ""))])
+				var n := AmesVenueSigns._facing_normal(float(poi["facing_deg"]))
+				want_yaw = atan2(n.x, n.z)
+				if (rec["pos"] as Vector3).distance_to(Vector3(
+						float((poi["position"] as Array)[0]), 0.0,
+						float((poi["position"] as Array)[1]))) > 0.02:
+					bad.append("%s not at its pack POI position" % id)
+			else:
+				## Wall mounts hang on the pinned bake body's face plane,
+				## re-derived here from the committed chunk files.
+				var body: Dictionary = bodies.get(str(rec["body"]), {})
+				if body.is_empty():
+					bad.append("%s bake body %s not in the committed chunks"
+							% [id, rec["body"]])
+					continue
+				var bp: Array = body["p"]
+				var bs: Array = body["s"]
+				var band: Vector3 = rec["band"]
+				var size: Vector3 = band if band != Vector3.ZERO \
+						else SignText.SPEC[AmesVenueSigns._typology_of(rec)]["body"]
+				var stand := size.z * 0.5 + AmesVenueSigns.WALL_GAP
+				var u := float(rec["wall_u"])
+				var y := float(rec["mount_y"])
+				var want_pos := Vector3.ZERO
+				match face:
+					"E":
+						want_pos = Vector3(float(bp[0]) + float(bs[0]) * 0.5
+								+ stand, y, u)
+						want_yaw = atan2(1.0, 0.0)
+					"W":
+						want_pos = Vector3(float(bp[0]) - float(bs[0]) * 0.5
+								- stand, y, u)
+						want_yaw = atan2(-1.0, 0.0)
+					"N":
+						want_pos = Vector3(u, y, float(bp[2]) - float(bs[2]) * 0.5
+								- stand)
+						want_yaw = atan2(0.0, -1.0)
+					_:
+						want_pos = Vector3(u, y, float(bp[2]) + float(bs[2]) * 0.5
+								+ stand)
+						want_yaw = atan2(0.0, 1.0)
+				if (rec["pos"] as Vector3).distance_to(want_pos) > 0.02:
+					bad.append("%s mount %s off the re-derived wall mount %s"
+							% [id, rec["pos"], want_pos])
+				## The band fits the wall it hangs on: along-wall extent
+				## inside the face span, mount below the body top.
+				var along := face in ["E", "W"]
+				var half_wall := float(bs[2]) * 0.5 if along else float(bs[0]) * 0.5
+				var center_u := float(bp[2]) if along else float(bp[0])
+				if absf(u - center_u) + size.x * 0.5 > half_wall:
+					bad.append("%s band exceeds its face span" % id)
+				if y > float(bp[1]) + float(bs[1]) * 0.5 + 0.01:
+					bad.append("%s mounts above its body top" % id)
+			if absf(wrapf(yaw - want_yaw, -PI, PI)) > 0.02:
+				bad.append("%s yaw %.3f want %.3f" % [id, yaw, want_yaw])
+			## The street frontage: the venue's SURVEY street is the frontage
+			## street (by name), in front of the sign, at its pinned band.
+			## The apron reads (the out-of-core pylons) assert the honest
+			## absence instead: NO graph street within 100 m (the Hickory
+			## rule's out-of-core half).
+			var kind := str(frontage_kind.get(id, "band"))
+			if kind == "interior":
+				pass ## No survey street exists here — the facing law carries.
+			elif kind == "apron":
+				var apron := AmesDataPack.nearest_street(rec["pos"] as Vector3)
+				if not apron.is_empty() \
+						and float(apron["distance_m"]) < 100.0:
+					bad.append("%s apron frontage %.0f m — expected the "
+							+ "out-of-core read (>= 100)" % [id,
+							float(apron["distance_m"])])
+			else:
+				var want_street := str(frontage.get(id, ""))
+				if want_street.is_empty():
+					bad.append("%s has no pinned frontage street" % id)
+				else:
+					var street := _street_by_name(want_street, rec["pos"] as Vector3)
+					if street.is_empty():
+						bad.append("%s frontage street '%s' not in the graph"
+								% [id, want_street])
+					else:
+						var d := float(street["distance_m"])
+						var to_street: Vector3 = street["point"] \
+								- (rec["pos"] as Vector3)
+						to_street.y = 0.0
+						to_street = to_street.normalized()
+						var mount_n := Vector3(sin(yaw), 0.0, cos(yaw))
+						if mount_n.dot(to_street) < 0.9:
+							bad.append("%s does not face its street (dot %.3f)"
+									% [id, mount_n.dot(to_street)])
+						match kind:
+							"setback":
+								if d < 30.0 or d > 70.0:
+									bad.append("%s depot set-back %.1f m off "
+											+ "the pinned band (30..70)" % [id, d])
+							_:
+								if d < 4.0 or d > 30.0:
+									bad.append("%s frontage distance %.1f m off the sidewalk band"
+											% [id, d])
+	## The memorial styling: every plaque is the unlit bronze ground-floor
+	## read — the tone law in machine form (never a glowing sign).
+	for rec: Dictionary in plaques:
+		var id := str(rec["id"])
+		var sign: SignText = rec["node"]
+		if sign.typology != SignText.Typology.PLAQUE:
+			bad.append("%s plaque typology %s want PLAQUE" % [id, sign.typology])
+		if sign.lit_mode == 2:
+			bad.append("%s plaque forced lit (the tone law)" % id)
+		if float(rec["mount_y"]) > AmesVenueSigns.PLAQUE_MEMORIAL_MAX_Y:
+			bad.append("%s mounts %.1f above the ground-floor band" % [id,
+					float(rec["mount_y"])])
+		if float(rec["letter"]) > AmesVenueSigns.PLAQUE_MEMORIAL_LETTER + 0.0001:
+			bad.append("%s letter %.3f above the memorial cap" % [id,
+					float(rec["letter"])])
+		var body_mat: StandardMaterial3D = null
+		for c: Node in sign.get_children():
+			if c.name == "Body" and c is MeshInstance3D:
+				body_mat = (c as MeshInstance3D).mesh.surface_get_material(0) \
+						as StandardMaterial3D
+		if body_mat == null:
+			bad.append("%s plaque body material missing" % id)
+		else:
+			if body_mat.albedo_color != AmesVenueSigns.PLAQUE_MEMORIAL_BODY:
+				bad.append("%s plaque body not the memorial bronze" % id)
+			if body_mat.emission_enabled:
+				bad.append("%s plaque body emits (never a glowing sign)" % id)
+		var face_label: Label3D = null
+		for c2: Node in sign.get_children():
+			if c2 is Label3D:
+				face_label = c2
+		if face_label == null or face_label.modulate \
+				!= AmesVenueSigns.PLAQUE_MEMORIAL_TEXT:
+			bad.append("%s plaque lettering not the parchment pair" % id)
+	## The Carlos Quesadilla truck: the one PROP — parts + the topper.
+	for rec: Dictionary in records:
+		if str(rec["id"]) != "carlos_quesadilla":
+			continue
+		if not rec.has("truck_parts") or int(rec["truck_parts"]) < 6:
+			bad.append("carlos truck parts %s want >= 6" % str(rec.get("truck_parts")))
+	## The world report keys.
+	var report: Dictionary = world.last_report
+	if int(report.get("venue_signs_t23", -1)) != 27:
+		bad.append("report venue_signs_t23 %s want 27"
+				% str(report.get("venue_signs_t23")))
+	if int(report.get("ghost_plaques", -1)) != 11:
+		bad.append("report ghost_plaques %s want 11"
+				% str(report.get("ghost_plaques")))
+	if int(report.get("cq_truck_parts", -1)) < 6:
+		bad.append("report cq_truck_parts %s" % str(report.get("cq_truck_parts")))
+	_check(S, bad.is_empty(), "; ".join(bad) if not bad.is_empty() else "-")
+
+
+## The nearest segment of ONE NAMED street to a world position (y ignored) —
+## the T-199 frontage legs' read: {name, distance_m, point} or empty when the
+## graph has no street of that name.
+func _street_by_name(street_name: String, pos: Vector3) -> Dictionary:
+	var best: Dictionary = {}
+	var best_d2 := INF
+	for s: Dictionary in AmesDataPack.streets():
+		if str(s.get("name", "")) != street_name:
+			continue
+		var pts: Array = s.get("points", [])
+		for i: int in range(pts.size() - 1):
+			var a: Array = pts[i]
+			var b: Array = pts[i + 1]
+			var ax: float = a[0]
+			var az: float = a[1]
+			var dx: float = b[0] - ax
+			var dz: float = b[1] - az
+			var l2 := dx * dx + dz * dz
+			var t := 0.0
+			if l2 > 1e-12:
+				t = clampf(((pos.x - ax) * dx + (pos.z - az) * dz) / l2, 0.0, 1.0)
+			var px := ax + t * dx
+			var pz := az + t * dz
+			var d2 := (pos.x - px) * (pos.x - px) + (pos.z - pz) * (pos.z - pz)
+			if d2 < best_d2:
+				best_d2 = d2
+				best = {
+					"name": street_name,
+					"distance_m": sqrt(d2),
+					"point": Vector3(px, 0.0, pz),
+				}
+	return best
 
 
 ## --- scenarios (T-001 flight model) ----------------------------------------

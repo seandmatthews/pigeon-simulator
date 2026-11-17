@@ -323,6 +323,18 @@ var elevator_hero_parts: Array[Dictionary] = []
 ## builds nothing and rides only in `AmesVenueSigns.SIGNS`. World-local (= the
 ## pack frame), retained for the gate like the T-180/T-181 queues.
 var venue_signs: Array[Dictionary] = []
+
+## (T-199) The tiers 2–3 venue signs — one record per placed sign, the same
+## shape as the T-198 array, under their own `VenueSignsTiers` root (the
+## out-of-core venues ride the apron as free-standing forms). World-local
+## (= the pack frame), retained for the gate.
+var venue_signs_t23: Array[Dictionary] = []
+
+## (T-199) The mourned ghost plaques — one record per memorial plaque under
+## the `GhostPlaques` root: the §6 closed venues whose rooms the committed
+## bake pins, at ground-floor memorial mounts.
+var ghost_plaques: Array[Dictionary] = []
+
 ## (T-192) The frontage-row slots collected while the chunks parse (the
 ## authored downtown massing in the Main/5th frontage bands), consumed by
 ## the step-3 fabric build — the cornice hints ride the bake's own slot
@@ -566,6 +578,7 @@ func generate_step_finish() -> void:
 	_build_downtown_fabric() ## (T-192) The Main Street cornices + the maroon furniture + the blade seeds.
 	_build_rail_corridor() ## (T-194) The depot rides its chunk; this is the corridor dress: crossbucks, fence, the coal drag.
 	_build_venue_signs() ## (T-198) The Tier-1 venue names on their street walls.
+	_build_venue_signs_tiers() ## (T-199) Tiers 2–3 + the mourned ghost plaques.
 	var pinned := 0
 	var signalized := 0
 	if traffic_graph != null:
@@ -618,6 +631,9 @@ func generate_step_finish() -> void:
 		"elevator_parts": elevator_hero_parts.size(), ## (T-195) The SE cluster hero is live.
 		"venue_signs": venue_signs.size(), ## (T-198) The Tier-1 signs are live.
 		"superdog_cart_parts": _venue_cart_parts(),
+		"venue_signs_t23": venue_signs_t23.size(), ## (T-199) The tiers 2–3 signs are live.
+		"ghost_plaques": ghost_plaques.size(), ## (T-199) The mourned plaques are live.
+		"cq_truck_parts": _cq_truck_parts(),
 		"crossbuck_crossings": crossbuck_pins.size(),
 		"crossbuck_posts": _crossbuck_post_xfs.size(),
 		"fence_posts": _fence_post_xfs.size(),
@@ -6944,11 +6960,37 @@ func _build_venue_signs() -> void:
 	venue_signs = AmesVenueSigns.build(root)
 
 
+## --- T-199 the tiers 2–3 signs + the ghost plaques --------------------------
+## The next names a student gives (VENUES §2/§3) and the mourned CLOSED
+## venues of §6, mounted through the same `AmesVenueSigns` tables as the
+## Tier-1 build. Separate roots so the T-198 subtree (and its gate pins)
+## stay byte-identical: `VenueSignsTiers` carries the 27 signed tier-2/3
+## venues, `GhostPlaques` the 11 memorial plaques — visual-only, pack-frame,
+## zero RNG.
+func _build_venue_signs_tiers() -> void:
+	var root := Node3D.new()
+	root.name = "VenueSignsTiers"
+	add_child(root)
+	venue_signs_t23 = AmesVenueSigns.build_tiers(root)
+	var plaque_root := Node3D.new()
+	plaque_root.name = "GhostPlaques"
+	add_child(plaque_root)
+	ghost_plaques = AmesVenueSigns.build_plaques(plaque_root)
+
+
 ## The Superdog cart's part count for the report (0 before the signs build).
 func _venue_cart_parts() -> int:
 	for rec: Dictionary in venue_signs:
 		if rec.has("cart_parts"):
 			return int(rec["cart_parts"])
+	return 0
+
+
+## The Carlos Quesadilla truck's part count for the report (T-199).
+func _cq_truck_parts() -> int:
+	for rec: Dictionary in venue_signs_t23:
+		if rec.has("truck_parts"):
+			return int(rec["truck_parts"])
 	return 0
 
 
