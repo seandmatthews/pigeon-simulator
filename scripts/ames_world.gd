@@ -373,6 +373,7 @@ var _fabric_row_slots: Array[Dictionary] = []
 
 @onready var _box_mesh: BoxMesh = _make_box_mesh()
 @onready var _tri_mesh: ArrayMesh = _make_tri_mesh()
+@onready var _prism_mesh: ArrayMesh = _make_prism_mesh() ## (T-206) gable roofs.
 
 
 ## The world id this class serves (the `Game.world` value that selects it).
@@ -1821,6 +1822,16 @@ func _build_chunk(entry: Dictionary) -> void:
 		## Never fades: the silhouettes ARE the from-the-air read (T-175).
 		_add_chunk_mm(chunk_root, "Placeholders", placeholders, aabb, 0.0, 0.0)
 
+	var roofs := _roofs_multimesh(chunk, center) ## (T-206) the gable prisms.
+	if roofs != null:
+		_add_chunk_mm(chunk_root, "Roofs", roofs, aabb,
+				MASSING_RANGE_END, MASSING_RANGE_FADE)
+
+	var dress := _dress_multimesh(chunk, center) ## (T-206) the dressing boxes.
+	if dress != null:
+		_add_chunk_mm(chunk_root, "Dress", dress, aabb,
+				MASSING_RANGE_END, MASSING_RANGE_FADE)
+
 	var flats := _flats_multimesh(chunk, center)
 	if flats != null:
 		_add_chunk_mm(chunk_root, "Ribbons", flats, aabb, 0.0, 0.0)
@@ -1911,6 +1922,67 @@ func _placeholders_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
 				Vector3(p[0], p[1], p[2]) - center))
 		mm.set_instance_color(i, Color(c[0], c[1], c[2]))
 		i += 1
+	return mm
+
+
+## (T-206) One prism MultiMesh of the chunk's gable roofs — ONE instance per
+## residential house (the bake emits 1:1 with the gable-variant massing).
+## The prism's local axes: X = ridge length, Y = ridge rise, Z = span; the
+## bake's `a` picks the world axis the ridge runs along, `p` is the eave
+## center at the box top and `s` = [len, span, ridge_h] in that axis order.
+## The "z" orientation is a proper 90° rotation (negative X span column —
+## determinant stays +1, no mirrored winding). Fades WITH the massing (a
+## roof beyond its walls' fade band would float).
+func _roofs_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
+	var roofs: Array = chunk.get("roofs", [])
+	if roofs.is_empty():
+		return null
+	var mm := _new_multimesh(roofs.size(), _prism_mesh)
+	for i in roofs.size():
+		var r: Dictionary = roofs[i]
+		var p: Array = r["p"]
+		var s: Array = r["s"]
+		var c: Array = r["c"]
+		var length := float(s[0])
+		var span := float(s[1])
+		var xf: Transform3D
+		if str(r.get("a", "x")) == "x":
+			xf = Transform3D(
+					Basis(Vector3(length, 0.0, 0.0), Vector3(0.0, float(s[2]), 0.0),
+							Vector3(0.0, 0.0, span)),
+					Vector3.ZERO)
+		else:
+			xf = Transform3D(
+					Basis(Vector3(0.0, 0.0, length), Vector3(0.0, float(s[2]), 0.0),
+							Vector3(-span, 0.0, 0.0)),
+					Vector3.ZERO)
+		var pos := Vector3(float(p[0]), float(p[1]), float(p[2])) - center
+		## Center the unit prism's (0.5, ·, 0.5) midplane on the eave center.
+		xf.origin = pos - (xf.basis.x + xf.basis.z) * 0.5
+		mm.set_instance_transform(i, xf)
+		mm.set_instance_color(i, Color(float(c[0]), float(c[1]), float(c[2])))
+	return mm
+
+
+## (T-206) One vertex-color unit-box MultiMesh of the chunk's dressing boxes
+## — porch decks + canopies, cornice bands, parapets, rooftop screens,
+## penthouses. Visual-only (no collider, no ground record, no occluder, no
+## roof-crumb host — the T-176 spots keep their box-top law), per-entry
+## baked colors, fading with the massing like the roofs they dress.
+func _dress_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
+	var dress: Array = chunk.get("dress", [])
+	if dress.is_empty():
+		return null
+	var mm := _new_multimesh(dress.size())
+	for i in dress.size():
+		var e: Dictionary = dress[i]
+		var p: Array = e["p"]
+		var s: Array = e["s"]
+		var c: Array = e["c"]
+		mm.set_instance_transform(i, Transform3D(
+				Basis.from_scale(Vector3(float(s[0]), float(s[1]), float(s[2]))),
+				Vector3(float(p[0]), float(p[1]), float(p[2])) - center))
+		mm.set_instance_color(i, Color(float(c[0]), float(c[1]), float(c[2])))
 	return mm
 
 
@@ -7380,6 +7452,59 @@ func _make_tri_mesh() -> ArrayMesh:
 	])
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mat := _make_vertex_color_material()
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.surface_set_material(0, mat)
+	return mesh
+
+
+## (T-206) One unit gable prism — a closed 5-face solid: the ridge runs
+## along local X (length 0..1), the triangular cross-section spans local Z
+## (eaves at Z 0/1, ridge at Z 0.5) and rises local Y (eaves at 0). The bake
+## orients each instance with the ridge along the building's longer axis;
+## normals are per-face (the two slopes shade apart), culling stays default
+## because every face is wound outward.
+func _make_prism_mesh() -> ArrayMesh:
+	var n_len_pos := Vector3(1.0, 0.0, 0.0)
+	var n_len_neg := Vector3(-1.0, 0.0, 0.0)
+	var n_slope_z0 := Vector3(0.0, 0.5, -1.0).normalized()
+	var n_slope_z1 := Vector3(0.0, 0.5, 1.0).normalized()
+	var n_down := Vector3(0.0, -1.0, 0.0)
+	## Corner shorthand: (x, y, z) — eaves at y 0, ridge at (·, 1, 0.5).
+	var a0 := Vector3(0.0, 0.0, 0.0) ## Eave, x=0, z=0.
+	var a1 := Vector3(1.0, 0.0, 0.0)
+	var b0 := Vector3(0.0, 0.0, 1.0) ## Eave, x=0, z=1.
+	var b1 := Vector3(1.0, 0.0, 1.0)
+	var c0 := Vector3(0.0, 1.0, 0.5) ## Ridge, x=0.
+	var c1 := Vector3(1.0, 1.0, 0.5) ## Ridge, x=1.
+	var verts := PackedVector3Array([
+		## Slope facing local −Z (wound so the normal points out/up).
+		a0, c0, c1, a0, c1, a1,
+		## Slope facing local +Z.
+		b1, c1, c0, b1, c0, b0,
+		## End cap x=0.
+		b0, c0, a0,
+		## End cap x=1.
+		a1, c1, b1,
+		## Bottom (never seen from flight, kept for solidity at grazing angles).
+		a0, a1, b1, a0, b1, b0,
+	])
+	var norms := PackedVector3Array([
+		n_slope_z0, n_slope_z0, n_slope_z0, n_slope_z0, n_slope_z0, n_slope_z0,
+		n_slope_z1, n_slope_z1, n_slope_z1, n_slope_z1, n_slope_z1, n_slope_z1,
+		n_len_neg, n_len_neg, n_len_neg,
+		n_len_pos, n_len_pos, n_len_pos,
+		n_down, n_down, n_down, n_down, n_down, n_down,
+	])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = norms
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	## Double-sided like the tri mesh: the declared per-face normals carry the
+	## shading, so winding can never cull a slope away (a missing half-roof
+	## reads as a black wedge from the air).
 	var mat := _make_vertex_color_material()
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mesh.surface_set_material(0, mat)
