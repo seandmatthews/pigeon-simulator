@@ -299,9 +299,16 @@ const SIGNS: Array[Dictionary] = [
 		"id": "hickory_park",
 		"venue": "Hickory Park",
 		"form": "pole",
-		"body": "", ## No baked body — the S Duff position is on the apron flat.
-		"face": "poi",
-		"wall_u": 0.0,
+		## (T-204 re-pin) The building LANDED with the bbox south — the way
+		## rides the bake as an authored massing slot — so the pylon moved
+		## OFF the POI (it would stand inside the building's own mass now)
+		## onto the lot's frontage edge: a wall-face mount on the building's
+		## own north face, text facing the lot-frontage street.
+		"body": "massing:way/196541966",
+		"face": "N", ## Meadow Lane Court — the lot's frontage street.
+		"wall_u": 3382.0, ## The lot's NE station: Meadow Lane's bend keeps
+			## the face-north aim inside the facing cone there (the center
+			## station's nearest street point sits 47° off the face normal).
 		"mount_y": 0.0,
 		"letter": 0.40, ## 5.697 × 0.40 = 2.28 ≤ 2.4 cabinet face.
 		"band": Vector3.ZERO,
@@ -310,12 +317,14 @@ const SIGNS: Array[Dictionary] = [
 		"lit": 0,
 		"staged": false,
 		"note": "VENUES 1.12 (1404 S Duff): freestanding big-box restaurant in "
-			+ "a sea of parking — the big roadside pylon signs the position "
-			+ "now. The POI's S Duff spot sits past the v1 bake's south-east "
-			+ "corner (the pack's S Duff polyline ends ≈240 m short of it, "
-			+ "tile (13,5) unbaked): the pylon stands the apron flat at the "
-			+ "verified position, yawed onto its verified facing — the "
-			+ "building itself lands with the R5 east extension (T-203).",
+			+ "a sea of parking — the big roadside pylon signs the position. "
+			+ "Was the apron staging (the v1 bake's SE corner had no building, "
+			+ "tile (13,5) unbaked); the bbox SOUTH landed the way with T-204 "
+			+ "(the T-203 note's R5 east landing was one ring early), so the "
+			+ "pylon stands the building's own north face — the pack's S Duff "
+			+ "polyline ends at Meadow Lane (the naming splits south of it), "
+			+ "making that the lot's frontage street; the survey address "
+			+ "stays 1404 S Duff.",
 	},
 	{
 		"id": "the_cafe",

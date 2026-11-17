@@ -317,6 +317,17 @@ var civic_tank_hero_parts: Array[Dictionary] = []
 ## the silo cap rings are mesh entries too; the leg tower rides the box path.
 var elevator_hero_parts: Array[Dictionary] = []
 
+## (T-204) The Reiman Gardens conservatory hero's retained part record — the
+## same law as every runtime hero above: render/collision/ground all read
+## from the box schedule, the gates walk the record (headless runs cannot
+## read MultiMesh instances back). Named extras (the Hughes glasshouse
+## volume) append their own records with `mesh: true`.
+var gardens_hero_parts: Array[Dictionary] = []
+
+## (T-204) The butterfly accent props — the world-staged records ({node,
+## home, phase}), count pinned ≤ 12 (dressing, not a system).
+var butterflies: Array[Dictionary] = []
+
 ## (T-198) The Tier-1 venue signs — one record per placed sign (id, venue text,
 ## form, the pack-frame mount transform, the live SignText node; the Superdog
 ## cart's record carries its cart_parts count). The staged entry (The Cafe)
@@ -524,6 +535,8 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	civic_tank_hero_parts = [] ## (T-193) The civic tank record rebuilds with the world.
 	depot_hero_parts = [] ## (T-194) The rail-corridor records rebuild with the world.
 	elevator_hero_parts = [] ## (T-195) The elevator-cluster record rebuilds with the world.
+	gardens_hero_parts = [] ## (T-204) The gardens-conservatory record rebuilds with the world.
+	butterflies = [] ## (T-204) The butterfly accent records rebuild with the world.
 	crossbuck_pins = []
 	wigwag_parts = []
 	_crossbuck_post_xfs = []
@@ -591,6 +604,7 @@ func generate_step_finish() -> void:
 	_build_parking() ## (T-182) The parking system + the big-lot dressing rows.
 	_build_lake_dress() ## (T-185) The LaVerne shore polish: pale edge + reed hint.
 	_build_swans() ## (T-185) Lancelot & Elaine on their lake circuit.
+	_build_reiman_butterflies() ## (T-204) The gardens' butterfly accents over the entrance beds.
 	_build_campus_lawn() ## (T-187) The lawn slab, the crossing axes' ribbons, the fountain.
 	_build_tailgate_lots() ## (T-191) The Iowa State Center lot flats + stall-marking hint.
 	_build_downtown_fabric() ## (T-192) The Main Street cornices + the maroon furniture + the blade seeds.
@@ -649,6 +663,8 @@ func generate_step_finish() -> void:
 		"fountain_parts": fountain_parts.size(),
 		"depot_parts": depot_hero_parts.size(), ## (T-194) The depot hero is live.
 		"elevator_parts": elevator_hero_parts.size(), ## (T-195) The SE cluster hero is live.
+		"gardens_parts": gardens_hero_parts.size(), ## (T-204) The gardens hero is live.
+		"butterflies": butterflies.size(), ## (T-204) The accent props are live.
 		"venue_signs": venue_signs.size(), ## (T-198) The Tier-1 signs are live.
 		"superdog_cart_parts": _venue_cart_parts(),
 		"venue_signs_t23": venue_signs_t23.size(), ## (T-199) The tiers 2–3 signs are live.
@@ -1826,6 +1842,7 @@ func _build_chunk(entry: Dictionary) -> void:
 	_build_civic_tank_heroes(chunk_root, chunk, center, chunk_body) ## (T-193) the city tanks ride theirs.
 	_build_depot_hero(chunk_root, chunk, center, chunk_body) ## (T-194) the depot rides its carrier chunk.
 	_build_elevator_hero(chunk_root, chunk, center, chunk_body) ## (T-195) the SE cluster rides its carrier chunk.
+	_build_reiman_hero(chunk_root, chunk, center, chunk_body) ## (T-204) the gardens conservatory rides its carrier chunk.
 	_collect_fabric_row_slots(chunk) ## (T-192) the frontage-row walk, while the doc is in hand.
 
 
@@ -6414,6 +6431,286 @@ func _elevator_extras(silos: Array[Dictionary],
 			"size": Vector3(bs.x, ELEVATOR_BIN_ROOF_H, bs.z),
 		})
 	return out
+
+
+## --- T-204 Reiman Gardens: the town's south gate ----------------------------
+##
+## The wing roof is the silhouette (MODELING-SPECS §1.9: the conservatory is
+## the L3 south-gate set piece), and QA item 1's blocks-build split is made
+## STRUCTURAL here: the 59 × 88 m mass is the WHOLE "Reiman Gardens
+## Conservatory" building (OSM way 180765068, h 10, ≈2,994 m² shoelace) and
+## the named Hughes Conservatory glasshouse inside it is 465 m² (5,000 sq ft,
+## LANDMARKS C10) — built as a DISTINCT volume in the hero's scene tree
+## (`HughesGlasshouse`, 31.0 × 15.0 m of glass), never folded into the
+## envelope (following the split would have built the set piece ~11×
+## oversized as "Hughes").
+##
+## Hero-lite = the silhouette + palette + the two set pieces: the blue-glass
+## envelope with the wing-form roof massing (photo 11's read — a raised
+## spine with two stepped side wings each way of it, the butterfly profile),
+## and the butterfly-wing ENTRANCE CANOPY over the east arrival walk (photo
+## 11; LANDMARKS C10's caveat: no sourced dimension exists — MODEL-TO-LOOK,
+## the spans recorded right here and marked UNVERIFIED, the V-30 law).
+## Everything else at the gardens — the Christina Reiman Butterfly Wing
+## building, the Mahlstede Center, Hunziker House, the maintenance ranges —
+## rides the bake's own authored massing slots (the v3 pack's south strip),
+## and the gardens' 73,202 m² lawn is the bake's own park flat. The vet-med
+## campus and the south blocks are context mass the strip brought in.
+##
+## The butterfly ACCENT PROPS (photo 13's read — `butterfly.gd`) hover the
+## entrance beds: count tiny, ambient only (dressing, not a system).
+##
+## Like every hero: pure pack/bake-derived geometry, zero RNG of any stream,
+## the part records retained for the gates.
+
+const REIMAN_HERO_ID := "way/180765068"
+
+## The pinned conservatory geometry — the SLOT's own numbers (the bake's
+## authored bbox for way/180765068: 58.7 E–W × 87.8 N–S at centroid
+## (955.0, 1233.08), h 10). The hero builds at the slot's own center the
+## City Hall way; the envelope dims are the QA-split whole-building truth.
+const REIMAN_W := 58.7 ## E–W (m).
+const REIMAN_D := 87.8 ## N–S (m).
+const REIMAN_H := 10.0 ## The OSM height tag (1 level).
+
+## The wing roof massing (photo 11, model-to-look — UNVERIFIED rise): the
+## walls carry the roof at 10.0; a central spine rises to REIMAN_RIDGE over
+## the N–S long axis, each side stepping down in two faceted bands (the
+## butterfly profile read), the eaves returning to just over the wall top.
+const REIMAN_RIDGE := 14.0 ## The spine crown (m) — a 4.0 m rise over the 58.7 m width.
+const REIMAN_EAVE := 10.3 ## The outer band's crown at the eave return.
+const REIMAN_INNER_RUN := 12.0 ## The steep inner band's horizontal run from the spine.
+const REIMAN_ROOF_T := 0.35 ## The glass band thickness (m).
+const REIMAN_SPINE_CAP_W := 1.6 ## The spine cap's width/depth (m).
+const REIMAN_SPINE_CAP_T := 0.3 ## The spine cap's thickness (m).
+
+## The Hughes glasshouse split (QA item 1, STRUCTURAL): LANDMARKS C10's
+## 465 m² (5,000 sq ft) named glasshouse inside the whole building — a
+## distinct volume in the hero's scene tree, 31.0 × 15.0 m of footprint
+## (31.0 × 15.0 = 465.0 m² exactly) standing the full REIMAN_H interior at
+## the envelope's south display range. The split is the ticket's structural
+## fix: the volume exists SEPARATELY or the QA's ~11× oversize read returns.
+const REIMAN_GLASSHOUSE := Vector2(31.0, 15.0) ## Footprint (m) — 465 m².
+const REIMAN_GLASSHOUSE_Z := 6.9 ## The volume's center, SOUTH of the slot center (m).
+
+## The butterfly-wing entrance canopy (photo 11; LANDMARKS C10's caveat —
+## NO SOURCED DIMENSION EXISTS: model-to-look, the estimate recorded here
+## and UNVERIFIED, the V-30 law). Two swept wing shells meet at a spine
+## over the east arrival walk, on two posts. Estimate: span 14.2 m E–W ×
+## 10.0 m N–S, eaves 4.2, spine 6.8.
+const REIMAN_CANOPY_X := 993.0 ## The walk center, east of the east face (984.35).
+const REIMAN_CANOPY_Z := 1233.08 ## On the envelope center line (the main bay).
+const REIMAN_CANOPY_SHELL := Vector2(7.5, 10.0) ## Slope length × N–S depth (m).
+const REIMAN_CANOPY_RIDGE := 6.8 ## The spine crown (m).
+const REIMAN_CANOPY_EAVE := 4.2 ## The wing tips (m).
+const REIMAN_CANOPY_EAVE_CLEAR := 3.6 ## The post-top underside the tips read to.
+const REIMAN_CANOPY_SHELL_T := 0.25 ## The shell thickness (m).
+
+## The butterfly accents (photo 13's read): eight hover the trial-landscape
+## beds east of the conservatory — the ticket's count law (≤ 12, ambient
+## only), staged as a fixed ring (zero RNG; the phases spread by fraction).
+const BUTTERFLY_COUNT := 8
+const BUTTERFLY_RING_CENTER := Vector2(1028.0, 1310.0) ## The entrance beds.
+const BUTTERFLY_RING_R := 21.0 ## m — over the beds, clear of the walkways.
+const BUTTERFLY_HOVER_Y := 1.5 ## The hover mid height (m).
+const BUTTERFLY_SCENE: PackedScene = preload("res://scenes/butterfly.tscn")
+
+## The pinned palette — §1.9's Reiman rows, verbatim.
+const REIMAN_GLASS := Color(0.498, 0.659, 0.788) ## #7FA8C9 the blue glass.
+const REIMAN_GLASSHOUSE_GLASS := Color(0.573, 0.722, 0.835) ## The Hughes range — one step lighter so the split reads.
+const REIMAN_FRAME := Color(0.22, 0.23, 0.25) ## The mullion/spine dark steel.
+const REIMAN_WALL := Color(0.62, 0.61, 0.57) ## The service ranges' warm pale metal.
+
+## (T-204) The band -> color table (the records and the render share this
+## one mapping; names unique against the stadium/hilton tables the complex
+## mount consults first).
+const GARDENS_BANDS: Dictionary = {
+	"glass_wall": REIMAN_GLASS,
+	"roof_glass": REIMAN_GLASS,
+	"spine_frame": REIMAN_FRAME,
+	"canopy_glass": REIMAN_GLASS,
+	"canopy_frame": REIMAN_FRAME,
+}
+
+
+## Builds the Reiman Gardens conservatory hero into its carrier chunk — the
+## chunk whose massing carries `way/180765068` (the slot's own center and
+## carrier; the hero supersedes the slot 1:1 through the bake's
+## HERO_BUILDING_IDS law). Render: one rotated-box MultiMesh via the complex
+## mount; collision: the hero's own shapes ride the chunk's placeholder body
+## (same layer-1 `world` class); ground: the envelope top + the spine ridge
+## file walkable; the roof crumb at the spine crown; the retained part
+## record the gates walk; and the NAMED Hughes glasshouse volume — the QA
+## split made structural — hangs under the hero root as its own mesh node.
+## No-op for every other chunk.
+func _build_reiman_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3,
+		chunk_body: StaticBody3D) -> void:
+	var c := Vector2.ZERO
+	var found := false
+	for m: Dictionary in chunk.get("massing", []):
+		if str(m.get("id", "")) != REIMAN_HERO_ID:
+			continue
+		c = Vector2(float(m["p"][0]), float(m["p"][2]))
+		found = true
+		break
+	if not found:
+		return ## Not this chunk's slot (or the bake lost the way — the gate fails loudly).
+	var boxes := _reiman_boxes(c)
+	var root := Node3D.new()
+	root.name = "HeroReimanGardens"
+	chunk_root.add_child(root)
+	var body := chunk_body
+	if body == null:
+		body = StaticBody3D.new()
+		body.name = "Placeholders"
+		body.collision_layer = 1 ## world
+		body.collision_mask = 0
+		chunk_root.add_child(body)
+	_mount_complex_hero_boxes(root, body, center, boxes, gardens_hero_parts,
+			"reiman_gardens", "Boxes", GARDENS_BANDS)
+	## The Hughes glasshouse volume (the QA split, STRUCTURAL): one named
+	## mesh node — the 465 m² footprint stands distinct in the scene tree —
+	## plus its own part record (`mesh: true`) so the record walk sees the
+	## split. It stands INSIDE the envelope (contained; the gate asserts
+	## both) and carries no collision of its own — the envelope's walls
+	## already own the mass.
+	var glasshouse := MeshInstance3D.new()
+	var gh_mesh := BoxMesh.new()
+	gh_mesh.size = Vector3(REIMAN_GLASSHOUSE.x, REIMAN_H, REIMAN_GLASSHOUSE.y)
+	var gh_mat := StandardMaterial3D.new()
+	gh_mat.albedo_color = REIMAN_GLASSHOUSE_GLASS
+	gh_mat.roughness = 0.25
+	gh_mesh.material = gh_mat
+	glasshouse.name = "HughesGlasshouse"
+	glasshouse.mesh = gh_mesh
+	glasshouse.position = Vector3(c.x, REIMAN_H * 0.5, c.y + REIMAN_GLASSHOUSE_Z) \
+			- center
+	root.add_child(glasshouse)
+	gardens_hero_parts.append({
+		"hero": "reiman_gardens", "band": "glasshouse",
+		"p": Vector3(c.x, REIMAN_H * 0.5, c.y + REIMAN_GLASSHOUSE_Z),
+		"s": Vector3(REIMAN_GLASSHOUSE.x, REIMAN_H, REIMAN_GLASSHOUSE.y),
+		"color": REIMAN_GLASSHOUSE_GLASS, "collide": false, "mesh": true,
+	})
+	## The roof crumb: one ROOF spot at the spine crown's TOP (the hero's
+	## true walkable top — the superseded bbox-top pin re-anchors here; the
+	## ridge strip files the same 14.3 answer in the ground record).
+	_hero_roof_tops[REIMAN_HERO_ID] = Vector3(
+			c.x, REIMAN_RIDGE + REIMAN_SPINE_CAP_T, c.y)
+
+
+## The conservatory hero's box schedule in WORLD-LOCAL coordinates (pack
+## local — the world node IS the pack frame), one entry per box:
+## `{band, basis, p, s, collide, ground}` — `basis` the UNSCALED rotation
+## (the pitched roof bands and the swept canopy shells), `s` the box size in
+## that rotated frame, `p` the box center. The envelope is the QA-split
+## WHOLE building; the roof is the wing-form massing; the canopy rides the
+## east arrival walk.
+func _reiman_boxes(c: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	## --- the envelope: the whole 59 × 88 building, blue glass ---------------
+	_add_row_box(out, "glass_wall", Vector3(c.x, REIMAN_H * 0.5, c.y),
+			Vector3(REIMAN_W, REIMAN_H, REIMAN_D), true, true)
+	## The dark base mullion band (the glazed wall's frame read, grounding) —
+	## INSET one hair so the envelope face stays the hero's outermost plane
+	## (the T-189 apron law: a proud band would own the face the plaque
+	## mounts on and float the wall-exists leg).
+	_add_row_box(out, "spine_frame", Vector3(c.x, 0.6, c.y),
+			Vector3(REIMAN_W - 0.1, 1.2, REIMAN_D - 0.1), false, false)
+	## --- the wing roof (photo 11): spine cap + two stepped bands per side ---
+	## The steep inner band runs REIMAN_INNER_RUN from the spine, dropping
+	## from the ridge to the inner step; the shallow outer band carries the
+	## step out to the eave return. Each band is one pitched box (rotation
+	## about the N–S long axis), its slope length the hypotenuse of its run.
+	var inner_drop := REIMAN_RIDGE - (REIMAN_EAVE + 1.9) ## Ridge → the inner step top.
+	var inner_len := sqrt(REIMAN_INNER_RUN * REIMAN_INNER_RUN + inner_drop * inner_drop)
+	var inner_pitch := atan2(inner_drop, REIMAN_INNER_RUN)
+	var outer_run := REIMAN_W * 0.5 - REIMAN_INNER_RUN ## Out to the eave line.
+	var outer_drop := (REIMAN_EAVE + 1.9) - REIMAN_EAVE
+	var outer_len := sqrt(outer_run * outer_run + outer_drop * outer_drop)
+	var outer_pitch := atan2(outer_drop, outer_run)
+	for side: float in [-1.0, 1.0]:
+		## Inner band: from the spine (x c) down to the inner step.
+		var mid_x := c.x + side * REIMAN_INNER_RUN * 0.5
+		var mid_y := REIMAN_RIDGE - inner_drop * 0.5 - REIMAN_ROOF_T * 0.25
+		out.append({
+			"band": "roof_glass",
+			"basis": Basis(Vector3(cos(inner_pitch), -side * sin(inner_pitch), 0.0),
+					Vector3(side * sin(inner_pitch), cos(inner_pitch), 0.0),
+					Vector3(0.0, 0.0, 1.0)),
+			"p": Vector3(mid_x, mid_y, c.y),
+			"s": Vector3(inner_len, REIMAN_ROOF_T, REIMAN_D + 0.8),
+			"collide": false, "ground": false,
+		})
+		## Outer band: from the inner step out to the eave return.
+		var o_mid_x := c.x + side * (REIMAN_INNER_RUN + outer_run * 0.5)
+		var o_mid_y := (REIMAN_EAVE + 1.9) - outer_drop * 0.5 - REIMAN_ROOF_T * 0.25
+		out.append({
+			"band": "roof_glass",
+			"basis": Basis(Vector3(cos(outer_pitch), -side * sin(outer_pitch), 0.0),
+					Vector3(side * sin(outer_pitch), cos(outer_pitch), 0.0),
+					Vector3(0.0, 0.0, 1.0)),
+			"p": Vector3(o_mid_x, o_mid_y, c.y),
+			"s": Vector3(outer_len, REIMAN_ROOF_T, REIMAN_D + 0.8),
+			"collide": false, "ground": false,
+		})
+	## The spine cap: the ridge's frame crown — the walkable ridge strip.
+	_add_row_box(out, "spine_frame",
+			Vector3(c.x, REIMAN_RIDGE + REIMAN_SPINE_CAP_T * 0.5, c.y),
+			Vector3(REIMAN_SPINE_CAP_W, REIMAN_SPINE_CAP_T, REIMAN_D + 0.8),
+			false, true)
+	## --- the entrance canopy (photo 11, model-to-look): two swept wing
+	## shells meeting at a spine over the east arrival walk, on two posts ---
+	var shell_pitch := atan2(REIMAN_CANOPY_RIDGE - REIMAN_CANOPY_EAVE,
+			REIMAN_CANOPY_SHELL.x)
+	for side2: float in [-1.0, 1.0]:
+		out.append({
+			"band": "canopy_glass",
+			"basis": Basis(Vector3(cos(shell_pitch), -side2 * sin(shell_pitch), 0.0),
+					Vector3(side2 * sin(shell_pitch), cos(shell_pitch), 0.0),
+					Vector3(0.0, 0.0, 1.0)),
+			"p": Vector3(REIMAN_CANOPY_X + side2 * REIMAN_CANOPY_SHELL.x * 0.5 * cos(shell_pitch),
+					(REIMAN_CANOPY_RIDGE + REIMAN_CANOPY_EAVE) * 0.5,
+					REIMAN_CANOPY_Z),
+			"s": Vector3(REIMAN_CANOPY_SHELL.x, REIMAN_CANOPY_SHELL_T,
+					REIMAN_CANOPY_SHELL.y),
+			"collide": true, "ground": false,
+		})
+	_add_row_box(out, "canopy_frame",
+			Vector3(REIMAN_CANOPY_X, REIMAN_CANOPY_RIDGE + 0.1, REIMAN_CANOPY_Z),
+			Vector3(0.5, 0.25, REIMAN_CANOPY_SHELL.y + 0.4), false, false)
+	for side3: float in [-1.0, 1.0]:
+		_add_row_box(out, "canopy_frame",
+				Vector3(REIMAN_CANOPY_X + side3 * REIMAN_CANOPY_SHELL.x * cos(shell_pitch),
+						REIMAN_CANOPY_EAVE_CLEAR * 0.5, REIMAN_CANOPY_Z),
+				Vector3(0.45, REIMAN_CANOPY_EAVE_CLEAR, 0.45), true, false)
+	return out
+
+
+## The butterfly accents (the finish slice): eight ambient props over the
+## entrance beds east of the conservatory — a fixed ring, phases spread by
+## fraction (zero RNG), parented under `ReimanButterflies/`. The scope guard
+## lives in `butterfly.gd`: no colliders, no bread, no citizen machinery.
+func _build_reiman_butterflies() -> void:
+	var root := Node3D.new()
+	root.name = "ReimanButterflies"
+	add_child(root)
+	butterflies = []
+	for k: int in BUTTERFLY_COUNT:
+		var a := TAU * float(k) / float(BUTTERFLY_COUNT)
+		var home := Vector3(
+				BUTTERFLY_RING_CENTER.x + BUTTERFLY_RING_R * cos(a),
+				BUTTERFLY_HOVER_Y,
+				BUTTERFLY_RING_CENTER.y + BUTTERFLY_RING_R * sin(a))
+		var bfly: Butterfly = BUTTERFLY_SCENE.instantiate()
+		bfly.name = "Butterfly%d" % (k + 1)
+		bfly.home = home
+		bfly.phase = float(k) / float(BUTTERFLY_COUNT)
+		bfly.flap_phase = fposmod(float(k) * 0.137, 1.0) ## Desynced, still deterministic.
+		root.add_child(bfly)
+		butterflies.append({
+			"node": bfly, "home": home, "phase": bfly.phase,
+		})
 
 
 ## (T-194) The rail corridor dressing: the chained track route, the crossbucks
