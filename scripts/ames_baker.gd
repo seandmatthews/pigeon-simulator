@@ -10,11 +10,12 @@ class_name AmesBaker
 ## on the same machine produce byte-identical files, proven per chunk by the
 ## SHA-256 determinism manifest (`ames_bake_determinism`, Gate 1b).
 ##
-## What each chunk carries (ames_chunks/v5 — v4 plus the T-206 filler-dressing
-## families `roofs` (gable prisms) and `dress` (porch/cornice/parapet/screen/
-## penthouse boxes); v3 carried the T-205 trail_quads family; v2 before that
-## carried the T-175 placeholder family and the massing `a` flag; every family
-## is optional at read time):
+## What each chunk carries (ames_chunks/v6 — v5 plus the T-207 tree-canopy
+## family `trees`; v5 carried the T-206 filler-dressing families `roofs`
+## (gable prisms) and `dress` (porch/cornice/parapet/screen/penthouse boxes);
+## v3 carried the T-205 trail_quads family; v2 before that carried the T-175
+## placeholder family and the massing `a` flag; every family is optional at
+## read time):
 ## - `massing`: ONE axis-aligned box per building footprint — position,
 ##   size, district and vertex color (city.gd's MultiMesh + vertex-color
 ##   house style, ported to data), plus `a` (T-175): TRUE when the building
@@ -80,27 +81,34 @@ class_name AmesBaker
 ##   for R2's traffic graph; machine-checked by `ames_bake_census`).
 ##
 ## NOT baked (by ticket): authored hero SCENES (mount at R3, T-185+ — T-175's
-## silhouettes are the stand-ins), the 5,637 tree points (R5·tree canopy),
-## collision (the renderer builds it from the `a` flag + placeholders;
-## T-173's gameplay seam answers ground queries over chunk data).
+## silhouettes are the stand-ins), collision (the renderer builds it from the
+## `a` flag + placeholders; T-173's gameplay seam answers ground queries over
+## chunk data).
+## - `trees`: (T-207) the mapped `natural=tree` points as ONE instance each
+##   at the mapped position — `t` names the archetype (oak/boulevard/shore),
+##   `p` is the mapped xz at the plate top, `s` the per-axis scale, `a` the
+##   yaw, `c` the variation tint. Visual-only (no collision, no occluder, no
+##   ground record — the foliage convention); the renderer draws ONE
+##   MultiMesh per archetype present from meshes it builds out of
+##   `TREE_ARCHETYPES` (the single dim/color source, see that block).
 ##
 ## Determinism discipline: pack arrays are consumed in order; every float is
 ## snapped (positions 0.001 m, colors 0.0001); JSON is serialized with sorted
 ## keys; files are written in sorted (cx, cz) order; colors are picked by a
 ## stable hash of the building id (no RNG anywhere).
 
-const SCHEMA := "ames_chunks/v5"
+const SCHEMA := "ames_chunks/v6"
 const CHUNK_SIZE := 256.0
 
 ## Every per-chunk array family (the `_chunk_at` template, the finalize doc,
 ## the per-chunk counts and the manifest totals — ONE list, kept in one
 ## place; v1's eight, the T-174 dressing families, T-175's placeholders,
-## T-205's trail_quads, and T-206's roofs + dress).
+## T-205's trail_quads, T-206's roofs + dress, and T-207's trees).
 const FAMILY_KEYS: Array[String] = [
 	"massing", "ribbons", "lane_quads", "water_tris", "shore_quads",
 	"creek_quads", "lawn_tris", "ballast_quads", "tie_quads",
 	"ground_quads", "trail_quads", "occluders", "placeholders", "crossings",
-	"roofs", "dress",
+	"roofs", "dress", "trees",
 ]
 
 ## Bake y conventions (m). Flats stack above 0 so the ground plate (top at
@@ -335,6 +343,95 @@ const DRESS_TRIM := Color(0.929, 0.918, 0.886) ## #EDEAE2 porch trim (§1.10).
 const DRESS_BRICK := Color(0.588, 0.318, 0.227) ## #96513A chimney brick.
 const DRESS_CORNICE := Color(0.839, 0.804, 0.706) ## #D6CDBB cornice stone (§1.7).
 const DRESS_SCREEN := Color(0.612, 0.612, 0.58) ## #9C9C94 weathered screen concrete (§1.3).
+
+## --- T-207 tree-canopy constants --------------------------------------------
+##
+## The mapped `natural=tree` points become ONE tree instance each at the
+## mapped position (±0 m — "the data is the point"): the mapped data decides
+## WHERE, the archetype decides WHAT. Three archetypes over the ticket's four
+## placements (MODELING-SPECS §3.6/§3.7/§1.9/§1.10 + the ticket refs):
+## - OAK (campus lawn + park polygons) — the open-grown broad crown over a
+##   thick trunk (`images/campus/20`'s oaks on the lawn); PARK points tint
+##   into the GROVE band, the §1.9 Brookside forest's darker summer read
+##   (#3E5A32 against the #55703F lawn family).
+## - BOULEVARD (everything else — the residential grids incl. campustown/
+##   downtown/lincolnway) — the mature yard/street canopy: taller, narrower
+##   crown on a longer trunk (`images/nature/20`'s giant over the two-story
+##   roof; §1.10 "mature canopy (summer) #55703F dominant").
+## - SHORE (within TREE_SHORE_DIST of the Lake LaVerne ring) — the water's
+##   low broad willow row on a short trunk (the ticket's LaVerne shore ring;
+##   crown hex is §1.9's park-mown yellow-green #7A9450 as the willow
+##   estimate — no pinned willow hex exists, recorded here per the survey's
+##   estimate discipline).
+## The instance color is a per-tree VARIATION tint AROUND the archetype crown
+## color (the mesh vertex colors carry the survey hexes; the multiply keeps
+## the bark bark — see the renderer's tree material). Per-chunk MultiMesh
+## discipline: one draw per chunk PER ARCHETYPE PRESENT (≤ 3), same
+## partitioning as the massing. NO collision, NO occluder, NO ground record —
+## the canopy is soft (the pigeon brushes through, the foliage convention;
+## T-172's NOT-baked list closes here). All picks are the stable index hash —
+## no RNG anywhere in the bake.
+##
+## The census §5 count these close: 5,637 was the v1 box's count; the pack's
+## tree layer grew +78 (T-204 south) and +1,038 (T-205 north) to today's
+## 6,753 — `ames_data_integrity` pins the v4 pack count, and
+## `ames_tree_canopy` pins the bake == pack 1:1.
+
+const TREE_OAK := "oak"
+const TREE_BOULEVARD := "boulevard"
+const TREE_SHORE := "shore"
+
+## The archetype dims (m) — the SINGLE source the renderer builds its meshes
+## from (`AmesWorld._make_tree_meshes` reads this table): trunk prism up
+## through the crown bottom, an ellipsoid crown blob at `crown_cy`. The
+## per-instance scale band below multiplies every axis.
+const TREE_ARCHETYPES: Dictionary = {
+	TREE_OAK: {
+		"trunk_h": 6.0, "trunk_r": 0.45,
+		"crown_cy": 8.6, "crown_rxz": 5.0, "crown_ry": 3.2,
+		"crown_color": Color(0.333, 0.439, 0.247), ## #55703F §1.10 dominant canopy.
+	},
+	TREE_BOULEVARD: {
+		"trunk_h": 8.0, "trunk_r": 0.36,
+		"crown_cy": 10.8, "crown_rxz": 4.0, "crown_ry": 3.2,
+		"crown_color": Color(0.333, 0.439, 0.247), ## #55703F dominant (narrower, taller crown).
+	},
+	TREE_SHORE: {
+		"trunk_h": 4.6, "trunk_r": 0.5,
+		"crown_cy": 6.8, "crown_rxz": 5.6, "crown_ry": 2.0,
+		"crown_color": Color(0.478, 0.58, 0.314), ## #7A9450 willow yellow-green (§1.9 estimate).
+	},
+}
+const TREE_TRUNK_COLOR := Color(0.43, 0.38, 0.314) ## #6E6152 gray-brown bark (estimate).
+
+## Per-axis instance scale band — young-to-mature spread around the archetype
+## dims (three independent hash bands, so height and spread decorrelate).
+const TREE_SCALE_LO := 0.82
+const TREE_SCALE_HI := 1.18
+## The variation tint band (multiplicative around white; the crown color is
+## the archetype's, the tint varies it): green channel = luminance, red/blue
+## jitter the hue. The PARK grove band darkens into the §1.9 Brookside
+## summer-forest read (#55703F × ≈0.8 ≈ #3E5A32).
+const TREE_TINT_LO := 0.86
+const TREE_TINT_HI := 1.08
+const TREE_GROVE_LO := 0.74
+const TREE_GROVE_HI := 0.86
+const TREE_HUE_JITTER := 0.18 ## Red/blue spread around the luminance (±0.09).
+
+## The shore-ring law: Lake LaVerne's pack lake entries only (the ticket's
+## LaVerne shore ring — Ada Hayden's quarry-gravel shore is NOT willow water;
+## its shore trees read park/oak), within this distance of any ring segment.
+const TREE_SHORE_NAME_TOKEN := "LaVerne"
+const TREE_SHORE_DIST := 30.0
+
+## Crown blob tessellation (the renderer's mesh, one table so the bake's
+## AABB and the drawn geometry agree): radial segments × rings over the
+## ellipsoid — the house-style low-poly read. The trunk hint is a
+## TREE_TRUNK_SEGMENTS-sided prism.
+const TREE_CROWN_SEGMENTS := 9
+const TREE_CROWN_RINGS := 4
+const TREE_CROWN_LOBES := 0.16 ## Deterministic radius jitter spread (±0.08).
+const TREE_TRUNK_SEGMENTS := 6
 
 
 ## lawn; asphalt = city.gd's COLOR_ASPHALT; ballast gravel gray).
@@ -791,6 +888,53 @@ static func bake_to_dir(out_dir: String) -> Dictionary:
 			var mid := (Vector2(float(a[0]), float(a[1]))
 					+ Vector2(float(b3[0]), float(b3[1]))) * 0.5
 			(_chunk_at(tiles, _chunk_of(mid.x, mid.y))["trail_quads"] as Array).append({"q": quad})
+
+	# --- trees: the mapped canopy points (T-207) ---------------------------
+	# The pack's tree layer becomes ONE instance per mapped node, at the
+	# mapped xz (±0 m — the snapped position IS the node), standing on the
+	# plate top (the lawn flats top at 0.04 — a trunk base at 0 sits 4 cm
+	# into the lawn, invisible). The archetype law: LaVerne shore ring →
+	# shore, park polygon → oak (grove tint), campus district → oak, else
+	# boulevard — the mapped data decides where, the archetype decides what.
+	# Scale/yaw/tint are the stable index hash — the pack carries no ids.
+	var lake_rings_shore: Array[PackedVector2Array] = []
+	for wtr2: Dictionary in AmesDataPack.water():
+		if str(wtr2.get("kind", "")) == "lake" and wtr2.has("polygon") \
+				and str(wtr2.get("name", "")).contains(TREE_SHORE_NAME_TOKEN):
+			lake_rings_shore.append_array(
+					_split_rings(_pack_points(wtr2.get("polygon", []))))
+	var park_rings: Array[PackedVector2Array] = []
+	for park2: Dictionary in AmesDataPack.parks():
+		park_rings.append_array(_split_rings(_pack_points(park2.get("polygon", []))))
+	var tree_points := AmesDataPack.trees()
+	for ti in tree_points.size():
+		var tp := tree_points[ti]
+		var tx := tp.x
+		var tz := tp.y
+		var roll := hash("tree/%d" % ti)
+		var archetype := TREE_BOULEVARD
+		var grove := false
+		if _rings_min_dist(Vector2(tx, tz), lake_rings_shore) <= TREE_SHORE_DIST:
+			archetype = TREE_SHORE
+		elif _point_in_rings(Vector2(tx, tz), park_rings):
+			archetype = TREE_OAK
+			grove = true
+		elif _district_of(tx, tz, ctx) == "campus":
+			archetype = TREE_OAK
+		# Per-axis scale band: three independent hash bands spread young to
+		# mature (height decorrelated from spread).
+		var sx := _tree_scale(roll, 0)
+		var sy := _tree_scale(roll, 1)
+		var sz := _tree_scale(roll, 2)
+		var tint := _tree_tint(grove, roll)
+		var yaw := _frac01(roll, 3) * TAU
+		(_chunk_at(tiles, _chunk_of(tx, tz))["trees"] as Array).append({
+			"t": archetype,
+			"p": [_r(tx), 0.0, _r(tz)],
+			"s": [_r(sx), _r(sy), _r(sz)],
+			"a": _r(yaw),
+			"c": [_rc(tint.r), _rc(tint.g), _rc(tint.b)],
+		})
 
 	# --- rail: ballast strip, gapped geometrically at crossing roads ------
 	# The blocker set is the ACTUAL road geometry near the 9 at-grade
@@ -1689,6 +1833,87 @@ static func _min_dist(x: float, z: float, pts: PackedVector2Array) -> float:
 	return sqrt(best)
 
 
+## --- T-207 tree-canopy builders (pure pack/const arithmetic) ----------------
+
+
+## TRUE when `p` sits inside ANY of the rings (even-odd ray crossing — the
+## park-membership leg of the archetype law; holes stay outside their own
+## ring, which is the honest read for a park-lake island).
+static func _point_in_rings(p: Vector2, rings: Array[PackedVector2Array]) -> bool:
+	for ring: PackedVector2Array in rings:
+		if _point_in_ring(p, ring):
+			return true
+	return false
+
+
+static func _point_in_ring(p: Vector2, ring: PackedVector2Array) -> bool:
+	var inside := false
+	var n := ring.size()
+	var j := n - 1
+	for i in n:
+		var a := ring[i]
+		var b := ring[j]
+		if (a.y > p.y) != (b.y > p.y) \
+				and p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x:
+			inside = not inside
+		j = i
+	return inside
+
+
+## Nearest distance from `p` to any ring's SEGMENTS (the shore-ring law: the
+## lake polygons' vertices are sparse, so a vertex-only distance would
+## misread the band — point-to-segment is the honest ring distance).
+static func _rings_min_dist(p: Vector2, rings: Array[PackedVector2Array]) -> float:
+	var best := 1e18
+	for ring: PackedVector2Array in rings:
+		for i in ring.size():
+			var d := _seg_dist(p, ring[i], ring[(i + 1) % ring.size()])
+			if d < best:
+				best = d
+	return best
+
+
+static func _seg_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var l2 := ab.length_squared()
+	if l2 < 1e-12:
+		return p.distance_to(a)
+	var t := clampf((p - a).dot(ab) / l2, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+
+## Per-axis tree scale in [TREE_SCALE_LO, TREE_SCALE_HI] — band `k` picks the
+## hash field so the axes decorrelate.
+static func _tree_scale(roll: int, k: int) -> float:
+	return TREE_SCALE_LO + (TREE_SCALE_HI - TREE_SCALE_LO) * _frac01(roll, k)
+
+
+## The variation tint: green = luminance over the band (the grove band darker
+## — the §1.9 Brookside summer-forest read), red/blue jittered around it.
+## Bark rides the same tint — bark × near-white stays bark.
+static func _tree_tint(grove: bool, roll: int) -> Color:
+	var lo := TREE_GROVE_LO if grove else TREE_TINT_LO
+	var hi := TREE_GROVE_HI if grove else TREE_TINT_HI
+	var lum := lo + (hi - lo) * _frac01(roll, 4)
+	var rj := 1.0 - TREE_HUE_JITTER * 0.5 + TREE_HUE_JITTER * _frac01(roll, 5)
+	var bj := 1.0 - TREE_HUE_JITTER * 0.5 + TREE_HUE_JITTER * _frac01(roll, 6)
+	return Color(lum * rj, lum, lum * bj)
+
+
+## Band `k`'s fraction into [0, 1) — a splitmix-style integer finalizer over
+## (roll, band). The first draft re-hashed the roll as a STRING per band and
+## the bands came out correlated: the polynomial string hash perturbs only
+## its low bits when the band suffix changes, so every band rode ~the same
+## fraction (sx ≈ sy ≈ sz on most trees). The finalizer avalanches both
+## inputs — GDScript int64 arithmetic wraps deterministically, no RNG.
+static func _frac01(roll: int, k: int) -> float:
+	var h := roll ^ (k * -7046029254386353131) ## 0x9E3779B97F4A7C15 as signed.
+	h = (h ^ (h >> 30)) * -4658895280553007687 ## 0xBF58476D1CE4E5B9.
+	h = (h ^ (h >> 27)) * -7905916399975552669 ## 0x94D049BB133111EB.
+	h = h ^ (h >> 31)
+	return float((h >> 11) & 0x1FFF) / 8192.0
+
+
 ## Precomputed point clouds for the district rule + crossing gap table.
 static func _build_context() -> Dictionary:
 	var anchors := PackedVector2Array()
@@ -1769,6 +1994,19 @@ static func _chunk_aabb(chunk: Dictionary) -> Dictionary:
 				float(rp[2]) - rlen_z * 0.5))
 		_aabb_grow(acc, Vector3(float(rp[0]) + rlen_x * 0.5,
 				float(rp[1]) + float(rs[2]), float(rp[2]) + rlen_z * 0.5))
+	for tr: Dictionary in chunk["trees"]: ## (T-207) the canopy joins the AABB:
+		## grow by the tree's own archetype extent under its baked scale —
+		## the ellipsoid crown reads circular, so x and z use their own axes'
+		## scale and the top is (crown_cy + crown_ry) × sy (the yaw spins the
+		## trunk facets, never the crown envelope).
+		var tp: Array = tr["p"]
+		var ts: Array = tr["s"]
+		var spec2: Dictionary = TREE_ARCHETYPES[str(tr["t"])]
+		var ext_x := float(spec2["crown_rxz"]) * float(ts[0])
+		var ext_z := float(spec2["crown_rxz"]) * float(ts[2])
+		var top := (float(spec2["crown_cy"]) + float(spec2["crown_ry"])) * float(ts[1])
+		_aabb_grow(acc, Vector3(float(tp[0]) - ext_x, 0.0, float(tp[2]) - ext_z))
+		_aabb_grow(acc, Vector3(float(tp[0]) + ext_x, top, float(tp[2]) + ext_z))
 	var lo: Vector3 = acc[0]
 	var hi: Vector3 = acc[1]
 	return {"min": [_r(lo.x), _r(lo.y), _r(lo.z)], "max": [_r(hi.x), _r(hi.y), _r(hi.z)]}

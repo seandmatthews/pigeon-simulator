@@ -27,15 +27,16 @@ func _initialize() -> void:
 		push_error("bake_ames_chunks: bake FAILED (no manifest) — see errors above")
 		return ## _process quits 1.
 	var totals: Dictionary = manifest.get("totals", {})
-	print("=== Ames chunk bake (T-172 + T-174 dressing + T-175 placeholders + T-206 filler dressing) ===")
-	print("chunks written: %d  massing: %d  ribbons: %d  lane_quads: %d  water_tris: %d  shore_quads: %d  creek_quads: %d  lawn_tris: %d  ballast_quads: %d  tie_quads: %d  ground_quads: %d  occluders: %d  placeholders: %d  crossings: %d  roofs: %d  dress: %d" % [
+	print("=== Ames chunk bake (T-172 + T-174 dressing + T-175 placeholders + T-206 filler dressing + T-207 tree canopy) ===")
+	print("chunks written: %d  massing: %d  ribbons: %d  lane_quads: %d  water_tris: %d  shore_quads: %d  creek_quads: %d  lawn_tris: %d  ballast_quads: %d  tie_quads: %d  ground_quads: %d  occluders: %d  placeholders: %d  crossings: %d  roofs: %d  dress: %d  trees: %d" % [
 		totals.get("chunks", 0), totals.get("massing", 0), totals.get("ribbons", 0),
 		totals.get("lane_quads", 0), totals.get("water_tris", 0),
 		totals.get("shore_quads", 0), totals.get("creek_quads", 0),
 		totals.get("lawn_tris", 0), totals.get("ballast_quads", 0),
 		totals.get("tie_quads", 0), totals.get("ground_quads", 0),
 		totals.get("occluders", 0), totals.get("placeholders", 0),
-		totals.get("crossings", 0), totals.get("roofs", 0), totals.get("dress", 0)])
+		totals.get("crossings", 0), totals.get("roofs", 0), totals.get("dress", 0),
+		totals.get("trees", 0)])
 	print("districts: %s" % str(totals.get("districts", {})))
 	print("payload: %.2f MB (budget 40.00)  wall clock: %d ms (budget %d)" % [
 		float(totals.get("bytes", 0)) / (1024.0 * 1024.0), elapsed, BUDGET_MS])

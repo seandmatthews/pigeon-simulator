@@ -374,6 +374,9 @@ var _fabric_row_slots: Array[Dictionary] = []
 @onready var _box_mesh: BoxMesh = _make_box_mesh()
 @onready var _tri_mesh: ArrayMesh = _make_tri_mesh()
 @onready var _prism_mesh: ArrayMesh = _make_prism_mesh() ## (T-206) gable roofs.
+## (T-207) The tree material BEFORE the meshes — the meshes' surfaces grab it.
+@onready var _tree_material: ShaderMaterial = _make_tree_material()
+@onready var _tree_meshes: Dictionary = _make_tree_meshes() ## (T-207) archetype name → crown+trunk mesh.
 
 
 ## The world id this class serves (the `Game.world` value that selects it).
@@ -1832,6 +1835,8 @@ func _build_chunk(entry: Dictionary) -> void:
 		_add_chunk_mm(chunk_root, "Dress", dress, aabb,
 				MASSING_RANGE_END, MASSING_RANGE_FADE)
 
+	_build_trees(chunk, chunk_root, center, aabb) ## (T-207) the mapped canopy.
+
 	var flats := _flats_multimesh(chunk, center)
 	if flats != null:
 		_add_chunk_mm(chunk_root, "Ribbons", flats, aabb, 0.0, 0.0)
@@ -1984,6 +1989,48 @@ func _dress_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
 				Vector3(float(p[0]), float(p[1]), float(p[2])) - center))
 		mm.set_instance_color(i, Color(float(c[0]), float(c[1]), float(c[2])))
 	return mm
+
+
+## (T-207) The chunk's mapped canopy: ONE MultiMesh per ARCHETYPE PRESENT
+## (≤ 3 draws, the same per-chunk partitioning discipline as the massing),
+## each instance ONE tree at its mapped position — `p` from the bake, the
+## yawed-and-scaled basis composed from `a` (yaw) × `s` (per-axis scale;
+## the rotated columns scaled keeps the determinant positive, no mirroring)
+## — and the baked variation tint in `c` (the engine's multimesh multiply
+## puts instance color × the mesh's vertex colors, so the survey crown hexes
+## in `TREE_ARCHETYPES` survive the tint). Fades WITH the massing (a tree
+## beyond its houses' fade band would float, the T-206 roofs law). Visual
+## only: no collider, no occluder, no ground record — the canopy is soft.
+func _build_trees(chunk: Dictionary, chunk_root: Node3D, center: Vector3,
+		aabb: AABB) -> void:
+	var trees: Array = chunk.get("trees", [])
+	if trees.is_empty():
+		return
+	var by_arch: Dictionary = {} ## archetype → indices into `trees`.
+	for i in trees.size():
+		var arch := str(trees[i]["t"])
+		if not by_arch.has(arch):
+			by_arch[arch] = []
+		(by_arch[arch] as Array).append(i)
+	for arch: String in [AmesBaker.TREE_OAK, AmesBaker.TREE_BOULEVARD,
+			AmesBaker.TREE_SHORE]:
+		var indices: Array = by_arch.get(arch, [])
+		if indices.is_empty():
+			continue
+		var mm := _new_multimesh(indices.size(), _tree_meshes[arch])
+		for k in indices.size():
+			var tr: Dictionary = trees[indices[k]]
+			var p: Array = tr["p"]
+			var s: Array = tr["s"]
+			var c: Array = tr["c"]
+			var rot := Basis(Vector3.UP, float(tr.get("a", 0.0)))
+			mm.set_instance_transform(k, Transform3D(
+					Basis(rot.x * float(s[0]), rot.y * float(s[1]),
+							rot.z * float(s[2])),
+					Vector3(float(p[0]), float(p[1]), float(p[2])) - center))
+			mm.set_instance_color(k, Color(float(c[0]), float(c[1]), float(c[2])))
+		_add_chunk_mm(chunk_root, "Trees%s" % arch.capitalize(), mm, aabb,
+				MASSING_RANGE_END, MASSING_RANGE_FADE)
 
 
 ## One vertex-color unit-box MultiMesh of every baked ground rectangle —
@@ -7515,6 +7562,151 @@ func _make_vertex_color_material() -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 1.0
+	return mat
+
+
+## (T-207) The three tree archetype meshes, built from the baker's single
+## `TREE_ARCHETYPES` table (the dim/color source the bake's AABB already
+## assumes): a hexagonal trunk hint from the plate top up through the crown
+## bottom + an ellipsoid crown blob (TREE_CROWN_SEGMENTS × TREE_CROWN_RINGS
+## grid, a deterministic lobe jitter on the radius — the low-poly blob read,
+## billboard-free like every house-style mesh). Vertex colors carry the
+## survey hexes (crown = the archetype's `crown_color`, trunk bark); vertex
+## COLOR.a carries the SWAY WEIGHT (trunk rigid 0, crown bottom 0 rising to
+## 1 at the top) — the sway shader's displacement field, no bones, no bake
+## data. Double-sided with declared per-face normals (the prism discipline —
+## winding can never cull a face away).
+func _make_tree_meshes() -> Dictionary:
+	var out: Dictionary = {}
+	for arch: String in [AmesBaker.TREE_OAK, AmesBaker.TREE_BOULEVARD,
+			AmesBaker.TREE_SHORE]:
+		out[arch] = _make_tree_mesh(AmesBaker.TREE_ARCHETYPES[arch])
+	return out
+
+
+## One archetype's canopy mesh (see `_make_tree_meshes`).
+func _make_tree_mesh(spec: Dictionary) -> ArrayMesh:
+	var segs: int = AmesBaker.TREE_CROWN_SEGMENTS
+	var rings: int = AmesBaker.TREE_CROWN_RINGS
+	var cy := float(spec["crown_cy"])
+	var rxz := float(spec["crown_rxz"])
+	var ry := float(spec["crown_ry"])
+	var crown: Color = spec["crown_color"]
+	var bark: Color = AmesBaker.TREE_TRUNK_COLOR
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var cols := PackedColorArray()
+	var idx := PackedInt32Array()
+	## Crown grid: latitude rows 1..rings-1 between the two poles (row 0 and
+	## row `rings` are the single pole vertices), phi measured from the top.
+	var row_base: Array[int] = []
+	for r: int in rings + 1:
+		row_base.append(verts.size())
+		if r == 0 or r == rings:
+			var pole_n := Vector3(0.0, -1.0 if r == rings else 1.0, 0.0)
+			verts.append(Vector3(0.0, cy + pole_n.y * ry, 0.0))
+			norms.append(pole_n)
+			var pw := 1.0 if r == 0 else 0.0
+			cols.append(Color(crown.r, crown.g, crown.b, pw))
+		else:
+			var phi := PI * float(r) / float(rings)
+			for s: int in segs:
+				var u := TAU * float(s) / float(segs)
+				var n := Vector3(cos(u) * sin(phi), cos(phi),
+						sin(u) * sin(phi))
+				## The lobes: a deterministic radius jitter over the grid
+				## indices (pure arithmetic — no RNG in the house).
+				var lobe := 1.0 + (float((r * 7 + s * 13) % 97) / 97.0 - 0.5) \
+						* AmesBaker.TREE_CROWN_LOBES
+				verts.append(Vector3(n.x * rxz * lobe, cy + n.y * ry * lobe,
+						n.z * rxz * lobe))
+				norms.append(n)
+				var w := clampf(0.5 + n.y * 0.5, 0.0, 1.0)
+				cols.append(Color(crown.r, crown.g, crown.b, w))
+	for r: int in rings:
+		for s: int in segs:
+			var s1 := (s + 1) % segs
+			var a := row_base[r] + (0 if r == 0 else s)
+			var b := row_base[r] + (0 if r == 0 else s1)
+			var c := row_base[r + 1] + (0 if r + 1 == rings else s)
+			var d := row_base[r + 1] + (0 if r + 1 == rings else s1)
+			## Two triangles per quad (the pole rows collapse to a fan — the
+			## duplicated pole corners index the same vertex); double-sided
+			## material, winding never culls.
+			idx.append_array([a, b, d, a, d, c])
+	## Trunk hint: a hexagonal prism from the plate top up through the crown
+	## bottom (the trunk top hides inside the crown, the base sits at the
+	## plate). Sway weight 0 — the trunk stays rigid.
+	var sides: int = AmesBaker.TREE_TRUNK_SEGMENTS
+	var th := float(spec["trunk_h"])
+	var tr := float(spec["trunk_r"])
+	for s: int in sides:
+		var u0 := TAU * float(s) / float(sides)
+		var u1 := TAU * float(s + 1) / float(sides)
+		var n := Vector3(cos((u0 + u1) * 0.5), 0.0, sin((u0 + u1) * 0.5))
+		var base := verts.size()
+		verts.append_array([Vector3(cos(u0) * tr, 0.0, sin(u0) * tr),
+				Vector3(cos(u1) * tr, 0.0, sin(u1) * tr),
+				Vector3(cos(u1) * tr, th, sin(u1) * tr),
+				Vector3(cos(u0) * tr, th, sin(u0) * tr)])
+		for _k: int in 4:
+			norms.append(n)
+			cols.append(Color(bark.r, bark.g, bark.b, 0.0))
+		idx.append_array([base, base + 1, base + 2, base, base + 2, base + 3])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = norms
+	arrays[Mesh.ARRAY_COLOR] = cols
+	arrays[Mesh.ARRAY_INDEX] = idx
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	## Double-sided like the prism/tri meshes: the declared per-face normals
+	## carry the shading, so winding can never hide a crown face.
+	var mat := _tree_material
+	mesh.surface_set_material(0, mat)
+	return mesh
+
+
+## The sway shader, ONE shared ShaderMaterial for all three archetypes. The
+## engine's multimesh path multiplies the instance color INTO COLOR (mesh
+## vertex color × instance tint), so COLOR IS the albedo; the sway is a
+## vertex-shader hint — COLOR.a weights the displacement (trunk 0, crown top
+## 1), the phase derives from the instance origin (`MODEL_MATRIX[3].xz`) so
+## every tree sways off-beat with zero per-instance bake data, and the
+## instance scale carries the amplitude (taller canopies travel further).
+const TREE_SWAY_SHADER_CODE := "
+shader_type spatial;
+render_mode cull_disabled;
+
+uniform float sway_amp = 0.16;
+uniform float sway_speed = 1.2;
+uniform vec2 sway_dir = vec2(0.82, 0.57);
+
+void vertex() {
+	float weight = COLOR.a;
+	if (weight > 0.001) {
+		vec2 org = MODEL_MATRIX[3].xz;
+		float phase = org.x * 0.053 + org.y * 0.041;
+		float wind = sin(TIME * sway_speed + phase)
+				+ 0.4 * sin(TIME * sway_speed * 2.63 + phase * 1.71 + 1.3);
+		VERTEX.xz += sway_dir * (wind * sway_amp * weight);
+	}
+}
+
+void fragment() {
+	ALBEDO = COLOR.rgb;
+	ROUGHNESS = 1.0;
+	SPECULAR = 0.0;
+}
+"
+
+
+func _make_tree_material() -> ShaderMaterial:
+	var sh := Shader.new()
+	sh.code = TREE_SWAY_SHADER_CODE
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
 	return mat
 
 
