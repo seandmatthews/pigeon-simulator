@@ -1,6 +1,9 @@
 # T-214 — Ames · the tailgate-zone traffic storm: the frame halves inside the game-day lot sea
 
-- **Status:** proposed · **Category:** code-optimization · **Ring:** R5 The Town ·
+- **Status:** superseded (T-215 — this ticket's measured storm is T-215's lead
+  evidence and its Avenue A; the fix lands there, with this ticket's
+  reproduction rig and phys µs data carried into T-215's landing record) ·
+  **Category:** code-optimization · **Ring:** R5 The Town ·
   **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-209 (the audit that found it)
 - **Refs:** T-209 §2 (the measured finding, carried below) ·

@@ -1,4 +1,7 @@
-# T-214 — Entry-hardware performance: the gate box caught the budget, re-derive it
+# T-215 — Entry-hardware performance: the traffic physics storm, re-derive the budget
+
+*(Absorbs T-214 — the tailgate-zone traffic storm — as its lead evidence; that
+ticket's diagnosis is this ticket's Avenue A, unified by the gate-box canary.)*
 
 - **Status:** proposed · **Category:** code-optimization ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
@@ -53,13 +56,17 @@ either can proceed.
 
 **3 · The avenues (implement in ranked order per the split):**
 
-- **A · Main-thread diet** — if scene processing dominates: the 14,443-node
-  world + per-frame citizen systems (traffic graph, ped zones, signage,
-  parking) on a 4-core Skylake. Levers: move static families out of
-  per-frame reach entirely; throttle zone/graph updates to interval ticks
-  (the citizens already budget); flatten signage/hero internals into
-  MultiMesh/merged meshes where the audit shows node counts; physics shape
-  diet (the audit's shapes=N per family).
+- **A · THE TRAFFIC/CITIZEN PHYSICS COST (lead avenue, measured)** — the
+  sibling T-214 storm ticket's finding, promoted: standing in the tailgate
+  lot sea with traffic LIVE costs **phys µs 330–530 ms sustained** (physics
+  eats ~0.4 s per wall second), fps 28–72 on the DEV desktop;
+  `freeze_traffic ON → phys 2979 µs, fps 144`. The box's GLOBAL 1 fps is
+  the same cost amplified by a 2015 CPU — the probe's 95-draw/1-fps frame
+  hides render families, and this is not a render cost. Levers: budget the
+  traffic graph's per-frame reacting (interval ticks, distance gating,
+  per-car decision batching), diet the car/tourist physics shapes, move
+  static families out of per-frame reach; the 14,443-node scene processing
+  rides the same diet.
 - **B · opengl3/Mesa submit path** — if submit dominates at tiny draw
   counts: profile the driver path (95 draws at 1 fps is driver territory);
   levers: batch breaks, vertex-format simplification, `rendering_driver`
