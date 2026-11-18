@@ -203,6 +203,7 @@ func _run_scenarios() -> void:
 	await _scenario_mu_parks_heroes() ## T-189 — the MU + Parks heroes: the 1:1 slot swaps at the CORRECT corner (the tower at Lincoln Way & Morrill/Lynn), the zodiac decal at the Gold Star Hall threshold, the tower-estimate pin, the live seams.
 	await _scenario_marston_hero_dims() ## T-190 — the Marston Water Tower hero: the 1:1 slot swap, the 51.2 m survey pin + photo-11 proportions, the white-steel palette pin, the east-facing seal medallion, the live seams.
 	await _scenario_stadium_complex_dims() ## T-191 — the Jack Trice Stadium complex hero: the 1:1 slot swaps, the 183×208 N–S bowl re-pin + the N–S field assertion, the hillside/press/Sukup/statue pins, the Hilton drum re-pin with the arc roof + portico, the tailgate lot dress, the live seams.
+	await _scenario_tailgate_dressing_pins() ## T-208 — the gameday lot dress: the tiered stadium-ward density (near fill > mid, far car-only), the aisle-band site lattice off the T-182 module, the pinned fill/kind/color rolls, the gentle cardinal-gold mix, the stall-gap clearance, visual-only + the additive law.
 	await _scenario_downtown_heroes() ## T-192 — the downtown heroes: the bandshell at its true OSM position (the copper arch over the mint shells), the City Hall + Municipal civic pair's 1:1 slot swaps with the photo-02 cartouche stone, the Main Street fabric (cornices, the maroon furniture run, the blue banners, the neon blade seeds), the live seams.
 	await _scenario_civic_tanks_dims() ## T-193 — the civic water tanks: the bulb-on-stem pair's 1:1 slot swaps at the data positions, the photo-02 mushroom shoulder + banding pairs + roof dome, the diamond logo as painted geometry on the town-facing walls (the hue-law palette), the solid-but-not-landable crown, the live seams.
 	await _scenario_rail_dressing_pins() ## T-194 — the rail corridor: the depot's 1:1 slot swap (the corrected track-face canopy), the crossbuck set at the 9 at-grade crossings, the right-of-way fence lines, the coal drag's chained route + loop schedule + livery, and the no-traffic-gating probe (a real car crosses the straddled consist).
@@ -9817,6 +9818,509 @@ func _scenario_stadium_complex_dims() -> void:
 			drum_hi.z - drum_lo.z if drum_hi.z > -INF else -1.0,
 			world.lot_flat_tris, world.lot_marking_xfs.size(), "; ".join(bad)])
 	world.queue_free()
+
+
+## --- scenario (T-208 the tailgate dressing) ----------------------------------
+## The gameday lot dress machine-pinned (the ticket's Gate 1b row), every
+## expectation re-derived from the COMMITTED DATA — the pack's parking layer
+## (the census §3 tailgate box literals, the T-191 recount's own walk) plus
+## the bake's own Jack Trice pitch anchor (the T-191 slot walk) — never
+## through the world's flags. The walk law transcribed in-scenario: the
+## pinned tier bands, the aisle-band site lattice (the T-182 row module's
+## closed form), the fill/kind/color hash bands (the exact roll keys), the
+## footprint clip, the prop assembly; the T-182 guard PRIMITIVES shared (the
+## census row pins their behavior — a prop and a stall must disagree about
+## nothing). The live world compared record by record: the per-lot
+## tier/count table, every family queue element-wise, the cycling palettes,
+## the mounted MultiMeshes, and the arms the ticket actually writes:
+## DENSITY GRADIENT (near fill > mid fill, the far lots car-only), the
+## GENTLE MIX (the canopy distribution pinned at its landed shares), STRUCTURAL CLEARANCE (every site
+## ≥ 2 m planar off every stall and gap slot of its lot — the fleet's
+## park_spots_near stays open), VISUAL-ONLY (no physics in the family) and
+## the ADDITIVE LAW (the T-182 dressing stock byte-unchanged by the dress).
+func _scenario_tailgate_dressing_pins() -> void:
+	const S := "tailgate_dressing_pins"
+	## The law's consts, transcribed (a silent retune fails this row).
+	const NEAR_DIST := 320.0
+	const MID_DIST := 620.0
+	const NEAR_FILL := 55
+	const MID_FILL := 22
+	const SITE_PITCH := 5.2
+	const KIND_RV := 12
+	const KIND_TABLE := 26
+	const KIND_FLAG := 7
+	const TENT_CARDINAL := 38
+	const TENT_GOLD := 32
+	const PROP_STALL_CLEAR := 2.0
+	## The landed landing (re-pinned per re-bake like the census row's 8798):
+	## the totals the first splitmix landing measured, pinned so a pack or
+	## law drift fails the same night instead of silently re-reading.
+	const LANDED_TENTS := 191
+	const LANDED_RVS := 47
+	const LANDED_TABLES := 107
+	const LANDED_FLAGS := 29
+	const LANDED_NEAR := 9
+	const LANDED_MID := 4
+	const LANDED_FAR := 13
+	const LANDED_CANOPY_CARDINAL := 73
+	const LANDED_CANOPY_GOLD := 55
+	const LANDED_CANOPY_WHITE := 63
+	var bad: PackedStringArray = PackedStringArray()
+
+	## --- the scenario's own data walks (never the world's flags) -------------
+	var pitch := Vector2.ZERO
+	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
+		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		for ph: Dictionary in doc.get("placeholders", []):
+			if str(ph.get("id", "")) == "way/613735866" \
+					and str(ph.get("part", "")) == "pitch":
+				pitch = Vector2(float(ph["p"][0]), float(ph["p"][2]))
+	if pitch == Vector2.ZERO:
+		_check(S, false, "the bake walk found no Jack Trice pitch anchor")
+		return
+	var want_centers: Dictionary = {} ## lot id → the pack's own center.
+	for lot: Dictionary in AmesDataPack.parking():
+		var poly_arr: Array = lot.get("polygon", [])
+		var wgs: Array = lot.get("wgs84", [])
+		if poly_arr.size() < 3 or wgs.size() < 2:
+			continue
+		var lon := float(wgs[0])
+		var lat := float(wgs[1])
+		if not (lat < 42.0225 and lon > -93.6445 and lon < -93.6260):
+			continue
+		var c: Array = lot.get("center", [0.0, 0.0])
+		want_centers[str(lot.get("id", ""))] = Vector2(float(c[0]), float(c[1]))
+	if want_centers.is_empty():
+		_check(S, false, "the pack walk found no tailgate lots — the census §3 box is broken")
+		return
+
+	## --- the live world -------------------------------------------------------
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	if world.parking == null or world.tailgate_dress_lots.is_empty():
+		_check(S, false, "the world built no parking system or no tailgate dress")
+		world.queue_free()
+		return
+
+	## --- the walk law, transcribed -------------------------------------------
+	var recomp: Dictionary = {} ## lot id → the record dict, the world's form.
+	var want_tent: Array[Transform3D] = []
+	var want_tent_leg: Array[Transform3D] = []
+	var want_rv: Array[Transform3D] = []
+	var want_rv_band: Array[Transform3D] = []
+	var want_table: Array[Transform3D] = []
+	var want_cooler: Array[Transform3D] = []
+	var want_pole: Array[Transform3D] = []
+	var want_flag: Array[Transform3D] = []
+	var want_tent_cols: Array[Color] = []
+	var want_flag_cols: Array[Color] = []
+	var near_sites := 0
+	var near_dressed := 0
+	var mid_sites := 0
+	var mid_dressed := 0
+	var tier_counts := [0, 0, 0]
+	var sites_by_lot: Dictionary = {} ## lot id → the site (x, z) list, for the clearance arm.
+	for lot: AmesParking.Lot in world.parking.lots:
+		if not lot.in_tailgate or lot.polygon.size() < 3:
+			continue
+		if not want_centers.has(lot.id):
+			bad.append("world lot %s is not in the scenario's census walk" % lot.id)
+			continue
+		var center: Vector2 = want_centers[lot.id]
+		var dist := center.distance_to(pitch)
+		var tier := 0 if dist <= NEAR_DIST else (1 if dist <= MID_DIST else 2)
+		tier_counts[tier] += 1
+		var rec: Dictionary = {"tier": tier, "sites": 0, "dressed": 0,
+				"tents": 0, "rvs": 0, "tables": 0, "flags": 0}
+		recomp[lot.id] = rec
+		sites_by_lot[lot.id] = [] ## PackedVector2Array via append below.
+		if tier == 2:
+			continue ## The outlying lots stay car-only (T-182's stock).
+		var fill := NEAR_FILL if tier == 0 else MID_FILL
+		var long_x := lot.aabb.size.x >= lot.aabb.size.y
+		var row_start := lot.aabb.position.y if long_x else lot.aabb.position.x
+		var row_end := lot.aabb.end.y if long_x else lot.aabb.end.x
+		var along_start := lot.aabb.position.x if long_x else lot.aabb.position.y
+		var along_end := lot.aabb.end.x if long_x else lot.aabb.end.y
+		var module: float = AmesParking.LOT_STALL_DEPTH + AmesParking.LOT_AISLE
+		var candidates := world.parking.street_guard_candidates(lot)
+		var row_span := row_end - row_start
+		var row_count := 0
+		if row_span >= AmesParking.LOT_STALL_DEPTH * 0.5:
+			row_count = floori((row_span - AmesParking.LOT_STALL_DEPTH * 0.5)
+					/ module) + 1
+		var along_span := along_end - along_start
+		var site_count := 0
+		if along_span >= SITE_PITCH * 0.5:
+			site_count = floori(along_span / SITE_PITCH - 0.5) + 1
+		for row in row_count:
+			var row_pos := row_start + module * float(row)
+			var site_cross := row_pos + AmesParking.LOT_STALL_DEPTH \
+					+ AmesParking.LOT_AISLE * 0.5
+			for k in site_count:
+				var u := along_start + SITE_PITCH * (float(k) + 0.5)
+				var x := u if long_x else site_cross
+				var z := site_cross if long_x else u
+				rec["sites"] = int(rec["sites"]) + 1
+				if tier == 0:
+					near_sites += 1
+				else:
+					mid_sites += 1
+				var roll := hash("tailgate/%s/%d/%d" % [lot.id, row, k])
+				var fill_roll := (_tg_band(roll, 0) * 100) >> 13
+				if fill_roll >= fill:
+					continue
+				var kind_roll := (_tg_band(roll, 1) * 100) >> 13
+				var color_roll := _tg_band(roll, 2)
+				var facing := Vector2(0.0, 1.0 if row % 2 == 0 else -1.0)
+				if not long_x:
+					facing = Vector2(1.0 if row % 2 == 0 else -1.0, 0.0)
+				var kind := 3
+				var kp := kind_roll
+				if kp < KIND_RV:
+					kind = 0
+				elif kp < KIND_RV + KIND_TABLE:
+					kind = 1
+				elif kp < KIND_RV + KIND_TABLE + KIND_FLAG:
+					kind = 2
+				var ha := 1.5
+				var hc := 1.5
+				if kind == 0:
+					ha = 4.5
+					hc = 1.3
+				elif kind == 1:
+					ha = 1.3
+					hc = 0.6
+				elif kind == 2:
+					ha = 0.95
+					hc = 0.35
+				var clip_ok := true
+				for d_along: float in [-ha, 0.0, ha]:
+					for d_across: float in [-hc, 0.0, hc]:
+						var px := (x + d_along) if long_x else (x + d_across)
+						var pz := (z + d_across) if long_x else (z + d_along)
+						if not Geometry2D.is_point_in_polygon(Vector2(px, pz),
+								lot.polygon):
+							clip_ok = false
+				if not clip_ok:
+					continue
+				if not world.parking.prop_guard_ok(x, z, candidates):
+					continue
+				rec["dressed"] = int(rec["dressed"]) + 1
+				if tier == 0:
+					near_dressed += 1
+				else:
+					mid_dressed += 1
+				(sites_by_lot[lot.id] as Array).append(Vector2(x, z))
+				var cp := (color_roll * 100) >> 13
+				var ground := world.ground_height(world.to_global(Vector3(x, 0.0, z)))
+				var base := Transform3D(
+						Basis(Vector3.UP, atan2(-facing.x, -facing.y)),
+						Vector3(x, ground, z))
+				match kind:
+					0:
+						want_rv.append(base * Transform3D(
+								Basis.from_scale(AmesWorld.TG_RV_SIZE),
+								Vector3(0.0, AmesWorld.TG_RV_CY, 0.0)))
+						want_rv_band.append(base * Transform3D(
+								Basis.from_scale(AmesWorld.TG_RV_BAND),
+								Vector3(0.0, AmesWorld.TG_RV_BAND_CY, 0.0)))
+						rec["rvs"] = int(rec["rvs"]) + 1
+					1:
+						want_table.append(base * Transform3D(
+								Basis.from_scale(AmesWorld.TG_TABLE_SIZE),
+								Vector3(0.0, AmesWorld.TG_TABLE_CY, 0.0)))
+						want_cooler.append(base * Transform3D(
+								Basis.from_scale(AmesWorld.TG_COOLER_SIZE),
+								AmesWorld.TG_COOLER_LOCAL))
+						rec["tables"] = int(rec["tables"]) + 1
+					2:
+						want_pole.append(base * Transform3D(
+								Basis.from_scale(AmesWorld.TG_POLE),
+								Vector3(0.0, AmesWorld.TG_POLE_CY, 0.0)))
+						want_flag.append(base * Transform3D(
+								Basis.from_scale(AmesWorld.TG_FLAG_SIZE),
+								AmesWorld.TG_FLAG_LOCAL))
+						want_flag_cols.append(AmesWorld.TG_COLOR_CARDINAL
+								if (color_roll & 1) == 0
+								else AmesWorld.TG_COLOR_GOLD)
+						rec["flags"] = int(rec["flags"]) + 1
+					3:
+						want_tent.append(base * Transform3D(
+								Basis.from_scale(AmesWorld.TG_TENT_SIZE),
+								Vector3(0.0, AmesWorld.TG_TENT_TOP_Y, 0.0)))
+						for sx: float in [-AmesWorld.TG_TENT_LEG_XZ,
+								AmesWorld.TG_TENT_LEG_XZ]:
+							for sz: float in [-AmesWorld.TG_TENT_LEG_XZ,
+									AmesWorld.TG_TENT_LEG_XZ]:
+								want_tent_leg.append(base * Transform3D(
+										Basis.from_scale(AmesWorld.TG_TENT_LEG),
+										Vector3(sx, AmesWorld.TG_TENT_LEG.y * 0.5,
+												sz)))
+						want_tent_cols.append(AmesWorld.TG_COLOR_CARDINAL
+								if cp < TENT_CARDINAL
+								else (AmesWorld.TG_COLOR_GOLD
+										if cp < TENT_CARDINAL + TENT_GOLD
+										else AmesWorld.TG_COLOR_CANOPY_WHITE))
+						rec["tents"] = int(rec["tents"]) + 1
+
+	## --- A. the per-lot records + the landed pins ------------------------------
+	var total_tents := 0
+	var total_rvs := 0
+	var total_tables := 0
+	var total_flags := 0
+	for id: String in recomp:
+		var rec: Dictionary = recomp[id]
+		total_tents += int(rec["tents"])
+		total_rvs += int(rec["rvs"])
+		total_tables += int(rec["tables"])
+		total_flags += int(rec["flags"])
+		var got: Dictionary = world.tailgate_dress_lots.get(id, {})
+		if got.is_empty():
+			bad.append("lot %s missing from the world's dress record" % id)
+			continue
+		for key: String in ["tier", "sites", "dressed", "tents", "rvs", "tables", "flags"]:
+			if int(got.get(key, -1)) != int(rec[key]):
+				bad.append("lot %s record %s=%d != recompute %d" % [id, key,
+						int(got.get(key, -1)), int(rec[key])])
+	if world.tailgate_dress_lots.size() != want_centers.size():
+		bad.append("the world's dress record covers %d lots != the census walk's %d" % [
+				world.tailgate_dress_lots.size(), want_centers.size()])
+	if total_tents != LANDED_TENTS or total_rvs != LANDED_RVS \
+			or total_tables != LANDED_TABLES or total_flags != LANDED_FLAGS:
+		bad.append("landed totals %d/%d/%d/%d != the pin %d/%d/%d/%d" % [
+				total_tents, total_rvs, total_tables, total_flags,
+				LANDED_TENTS, LANDED_RVS, LANDED_TABLES, LANDED_FLAGS])
+	if int(tier_counts[0]) != LANDED_NEAR or int(tier_counts[1]) != LANDED_MID \
+			or int(tier_counts[2]) != LANDED_FAR:
+		bad.append("tier counts %d/%d/%d != the pin %d/%d/%d" % [tier_counts[0],
+				tier_counts[1], tier_counts[2], LANDED_NEAR, LANDED_MID, LANDED_FAR])
+
+	## --- B. DENSITY GRADIENT — the ticket's "fills hardest" law ----------------
+	if near_sites <= 0 or mid_sites <= 0:
+		bad.append("the gradient arms have no sites (near=%d mid=%d)" % [near_sites, mid_sites])
+	else:
+		var near_rate := float(near_dressed) / float(near_sites)
+		var mid_rate := float(mid_dressed) / float(mid_sites)
+		if near_rate <= mid_rate:
+			bad.append("the gradient is inverted: near fill %.3f <= mid %.3f" % [
+					near_rate, mid_rate])
+
+	## --- C. the family queues, element-wise ------------------------------------
+	var queues := [
+			[tailgate_families_tent(world), want_tent],
+			[tailgate_families_leg(world), want_tent_leg],
+			[tailgate_families_rv(world), want_rv],
+			[tailgate_families_band(world), want_rv_band],
+			[tailgate_families_table(world), want_table],
+			[tailgate_families_cooler(world), want_cooler],
+			[tailgate_families_pole(world), want_pole],
+			[tailgate_families_flag(world), want_flag],
+	]
+	for pair: Array in queues:
+		var got: Array = pair[0]
+		var want: Array = pair[1]
+		if got.size() != want.size():
+			bad.append("family queue %d != recompute %d" % [got.size(), want.size()])
+			continue
+		for i: int in want.size():
+			var a: Transform3D = got[i]
+			var w2: Transform3D = want[i]
+			if a.origin.distance_to(w2.origin) > 1e-4 \
+					or a.basis.get_euler().distance_to(w2.basis.get_euler()) > 1e-4:
+				bad.append("family transform %d drifted: %s vs %s" % [i, a, w2])
+				break
+
+	## --- D. the palettes --------------------------------------------------------
+	if world.tailgate_tent_colors.size() != want_tent_cols.size():
+		bad.append("tent palette %d != recompute %d" % [
+				world.tailgate_tent_colors.size(), want_tent_cols.size()])
+	else:
+		for i: int in want_tent_cols.size():
+			if world.tailgate_tent_colors[i] != want_tent_cols[i]:
+				bad.append("tent color %d drifted" % i)
+				break
+	if world.tailgate_flag_colors.size() != want_flag_cols.size():
+		bad.append("flag palette %d != recompute %d" % [
+				world.tailgate_flag_colors.size(), want_flag_cols.size()])
+	else:
+		for i: int in want_flag_cols.size():
+			if world.tailgate_flag_colors[i] != want_flag_cols[i]:
+				bad.append("flag color %d drifted" % i)
+				break
+
+	## --- E. the GENTLE MIX — the canopy distribution pinned ---------------------
+	## The ticket's "cardinal-gold tent distribution is a pinned mix (the
+	## invasion-flavored read stays gentle)": the landed shares carry all
+	## three colors at their pinned counts (the per-lot monochrome possibility
+	## is the hash's honest outcome at small counts — a same-color tent row is
+	## a real tailgate read, not a law break; the multiset compare in D ties
+	## the mix to the recompute, this arm pins the landed landing).
+	var cardinal := 0
+	var gold := 0
+	var white := 0
+	for col: Color in world.tailgate_tent_colors:
+		if col == AmesWorld.TG_COLOR_CARDINAL:
+			cardinal += 1
+		elif col == AmesWorld.TG_COLOR_GOLD:
+			gold += 1
+		elif col == AmesWorld.TG_COLOR_CANOPY_WHITE:
+			white += 1
+	if cardinal + gold + white != total_tents:
+		bad.append("the canopy mix %d/%d/%d != the tent total %d" % [
+				cardinal, gold, white, total_tents])
+	if cardinal <= 0 or gold <= 0 or white <= 0:
+		bad.append("the gentle mix lost a color: c/g/w=%d/%d/%d" % [
+				cardinal, gold, white])
+	if cardinal != LANDED_CANOPY_CARDINAL or gold != LANDED_CANOPY_GOLD \
+			or white != LANDED_CANOPY_WHITE:
+		bad.append("canopy mix %d/%d/%d != the pin %d/%d/%d" % [cardinal, gold,
+				white, LANDED_CANOPY_CARDINAL, LANDED_CANOPY_GOLD,
+				LANDED_CANOPY_WHITE])
+
+	## --- F. STRUCTURAL CLEARANCE — props never take a stall or a gap -----------
+	var cleared := 0
+	for id: String in sites_by_lot:
+		var lot: AmesParking.Lot = _tailgate_lot(world, id)
+		if lot == null:
+			continue
+		var stall_xfs: Array[Transform3D] = []
+		stall_xfs.append_array(lot.stalls)
+		stall_xfs.append_array(lot.gaps)
+		for site: Vector2 in sites_by_lot[id]:
+			var worst := INF
+			for xf: Transform3D in stall_xfs:
+				worst = minf(worst, Vector2(xf.origin.x - site.x,
+						xf.origin.z - site.y).length())
+			if worst < PROP_STALL_CLEAR:
+				bad.append("lot %s prop at %s sits %.2f m off a stall (< %.1f)" % [
+						id, site, worst, PROP_STALL_CLEAR])
+				break
+			cleared += 1
+
+	## --- G. VISUAL-ONLY — the family carries no physics -------------------------
+	var lots_root := world.get_node_or_null("StadiumLots") as Node3D
+	if lots_root == null:
+		bad.append("no StadiumLots root")
+	else:
+		for node: Node in lots_root.find_children("*", "Node3D", true, false):
+			if node is StaticBody3D or node is CollisionShape3D \
+					or node is CollisionObject3D:
+				bad.append("the tailgate family carries physics at %s" % node.name)
+				break
+		for family: String in ["LotFlats", "LotMarkings", "TentCanopies", "TentLegs",
+				"RvBodies", "RvBands", "Tables", "Coolers", "FlagPoles", "Flags"]:
+			var fam: Node = lots_root.get_node_or_null(NodePath(family))
+			if fam == null:
+				bad.append("StadiumLots lost %s" % family)
+				continue
+			if fam is MultiMeshInstance3D:
+				var want_count := tailgate_family_count(world, family)
+				if (fam as MultiMeshInstance3D).multimesh.instance_count \
+						!= want_count:
+					bad.append("%s MM %d != the retained queue %d" % [family,
+							(fam as MultiMeshInstance3D).multimesh.instance_count,
+							want_count])
+
+	## --- H. the ADDITIVE LAW — the T-182 stock unchanged by the dress -----------
+	var body_mm := world.get_node_or_null("Parking/LotBodies") as MultiMeshInstance3D
+	if body_mm == null \
+			or body_mm.multimesh.instance_count != world.parking.dressed_car_count():
+		bad.append("the parking stock moved: the LotBodies MM %d no longer mounts " +
+				"exactly the parking system's %d stalls" % [
+				body_mm.multimesh.instance_count if body_mm != null else -1,
+				world.parking.dressed_car_count()])
+
+	print("SIM DATA %s: lots=%d near=%d mid=%d far=%d dressed=%d/%d tents=%d rvs=%d tables=%d flags=%d canopy c/g/w=%d/%d/%d cleared=%d" % [
+			S, want_centers.size(), tier_counts[0], tier_counts[1], tier_counts[2],
+			near_dressed + mid_dressed, near_sites + mid_sites,
+			total_tents, total_rvs, total_tables, total_flags,
+			cardinal, gold, white, cleared])
+	_check(S, bad.is_empty(), "tents=%d rvs=%d tables=%d flags=%d tiers=%d/%d/%d; %s"
+			% [total_tents, total_rvs, total_tables, total_flags,
+			tier_counts[0], tier_counts[1], tier_counts[2], "; ".join(bad)])
+	world.queue_free()
+
+
+## The band spread (the T-207 law, transcribed — the world's `_tg_band`):
+## a splitmix-style integer finalizer over (roll, band); the 13-bit read
+## feeds the percentage bands ((b * 100) >> 13 → 0..99) and the flag parity
+## rides its LSB.
+func _tg_band(roll: int, band: int) -> int:
+	var h := roll ^ (band * -7046029254386353131)
+	h = (h ^ (h >> 30)) * -4658895280553007687
+	h = (h ^ (h >> 27)) * -7905916399975552669
+	h = h ^ (h >> 31)
+	return (h >> 11) & 0x1FFF
+
+
+## The world's tailgate lot object for an id (null when absent).
+func _tailgate_lot(world: AmesWorld, id: String) -> AmesParking.Lot:
+	for lot: AmesParking.Lot in world.parking.lots:
+		if lot.id == id:
+			return lot
+	return null
+
+
+## The world's retained queue for one tailgate family name (the mounted-MM
+## arms read these; the helper keeps the family table in one place).
+func tailgate_families_tent(world: AmesWorld) -> Array[Transform3D]:
+	return world.tailgate_tent_xfs
+
+
+func tailgate_families_leg(world: AmesWorld) -> Array[Transform3D]:
+	return world.tailgate_tent_leg_xfs
+
+
+func tailgate_families_rv(world: AmesWorld) -> Array[Transform3D]:
+	return world.tailgate_rv_xfs
+
+
+func tailgate_families_band(world: AmesWorld) -> Array[Transform3D]:
+	return world.tailgate_rv_band_xfs
+
+
+func tailgate_families_table(world: AmesWorld) -> Array[Transform3D]:
+	return world.tailgate_table_xfs
+
+
+func tailgate_families_cooler(world: AmesWorld) -> Array[Transform3D]:
+	return world.tailgate_cooler_xfs
+
+
+func tailgate_families_pole(world: AmesWorld) -> Array[Transform3D]:
+	return world.tailgate_flag_pole_xfs
+
+
+func tailgate_families_flag(world: AmesWorld) -> Array[Transform3D]:
+	return world.tailgate_flag_xfs
+
+
+func tailgate_family_count(world: AmesWorld, family: String) -> int:
+	match family:
+		"LotFlats":
+			return -1 ## Not a MM — the count arm skips it via the type check.
+		"LotMarkings":
+			return world.lot_marking_xfs.size()
+		"TentCanopies":
+			return world.tailgate_tent_xfs.size()
+		"TentLegs":
+			return world.tailgate_tent_leg_xfs.size()
+		"RvBodies":
+			return world.tailgate_rv_xfs.size()
+		"RvBands":
+			return world.tailgate_rv_band_xfs.size()
+		"Tables":
+			return world.tailgate_table_xfs.size()
+		"Coolers":
+			return world.tailgate_cooler_xfs.size()
+		"FlagPoles":
+			return world.tailgate_flag_pole_xfs.size()
+		"Flags":
+			return world.tailgate_flag_xfs.size()
+	return -1
 
 
 ## One record entry's min/max corners (p ∓ s·0.5), the dims arms' helpers.

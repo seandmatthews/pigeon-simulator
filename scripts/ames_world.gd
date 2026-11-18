@@ -288,6 +288,27 @@ var hilton_hero_parts: Array[Dictionary] = []
 ## stall-marking transforms (world-local), retained on the headless law.
 var lot_flat_tris: int = 0
 var lot_marking_xfs: Array[Transform3D] = []
+## (T-208) The tailgate-dress records, the same headless law: one transform
+## queue per prop part (canopy slab / leg / RV body / window band / table
+## top / cooler / flag pole / flag slab — world-local), the two palettes
+## that cycle per instance (canopy cardinal-gold-white, flag cardinal-gold)
+## and the per-lot count table `lot id → {tier, sites, dressed, tents, rvs,
+## tables, flags}` the gate reads the gradient and the mix off.
+var tailgate_tent_xfs: Array[Transform3D] = []
+var tailgate_tent_leg_xfs: Array[Transform3D] = []
+var tailgate_rv_xfs: Array[Transform3D] = []
+var tailgate_rv_band_xfs: Array[Transform3D] = []
+var tailgate_table_xfs: Array[Transform3D] = []
+var tailgate_cooler_xfs: Array[Transform3D] = []
+var tailgate_flag_pole_xfs: Array[Transform3D] = []
+var tailgate_flag_xfs: Array[Transform3D] = []
+var tailgate_tent_colors: Array[Color] = []
+var tailgate_flag_colors: Array[Color] = []
+var tailgate_dress_lots: Dictionary = {}
+## (T-208) The bake's Jack Trice pitch anchor (pack-local), recorded by the
+## stadium hero build and read by the tailgate dress's stadium-ward gradient
+## — one data source (the hero's own slot), never a second pinned center.
+var _stadium_pitch_center := Vector2.ZERO
 ## (T-192) The Durham Bandshell hero's part record, the T-191 law carried
 ## downtown: every box the build emitted —
 ## `{hero, band, p, s, color, collide, mesh}` in world-local (pack)
@@ -535,6 +556,18 @@ func generate_step_ground(new_seed: int = seed_value, force_rebuild: bool = fals
 	hilton_hero_parts = [] ## (T-191) The Hilton drum record rebuilds with it.
 	lot_flat_tris = 0 ## (T-191) The tailgate-lot dress records rebuild with it.
 	lot_marking_xfs = []
+	tailgate_tent_xfs = [] ## (T-208) The tailgate-dress records rebuild with it.
+	tailgate_tent_leg_xfs = []
+	tailgate_rv_xfs = []
+	tailgate_rv_band_xfs = []
+	tailgate_table_xfs = []
+	tailgate_cooler_xfs = []
+	tailgate_flag_pole_xfs = []
+	tailgate_flag_xfs = []
+	tailgate_tent_colors = []
+	tailgate_flag_colors = []
+	tailgate_dress_lots = {}
+	_stadium_pitch_center = Vector2.ZERO
 	bandshell_hero_parts = [] ## (T-192) The downtown records rebuild with the world.
 	civic_hero_parts = []
 	civic_tank_hero_parts = [] ## (T-193) The civic tank record rebuilds with the world.
@@ -627,6 +660,10 @@ func generate_step_finish() -> void:
 			pinned += 1
 			if traffic_graph.intersection_is_signal(a):
 				signalized += 1
+	var tg_counts := {"tents": 0, "rvs": 0, "tables": 0, "flags": 0} ## (T-208)
+	for rec: Dictionary in tailgate_dress_lots.values():
+		for key: String in tg_counts:
+			tg_counts[key] = int(tg_counts[key]) + int(rec.get(key, 0))
 	last_report = {
 		"world": WORLD_ID,
 		"chunks": _chunks.size(),
@@ -659,6 +696,10 @@ func generate_step_finish() -> void:
 		"hilton_parts": hilton_hero_parts.size(), ## (T-191) The drum hero is live.
 		"lot_flat_tris": lot_flat_tris, ## (T-191) The tailgate-lot flats are live.
 		"lot_markings": lot_marking_xfs.size(), ## (T-191) The stall-marking hint is live.
+		"tailgate_tents": int(tg_counts["tents"]), ## (T-208) The gameday dress is live.
+		"tailgate_rvs": int(tg_counts["rvs"]),
+		"tailgate_tables": int(tg_counts["tables"]),
+		"tailgate_flags": int(tg_counts["flags"]),
 		"bandshell_parts": bandshell_hero_parts.size(), ## (T-192) The bandshell hero is live.
 		"civic_parts": civic_hero_parts.size(), ## (T-192) The civic pair is live.
 		"fabric_parts": fabric_parts.size(), ## (T-192) The Main Street fabric is live.
@@ -4570,6 +4611,7 @@ func _build_stadium_hero(chunk_root: Node3D, chunk: Dictionary, center: Vector3,
 		break
 	if not found:
 		return ## Not this chunk's slot (or the bake lost the pitch — the gate fails loudly).
+	_stadium_pitch_center = c ## (T-208) The dress's gradient anchor rides the hero's own slot.
 	var boxes := _stadium_boxes(c)
 	var root := Node3D.new()
 	root.name = "HeroJackTrice"
@@ -4901,16 +4943,16 @@ func _elliptic_slab_mesh(rx: float, rz: float, thickness: float,
 ## --- T-191 the tailgate lot massing -----------------------------------------
 ## The surrounding Iowa State Center lots as paved flats with a white
 ## stall-marking hint (§1.3's LOD row: "L0 ground splats + prop scatter" —
-## the populated dressing is T-208's). The data path is the parking
-## census's own lot list (`AmesParking.lots`, the census §3 tailgate box
-## filter that file carries) — one data source, paint and dressing can
-## never disagree. The flats ride the T-187 mesh path (ear-clip over the
-## baker's own ring-split, mesh-carried vertex colors converted
-## sRGB→linear at the build); the markings ride a box MultiMesh at the
-## 30 mm-proud step the ribbon read proved depth-safe. Both families live
-## OUTSIDE the bake-derived render metric (the T-187 corner-dress law),
-## records retained for the gate. Zero RNG of any stream — a rebuild
-## reproduces every transform byte-identically.
+## the populated dressing IS T-208's, built right after the hint below).
+## The data path is the parking census's own lot list (`AmesParking.lots`,
+## the census §3 tailgate box filter that file carries) — one data source,
+## paint and dressing can never disagree. The flats ride the T-187 mesh
+## path (ear-clip over the baker's own ring-split, mesh-carried vertex
+## colors converted sRGB→linear at the build); the markings ride a box
+## MultiMesh at the 30 mm-proud step the ribbon read proved depth-safe.
+## All the families live OUTSIDE the bake-derived render metric (the T-187
+## corner-dress law), records retained for the gate. Zero RNG of any
+## stream — a rebuild reproduces every transform byte-identically.
 const LOT_FLAT_Y := 0.03 ## The paved flat, above the 0.014 ground-cell tops.
 const LOT_MARK_Y := 0.06 ## The stall lines, 30 mm proud of the flat.
 const LOT_ROW_PITCH := 6.0 ## The stall-row module (depth + aisle).
@@ -4925,16 +4967,19 @@ func _build_tailgate_lots() -> void:
 	root.name = "StadiumLots"
 	add_child(root)
 	var lots: Array[PackedVector2Array] = []
+	var tailgate_lots: Array[AmesParking.Lot] = []
 	var union := Rect2()
 	for lot: AmesParking.Lot in parking.lots:
 		if not lot.in_tailgate or lot.polygon.size() < 3:
 			continue
 		lots.append(lot.polygon)
+		tailgate_lots.append(lot)
 		union = union.merge(lot.aabb)
 	if lots.is_empty():
 		return ## The census lost the lot sea — the gate fails loudly.
 	_build_lot_flats(root, lots)
 	_build_lot_markings(root, lots, union)
+	_build_tailgate_dressing(root, tailgate_lots, union)
 
 
 ## The paved flats: every tailgate lot polygon ear-clipped (the baker's own
@@ -5032,6 +5077,304 @@ func _build_lot_markings(root: Node3D, lots: Array[PackedVector2Array],
 	mm.custom_aabb = AABB(mm_lo, mm_size)
 	var node := MultiMeshInstance3D.new()
 	node.name = "LotMarkings"
+	node.multimesh = mm
+	root.add_child(node)
+
+
+## --- T-208 the tailgate dressing ---------------------------------------------
+## Game-day as a permanent golden-afternoon read over the T-191 lot sea (the
+## ticket: the Reddit lane's defining ritual — "probably the best in the Big
+## 12" — captured static, at prop cost): pop-up canopy tents, a few RVs,
+## folding-table clusters and flag hints on the STADIUM-ADJACENT lots, the
+## cardinal-gold family carrying the joke (the stadium seat palette's own
+## two hexes + the marking white — colors only, no marks, no text, no NPCs,
+## no schedules, no stands, no sound; the interactive gameday is an R6 owner
+## pick).
+##
+## THE DENSITY LAW — the lots near the bowl fill hardest, three tiers off the
+## bake's own pitch anchor (`_stadium_pitch_center`, the hero slot — one data
+## source): the NEAR ring (lot center ≤ TG_NEAR_DIST) dresses the pinned
+## TG_NEAR_FILL share of its sites — the Iowa State Center core the census's
+## tailgate box actually holds against the bowl; the MID ring (≤ TG_MID_DIST)
+## a light sprinkle; every FAR lot stays T-182's car-only stock — the
+## outlying sea (census lots across town) never grows a prop.
+##
+## THE PLACEMENT LAW — sites ride the T-182 row module's own AISLE band
+## (row_pos + stall depth + half aisle, one site per TG_SITE_PITCH along the
+## row — the two-stall tailgate party site), so a prop STRUCTURALLY clears
+## every dressing car and every fleet-parkable gap: the nearest stall center
+## sits half an aisle + half a stall away (≥ 5.75 m planar), the prop's
+## across-extent never reaches the stall band, and `park_spots_near` keeps
+## every gap slot. Each rolled-in candidate re-runs the T-182 stall guard
+## chain (lake, building ground, rail ballast, street asphalt) through the
+## parking system's own guards (`street_guard_candidates` / `prop_guard_ok`)
+## plus the footprint-corner in-polygon clip the T-191 marking hint uses.
+##
+## THE KIND + PALETTE MIX — every dressed site rolls its prop (RV / table /
+## flag / tent at the pinned shares) and every tent or flag rolls its color
+## (canopy cardinal / gold / white at the pinned gentle mix — no cardinal
+## invasion; flags alternate cardinal-gold) off ONE stable `hash()` base
+## roll per site spread through the T-207 band law (`_tg_band`'s splitmix
+## finalizer — the raw string-hash spread correlated its low bits across
+## same-prefix keys, the drift the canopy bake already paid for). Zero RNG
+## of any stream — a rebuild reproduces every transform and color
+## byte-identically. Visual-only dressing (the T-180 corner-dress law):
+## zero colliders; the families live OUTSIDE the bake-derived render
+## metric (the T-187 corner-dress law); records retained for the gate.
+
+## The density tiers (m, lot center to the pitch anchor — pinned on the
+## measured census sea: 9 lots at 189–278 m against the bowl, 4 more at
+## 436–576 m, 13 outlying at 647+ m stay car-only).
+const TG_NEAR_DIST := 320.0
+const TG_MID_DIST := 620.0
+## The pinned site fills (% of walked sites that dress — near fills hardest).
+const TG_NEAR_FILL := 55
+const TG_MID_FILL := 22
+## The site lattice: one party site per two T-182 stall pitches along the
+## row (m), standing in the aisle band.
+const TG_SITE_PITCH := 5.2
+## The pinned prop shares (% of DRESSED sites): RV 12 / table cluster 26 /
+## flag hint 7 / tent the 55 remainder ("a few RVs" — the photo-14 coach
+## read, tent-dominant speckle).
+const TG_KIND_RV := 12
+const TG_KIND_TABLE := 26
+const TG_KIND_FLAG := 7
+## The pinned tent-canopy mix (% of tents — the gentle cardinal-gold read:
+## cardinal 38 / gold 32 / the marking white 30; no lot dresses monochrome
+## — the gate's own arm).
+const TG_TENT_CARDINAL := 38
+const TG_TENT_GOLD := 32
+
+## The prop dims (m; local X = ALONG the row, local Z = across, Y up):
+const TG_TENT_SIZE := Vector3(3.0, 0.12, 3.0) ## The pop-up canopy slab.
+const TG_TENT_TOP_Y := 2.36 ## Slab center over its 2.3 m legs.
+const TG_TENT_LEG_XZ := 1.42 ## The legs' half-spans (the slab's corners).
+const TG_TENT_LEG := Vector3(0.06, 2.3, 0.06)
+const TG_RV_SIZE := Vector3(9.0, 3.2, 2.6) ## The photo-14 coach, ALONG the row.
+const TG_RV_CY := 1.75 ## Body center (0.15 ride height over the ground).
+const TG_RV_BAND := Vector3(7.2, 0.8, 2.64) ## The dark window band.
+const TG_RV_BAND_CY := 2.05
+const TG_TABLE_SIZE := Vector3(1.8, 0.08, 0.75) ## The folding-table top.
+const TG_TABLE_CY := 0.72
+const TG_COOLER_SIZE := Vector3(0.55, 0.45, 0.35) ## The red cooler beside it.
+const TG_COOLER_LOCAL := Vector3(0.9, 0.225, 0.0)
+const TG_POLE := Vector3(0.05, 4.6, 0.05) ## The flag pole.
+const TG_POLE_CY := 2.3
+const TG_FLAG_SIZE := Vector3(0.9, 0.02, 0.6) ## The flag hint slab.
+const TG_FLAG_LOCAL := Vector3(0.48, 4.15, 0.0)
+
+## The palette — the survey §1.3 rows verbatim (the stadium's own two hexes
+## carry the joke) + the dark law where the survey pins no hex.
+const TG_COLOR_CARDINAL := STADIUM_SEAT_CARDINAL ## #A6192E the seat field.
+const TG_COLOR_GOLD := STADIUM_SEAT_GOLD ## #C9A94E the section gold.
+const TG_COLOR_CANOPY_WHITE := Color(0.91, 0.91, 0.887) ## #E8E8E2 the marking white.
+const TG_COLOR_STEEL := Color(0.13, 0.13, 0.14) ## Dark law ≤ 0.25 — legs, poles, the RV glass band.
+const TG_COLOR_RV := Color(0.72, 0.72, 0.70) ## Photo-14's silver coach body.
+const TG_COLOR_TABLE := Color(0.898, 0.886, 0.855) ## #E5E2DA the folding-table cream.
+
+
+func _build_tailgate_dressing(root: Node3D, lots: Array[AmesParking.Lot],
+		union: Rect2) -> void:
+	if _stadium_pitch_center == Vector2.ZERO:
+		return ## The bake lost the pitch anchor — the gradient is undefined;
+			## the gate's recount fails loudly against the missing dress.
+	for lot: AmesParking.Lot in lots:
+		_dress_tailgate_lot(lot)
+	if tailgate_tent_xfs.is_empty():
+		return ## Nothing survived the guards — the gate fails loudly.
+	_spawn_tg_family(root, "TentCanopies", tailgate_tent_xfs,
+			tailgate_tent_colors, Color(), union)
+	_spawn_tg_family(root, "TentLegs", tailgate_tent_leg_xfs, [],
+			TG_COLOR_STEEL, union)
+	_spawn_tg_family(root, "RvBodies", tailgate_rv_xfs, [], TG_COLOR_RV, union)
+	_spawn_tg_family(root, "RvBands", tailgate_rv_band_xfs, [],
+			TG_COLOR_STEEL, union)
+	_spawn_tg_family(root, "Tables", tailgate_table_xfs, [], TG_COLOR_TABLE,
+			union)
+	_spawn_tg_family(root, "Coolers", tailgate_cooler_xfs, [],
+			TG_COLOR_CARDINAL, union)
+	_spawn_tg_family(root, "FlagPoles", tailgate_flag_pole_xfs, [],
+			TG_COLOR_STEEL, union)
+	_spawn_tg_family(root, "Flags", tailgate_flag_xfs, tailgate_flag_colors,
+			Color(), union)
+
+
+## One lot's dressing walk: tier by the pinned distance bands, tier 2 exits
+## car-only, then the aisle-band site lattice — every walked site rolls its
+## fill, every rolled-in site rolls its kind and colors, survives the
+## footprint + guard chain, and lands its props on the retained queues (the
+## per-lot record rides `tailgate_dress_lots` for the gate).
+func _dress_tailgate_lot(lot: AmesParking.Lot) -> void:
+	var dist := lot.center.distance_to(_stadium_pitch_center)
+	var tier := 0 if dist <= TG_NEAR_DIST else (1 if dist <= TG_MID_DIST else 2)
+	var rec: Dictionary = {"tier": tier, "sites": 0, "dressed": 0, "tents": 0,
+			"rvs": 0, "tables": 0, "flags": 0}
+	tailgate_dress_lots[lot.id] = rec
+	if tier == 2:
+		return ## The outlying lots stay car-only (T-182's stock).
+	var fill := TG_NEAR_FILL if tier == 0 else TG_MID_FILL
+	var long_x := (lot.aabb.size.x) >= (lot.aabb.size.y)
+	var row_start := lot.aabb.position.y if long_x else lot.aabb.position.x
+	var row_end := lot.aabb.end.y if long_x else lot.aabb.end.x
+	var along_start := lot.aabb.position.x if long_x else lot.aabb.position.y
+	var along_end := lot.aabb.end.x if long_x else lot.aabb.end.y
+	var module: float = AmesParking.LOT_STALL_DEPTH + AmesParking.LOT_AISLE
+	var candidates := parking.street_guard_candidates(lot)
+	## The row/site counts (the T-182 while-form's closed form — a `for`
+	## keeps every site on its float-exact lattice point and cannot eat an
+	## increment behind a `continue`).
+	var row_span := row_end - row_start
+	var row_count := 0
+	if row_span >= AmesParking.LOT_STALL_DEPTH * 0.5:
+		row_count = floori((row_span - AmesParking.LOT_STALL_DEPTH * 0.5)
+				/ module) + 1
+	var row_along_span := along_end - along_start
+	var site_count := 0
+	if row_along_span >= TG_SITE_PITCH * 0.5:
+		site_count = floori(row_along_span / TG_SITE_PITCH - 0.5) + 1
+	for row in row_count:
+		var row_pos := row_start + module * float(row)
+		## The aisle band's middle — structurally clear of the stall band.
+		var site_cross := row_pos + AmesParking.LOT_STALL_DEPTH \
+				+ AmesParking.LOT_AISLE * 0.5
+		for k in site_count:
+			var u := along_start + TG_SITE_PITCH * (float(k) + 0.5)
+			var x := u if long_x else site_cross
+			var z := site_cross if long_x else u
+			rec["sites"] = int(rec["sites"]) + 1
+			var roll := hash("tailgate/%s/%d/%d" % [lot.id, row, k])
+			## One base roll per site, spread through the T-207 band law: a
+			## splitmix-style integer finalizer per band — the raw string-hash
+			## spread correlated its low bits across the same-prefix keys (the
+			## first probe's canopy mix landed 70/94/24 against its 38/32/30
+			## bands — the T-207 drift lesson, again).
+			if (_tg_band(roll, 0) * 100) >> 13 >= fill:
+				continue
+			var kind_roll := (_tg_band(roll, 1) * 100) >> 13
+			var color_roll := _tg_band(roll, 2)
+			## The site basis: yaw faces the row's aisle (the T-182 facing
+			## law); local X runs ALONG the row, local Z across.
+			var facing := Vector2(0.0, 1.0 if row % 2 == 0 else -1.0)
+			if not long_x:
+				facing = Vector2(1.0 if row % 2 == 0 else -1.0, 0.0)
+			var kind := 3 ## Tent (the roll's remainder).
+			var kp := kind_roll % 100
+			if kp < TG_KIND_RV:
+				kind = 0
+			elif kp < TG_KIND_RV + TG_KIND_TABLE:
+				kind = 1
+			elif kp < TG_KIND_RV + TG_KIND_TABLE + TG_KIND_FLAG:
+				kind = 2
+			## The footprint's half-spans (along, across) per kind — the RV
+			## coach along the row, the table cluster over its cooler, the
+			## flag slab hung out past its pole, the tent square.
+			var footprint := Vector2(1.5, 1.5)
+			match kind:
+				0:
+					footprint = Vector2(4.5, 1.3)
+				1:
+					footprint = Vector2(1.3, 0.6)
+				2:
+					footprint = Vector2(0.95, 0.35)
+			if not _tg_footprint_ok(x, z, footprint, long_x, lot.polygon):
+				continue
+			if not parking.prop_guard_ok(x, z, candidates):
+				continue
+			rec["dressed"] = int(rec["dressed"]) + 1
+			var cp := (color_roll * 100) >> 13
+			var ground := ground_height(to_global(Vector3(x, 0.0, z)))
+			var base := Transform3D(Basis(Vector3.UP, atan2(-facing.x, -facing.y)),
+					Vector3(x, ground, z))
+			match kind:
+				0:
+					var xf := base * Transform3D(Basis.from_scale(TG_RV_SIZE),
+							Vector3(0.0, TG_RV_CY, 0.0))
+					tailgate_rv_xfs.append(xf)
+					tailgate_rv_band_xfs.append(base * Transform3D(
+							Basis.from_scale(TG_RV_BAND),
+							Vector3(0.0, TG_RV_BAND_CY, 0.0)))
+					rec["rvs"] = int(rec["rvs"]) + 1
+				1:
+					tailgate_table_xfs.append(base * Transform3D(
+							Basis.from_scale(TG_TABLE_SIZE),
+							Vector3(0.0, TG_TABLE_CY, 0.0)))
+					tailgate_cooler_xfs.append(base * Transform3D(
+							Basis.from_scale(TG_COOLER_SIZE), TG_COOLER_LOCAL))
+					rec["tables"] = int(rec["tables"]) + 1
+				2:
+					tailgate_flag_pole_xfs.append(base * Transform3D(
+							Basis.from_scale(TG_POLE),
+							Vector3(0.0, TG_POLE_CY, 0.0)))
+					tailgate_flag_xfs.append(base * Transform3D(
+							Basis.from_scale(TG_FLAG_SIZE), TG_FLAG_LOCAL))
+					tailgate_flag_colors.append(
+							TG_COLOR_CARDINAL if (color_roll & 1) == 0
+							else TG_COLOR_GOLD) ## The 13-bit band's LSB — post-avalanche parity.
+					rec["flags"] = int(rec["flags"]) + 1
+				3:
+					tailgate_tent_xfs.append(base * Transform3D(
+							Basis.from_scale(TG_TENT_SIZE),
+							Vector3(0.0, TG_TENT_TOP_Y, 0.0)))
+					for sx: float in [-TG_TENT_LEG_XZ, TG_TENT_LEG_XZ]:
+						for sz: float in [-TG_TENT_LEG_XZ, TG_TENT_LEG_XZ]:
+							tailgate_tent_leg_xfs.append(base * Transform3D(
+									Basis.from_scale(TG_TENT_LEG),
+									Vector3(sx, TG_TENT_LEG.y * 0.5, sz)))
+					tailgate_tent_colors.append(
+							TG_COLOR_CARDINAL if cp < TG_TENT_CARDINAL
+							else (TG_COLOR_GOLD if
+									cp < TG_TENT_CARDINAL + TG_TENT_GOLD
+									else TG_COLOR_CANOPY_WHITE))
+					rec["tents"] = int(rec["tents"]) + 1
+
+
+## The band spread (the T-207 law, transcribed): a splitmix-style integer
+## finalizer over (roll, band) — int64 arithmetic wraps deterministically,
+## no RNG; the 13-bit read feeds the percentage bands ((b * 100) >> 13 →
+## 0..99) and the flag parity rides its LSB.
+func _tg_band(roll: int, band: int) -> int:
+	var h := roll ^ (band * -7046029254386353131)
+	h = (h ^ (h >> 30)) * -4658895280553007687
+	h = (h ^ (h >> 27)) * -7905916399975552669
+	h = h ^ (h >> 31)
+	return (h >> 11) & 0x1FFF
+
+
+## One site's footprint guard: the center plus the four bbox corners
+## in-polygon (the T-191 marking-hint clip, widened for the prop's own box —
+## `footprint` is (half along, half across) in the site's unrotated axes,
+## which stay world-axis-aligned under the ±90° row facings).
+func _tg_footprint_ok(x: float, z: float, footprint: Vector2, long_x: bool,
+		poly: PackedVector2Array) -> bool:
+	var ha := footprint.x
+	var hc := footprint.y
+	for d_along: float in [-ha, 0.0, ha]:
+		for d_across: float in [-hc, 0.0, hc]:
+			var px := (x + d_along) if long_x else (x + d_across)
+			var pz := (z + d_across) if long_x else (z + d_along)
+			if not Geometry2D.is_point_in_polygon(Vector2(px, pz), poly):
+				return false
+	return true
+
+
+## One tailgate family MultiMesh: the queue's transforms, the per-instance
+## palette when given (parallel array) else the family's constant color, the
+## queue's origin bounds grown wide enough to bound every part's extent (the
+## RV's ±4.5 m half-length sets the 6 m pad — the T-182 family law at its
+## own pad).
+func _spawn_tg_family(root: Node3D, node_name: String,
+		xfs: Array[Transform3D], colors: Array[Color], color: Color,
+		union: Rect2) -> void:
+	if xfs.is_empty():
+		return
+	var mm := _new_multimesh(xfs.size())
+	var per_instance := not colors.is_empty()
+	for i in xfs.size():
+		mm.set_instance_transform(i, xfs[i])
+		mm.set_instance_color(i, colors[i] if per_instance else color)
+	mm.custom_aabb = _queue_aabb(xfs).grow(6.0)
+	var node := MultiMeshInstance3D.new()
+	node.name = node_name
 	node.multimesh = mm
 	root.add_child(node)
 
