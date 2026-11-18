@@ -1,6 +1,6 @@
 # T-209 — Ames R5 · performance pass: budgets audited, the web fork decided
 
-- **Status:** proposed · **Category:** code-optimization · **Ring**: R5 The Town ·
+- **Status:** doing · **Category:** code-optimization · **Ring**: R5 The Town ·
   **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-206, T-207, T-208 (the last visual weight)
 - **Refs:** master plan §2 (lighting policy), §12 (melt-factors) ·
