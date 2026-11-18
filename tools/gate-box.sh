@@ -55,11 +55,16 @@ nice -n 10 "$GODOT" --headless --path "$WT" --import > "$WT.gate1_import.log" 2>
 IMPORT_RC=$?
 nice -n 10 "$GODOT" --headless --path "$WT" --quit-after 120 > "$WT.gate1_boot.log" 2>&1
 BOOT_RC=$?
-if [ "$IMPORT_RC" -eq 0 ] && [ "$BOOT_RC" -eq 0 ] \
-        && ! grep -qE "^ERROR: |^SCRIPT ERROR:" "$WT.gate1_import.log" "$WT.gate1_boot.log"; then
+## Godot's benign exit-cleanup line ("ERROR: N resources still in use at
+## exit") fires on pristine trees too — the Windows gate scan strips it
+## (the pipeline def has done so since T-133), so the box scan does as well.
+HARD_ERRS="$(grep -hE '^ERROR: |^SCRIPT ERROR:' "$WT.gate1_import.log" "$WT.gate1_boot.log" 2>/dev/null \
+    | grep -v 'still in use at exit' || true)"
+if [ "$IMPORT_RC" -eq 0 ] && [ "$BOOT_RC" -eq 0 ] && [ -z "$HARD_ERRS" ]; then
     echo "GATE1 PASS"
 else
     echo "GATE1 FAIL (import rc=$IMPORT_RC boot rc=$BOOT_RC; logs: $WT.gate1_*.log)"
+    echo "$HARD_ERRS" | head -5
     FAILED=1
 fi
 
