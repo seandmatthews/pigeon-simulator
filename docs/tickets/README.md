@@ -401,3 +401,4 @@ after T-203. Within-ring parallelism rides the per-ticket worktree lanes;
 cross-ring is serial by design. Pipeline runs use `deploy:false` while the
 hosted box is dead.
 | T-212 | [The testing deploy target: the Ames branch at /pigeon-simulator/testing](T-212-testing-deploy-target.md) | tooling | 3 | 1 | done |
+| T-213 | [Box gate runner: the machine gates run on the Ubuntu box](T-213-box-gate-runner.md) | tooling | 4 | 2 | doing |

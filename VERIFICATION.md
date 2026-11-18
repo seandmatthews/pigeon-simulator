@@ -493,20 +493,45 @@ checklist below.
 
 The games box is a Dell OptiPlex running **Ubuntu Server** (2026-11-13: it
 replaced the dead NixOS box for hosting AND testing). Nothing it runs touches
-a desktop — gates are headless, rendered sessions live on a persistent Xvfb —
-so the T-170 focus-steal defect class does not exist there.
+a desktop — gates are headless, and the T-170 focus-steal defect class does
+not exist there. **Since T-213 the machine gates RUN HERE** (the pipeline and
+sweep call `tools/gate-box.sh` over ssh; no Windows Godot window is spawned
+by a gate leg), and Gate 2 renders on **hardware GL** (T-213): a real
+`Xorg :98` on the iGPU (`pigeon-xorg.service`, systemd, vt8 with
+`-novtswitch` — a background VT, so the two real downstairs monitors keep
+their foreground; GL rendering and viewport-texture screenshots don't care
+about scanout). Autoplay went fps=1 (llvmpipe ≈ 1 hr/run) → **fps=56 ≈
+2 min/run**. Two monitors plugged in means plain Xorg (modesetting) just
+works — no dummy-driver/EDID tricks.
 
 **One-time setup** (per machine / fresh checkout):
 
 ```bash
-sudo apt install python3 xvfb xdotool x11-apps imagemagick
+sudo apt install python3 xvfb xdotool x11-apps imagemagick \
+    xserver-xorg-core x11-xserver-utils
+sudo systemctl enable --now pigeon-xorg.service   # the :98 hardware-GL display
 # the 4.7.2 Linux editor binary at ~/bin/Godot_v4.7.2-stable_linux.x86_64
 #   (pilot.py finds it there; or export PIGEON_BIN=<path>)
 # fresh checkouts only: copy the untracked per-machine addon in
 #   cp -r addons/godot_mcp <checkout>/addons/   (same precondition as Windows)
 ```
 
-**Gates on the box** (`godot` here means the Linux binary):
+**Checkout layout (T-213)** — `~/pigeon-simulator` tracks `origin/main`
+(the prod deploy source); `~/pigeon-simulator-testing` is a git worktree on
+the integration branch (`ames/campaign` while the Ames campaign rides it,
+`develop` after the T-210 cutover) for gate runs and the testing deploy.
+
+**The gate runner (T-213)** — one ssh line gates any pushed ref; the
+pipeline and sweep machine-gate legs call exactly this:
+
+```bash
+ssh -i ~/.ssh/basement_box sean@192.168.1.247 \
+    'cd ~/pigeon-simulator && tools/gate-box.sh <ref>'
+# prints GATE1/GATE1B/GATE2 PASS|FAIL lines + "GATE-BOX RESULT: PASS|FAIL",
+# exit 0 only when all three gates pass; --skip-gate2 skips autoplay
+```
+
+**Gates on the box, by hand** (`godot` here means the Linux binary):
 
 ```bash
 # Gate 1 + 1b — the Windows commands byte-for-byte (headless needs no X):
@@ -514,9 +539,10 @@ godot --headless --path . --import
 godot --headless --path . --quit-after 120
 godot --headless --path . --check-only --script res://scripts/player.gd
 godot --headless --fixed-fps 60 --path . res://tests/sim_test.tscn
-# Gate 2 autoplay — needs pixels: one-shot Xvfb is fine for a single command:
-xvfb-run -a godot --path . --rendering-method gl_compatibility \
+# Gate 2 autoplay — on the hardware-GL display:
+DISPLAY=:98 godot --path . --rendering-method gl_compatibility \
     --rendering-driver opengl3 --audio-driver Dummy res://tests/autoplay.tscn
+# (fallback without pigeon-xorg.service: xvfb-run -a godot … — software GL ≈ 1 fps)
 ```
 
 `--rendering-method gl_compatibility` is load-bearing on the box: the desktop
@@ -548,9 +574,10 @@ python3 -I tests/tools/pilot.py stop  --session <id>
 - POSIX non-sound launches pass `--audio-driver Dummy` automatically.
 - `focuscheck` self-skips on non-Windows: the T-170 hidden-launch contract is
   a Win32 one, and a server has nothing to steal.
-- **Watch-item:** `density_cpu_budget` pins a wall-clock value measured on
-  the Windows dev machine — a slower box CPU can go red without a code
-  fault. Re-derive the budget on the box before treating it as a regression.
+- **Watch-item, defused:** `density_cpu_budget` pins a wall-clock value
+  measured on the Windows dev machine — but the box measured **median 120.8
+  vs the 750 budget** (2026-11-13), so a red there is a real regression, not
+  a slow-CPU artifact.
 
 
 
