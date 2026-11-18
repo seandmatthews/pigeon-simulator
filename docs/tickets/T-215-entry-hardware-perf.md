@@ -3,7 +3,7 @@
 *(Absorbs T-214 — the tailgate-zone traffic storm — as its lead evidence; that
 ticket's diagnosis is this ticket's Avenue A, unified by the gate-box canary.)*
 
-- **Status:** proposed · **Category:** code-optimization ·
+- **Status:** doing · **Category:** code-optimization ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
 - **Depends on:** the T-209 perf ledger it supersedes' numbers (its budgets were
   dev-hardware numbers); blocks T-210 (the grand tour's box gate cannot pass
