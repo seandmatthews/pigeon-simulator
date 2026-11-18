@@ -43,9 +43,11 @@ web question deserves numbers, not vibes.
       his pick recorded (the one-pager is in § 5 with all measurements;
       the pick records at the review — it is the owner's, not the
       implementer's, to make)
-- [ ] *(Gate 1b)* full suite green (perf gates re-pinned if tuning
-      changed values)
-- [ ] *(Gate 1/2)* clean
+- [x] *(Gate 1b)* full suite green (perf gates re-pinned if tuning
+      changed values) — 164 PASS / 0 FAIL on the final audited tree;
+      no tuning moved, so no re-pins
+- [x] *(Gate 1/2)* clean — Gate 1 import+boot exit 0 / zero error
+      lines; Gate 2 `ok=true world=ames fps=139 restart=true`, exit 0
 
 ## Verification (proposed)
 
@@ -71,17 +73,22 @@ T-173's budget, as the gate now pins it (`tests/sim_test.gd`
 `_scenario_ames_world_render_budget`): whole-world draw ceiling 2100,
 gameplay-pose ceiling 1800, chunk memory ≤ 400 MB — plus the game's
 own ~60 fps bar (T-004) and T-018's CPU-side density budget
-(750 ms / 100 physics frames, median; measured 505.8 ms this tree,
-under budget but the headroom halved — see the ledger note). The
+(750 ms / 100 physics frames, median; measured 505.8 / 445.2 ms in
+the two full-suite runs on this tree — under budget, with the T-018
+3× headroom halved — see the ledger note). The
 frame-ms read is the perf stream's fps monitor (ms ≈ 1000/fps),
 median over each window's blocks.
 
 | Sweep (pose from the ticket) | fps med (min) | draw calls med | phys µs med | verdict |
 | --- | --- | --- | --- | --- |
-| Campustown low hover at dusk — sun driven to T-186's dusk grade (−9°, −110°) via the T-169 call verb (`set_rotation_degrees` on `/root/Main/Sun`; the engine carries ONE fixed sun, main.gd:215 — no time-of-day exists, night is an R6 pick, so "dusk" is the driven grade), 20 m hover sinking to grounded over the window | 108 (92) FP · 121 (114) GL | 1947 FP · 2242 GL | 9–15 ms | **PASS** (~1.8× the 60 fps bar) |
+| Campustown low hover at dusk — sun driven to T-186's dusk grade (−9°, −110°) via the T-169 call verb (`set_rotation_degrees` on `/root/Main/Sun`; the engine carries ONE fixed sun, main.gd:215 — no time-of-day exists, night is an R6 pick, so "dusk" is the driven grade), 20 m hover sinking to grounded over the window | 108 (92) FP · 121 (114) GL† | 1947 FP · 2242 GL | 9–15 ms | **PASS** (~1.8× the 60 fps bar) |
 | Campustown street level, dusk, grounded at (−268, 0.3, 60) | 122 FP · 125 GL | 1913 FP · 2225 GL | 9 ms | **PASS** |
 | Stadium complex cruise on game-day dressing (T-208's lots are static, always-on), 60 m over the bowl at (1192, 997) gliding to grounded | **33 (28) FP · 38 (29) GL** | 1361 FP · 1491 GL | **510 ms FP · 336 ms GL** | **MISS — ~half the 60 fps bar** |
 | Downtown at ground level, grounded on Main St (2705, 0.3, −256) | 143 (125) FP · 144 GL | 611 FP · 719 GL | 6–8 ms | **PASS** (the street canyon is the cheapest pose in town) |
+
+† the GL pass's hover window caught the pose already grounded (the GL
+teleport grounded faster) — that cell is a dusk street-level read at the
+same spot; the FP cell carries the true 20 m→grounded hover window.
 
 Draw side never in question: the cruise-pose frustum admits 249–288
 chunks (the python replica of the gate's own `_frustum_draw_ceiling`
@@ -260,11 +267,16 @@ recorded without the owner would be fabricated).
 ### Gate runs on the audited tree
 
 - Gate 1: `--import` exit 0 (the one accepted godot_mcp teardown
-  line); `--quit-after 120` exit 0, zero error lines.
-- Gate 1b: **164 PASS / 0 FAIL, exit 0** (`SIM SUMMARY: 0 failure(s)`),
-  no tuning values moved, so every perf pin stands as landed — no
-  re-pins owed.
-- Gate 2: `AUTOPLAY DONE ok=true world=ames … fps=138 … restart=true`,
-  exit 0.
+  line); `--quit-after 120` exit 0, zero error lines — run twice
+  (baseline and final tree).
+- Gate 1b: **164 PASS / 0 FAIL, exit 0** (`SIM SUMMARY: 0 failure(s)`)
+  on BOTH the baseline tree and the final audited tree; the
+  `ames_world_render_budget` SIM DATA line byte-identical between the
+  two runs (`mm_nodes=2001 instances=60186 buffer_bytes=10303472
+  max_mm_per_chunk=8 cruise_draws=841 hover_draws=81`). No tuning
+  values moved, so every perf pin stands as landed — **no re-pins
+  owed**.
+- Gate 2: `AUTOPLAY DONE ok=true world=ames … fps=138/139 …
+  restart=true`, exit 0 (baseline and final tree).
 - Gate 3: the owner session — pending, see the VERIFICATION line.
 
