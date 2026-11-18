@@ -6,9 +6,24 @@
 ## runs Gate 1 (import + boot) and Gate 1b (sim harness) headless, then
 ## Gate 2 (autoplay) on the hardware-GL display :98 (pigeon-xorg.service).
 ## Prints one machine-greppable line per gate ("GATE1 PASS", "GATE1B PASS
-## checks=N", "GATE2 PASS AUTOPLAY DONE ok=true fps=F") and a final
+## checks=N", "GATE2 PASS AUTOPLAY DONE ok=true fps=F floor=30") and a final
 ## "GATE-BOX RESULT: PASS|FAIL ref=<ref>"; exits non-zero if any gate failed.
 ## Everything runs nice(1)'d so Caddy and the web roots stay snappy.
+##
+## (T-215) Gate 2 enforces the entry-hardware perf bar: the autoplay's DONE
+## fps must be ≥ 30 (half of the 60 Hz target, the owner's pick) — below it
+## GATE2 FAILs, so the perf budget stays machine-checked on the 2015
+## mid-range machine forever. The floor is overridable for testing with
+## GATE2_FPS_MIN=<n> (a run at floor=999 exercises the FAIL path).
+##
+## (T-215) Gate 2 also wakes the gate display first: the iGPU's panel
+## DPMS-powers-off after 600 idle seconds and the GL present path crawls to
+## ~1 Hz — glxgears included — while the panel sleeps. The whole "1 fps
+## budget" the T-215 profiling chased was a sleeping monitor: woken, the
+## same box runs the world at 51–60 fps at every probe pose and glxgears at
+## 60. xset dpms force on + xset -dpms before the run makes the measured fps
+## the hardware's, not the monitor's power state, and keeps the panel from
+## re-sleeping mid-run.
 ##
 ## Run it from any box checkout (it fetches the ref itself):
 ##   ssh -i ~/.ssh/basement_box sean@192.168.1.247 \
@@ -87,13 +102,26 @@ echo "--- Gate 2: autoplay"
 if [ "$SKIP_GATE2" = "--skip-gate2" ]; then
     echo "GATE2 SKIP (--skip-gate2)"
 else
+    ## (T-215) Wake the gate display and disarm DPMS: a sleeping panel
+    ## throttles the GL present path to ~1 Hz and every fps the gate would
+    ## report is the monitor's power state, not the hardware's.
+    DISPLAY=:98 xset dpms force on >/dev/null 2>&1 || true
+    DISPLAY=:98 xset -dpms >/dev/null 2>&1 || true
     nice -n 10 env DISPLAY=:98 "$GODOT" --path "$WT" --rendering-method gl_compatibility \
         --rendering-driver opengl3 --audio-driver Dummy res://tests/autoplay.tscn > "$WT.gate2.log" 2>&1
     AUTO_RC=$?
     AUTO_DONE="$(grep -o 'AUTOPLAY DONE ok=[a-z]*' "$WT.gate2.log" | tail -1)"
-    AUTO_FPS="$(grep -o 'fps=[0-9]*' "$WT.gate2.log" | tail -1)"
-    if [ "$AUTO_RC" -eq 0 ] && [ "$AUTO_DONE" = "AUTOPLAY DONE ok=true" ]; then
-        echo "GATE2 PASS $AUTO_DONE $AUTO_FPS"
+    AUTO_FPS_RAW="$(grep -o 'fps=[0-9]*' "$WT.gate2.log" | tail -1)"
+    AUTO_FPS="${AUTO_FPS_RAW#fps=}"
+    ## (T-215) The entry-hardware bar: the DONE line's fps must clear the
+    ## floor (default 30 — half of the 60 Hz target, the owner's pick).
+    GATE2_FPS_MIN="${GATE2_FPS_MIN:-30}"
+    if [ "$AUTO_RC" -eq 0 ] && [ "$AUTO_DONE" = "AUTOPLAY DONE ok=true" ] \
+            && [ -n "$AUTO_FPS" ] && [ "$AUTO_FPS" -ge "$GATE2_FPS_MIN" ]; then
+        echo "GATE2 PASS $AUTO_DONE $AUTO_FPS_RAW floor=$GATE2_FPS_MIN"
+    elif [ "$AUTO_RC" -eq 0 ] && [ "$AUTO_DONE" = "AUTOPLAY DONE ok=true" ]; then
+        echo "GATE2 FAIL fps=$AUTO_FPS below floor=$GATE2_FPS_MIN (log: $WT.gate2.log)"
+        FAILED=1
     else
         echo "GATE2 FAIL rc=$AUTO_RC (${AUTO_DONE:-no DONE line}; log: $WT.gate2.log)"
         FAILED=1

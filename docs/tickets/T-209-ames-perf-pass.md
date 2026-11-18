@@ -281,6 +281,24 @@ presented here and in this ticket; **the owner's pick records at the
 review** (the criterion stays honestly open until then — a pick
 recorded without the owner would be fabricated).
 
+**T-215 re-read (2026-11-18, the entry-hardware ticket's landing) — what
+moved on this one-pager's numbers:** the §2 storm pose — the one read that
+halved frames and the one Option A lever (4) told the web fork to wait for
+— is FIXED: the tailgate storm's root cause was the traffic graph's
+brute-force placement queries (10.5 ms per `nearest_runs` call, ~0.3–0.5 s
+of script physics time per wall second inside the lot sea), now indexed
+and machine-pinned (`traffic_placement_budget` Gate 1b row: byte-identical
+answers at six anchors + the box-measured 60 ms placement window; the
+storm bisect tables live in `docs/references/ames-survey/perf/`). The
+gate box's own 1 fps — the read that motivated this ticket's "desktop-only"
+lean — was a sleeping monitor (DPMS), not hardware or game cost: awake,
+the same 2015 machine runs the world at 51–60 fps at every probe pose and
+the box gate now ENFORCES a 30 fps floor at every run. Net: the frame-side
+risk §5 flagged for web/phone ("the §2 storm pose would bite hardest
+there") is retired, and Option A's lever (4) is satisfied — the follow-up
+landed first. The download/boot numbers (§5's other legs) are untouched by
+T-215; the owner's pick on Option A vs B stays the open decision it was.
+
 ### Gate runs on the audited tree
 
 - Gate 1: `--import` exit 0 (the one accepted godot_mcp teardown

@@ -127,8 +127,41 @@ func _ready() -> void:
 	Car.traffic_frozen = false
 
 	await _window("zone_restored", frames)
+	_bench_placement(pose)
 	print("STORM DONE")
 	get_tree().quit()
+
+
+## The Avenue-A bench: the reads the recycle/placement machinery pays inside
+## the zone, timed directly — `park_spots_near` (the dressed-lot offer), the
+## graph's curb-spot deal and one full recycle scan against the zone anchor.
+func _bench_placement(pose: Vector3) -> void:
+	var city := _game.get("city") as City
+	if city == null:
+		return
+	var anchor := Vector2(pose.x, pose.z)
+	var lxz := Vector2(city.to_local(Vector3(pose.x, 0.0, pose.z)).x,
+			city.to_local(Vector3(pose.x, 0.0, pose.z)).z)
+	if city.parking != null:
+		var spots := city.parking.park_spots_near(lxz,
+				AmesParking.LOT_PARK_RADIUS)
+		var t0 := Time.get_ticks_usec()
+		for i: int in 20:
+			city.parking.park_spots_near(lxz, AmesParking.LOT_PARK_RADIUS)
+		print("STORM bench=park_spots_near spots=%d us_per_call=%.0f tailgate_dressed=%d" % [
+				spots.size(),
+				float(Time.get_ticks_usec() - t0) / 20.0,
+				city.parking.dressed_tailgate()])
+	var t1 := Time.get_ticks_usec()
+	for i: int in 5:
+		_car_spawner._recycle_far()
+	print("STORM bench=recycle_scan us_per_scan=%.0f" % [
+			float(Time.get_ticks_usec() - t1) / 5.0])
+	var t2 := Time.get_ticks_usec()
+	for i: int in 5:
+		city.traffic_graph.nearest_runs(lxz.x, lxz.y, 12)
+	print("STORM bench=nearest_runs12 us_per_call=%.0f" % [
+			float(Time.get_ticks_usec() - t2) / 5.0])
 
 
 func _pose_env(key: String, fallback: Vector3) -> Vector3:
