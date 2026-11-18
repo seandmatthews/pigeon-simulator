@@ -43,7 +43,10 @@ else
 fi
 git -C "$WT" clean -fdq >/dev/null 2>&1 || true
 
-## The per-machine addon is untracked and never rides a worktree.
+## The per-machine addon is untracked and never rides a worktree — after
+## clean -fdq the worktree has NO addons/ parent at all, so create it or the
+## cp silently dies (T-210 baseline box-runner:no-output, root cause #2).
+mkdir -p "$WT/addons"
 if [ ! -d "$WT/addons/godot_mcp" ] && [ -d "$REPO/addons/godot_mcp" ]; then
     cp -r "$REPO/addons/godot_mcp" "$WT/addons/godot_mcp"
 fi
