@@ -1,6 +1,6 @@
 # T-209 — Ames R5 · performance pass: budgets audited, the web fork decided
 
-- **Status:** doing · **Category:** code-optimization · **Ring**: R5 The Town ·
+- **Status:** done · **Category:** code-optimization · **Ring**: R5 The Town ·
   **Value (1-5):** 4 · **Risk (1-5):** 3
 - **Depends on:** T-206, T-207, T-208 (the last visual weight)
 - **Refs:** master plan §2 (lighting policy), §12 (melt-factors) ·
@@ -37,12 +37,15 @@ web question deserves numbers, not vibes.
 - [x] Audit ledger recorded in-ticket: frame ms per sweep, memory,
       boot timeline — each vs its budget (§ The audit, below)
 - [x] Any budget miss fixed in-ticket (LOD/band tuning) or escalated
-      as a follow-up with numbers (the tailgate-zone traffic storm
-      escalated, § 2 — not an LOD/band fix, so not fixed here)
+      as a follow-up with numbers (the tailgate-zone traffic storm,
+      § 2 — not an LOD/band fix, so not fixed here; the follow-up is
+      filed as T-214 with the numbers, the A/B and the pointers)
 - [ ] The web-fork one-pager with measurements presented to the owner;
-      his pick recorded (the one-pager is in § 5 with all measurements;
-      the pick records at the review — it is the owner's, not the
-      implementer's, to make)
+      his pick recorded (the one-pager is in § 5 with all measurements
+      and was presented through this ticket and the run record; the
+      review signed the ticket off 2026-11-18 WITHOUT recording a
+      pick — the fork stays the owner's open decision, the one
+      criterion open at close, per the T-129 precedent)
 - [x] *(Gate 1b)* full suite green (perf gates re-pinned if tuning
       changed values) — 164 PASS / 0 FAIL on the final audited tree;
       no tuning moved, so no re-pins
@@ -148,13 +151,13 @@ should chase it with the same rig.
 
 **This is not an LOD/band tuning fix** (no render-family weight is
 implicated — the storm is traffic-side), so per the acceptance
-criterion it escalates: **a follow-up ticket is owed** — "the
-tailgate-zone traffic storm" — carrying the numbers above, the
-freeze-traffic A/B, the zone correlation and the two pointers
-(`LOT_PARK_RADIUS` staging law, car._physics_process per-step work in
-the zone). Until it lands, the honest note for the ring: the town is
-budget-green everywhere except standing inside the game-day lot sea,
-where the frame halves.
+criterion it escalates: **filed as
+[T-214](T-214-ames-tailgate-traffic-storm.md)** — the tailgate-zone
+traffic storm — carrying the numbers above, the freeze-traffic A/B,
+the zone correlation and the two pointers (`LOT_PARK_RADIUS` staging
+law, car._physics_process per-step work in the zone). Until it lands,
+the honest note for the ring: the town is budget-green everywhere
+except standing inside the game-day lot sea, where the frame halves.
 
 ### 3 · Memory audit — chunk payload + hero cost vs the budget
 
@@ -173,7 +176,11 @@ where the frame halves.
   `tests/tools/ames_audit.tscn`, headless): **5,230 nodes** total;
   **2,060 MultiMeshes drawing 106,584 instances**; 428 MeshInstances;
   1,197 collision shapes; one `ArrayOccluder3D` per massing-bearing
-  chunk (251 of 553 — re-confirmed live by the occluder A/B below).
+  chunk (402 of 553 — re-confirmed live three ways: the headless probe
+  counts 402 `OccluderInstance3D` under the built world, max 1 per
+  chunk over 553 chunk nodes; the bake's chunk files carry non-empty
+  occluders+massing 1:1 on 402 of 553, 151 flats-only; the A/B
+  session's own event ledger below).
   The hero/dress families that live OUTSIDE the bake-derived metric
   carry 46,398 of those instances (~43% of the resident total):
   Intersections 18,533 · Parking dressing 17,596 · StadiumLots 7,681 ·
@@ -186,12 +193,22 @@ where the frame halves.
   the whole resident world is a rounding error next to the engine
   itself.)
 - **Occluder effectiveness spot-check** (downtown street-level pose,
-  the occlusion showcase): all 251 occluders toggled OFF live via the
-  T-169 call verb (`set_visible` batch, 302 harmless `unknown_node`
-  refusals = exactly the flats-only chunks), draw calls 611 → 634
+  the occlusion showcase): all 402 occluders toggled OFF and back ON
+  live via the T-169 call verb — the session's own event ledger reads
+  804 `pilot_call_result` acks over 402 DISTINCT chunk occluders
+  (402 × the two passes) and 302 `pilot_call_error` = the 151
+  flats-only chunks × 2 passes (the session dir was swept after the
+  review read it; the batch the session consumed was 553 + 553
+  manifest-driven `set_visible` lines, so the arithmetic closes:
+  804 + 302 = 1106 = 2 × 553). Draw calls 611 → 634
   (**+23, +3.8%**), render objects 990 → 1028 (+38), primitives
   ~flat. Baked occlusion works and prunes, modestly, at the canyon
-  vantage; restore verified. `.captures/session_t209occ/`.
+  vantage; restore verified. (An earlier draft of this ledger wrote
+  "251 occluders / 302 refusals = the flats-only chunks" — that
+  subtraction divided the TWO-pass error total by nothing and matched
+  nothing in the session; the review caught it, the numbers above are
+  the corrected read, re-proven against the bake and the live headless
+  probe.)
 
 ### 4 · Load audit — boot → menu → flight (the T-129 pattern, measured)
 
@@ -279,4 +296,34 @@ recorded without the owner would be fabricated).
 - Gate 2: `AUTOPLAY DONE ok=true world=ames … fps=138/139 …
   restart=true`, exit 0 (baseline and final tree).
 - Gate 3: the owner session — pending, see the VERIFICATION line.
+
+### Landed (2026-11-18)
+
+- **The audit ledger** (the sections above) is the deliverable — no
+  game code changed in this ticket; the only landed artifact is the
+  headless measurement tool `tests/tools/ames_audit.tscn`
+  (the per-family resident-cost table the memory ledger cites).
+- **Tuned values: NONE.** The audit moved no constant — every perf
+  pin stands exactly as landed (the `ames_world_render_budget` SIM
+  DATA line byte-identical across the two full-suite runs:
+  `mm_nodes=2001 instances=60186 buffer_bytes=10303472
+  max_mm_per_chunk=8 cruise_draws=841 hover_draws=81`), so no
+  re-pins were owed and none were made.
+- **The one budget miss** escalated as
+  [T-214](T-214-ames-tailgate-traffic-storm.md) (proposed, carrying
+  the numbers, the A/B, the zone correlation and the pointers).
+
+### Review sign-off
+
+Review round 1 caught two things, both fixed in-commit: the occluder
+ledger misread its own A/B evidence ("251 occluders / 302 refusals =
+the flats-only chunks" — the tree holds 402, re-proven against the
+bake, the live headless probe and the session's event arithmetic),
+and the escalation's vehicle was missing (T-214 now filed). The
+reviewer then played the game and read the code, and signed the
+ticket off (2026-11-18). The web fork — the ticket's one
+owner-decision criterion — stays open at close: the review did not
+record a pick, so §5's one-pager remains the owner's pending decision
+(the master plan §11 fork list item 5), alongside the pending owner
+session on VERIFICATION.md's Gate 3 list.
 
