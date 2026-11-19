@@ -1,0 +1,7 @@
+{
+  "spawn_ms": {
+    "value": 15.61,
+    "capturedAt": "2026-11-19T23:41:10Z",
+    "capturedBy": "climb pre-flight 2026-11-19: median of 5 quiet-machine calibration runs of tools/storm_gate.mjs (15.56/15.56..15.67, spread ~0.7%); metric = wall-ms per physics tick at the spawn pose, headless, population floors active"
+  }
+}

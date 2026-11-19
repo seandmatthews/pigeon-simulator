@@ -38,6 +38,16 @@ const TIMEOUT_MS = 30 * 60_000
 
 ensureAddon()
 
+// The import pass first (the gate-box Gate-1 shape): a fresh worktree has no
+// .godot cache and an unimported project cannot run the harness.
+const imp = spawnSync(GODOT, ['--headless', '--path', '.', '--import'], {
+  encoding: 'utf8', windowsHide: true, timeout: 20 * 60_000,
+})
+if (imp.status !== 0) {
+  console.log(`sim_gate: FAIL import pass rc=${imp.status}`)
+  process.exit(1)
+}
+
 const r = spawnSync(GODOT, ['--headless', '--fixed-fps', '60', '--path', '.', 'res://tests/sim_test.tscn'], {
   encoding: 'utf8', windowsHide: true, timeout: TIMEOUT_MS,
 })

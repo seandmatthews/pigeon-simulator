@@ -1226,3 +1226,36 @@ Playtest checklist (grows as tickets land):
   mostly unscoreable chance shots, panics 0 on both trees), so the stronger
   responses cost the pilot nothing measurable). The owner feel pass line was
   accepted by reviewer sign-off (2026-10-13).
+
+## The sim-cost climb rig (T-215's engine-assist climb, 2026-11-19)
+
+The refinery climb (`npm run climb` in opencode-orchestrator) optimizes the
+town's HEADLESS simulation cost: `tools/storm_gate.mjs` boots the real game
+headless through `tests/tools/storm_probe.gd` and times wall-ms per physics
+tick at the Central Campus spawn pose (`spawn_ms`) and inside the densest
+dressed tailgate lot (`storm_ms`, evidence-only). Baseline:
+`.refinery/baseline/simcost.json` (15.61 ms, median of 5 quiet-machine
+calibration runs, spread ~0.7%; tolerance 10%). The probe is
+self-locating (picks the densest tailgate lot from the census, converts
+through the pack's own transform), self-verifying (refuses a pose outside
+the census window, an empty lot stock, a fleet that never bands), and
+anti-gaming (refuses boots under 15k nodes or 20 cars — a "cheaper" tick
+must come from the same living town). The climb's behavior gate is the
+Gate 1b harness (`tools/sim_gate.mjs`); accept-time held-out twins live
+OUTSIDE the repo (`C:\swarm\seeds\pigeon-storm\`) and re-measure through
+pristine copies against the calibration bar — a diff that edits the probe,
+the gates, or the baseline passes nothing at accept.
+
+**The T-214 storm null result (handed to T-215's own diagnosis):** the
+zone storm does NOT reproduce via teleport alone — 9 probe runs across
+headless AND rendered, first-entry AND three leave-and-return re-entry
+cycles, with the recycle scan's fleet band confirmed present
+(cars_near 15–18 of 26) inside the densest lot, all read a flat
+~13.8–15.7 ms wall / ~4.6–7.6 ms phys — identical to the spawn floor.
+The audit's storm therefore needs whatever the organic piloted session
+adds beyond position + banded fleet (the dev-call teleport verb's state
+changes, active gameplay systems, or session-accumulated state). This
+rig gives T-215's profiling step a deterministic, self-checking
+reproduction harness to extend; the climb meanwhile diets the same
+systems town-wide (spawn_ms), which the box canary's scene-processing
+share shares.
