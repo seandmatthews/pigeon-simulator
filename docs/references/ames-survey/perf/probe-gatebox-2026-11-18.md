@@ -74,3 +74,19 @@ the zone burst — the worst headless frame (129 ms ≈ 7.7 fps) is nowhere
 near the 1 fps the rendered path showed with the panel asleep. The box's
 scene processing was never the 1 fps driver; the storm's shape
 (cars/spawner-owned) matches dev at ~1× scale.
+
+## The gate runs (tools/gate-box.sh at the branch tip 7438ecbd, the NEW script)
+
+| run | result |
+| --- | --- |
+| full gate, floor=30 | GATE1 PASS · GATE1B PASS checks=165 · GATE2 FAIL rc=1 — `AUTOPLAY DONE ok=true … fps=30 … loop_ok=false eaten=0` (the fps floor arm HELD at 30 ≥ 30; the autoplay's own loop gate failed) |
+| full gate, `GATE2_FPS_MIN=999` | GATE1 PASS · GATE1B PASS checks=165 · `GATE2 FAIL fps=31 below floor=999` (the floor's FAIL path, read independently of the autoplay's rc) |
+| autoplay, `--disable-vsync` | fps=31, same loop failure — the box's spawn-view render rate is genuinely ~31, not a vsync half-rate lock |
+| autoplay, HEADLESS | fps_eq 141, same failure byte-for-byte — not render-coupled |
+| autoplay HEADLESS at the branch BASE (483e6de) | same failure byte-for-byte (eaten=0, splats=42, player=(386.9, 0.3, −296.6)) — **the Linux autoplay eat-loop divergence PREDATES T-215** |
+
+The placement window on this box (the `traffic_placement_budget` SIM DATA
+line, the box Gate 1b runs): **11.9 ms** for 100 `nearest_runs(…, 12)` +
+20 `edges_in_band(60, 140)` calls at the zone anchor (dev: 7.1 ms; the
+pre-fix brute force: ~10.5 ms PER call). The 60 ms budget const pins to
+this box read.

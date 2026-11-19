@@ -21,9 +21,9 @@ Everything here is committed probe output from real hardware, dated
   the lot sea re-walked the whole graph per 0.5 s scan and ate 0.3–0.5 s of
   script physics time per wall second. The fix indexes the runs into a
   uniform cell grid (64 m cells, ring-by-ring queries); the same window now
-  costs **7.3 ms on dev / (box number in the gate run) on the box**, with
-  byte-identical answers pinned by the `traffic_placement_budget` Gate 1b
-  scenario.
+  costs **7.1 ms on dev / 11.9 ms on the box** (the `traffic_placement_budget`
+  SIM DATA line, 165 checks green on both machines), with byte-identical
+  answers pinned by the same scenario at six anchors.
 
 ## Files
 

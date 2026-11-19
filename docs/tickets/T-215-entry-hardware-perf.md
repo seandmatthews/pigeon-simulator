@@ -104,27 +104,47 @@ machine-checked property instead of a dev-hardware assumption.
 
 ## Acceptance criteria
 
-- [ ] The probe tools are committed (`perf_probe`, `cpu_probe`) and the
+- [x] The probe tools are committed (`perf_probe`, `cpu_probe` — plus the
+      new `storm_probe`/`frame_probe` attribution probes) and the
       measured data pack lives in `docs/references/ames-survey/perf/`
       (the Windows + box tables reproduced in the ticket at landing)
-- [ ] The box profile split (scene-processing vs submit) is recorded in the
-      ticket with the profiler evidence, and the avenue order follows it
-- [ ] The chosen avenues are implemented (A/B per the split; C and D at
-      their tier's scope) with each lever's measured delta recorded
-- [ ] *(Gate 1b)* the render-budget gate row re-derived against the canary:
-      the budget constants move from dev-hardware numbers to the box-measured
-      ones, pinned in the scenario
-- [ ] *(box gate)* `tools/gate-box.sh` Gate 2 enforces the 30 fps floor —
-      GATE2 FAILs below it (the threshold added to the script + the row in
-      VERIFICATION.md)
-- [ ] The box's full gate run: `GATE-BOX RESULT: PASS` on ames/campaign
-- [ ] *(Gate 1/2)* clean on Windows (the gates now run box-side — Gate 1b's
-      163 checks stay green, the Windows-side artifacts unchanged)
-- [ ] The web-fork one-pager (T-209) re-read against the new numbers and its
-      recommendation updated if they move it
-- [ ] HEADLESS cpu_probe anomaly: either resolved by the profiling step
-      (root-caused) or recorded as its own follow-up ticket proposal —
-      never silently dropped
+- [x] The box profile split (scene-processing vs submit) is recorded in the
+      ticket with the profiler evidence, and the avenue order follows it —
+      the split reversed the assumed order: the box's 1 fps was the
+      submit path blocked in a sleeping monitor (headless read 144.9
+      fps_eq), and the storm was the graph's placement queries
+- [x] The chosen avenues are implemented (A per the split; B root-caused
+      box-side; C and D re-scoped at their tier's scope with the measured
+      reason) with each lever's measured delta recorded
+- [x] *(Gate 1b)* the render-budget gate row re-derived against the canary:
+      the new `traffic_placement_budget` scenario pins the placement
+      window at the BOX-measured budget (60 ms const from the box's
+      11.9 ms read; dev 7.1 ms) with byte-identical equivalence at six
+      anchors; 165 checks green on BOTH machines
+- [x] *(box gate)* `tools/gate-box.sh` Gate 2 enforces the 30 fps floor —
+      the threshold added to the script (+ the awake-display preflight the
+      profiling made load-bearing) + the row in VERIFICATION.md; the PASS
+      arm proven live (fps=30 ≥ 30 held) and the FAIL arm via
+      `GATE2_FPS_MIN=999`
+- [ ] The box's full gate run: `GATE-BOX RESULT: PASS` on ames/campaign —
+      **open, blocked by a pre-existing defect this ticket surfaces but
+      does not own**: the box's autoplay eat loop does not close on Linux
+      (`loop_ok=false, eaten=0`) — proven at the branch BASE (483e6de),
+      byte-identical headless (fps_eq 141) and rendered (30/31 fps), vsync
+      on and off — platform-deterministic, not perf, not this ticket's
+      avenue set. This ticket's runs prove GATE1 PASS, GATE1B PASS
+      checks=165 and the fps floor on both arms; the PASS needs the
+      cross-platform autoplay-determinism follow-up first
+- [x] *(Gate 1/2)* clean on Windows (Gate 1b 165 PASS / exit 0; Gate 1
+      import+boot rc=0, zero hard error lines; Gate 2 `AUTOPLAY DONE
+      ok=true world=ames fps=123 restart=true` exit 0)
+- [x] The web-fork one-pager (T-209) re-read against the new numbers and
+      its recommendation updated (the dated addendum in T-209's ticket §5)
+- [x] HEADLESS cpu_probe anomaly: resolved by the profiling step —
+      root-caused (the committed probe's invalid `PHYSICS_3D_STATS`
+      monitor failed the script load; the scene ran scriptless forever
+      without its quit) and fixed; the headless frame path measures clean
+      on both machines
 
 ## Verification (proposed)
 
@@ -142,6 +162,23 @@ summarized below); the attribution instrument is the new
 `tests/tools/storm_probe.tscn` (boots the real game, teleports into the
 zone, toggles each suspect per window) with `tests/tools/frame_probe.tscn`
 (the per-frame render-side monitors) beside it.
+
+The measured pose tables (perf_probe, opengl3, the panel awake on the box;
+the full sweeps + family hides ride the pack):
+
+| pose | dev (RTX 4080) | gate box (HD 530, awake) | draws (both) |
+| --- | --- | --- | --- |
+| spawn_ground (FIRST pose) | fps=1 | fps=1 | 549 |
+| campus_hover | 144 | 51 | 301 |
+| campustown_strip | 144 | 58 | 593 |
+| stadium | 144 | 60 | 947 |
+| downtown | 144 | 60 | 239 |
+| laverne | 144 | 60 | 522 |
+| overview_high | 144 | 60 | 496 |
+
+The first-pose stall is the shared one-time pipeline compile (the game's
+stepped boot pays it behind the menu handoff); every later pose clears the
+30 fps floor at full quality on the canary — no quality tier needed.
 
 ### The box split (§2's work item, measured)
 
@@ -243,6 +280,46 @@ crawls past 5 min" was the probe, not the headless frame path. Fixed to
 the real monitors (`PHYSICS_3D_ACTIVE_OBJECTS` / `PHYSICS_3D_COLLISION_
 PAIRS`); the headless path measures clean on both machines (dev 128.6
 fps_eq, box 144.9). No follow-up ticket owed.
+
+### The box gate run (the ticket's §4, executed on the branch tip)
+
+`tools/gate-box.sh 7438ecbd` (this branch's final tree, bundle-fetched into
+the box's checkout — no push anywhere), the NEW script with the preflight
+and the floor:
+
+```
+GATE1 PASS
+GATE1B PASS checks=165
+GATE2 FAIL rc=1 (AUTOPLAY DONE ok=true; log: …gate2.log)
+GATE-BOX RESULT: FAIL ref=7438ecbd…
+```
+
+The DONE line: `AUTOPLAY DONE ok=true world=ames … fps=30 … eaten=0
+splats=42 loop_ok=false` — **the fps floor arm HELD** (30 ≥ 30, the
+owner's bar reading exactly the DONE line's fps); the FAIL came from the
+AUTOPLAY'S OWN loop gate (`loop_ok=false` because `eaten=0` → the
+autoplay exits 1), not from the floor. Follow-ups that pinned it:
+
+- vsync OFF (`--disable-vsync`): fps=31, the same failure — the box's
+  spawn-view render rate is genuinely ~31, not a vsync half-rate lock.
+- **headless** (no GL at all, fps_eq 141): the same failure, the same
+  final position to a decimetre — the AI divergence is not render-coupled.
+- **the branch BASE (483e6de — before any T-215 work), headless: the same
+  failure byte-for-byte** (eaten=0, splats=42, player=(386.9, 0.3,
+  −296.6)).
+
+So: the box's autoplay eat loop (waddle-to-crumb → peck) does not close
+on Linux — a **platform-deterministic divergence that PREDATES this
+ticket** (present at the base, absent on dev Windows where eaten=4 at the
+same seed). It blocks `GATE-BOX RESULT: PASS` at this tree REGARDLESS of
+the fps floor, and it is not a perf defect: the simulation completes at
+140+ fps headless. The follow-up it needs (cross-platform autoplay
+determinism — find the diverging seed/stream, likely a wall-clock or
+platform-FP seam in the boot/populate chain) is NOT this ticket's avenue
+set; the criterion "GATE-BOX RESULT: PASS on ames/campaign" stays open
+pending it, with GATE1/GATE1B green and the fps floor proven on both arms
+in this ticket's runs. The floor's FAIL path is proven separately with
+`GATE2_FPS_MIN=999` (the run logs "GATE2 FAIL fps=31 below floor=999").
 
 ### One more defect caught in passing (the T-214 flag)
 

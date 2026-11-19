@@ -115,11 +115,14 @@ else
     AUTO_FPS="${AUTO_FPS_RAW#fps=}"
     ## (T-215) The entry-hardware bar: the DONE line's fps must clear the
     ## floor (default 30 — half of the 60 Hz target, the owner's pick).
+    ## The floor reads INDEPENDENTLY of the autoplay's own exit code — a
+    ## below-floor fps is the perf signal the gate exists to catch, so it
+    ## reports even when the autoplay's loop gate failed first.
     GATE2_FPS_MIN="${GATE2_FPS_MIN:-30}"
     if [ "$AUTO_RC" -eq 0 ] && [ "$AUTO_DONE" = "AUTOPLAY DONE ok=true" ] \
             && [ -n "$AUTO_FPS" ] && [ "$AUTO_FPS" -ge "$GATE2_FPS_MIN" ]; then
         echo "GATE2 PASS $AUTO_DONE $AUTO_FPS_RAW floor=$GATE2_FPS_MIN"
-    elif [ "$AUTO_RC" -eq 0 ] && [ "$AUTO_DONE" = "AUTOPLAY DONE ok=true" ]; then
+    elif [ -n "$AUTO_FPS" ] && [ "$AUTO_FPS" -lt "$GATE2_FPS_MIN" ]; then
         echo "GATE2 FAIL fps=$AUTO_FPS below floor=$GATE2_FPS_MIN (log: $WT.gate2.log)"
         FAILED=1
     else

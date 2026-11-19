@@ -515,10 +515,19 @@ identical draw counts). `tools/gate-box.sh`'s Gate 2 now wakes the display
 first (`xset dpms force on` + `xset -dpms` on :98) so the fps the gate
 measures is the hardware's, and it ENFORCES the entry-hardware bar: the
 autoplay DONE line's fps must be ≥ **30** (half of the 60 Hz target, the
-owner's pick) — below it GATE2 FAILs and the box reports
-`GATE2 FAIL fps=F below floor=30`. The floor is the campaign's
-machine-checked perf budget on 2015 mid-range hardware forever; `GATE2_FPS_MIN=<n>`
-overrides it for testing the FAIL path itself.
+owner's pick) — below it GATE2 FAILs with
+`GATE2 FAIL fps=F below floor=30`, read INDEPENDENTLY of the autoplay's
+own exit code (a below-floor fps is the perf signal; the autoplay's loop
+gate reports separately). The floor is the campaign's machine-checked perf
+budget on 2015 mid-range hardware forever; `GATE2_FPS_MIN=<n>` overrides it
+for testing the FAIL path itself (the T-215 run at floor=999 logged
+`GATE2 FAIL fps=31 below floor=999`). **Honest status on the current tree:
+the fps floor HOLDS on the box (the T-215 gate run's autoplay read fps=30 ≥
+30) but GATE2 still fails rc=1 — the autoplay's own eat loop does not close
+on Linux (`loop_ok=false, eaten=0`), a platform-deterministic divergence
+proven pre-existing at the branch base (byte-identical at the base, headless
+fps_eq 141, rendered 30/31, vsync on and off) — a cross-platform autoplay
+determinism follow-up owns it, not the perf budget.**
 
 **One-time setup** (per machine / fresh checkout):
 
