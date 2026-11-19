@@ -12,9 +12,31 @@
 // GODOT_BIN overrides the binary. List-form spawns only.
 import { spawnSync } from 'node:child_process'
 
+
+// The T-210/T-102 lesson (VERIFICATION.md Known issues #1): a fresh git
+// worktree carries NO addons/godot_mcp (untracked by policy) and the boot
+// then fails its MCPRuntimeProbe autoload — SCRIPT ERROR noise that fails
+// any honest hard-error scan while the project code is fine. Restore the
+// addon from the canonical checkout before anything boots; the copy must be
+// WRITABLE (the first import rewrites icon.png.import; a read-only copy
+// turns that into `Safe save failed`).
+import { cpSync, existsSync } from 'node:fs'
+const ADDON_SRC = process.env.PIGEON_ADDON_SRC
+  || 'C:\\Users\\matth\\Documents\\pigeon-simulator\\addons\\godot_mcp'
+function ensureAddon() {
+  if (existsSync('addons/godot_mcp')) return
+  if (!existsSync(ADDON_SRC)) {
+    console.log(`gate-addon: REFUSING: no addons/godot_mcp here and none at PIGEON_ADDON_SRC (${ADDON_SRC}) — restore the per-machine addon first (VERIFICATION.md Known issues #1)`)
+    process.exit(2)
+  }
+  cpSync(ADDON_SRC, 'addons/godot_mcp', { recursive: true })
+}
+
 const GODOT = process.env.GODOT_BIN
   || 'C:\\Users\\matth\\Desktop\\Godot_v4.7.2-stable_win64_console.exe'
 const TIMEOUT_MS = 30 * 60_000
+
+ensureAddon()
 
 const r = spawnSync(GODOT, ['--headless', '--fixed-fps', '60', '--path', '.', 'res://tests/sim_test.tscn'], {
   encoding: 'utf8', windowsHide: true, timeout: TIMEOUT_MS,
