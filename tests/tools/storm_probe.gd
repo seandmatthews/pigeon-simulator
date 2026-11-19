@@ -45,6 +45,10 @@ const CONTAIN_RADIUS := 60.0
 ## anchor; a settled zone with fewer than this many cars nearby is not the
 ## storm's neighborhood.
 const MIN_FLEET_BAND := 5
+## The anti-gaming population floors (observed healthy boots: ~16.8k nodes,
+## 26 cars). A candidate that "improves" by gutting the town trips these.
+const MIN_TOWN_NODES := 15000
+const MIN_TOWN_CARS := 20
 ## In-zone dwells separated by leave-and-return (the T-214 discriminator:
 ## the audit's storm re-fired on EVERY re-teleport — three chances to fire).
 const ENTRY_CYCLES := 3
@@ -69,6 +73,14 @@ func _ready() -> void:
 	add_child(_main)
 	for i: int in 10:
 		await get_tree().physics_frame
+	## The population floors (the anti-gaming posture): a "cheaper" tick must
+	## come from the same living town, not from a gutted one. Observed healthy
+	## boots: ~16.8k nodes, 26 cars (T-178's 14 moving + 12 parked). A boot
+	## below either floor is a refusal — an unevaluable benchmark proves
+	## nothing and must say so.
+	var boot_nodes := Performance.get_monitor(Performance.OBJECT_COUNT)
+	if boot_nodes < MIN_TOWN_NODES:
+		_fail("boot population below the floor (%d < %d nodes) — the town must stay alive for its cost to be climbable" % [boot_nodes, MIN_TOWN_NODES])
 	var player: Node3D = _main.get_node_or_null("Player")
 	if player == null:
 		_fail("no Player under Main")
@@ -151,6 +163,8 @@ func _pick_storm_lot() -> Vector2:
 		tailgate, best_stalls, best.x, best.y, total_cars])
 	if tailgate == 0 or best_stalls <= 0:
 		_fail("no dressed tailgate lot to stand in")
+	if total_cars < MIN_TOWN_CARS:
+		_fail("fleet below the floor (%d < %d cars) — gutting the traffic fleet is not a fix" % [total_cars, MIN_TOWN_CARS])
 	return best
 
 
