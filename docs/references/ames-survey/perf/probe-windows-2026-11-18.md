@@ -75,6 +75,22 @@ second, matching the T-209 audit's `phys µs 330–530 ms`.
 
 `traffic_placement_budget` (100 × `nearest_runs(…, 12)` + 20 ×
 `edges_in_band(60, 140)` at the zone anchor, 6 anchors' brute-force
-equivalence): **BAD=0 / 7.3 ms window** on dev (standalone iteration check;
-the suite's SIM DATA line is the gate's read). Post-fix storm windows:
-zone_base 10.0 avg / 10.6 max (was 53.1 / 345.3) at 93–120 fps.
+equivalence): **BAD=0 / 7.1 ms window** on dev (the suite's SIM DATA line,
+`SIM SUMMARY: 0 failure(s)`; the standalone iteration check read 7.3).
+Post-fix storm windows: zone_base 10.0 avg / 10.6 max (was 53.1 / 345.3)
+at 93–120 fps.
+
+## The respawn ejection (the T-214 flag, caught again in passing)
+
+Session `t215b` (pilot, hunger locked): a teleport into the zone —
+world (1192, 61.6, 300), the Hilton flank — ACKED at the target
+(`pilot_dev` `p=[1192.0, 61.6, 300.0]`, three state samples holding it:
+t_ms 12144/12157/12160) and read **home at the spawn corridor one sample
+later** (t_ms 12171, p=(380, 0.6, −294), then grounded there at 12370).
+`off_world_resets` stayed 0 across the whole window and the fleet/city
+rows continue unchanged (no regen, no restart) — neither known reset site
+fired. The T-209 audit's occurrence read "~0.6 s after arrival"; this one
+ejected within ~27 ms. Not reproduced on the second teleport
+((1500, 40, 900) — the storm bisect's pose, which held). Flag stays live
+for a follow-up ticket; recorded here so the next rig starts from two
+data points.

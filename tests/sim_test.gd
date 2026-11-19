@@ -23010,10 +23010,11 @@ func _scenario_traffic_placement_budget() -> void:
 ## The T-215 placement budget (ms) — the traffic graph's scoped placement
 ## queries' cost ceiling, measured on the gate box (i7-6700, the entry-hardware
 ## canary this ticket re-derives every budget against): 100 nearest_runs +
-## 20 edges_in_band calls at the tailgate anchor took ~26 ms box-side
-## (SIM DATA line of the box Gate 1b run); the pin is ~2x that, rounded up,
-## so only a gross regression (an unindexed walk again, ~10 ms/call) trips it.
-## Dev-side the same window is ~8 ms — the gate box is the bar.
+## 20 edges_in_band calls at the tailgate anchor took 11.9 ms box-side (the
+## SIM DATA line of the box Gate 1b run, 2026-11-18; dev-side the same window
+## is 7.1 ms); the pin is ~5x the box read, so only a gross regression (the
+## unindexed walk again — 10.5 ms PER CALL, ~1.3 s for the same window) trips
+## it. The gate box is the bar.
 const PLACE_BUDGET_MS := 60.0
 
 
