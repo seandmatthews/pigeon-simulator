@@ -1259,3 +1259,18 @@ rig gives T-215's profiling step a deterministic, self-checking
 reproduction harness to extend; the climb meanwhile diets the same
 systems town-wide (spawn_ms), which the box canary's scene-processing
 share shares.
+
+**Climb postmortem #1 (2026-11-19, run 20261119234342 — no survivors,
+patience stop):** the simcost gate refused every candidate in 0.2s with
+`REFUSING: --refuse-if-writable: baseline file is writable` — on Windows,
+git checkouts are always writable, so the T-082 preflight flag cannot
+survive a worktree lease. The template's preflight did its job (it caught
+the misconfigured climb before any benchmark dispatch); the flag is
+dropped from the climb's gate spec and its anti-tamper load rides the
+held-out accept twins (the seed-side calibration bar — a lowered visible
+baseline still passes nothing at accept). Also raised the engine's
+per-worker wall clock (default 15 min) to 45: both failed candidates were
+harness-timeout kills mid-exploration (this repo is 1,249 files; the
+flash model was still reading when the tree was killed), while the one
+candidate that finished made the sim harness genuinely slower and its
+30-minute gate timeout is the machine working as designed.
