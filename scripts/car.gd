@@ -345,6 +345,28 @@ var _blinker_hold: float = 0.0
 ## Flash clock (s) — the square wave runs off it at `blinker_hz`.
 var _flash_clock: float = 0.0
 
+## Decision batching (the per-tick scan throttle): the expensive scans — the
+## front-zone overlap query (`_blocker_distance`), the crosswalk band sweep
+## and the block-center refresh — run once every SCAN_INTERVAL-th physics
+## tick (10 Hz decisions, visually identical at town scale) and cache their
+## results below; the cheap motion integration (steering, the exact-brake
+## stop-line profile, the ladder poll, the blinker machine) keeps its full
+## 60 Hz rate off the cached values. `_scan_phase` is staggered by instance
+## id in `_ready`, so the 26-car fleet's scan ticks spread across the interval
+## instead of spiking one shared tick. Safety-relevant O(1) reads (the brake
+## profile's along-line distance, the wedge watchdog) never join the batch.
+const SCAN_INTERVAL := 6
+var _scan_phase := 0
+## Forward distance to the nearest front-zone body (m, INF when clear) —
+## `_blocker_distance()` sampled at the scan tick.
+var _cached_blocker_dist := INF
+## The active stop entry's crosswalk occupancy at the scan tick — the
+## pedestrian-priority read (`_crosswalk_blocked` against `_current_entry()`).
+var _cached_crosswalk_blocked := false
+## The pass's no-overlap fleet gap (m, INF when not passing) —
+## `_nearest_car_gap(_pass_target)` sampled at the scan tick.
+var _cached_pass_gap := INF
+
 @onready var _body_mesh: MeshInstance3D = $Visual/Body
 @onready var _flag_pole: MeshInstance3D = $Visual/FlagPole
 @onready var _flag_banner: MeshInstance3D = $Visual/FlagBanner
@@ -376,6 +398,7 @@ func _ready() -> void:
 			pass ## CIVILIAN — exactly the pre-T-113 look: no flag.
 	if has_cooler:
 		_cooler.visible = true ## (T-114) The visitor's tailgate rides along — visual only.
+	_scan_phase = get_instance_id() % SCAN_INTERVAL ## Decision-batch stagger.
 	_fleet.append(self)
 
 
@@ -436,7 +459,16 @@ func _physics_process(delta: float) -> void:
 ## past it. Every hold feeds the patience clock.
 func _drive(delta: float) -> void:
 	var hspeed := Vector2(velocity.x, velocity.z).length()
-	_refresh_block()
+	## The decision-batched scans (see SCAN_INTERVAL): block refresh, front-zone
+	## overlap distance, crosswalk occupancy, pass fleet gap — cached for the
+	## next SCAN_INTERVAL − 1 ticks of cheap motion integration.
+	_scan_phase += 1
+	if _scan_phase >= SCAN_INTERVAL:
+		_scan_phase = 0
+		_refresh_block()
+		_cached_blocker_dist = _blocker_distance()
+		_cached_crosswalk_blocked = _crosswalk_blocked(_current_entry())
+		_cached_pass_gap = _nearest_car_gap(_pass_target) if _passing else INF
 	## The wedge watchdog measures LAST frame's displacement (cheap, honest).
 	var moved := Vector2(global_position.x - _prev_pos.x,
 			global_position.z - _prev_pos.z).length()
@@ -553,7 +585,7 @@ func _drive(delta: float) -> void:
 			# the next break tries the other shoulder).
 			aiming = _pass_aim - global_position
 			aiming.y = 0.0
-			if _nearest_car_gap(_pass_target) < 2.6:
+			if _cached_pass_gap < 2.6:
 				target_speed = 0.0
 		_face(aiming / maxf(aiming.length(), 0.001), delta)
 		# Corners are taken wide and slow: the cap applies while closing on the
@@ -637,7 +669,7 @@ func _protocol_speed(entry: Dictionary, hspeed: float, target_speed: float) -> V
 				return Vector2(0.0, true)
 			## Stopped at the line: hold until the ladder (and the crosswalk)
 			## both say go, then commit and roll.
-			if _crosswalk_blocked(entry):
+			if _cached_crosswalk_blocked:
 				return Vector2(0.0, true)
 			if traffic.request_go(self):
 				traffic.commit(self)
@@ -665,7 +697,7 @@ func _protocol_speed(entry: Dictionary, hspeed: float, target_speed: float) -> V
 		return Vector2(minf(target_speed, cap), cap <= 0.0)
 	## Committed and rolling the box: a late-entering body re-holds the car
 	## before its nose crosses the bar; past the bar the box is ours.
-	if along > 0.0 and _crosswalk_blocked(entry):
+	if along > 0.0 and _cached_crosswalk_blocked:
 		return Vector2(0.0, true)
 	return Vector2(target_speed, false)
 
@@ -991,7 +1023,7 @@ func _update_pass(_delta: float) -> void:
 		_pass_stall = 0.0
 	else:
 		_pass_stall += _delta
-	var blocker_d := _blocker_distance()
+	var blocker_d := _cached_blocker_dist ## Scan-batched read.
 	var behind := blocker_d == INF or blocker_d < 0.5
 	if (traveled > 6.0 and behind) or traveled > 20.0 or _pass_stall > 2.0:
 		_passing = false
@@ -1196,8 +1228,10 @@ func _leg_cruise() -> float:
 
 ## Speed cap from the nearest body in the front zone: zero at the follow gap,
 ## rising with `follow_gain` per metre until cruise. No blocker → cruise.
+## Reads the scan-batched `_cached_blocker_dist` (the physics overlap query
+## behind `_blocker_distance` is the fleet's hottest per-tick scan).
 func _gap_speed(cruise: float) -> float:
-	var d := _blocker_distance()
+	var d := _cached_blocker_dist
 	if d == INF:
 		return cruise * pace
 	return clampf((d - follow_gap) * follow_gain, 0.0, cruise * pace)
@@ -1317,6 +1351,12 @@ func start_route(pos: Vector3, new_path: PackedVector3Array,
 	_progress_accum = 0.0
 	_stalled = 0.0
 	_prev_pos = pos
+	## Decision-batch caches die with the old life too: a re-staged car must
+	## not carry the previous street position's blocker distance or crosswalk
+	## read into its first ticks on the new route (the next scan refreshes).
+	_cached_blocker_dist = INF
+	_cached_crosswalk_blocked = false
+	_cached_pass_gap = INF
 	velocity = Vector3.ZERO
 	if traffic != null:
 		traffic.release(self)
