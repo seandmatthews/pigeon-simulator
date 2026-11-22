@@ -298,6 +298,20 @@ func _trace(t: float) -> void:
 			t, _player.position.x, _player.position.y, _player.position.z,
 			_player.velocity.length(), _player.velocity.y, _nose_y(), _player.is_grounded,
 			_hunger.value if _hunger != null and is_instance_valid(_hunger) else -1.0])
+	## (T-215 round 1) The eat-loop diagnostic: the box gate's Linux autoplay
+	## failed its loop with eaten=0 while the traces showed the pigeon coasting
+	## at plate height (y≈0, vy≈0) with grounded=false for seconds at a stretch
+	## — the final flare held the nose level and the contact never resolved.
+	## This line prints the sub-metre truth when AMESDBG=1 is set (off by
+	## default, so the gate log's shape is unchanged).
+	if OS.get_environment("AMESDBG") == "1":
+		var near := _ames_ground_crumb()
+		var near_d: float = -1.0
+		if near != null and is_instance_valid(near):
+			near_d = _player.position.distance_to(near.global_position)
+		print("AMESDBG t=%05.2f y=%.3f vy=%+.3f grounded=%s speed=%.2f near_ground_crumb_d=%.2f" % [
+				t, _player.position.y, _player.velocity.y, _player.is_grounded,
+				_player.velocity.length(), near_d])
 
 
 ## The shared poop trigger (T-006/T-007/T-008): air-only dropping, released
@@ -723,15 +737,27 @@ func _drive_ames_air(t: float, delta: float) -> void:
 			Input.action_press("flap")
 		return
 	## Descent leg: commit, glide down, flare into the ring; bleed speed first
-	## when the arrival is hot.
+	## when the arrival is hot. (T-215 round 1) The last metre and a half is a
+	## DELIBERATE settle press, not a level coast: the old flare held the nose
+	## at −0.02 and let residual drift make the plate contact, which the dev
+	## desktop's build always resolved and the gate box's Linux build coasted
+	## above forever (y≈0, vy≈0, grounded=false for seconds at a stretch — the
+	## eat loop starved and the box gate failed). Landing is the pilot's job:
+	## below 1.5 m over the ring it presses the nose down and lets the game's
+	## own touchdown skid eat the speed, on every platform.
 	_steer_toward_point(tp)
 	var target_nose: float
 	if d > AMES_LAND_RING:
 		target_nose = -0.30 if _player.position.y > 14.0 else -0.12
+	elif _player.position.y > 5.0:
+		target_nose = -0.05
+	elif _player.position.y > 1.5:
+		target_nose = -0.02
 	else:
-		target_nose = -0.05 if _player.position.y > 5.0 else -0.02
-	if speed > 17.0 and _player.position.y < 25.0:
-		target_nose = maxf(target_nose, 0.05)
+		target_nose = -0.35 ## The settle press — see the comment above.
+	if speed > 17.0 and _player.position.y < 25.0 \
+			and _player.position.y > 2.0:
+		target_nose = maxf(target_nose, 0.05) ## Bleed speed above the settle band only.
 	_hold_nose(target_nose)
 
 

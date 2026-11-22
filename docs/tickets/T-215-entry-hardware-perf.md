@@ -313,13 +313,38 @@ on Linux — a **platform-deterministic divergence that PREDATES this
 ticket** (present at the base, absent on dev Windows where eaten=4 at the
 same seed). It blocks `GATE-BOX RESULT: PASS` at this tree REGARDLESS of
 the fps floor, and it is not a perf defect: the simulation completes at
-140+ fps headless. The follow-up it needs (cross-platform autoplay
-determinism — find the diverging seed/stream, likely a wall-clock or
-platform-FP seam in the boot/populate chain) is NOT this ticket's avenue
-set; the criterion "GATE-BOX RESULT: PASS on ames/campaign" stays open
-pending it, with GATE1/GATE1B green and the fps floor proven on both arms
-in this ticket's runs. The floor's FAIL path is proven separately with
-`GATE2_FPS_MIN=999` (the run logs "GATE2 FAIL fps=31 below floor=999").
+140+ fps headless.
+
+### Round 1 — the divergence root-caused and the eat loop fixed
+
+The review round sent the ticket back on exactly this, and the AMESDBG
+diagnostic (added to the autoplay, env-gated, off by default) pinned it:
+
+- Both platforms' runs are **identical through t=17** (player y 0.962 /
+  vy −1.578, three decimals — boot, world build, crumb seed and the AI's
+  cruise legs are platform-stable).
+- They diverge at **t≈20–25** on the FINAL FLARE: Windows descends into
+  its landing (t=25: y 1.561, vy −1.076) while the box climbs off the
+  same glide (t=25: y 2.068, vy +0.751). The flare held the nose at
+  −0.02 — a level coast — and let residual drift make the plate contact;
+  the dev build always resolved it, the box's Linux build coasted at
+  plate height (y≈0, vy≈0, grounded=false) for seconds at a stretch, the
+  crumb's `body.is_grounded` eat arm never fired, and the loop starved.
+- **The fix is in the pilot, not the game**: `tests/autoplay.gd`'s
+  descent leg now treats the last 1.5 m over the landing ring as a
+  DELIBERATE settle press (`target_nose = -0.35` below 1.5 m; the
+  hot-arrival speed-bleed cap applies above the settle band only) — the
+  pilot lands on purpose and lets the game's own touchdown skid eat the
+  speed, on every platform. Landing is the pilot's job.
+- Measured: the box's autoplay now reads **`loop_ok=true, eaten=8,
+  rc=0`** headless (was eaten=0, rc=1) and Windows stays green with the
+  same fix (loop_ok=true, eaten=8 — up from 4, the deliberate landings
+  close more loops); the platforms nearly converge (box splats 21 vs
+  Windows 20). The residual citizen-level divergence (the platforms'
+  contact chains still part ways after t≈20 — the pigeons' own
+  trajectories still end within a decimetre) is minted as its own
+  follow-up, [T-216](T-216-cross-platform-autoplay-determinism.md),
+  with the AMESDBG line as its instrument.
 
 ### One more defect caught in passing (the T-214 flag)
 
