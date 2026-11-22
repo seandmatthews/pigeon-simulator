@@ -13,34 +13,35 @@ proposed since.
 | M1 — vertical slice | One stretch of city where the whole loop works and feels good | T-001..T-020 done, gates green | done 2026-09-29 |
 | Sweep — readability, feel, perf (waves W1–W8) | Make the slice legible and pleasant: the bird readable against the city, every scored moment visible, flight well-behaved at its edges, boot scene affordable | Every W1–W8 ticket merged or flagged; backlog re-audited | done 2026-10-01 — chain complete, every wave ticket landed (record below) |
 | M2 — the town's pigeon | Goal layer: the invasion gets a uniform and the sandbox gets a win — citizen classes, the favor economy, the favor-max victory, and the HUD that names the prize | All four forks decided (2026-10-11); the forged sequence landed with gates green | done 2026-10-11/12 — T-113 96d09fe, T-114 6b51dc4, T-115 112f8e9, T-116 bfe31fb |
-| M3 — improvement waves | Owner-directed batches from the 2026-10-15/17 brainstorm ([IDEAS.md](IDEAS.md)): wave 1 = target-car readability, settings v1, the sound pass, the human/car model swap, the boot splash, the web quit gate (T-121..T-126); wave 2 = the Xbox controller, the off-screen traffic spawn gate, and the web boot that paints (T-127..T-129); follow-ups = the bigger Fly button + real poop distance (T-130), the single web warming screen (T-131), the pilot slow-mo flag (T-132), the slower-bird feel pass (T-133) | every wave's tickets done with gates green, owner Gate 3 passes recorded | waves 1–2 done 2026-10-18/19 · T-130/T-131 done 2026-10-20 · T-132/T-133 done 2026-10-22 (hosted build current with T-133, 2cf865c) · T-134 (four-way stops) proposed 2026-10-23 · owner Gate 3 passes pending per ticket |
+| M3 — improvement waves | Owner-directed batches from the 2026-10-15/17 brainstorm ([IDEAS.md](IDEAS.md)): waves 1–2 (T-121..T-129), follow-ups (T-130..T-133), the traffic-laws batch (T-134..T-137), the people-rig marathon (T-138..T-146), the complaint batch (T-162..T-166), the dev-tool trio (T-167..T-169), hidden pilot windows (T-170) | every wave's tickets done with gates green | done through 2026-11-07 (the 2026-11-05 owner batch landed all nine) · owner Gate 3 passes deferred and recorded |
+| M4 — the Ames campaign | The city becomes **real Ames, Iowa** at true scale: the ring campaign over the research survey ([references/ames-survey/INDEX.md](references/ames-survey/INDEX.md), master plan [AMES-MASTERPLAN.md](AMES-MASTERPLAN.md)) — R1 the map (data pack, bake, renderer, cutover), R2 the life (traffic, pedestrians, parking, economy), R3 the landmarks (11 heroes + the fidelity walk), R4 the names (venue signs, ghost plaques, blades, plaques, credits), R5 the town (bbox extensions, filler dressing, canopy, tailgates, perf) — 40+ tickets, every one pipeline-implemented, gate-checked and reviewer-played | all ring tickets merged with the entry-hardware bar machine-checked (the gate box's 30 fps floor) | **done 2026-11-22** — T-171..T-215 + T-213/T-216 merged on `ames/campaign`; the grand tour (T-210) merged 78c12ab · owner victory-lap flights deferred and recorded |
+| Open follow-ups | T-216 (cross-platform autoplay determinism — the citizens diverge by platform; proposed by the perf climb), the web-fork decision (T-209's measured one-pager — the hosting is live with a testing door at `/pigeon-simulator/testing`), R6 owner-pick options (master plan §9: day/night bar lighting, traditions easter eggs, VEISHEA remembrance, flight feel, ending relocation) | owner picks | awaiting owner steer |
 
-## Where we are (2026-10-23)
+## Where we are (2026-11-22)
 
-M3 waves 1 and 2 are done: T-121..T-126 (target-car readability, settings v1,
-the sound pass, the human/car model swap, the boot-splash swap, the web quit
-gate) landed 2026-10-17/18, and T-127..T-129 (the Xbox controller, the
-off-screen traffic spawn gate, the web boot that paints) landed 2026-10-18/19.
-The follow-ups since: T-130 (bigger Fly button + real poop distance) and
-T-131 (one warming screen on the web handoff) on 2026-10-20; T-132 (pilot
-`--time-scale` slow-mo) and T-133 (slower bird — the speed quartet ×0.8) on
-2026-10-22. The hosted build at games.matthews.mx is current with T-133.
-Still open: T-120 (readable touch buttons) and T-134 (American four-way
-stops, proposed 2026-10-23 out of the traffic-laws forge — cars get
-multi-block routes, right-of-way, blinker tells and stop signs), owner Gate 3
-playtest passes for the landed tickets, and the
-GitHub Actions deploy button's repo secrets (deploys stay manual until those
-land).
+**The M4 Ames campaign is complete.** Since 2026-11-08 the game's city was
+rebuilt as real Ames, Iowa — the ring campaign above: the map cut over at the
+true-scale core (R1), the town came alive on the real grid (R2), the
+landmarks landed at verified dimensions with the fidelity walk against the
+survey's reference photos (R3), the town got its names — venue signs, the
+mourned venues' ghost plaques, street blades, campus plaques, the credits
+screen (R4) — and the edges/extensions, filler dressing, 5,637-tree canopy,
+tailgates, and the entry-hardware performance re-derive (R5). The perf fix
+was proven on the campaign's own canary: the Ubuntu gate box (a 2015
+i7-6700 + HD 530) runs the merged world at 31 fps against the 30 fps floor
+the campaign machine-checked into `tools/gate-box.sh`. The whole branch is
+on `ames/campaign` (pushed to origin; the hosted testing door serves it at
+`/pigeon-simulator/testing`).
+
+Still open: the owner's victory-lap flights (deferred Gate 3 passes for
+R1's flyover, R2's favor run, R3's postcard, R4's fly-to-your-bar — closable
+by playing the shipped world), T-216 (cross-platform autoplay determinism),
+the web-fork call, and R6's owner-pick options.
 
 Everything else from the brainstorm stays pitched in
-[IDEAS.md](IDEAS.md) behind its open decision-log forks: updrafts (B-5),
-perch (B-9), the difficulty/points rebalance (B-6/B-7), quests-lite (B-15),
-the pigeon-look pass (B-1), buildings/props
-swap (B-2 phase 2), the hawk hazard and seagull rivals (still on DESIGN's
-out-of-scope list — re-opening is an explicit owner call), districts,
-landmark targets, and export builds. New work starts as a tone-checked pitch
-before anything is forged (AGENTS.md — the idea-talk convention); scope stays
-a silly game about a bird pooping on people.
+[IDEAS.md](IDEAS.md) behind its open decision-log forks. New work starts as a
+tone-checked pitch before anything is forged (AGENTS.md — the idea-talk
+convention); scope stays a silly game about a bird pooping on people.
 
 ## The sweep's wave schedule (historical record)
 
