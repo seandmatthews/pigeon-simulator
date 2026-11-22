@@ -391,7 +391,7 @@ scan (T-170 was max; no workflows in flight).
 | T-207 | [Tree canopy](T-207-ames-tree-canopy.md) | R5 The Town | T-172 | done |
 | T-208 | [Tailgate dressing](T-208-ames-tailgate-dressing.md) | R5 The Town | T-191, T-182 | done |
 | T-209 | [Performance pass + web fork](T-209-ames-perf-pass.md) | R5 The Town | T-206..T-208 | done |
-| T-210 | [R5 cutover](T-210-ames-r5-cutover.md) | R5 The Town | T-203..T-209 | proposed |
+| T-210 | [R5 cutover](T-210-ames-r5-cutover.md) | R5 The Town | T-203..T-209 | doing |
 | T-215 | [Entry-hardware performance — the traffic physics storm, re-derive the budget](T-215-entry-hardware-perf.md) | R5 The Town (BLOCKS T-210) | T-209 | done | (T-214 superseded into it) |
 | T-216 | [Cross-platform autoplay determinism](T-216-cross-platform-autoplay-determinism.md) | R5 The Town | T-215 | proposed | (the world's citizens diverge by platform; the eat loop itself fixed in T-215) |
 
