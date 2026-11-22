@@ -27,8 +27,10 @@ func _ready() -> void:
 		await get_tree().process_frame
 	var wall_s := (Time.get_ticks_msec() - start) / 1000.0
 	var nodes := Performance.get_monitor(Performance.OBJECT_COUNT)
-	var physics := Performance.get_monitor(Performance.PHYSICS_3D_STATS)
+	var physics := "active=%d pairs=%d" % [
+			Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS),
+			Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS)]
 	print("CPUPROBE frames=%d wall_s=%.2f fps_eq=%.1f nodes=%d physics=%s" % [
 			MEASURE_FRAMES, wall_s, MEASURE_FRAMES / maxf(wall_s, 0.001),
-			nodes, str(physics)])
+			nodes, physics])
 	get_tree().quit()

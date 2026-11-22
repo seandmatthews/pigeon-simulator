@@ -272,6 +272,22 @@ var _nodes: Array[Vector3] = [] ## Welded node positions (pack-local; y = 0).
 var _node_rail: Array[bool] = []
 var _node_kind: Array[int] = []
 var _runs: Array[Run] = []
+## (T-215) The runs' uniform spatial index — cell key → run ids. The placement
+## queries (`nearest_run`, `edges_in_band`, `nearest_runs`) walked EVERY run's
+## EVERY segment per call — ~10.5 ms per call in GDScript over the 2,044-run
+## graph — paid per placement attempt inside the recycle/placement machinery:
+## 26 far cars re-seating in the tailgate lot sea re-walked the whole graph
+## per 0.5 s scan and ate 0.3–0.5 s of script physics time per wall second
+## (the T-209/T-214 storm, attributed by `tests/tools/storm_probe.gd`). The
+## index buckets each run into the cells its bbox overlaps, once; the queries
+## gather candidates from the query square's cells only and run the IDENTICAL
+## per-run loop over them, in ascending run-id order — the outputs stay
+## byte-identical to the brute-force walk (same distances, same tie-breaks),
+## just scoped to the runs that can answer.
+const RUN_INDEX_CELL := 64.0 ## Uniform cell size (m).
+var _run_index: Dictionary = {} ## Cell key (Vector2i) → PackedInt32Array of run ids.
+var _run_index_dirty := true ## Set by _add_run; cleared by the lazy build.
+var _run_bounds := Rect2() ## All runs' bbox — the query termination bound.
 var _out_edges: Array[PackedInt32Array] = [] ## Per node: directed edge ids.
 var _edge_to: PackedInt32Array = [] ## Directed edge id → its END node.
 var _edge_run: PackedInt32Array = [] ## Directed edge id → its run index.
@@ -949,27 +965,154 @@ func nearest_edge(x: float, z: float) -> Dictionary:
 var _last_t := 0.0 ## The last `_seg_dist2` projection — read with its result.
 
 
+## (T-215) The lazy index build: every run registers into every cell its bbox
+## overlaps. Runs are long relative to the cell, so a diagonal run
+## over-covers — the query side only ever prunes candidates, never misses one.
+func _ensure_run_index() -> void:
+	if not _run_index_dirty:
+		return
+	_run_index.clear()
+	for r in _runs.size():
+		var bbox := _runs[r].aabb
+		if r == 0:
+			_run_bounds = bbox
+		else:
+			_run_bounds = _run_bounds.merge(bbox)
+		var cx0 := int(floor(bbox.position.x / RUN_INDEX_CELL))
+		var cx1 := int(floor(bbox.end.x / RUN_INDEX_CELL))
+		var cz0 := int(floor(bbox.position.y / RUN_INDEX_CELL))
+		var cz1 := int(floor(bbox.end.y / RUN_INDEX_CELL))
+		for cx: int in range(cx0, cx1 + 1):
+			for cz: int in range(cz0, cz1 + 1):
+				var key := Vector2i(cx, cz)
+				if _run_index.has(key):
+					var bucket: PackedInt32Array = _run_index[key]
+					bucket.append(r)
+					_run_index[key] = bucket
+				else:
+					_run_index[key] = PackedInt32Array([r])
+	_run_index_dirty = false
+
+
+## (T-215) The candidate runs for a query square of half-extent `half` (m) at
+## (x, z): every run whose bbox touches a cell the square overlaps, deduped,
+## ASCENDING run-id order — the brute-force walk's own iteration order.
+func _run_candidates(x: float, z: float, half: float) -> PackedInt32Array:
+	_ensure_run_index()
+	var cx0 := int(floor((x - half) / RUN_INDEX_CELL))
+	var cx1 := int(floor((x + half) / RUN_INDEX_CELL))
+	var cz0 := int(floor((z - half) / RUN_INDEX_CELL))
+	var cz1 := int(floor((z + half) / RUN_INDEX_CELL))
+	var seen := {}
+	for cx: int in range(cx0, cx1 + 1):
+		for cz: int in range(cz0, cz1 + 1):
+			var bucket: PackedInt32Array = _run_index.get(
+					Vector2i(cx, cz), PackedInt32Array())
+			for r: int in bucket:
+				seen[r] = true
+	var ids := seen.keys()
+	ids.sort()
+	var out := PackedInt32Array()
+	for id: Variant in ids:
+		out.append(int(id))
+	return out
+
+
+## The graph's reach for a query at (x, z): the smallest square half-extent
+## centered there that contains the whole graph bbox — past it, even the
+## farthest run's bbox is inside the candidate square, so a query that still
+## needs more widens no further and the candidate set IS the whole graph.
+## (Anchors far OUTSIDE the map — the streetless probes in the budget
+## scenario — need this bound relative to THEM, not the graph's raw size.)
+## (T-215) The cell keys of the chebyshev ring `ring` around the query point's
+## cell — ring 0 is the query's own cell, ring R cells' nearest point sits ≥
+## (R−1)·RUN_INDEX_CELL from the query. The nearest-run queries gather rings
+## outward, so each pass pays only its NEW cells and the total per call is
+## the cells up to the terminating ring, once.
+func _ring_cells(x: float, z: float, ring: int) -> Array[Vector2i]:
+	var qx := int(floor(x / RUN_INDEX_CELL))
+	var qz := int(floor(z / RUN_INDEX_CELL))
+	var out: Array[Vector2i] = []
+	if ring <= 0:
+		out.append(Vector2i(qx, qz))
+		return out
+	for dx: int in range(-ring, ring + 1):
+		out.append(Vector2i(qx + dx, qz - ring))
+		out.append(Vector2i(qx + dx, qz + ring))
+	for dz: int in range(-ring + 1, ring):
+		out.append(Vector2i(qx - ring, qz + dz))
+		out.append(Vector2i(qx + ring, qz + dz))
+	return out
+
+
+## (T-215) Chebyshev distance from the query point to the graph bbox (0 when
+## inside it). An anchor outside the map can jump its ring expansion straight
+## to the bbox — every cell inside the jump contains no run (runs register
+## only in cells their bbox overlaps).
+func _run_bbox_dist(x: float, z: float) -> float:
+	_ensure_run_index()
+	return maxf(maxf(maxf(_run_bounds.position.x - x, x - _run_bounds.end.x),
+			maxf(_run_bounds.position.y - z, z - _run_bounds.end.y)), 0.0)
+
+
+## The graph's reach for a query at (x, z): the smallest square half-extent
+## centered there that contains the whole graph bbox — the Chebyshev distance
+## to the bbox's FARTHEST corner (abs values, so anchors inside and outside
+## the map both bound correctly). Past this, the ring gather has covered
+## every cell any run registered in and the candidate set IS the whole graph.
+func _run_index_reach(x: float, z: float) -> float:
+	_ensure_run_index()
+	return maxf(maxf(
+			maxf(absf(x - _run_bounds.position.x), absf(x - _run_bounds.end.x)),
+			maxf(absf(z - _run_bounds.position.y), absf(z - _run_bounds.end.y))),
+			0.0) + RUN_INDEX_CELL
+
+
 ## The nearest CENTERLINE run to a pack-local XZ point (the placement/recycle
-## anchor read, run-level): {run: int, dist: float} — empty when none.
+## anchor read, run-level): {run: int, dist: float} — empty when none. The
+## T-215 ring expansion keeps the brute-force result exactly: once rings
+## 0..R are gathered, every unvisited run sits ≥ R·RUN_INDEX_CELL from the
+## query, so a best found within that bound is provably global. An anchor
+## outside the graph bbox starts straight at the first ring that can touch
+## the bbox — every ring below it has its cells' FARTHEST point inside the
+## bbox distance, and runs register only in bbox cells, so those rings are
+## provably empty and skipping them cannot miss a run.
 func nearest_run(x: float, z: float) -> Dictionary:
+	_ensure_run_index()
+	var bbox_dist := _run_bbox_dist(x, z)
+	var ring := maxi(int(floor(bbox_dist / RUN_INDEX_CELL)), 0)
 	var best := {}
 	var best_d2 := INF
-	for r in _runs.size():
-		var pts := _runs[r].points
-		for i in pts.size() - 1:
-			var d2 := _seg_dist2(x, z, pts[i], pts[i + 1])
-			if d2 < best_d2:
-				best_d2 = d2
-				best = {"run": r, "dist": sqrt(d2)}
-	return best
+	while true:
+		var ring_bound := float(ring) * RUN_INDEX_CELL
+		for cell: Vector2i in _ring_cells(x, z, ring):
+			var bucket: PackedInt32Array = _run_index.get(cell, PackedInt32Array())
+			for r: int in bucket:
+				var pts := _runs[r].points
+				for i in pts.size() - 1:
+					var d2 := _seg_dist2(x, z, pts[i], pts[i + 1])
+					if d2 < best_d2:
+						best_d2 = d2
+						best = {"run": r, "dist": sqrt(d2)}
+		if not best.is_empty() and float(best["dist"]) <= ring_bound:
+			return best
+		if ring_bound >= _run_index_reach(x, z):
+			return best
+		ring += 1
+	return {} ## Unreachable — the reach bound terminates the loop above.
 
 
 ## The directed edges whose centerline passes within [min_d, max_d] (flat, m)
 ## of a pack-local XZ anchor — the spawn band over real streets. Ascending id
 ## order (a stable, deterministic base order; the spawner draws weighted).
+## (T-215) A run whose segment distance is ≤ max_d has its bbox within the
+## Euclidean disk of radius max_d, and that disk lies inside the square of
+## half-extent max_d — so the candidate gather (cells the square overlaps)
+## provably holds every matching run, and the exact per-run filter below
+## returns the brute-force set byte-identically.
 func edges_in_band(x: float, z: float, min_d: float, max_d: float) -> PackedInt32Array:
 	var edges := PackedInt32Array()
-	for r in _runs.size():
+	for r: int in _run_candidates(x, z, max_d):
 		var pts := _runs[r].points
 		var best_d2 := INF
 		for i in pts.size() - 1:
@@ -982,15 +1125,49 @@ func edges_in_band(x: float, z: float, min_d: float, max_d: float) -> PackedInt3
 
 
 ## The `count` runs nearest a pack-local XZ anchor, band ignored — the
-## far-from-traffic fallback ({run, dist} dictionaries, nearest first).
+## far-from-traffic fallback ({run, dist} dictionaries, nearest first). The
+## T-215 ring expansion gathers each chebyshev ring's runs once (candidates
+## accumulate in `seen`), widening until the count-th smallest gathered
+## distance sits inside the ring bound — every run on an unvisited ring is
+## provably farther, so the candidate set is complete; the emit keeps the
+## brute-force walk's ascending run-id append order and tie-break. An
+## outside-the-bbox anchor starts at the first ring that can touch the bbox
+## (see `nearest_run` — the skipped rings are provably empty).
 func nearest_runs(x: float, z: float, count: int) -> Array[Dictionary]:
+	if count <= 0:
+		return []
+	_ensure_run_index()
+	var bbox_dist := _run_bbox_dist(x, z)
+	var ring := maxi(int(floor(bbox_dist / RUN_INDEX_CELL)), 0)
+	var d2_by_run := {}
+	var seen := {}
+	while true:
+		var ring_bound := float(ring) * RUN_INDEX_CELL
+		for cell: Vector2i in _ring_cells(x, z, ring):
+			var bucket: PackedInt32Array = _run_index.get(cell, PackedInt32Array())
+			for r: int in bucket:
+				if seen.has(r):
+					continue
+				seen[r] = true
+				var pts := _runs[r].points
+				var best_d2 := INF
+				for i in pts.size() - 1:
+					best_d2 = minf(best_d2, _seg_dist2(x, z, pts[i], pts[i + 1]))
+				d2_by_run[r] = best_d2
+		if d2_by_run.size() >= count:
+			var d2s := d2_by_run.values()
+			d2s.sort()
+			if float(d2s[count - 1]) <= ring_bound * ring_bound:
+				break
+		if ring_bound >= _run_index_reach(x, z):
+			break ## The whole graph was a candidate — the walk's answer.
+		ring += 1
+	var keys := d2_by_run.keys()
+	keys.sort()
 	var found: Array[Dictionary] = []
-	for r in _runs.size():
-		var pts := _runs[r].points
-		var best_d2 := INF
-		for i in pts.size() - 1:
-			best_d2 = minf(best_d2, _seg_dist2(x, z, pts[i], pts[i + 1]))
-		found.append({"run": r, "dist": sqrt(best_d2), "i": found.size()})
+	for key: Variant in keys:
+		var r := int(key)
+		found.append({"run": r, "dist": sqrt(float(d2_by_run[r])), "i": found.size()})
 	found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		if a["dist"] != b["dist"]:
 			return a["dist"] < b["dist"]
@@ -1226,6 +1403,7 @@ func _add_run(pts: PackedVector2Array, cls: String, sname: String,
 	run.sname = sname
 	run.width_m = width_m
 	run.points = pts
+	_run_index_dirty = true ## (T-215) The spatial index rebuilds on first query.
 	run.node_a = int(_weld_nodes[_weld_key(pts[0].x, pts[0].y)])
 	run.node_b = int(_weld_nodes[_weld_key(pts[pts.size() - 1].x, pts[pts.size() - 1].y)])
 	## The AABB seeds from the first point — Godot's default Rect2 sits at the

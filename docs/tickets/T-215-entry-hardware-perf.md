@@ -3,7 +3,7 @@
 *(Absorbs T-214 — the tailgate-zone traffic storm — as its lead evidence; that
 ticket's diagnosis is this ticket's Avenue A, unified by the gate-box canary.)*
 
-- **Status:** proposed · **Category:** code-optimization ·
+- **Status:** done · **Category:** code-optimization ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
 - **Depends on:** the T-209 perf ledger it supersedes' numbers (its budgets were
   dev-hardware numbers); blocks T-210 (the grand tour's box gate cannot pass
@@ -104,27 +104,72 @@ machine-checked property instead of a dev-hardware assumption.
 
 ## Acceptance criteria
 
-- [ ] The probe tools are committed (`perf_probe`, `cpu_probe`) and the
+- [x] The probe tools are committed (`perf_probe`, `cpu_probe` — plus the
+      new `storm_probe`/`frame_probe` attribution probes) and the
       measured data pack lives in `docs/references/ames-survey/perf/`
       (the Windows + box tables reproduced in the ticket at landing)
-- [ ] The box profile split (scene-processing vs submit) is recorded in the
-      ticket with the profiler evidence, and the avenue order follows it
-- [ ] The chosen avenues are implemented (A/B per the split; C and D at
-      their tier's scope) with each lever's measured delta recorded
-- [ ] *(Gate 1b)* the render-budget gate row re-derived against the canary:
-      the budget constants move from dev-hardware numbers to the box-measured
-      ones, pinned in the scenario
-- [ ] *(box gate)* `tools/gate-box.sh` Gate 2 enforces the 30 fps floor —
-      GATE2 FAILs below it (the threshold added to the script + the row in
-      VERIFICATION.md)
-- [ ] The box's full gate run: `GATE-BOX RESULT: PASS` on ames/campaign
-- [ ] *(Gate 1/2)* clean on Windows (the gates now run box-side — Gate 1b's
-      163 checks stay green, the Windows-side artifacts unchanged)
-- [ ] The web-fork one-pager (T-209) re-read against the new numbers and its
-      recommendation updated if they move it
-- [ ] HEADLESS cpu_probe anomaly: either resolved by the profiling step
-      (root-caused) or recorded as its own follow-up ticket proposal —
-      never silently dropped
+- [x] The box profile split (scene-processing vs submit) is recorded in the
+      ticket with the profiler evidence, and the avenue order follows it —
+      the split reversed the assumed order: the box's 1 fps was the
+      submit path blocked in a sleeping monitor (headless read 144.9
+      fps_eq), and the storm was the graph's placement queries
+- [x] The chosen avenues are implemented (A per the split; B root-caused
+      box-side; C and D re-scoped at their tier's scope with the measured
+      reason) with each lever's measured delta recorded
+- [x] *(Gate 1b)* the render-budget gate row re-derived against the canary:
+      the new `traffic_placement_budget` scenario pins the placement
+      window at the BOX-measured budget (60 ms const from the box's
+      11.9 ms read; dev 7.1 ms) with byte-identical equivalence at six
+      anchors; 165 checks green on BOTH machines
+- [x] *(box gate)* `tools/gate-box.sh` Gate 2 enforces the 30 fps floor —
+      the threshold added to the script (+ the awake-display preflight the
+      profiling made load-bearing) + the row in VERIFICATION.md; the PASS
+      arm proven live (fps=30 ≥ 30 held) and the FAIL arm via
+      `GATE2_FPS_MIN=999`
+- [x] The box's full gate run: `GATE-BOX RESULT: PASS` — the round-1
+      blocker (the Linux autoplay eat loop starving: loop_ok=false,
+      eaten=0) root-caused and fixed in this ticket (the pilot's descent
+      now settles on purpose — see the round-1 section), and the full
+      gate re-run on the branch tip 7b871677 (bundle-fetched into the
+      box's checkout; the ames/campaign-literal run is this same tree at
+      the merge, the branch being the campaign's tip plus this ticket):
+      `GATE1 PASS` / `GATE1B PASS checks=165` /
+      `GATE2 PASS AUTOPLAY DONE ok=true fps=31 floor=30` /
+      **`GATE-BOX RESULT: PASS ref=7b871677`** — the floor enforced at 30,
+      the autoplay's loop closed, all three gates green in one run
+- [x] *(Gate 1/2)* clean on Windows (Gate 1b 165 PASS / exit 0; Gate 1
+      import+boot rc=0, zero hard error lines; Gate 2 `AUTOPLAY DONE
+      ok=true world=ames fps=123 restart=true` exit 0)
+- [x] The web-fork one-pager (T-209) re-read against the new numbers and
+      its recommendation updated (the dated addendum in T-209's ticket §5)
+- [x] HEADLESS cpu_probe anomaly: resolved by the profiling step —
+      root-caused (the committed probe's invalid `PHYSICS_3D_STATS`
+      monitor failed the script load; the scene ran scriptless forever
+      without its quit) and fixed; the headless frame path measures clean
+      on both machines
+
+## Tuned values (recorded at landing)
+
+No gameplay feel constant moved — the storm's fix was structural and the
+pilot's fix is harness-side:
+
+- `AmesTrafficGraph.RUN_INDEX_CELL := 64.0` — the run index's uniform cell
+  size (m). The placement queries' cost drops from the 10.5 ms brute-force
+  walk to 79 µs per `nearest_runs(…, 12)` call; answers byte-identical
+  (the `traffic_placement_budget` equivalence arm).
+- `PLACE_BUDGET_MS := 60.0` (`tests/sim_test.gd`) — the Gate 1b placement
+  window ceiling, measured on the gate box (11.9 ms box-side / 7.1–9.4 ms
+  dev on the landed tree; ~5× the box read, so only a gross regression
+  trips it).
+- `GATE2_FPS_MIN` default **30** (`tools/gate-box.sh`, env-overridable) —
+  the entry-hardware floor, the owner's half-of-60 Hz pick; enforced on
+  the autoplay DONE line's fps, read independently of the autoplay's exit
+  code.
+- The autoplay settle press (`tests/autoplay.gd`): below **1.5 m** over
+  the landing ring the descent holds `target_nose = −0.35` (deliberate
+  plate contact; the hot-arrival speed-bleed cap applies above the settle
+  band only, 2.0–25.0 m) — the box's Linux eat loop closes (eaten 0 → 8)
+  and Windows stays green (eaten 4 → 8).
 
 ## Verification (proposed)
 
@@ -132,3 +177,222 @@ Gate 1 · Gate 1b full suite (163 checks, the re-pinned budget row) · Gate 2
 autoplay · **the box gate** (the acceptance run: gate-box.sh on the merged
 tip at the enforced 30 fps floor) · Gate 3: the owner plays on hardware of
 their choosing — the deferred flyover debts can close in the same sitting.
+
+## What landed (2026-11-18, the worktree @ the T-215 branch)
+
+**The profile split reversed the ticket's assumed avenue order, and both
+halves got their answer.** The evidence lives committed in
+`docs/references/ames-survey/perf/` (the probe tables reproduced there and
+summarized below); the attribution instrument is the new
+`tests/tools/storm_probe.tscn` (boots the real game, teleports into the
+zone, toggles each suspect per window) with `tests/tools/frame_probe.tscn`
+(the per-frame render-side monitors) beside it.
+
+The measured pose tables (perf_probe, opengl3, the panel awake on the box;
+the full sweeps + family hides ride the pack):
+
+| pose | dev (RTX 4080) | gate box (HD 530, awake) | draws (both) |
+| --- | --- | --- | --- |
+| spawn_ground (FIRST pose) | fps=1 | fps=1 | 549 |
+| campus_hover | 144 | 51 | 301 |
+| campustown_strip | 144 | 58 | 593 |
+| stadium | 144 | 60 | 947 |
+| downtown | 144 | 60 | 239 |
+| laverne | 144 | 60 | 522 |
+| overview_high | 144 | 60 | 496 |
+
+The first-pose stall is the shared one-time pipeline compile (the game's
+stepped boot pays it behind the menu handoff); every later pose clears the
+30 fps floor at full quality on the canary — no quality tier needed.
+
+### The box split (§2's work item, measured)
+
+| read | box number |
+| --- | --- |
+| headless cpu_probe (no GL) | **fps_eq 144.9** (300 frames, 2.07 s, 14,438 nodes) |
+| rendered, panel asleep | fps=1, dt ≈ 1.0 s, TIME_PROCESS ≈ 940–980 ms, TIME_PHYSICS 7–15 ms, pipeline compilations **0** |
+| rendered, panel awake | **51–60 fps at every probe pose**, draw counts identical to the dev table |
+| `glxgears` on :98 | 1.3 fps asleep → **60.5 fps awake** |
+| one-cube Godot scene on :98 | 1.0 fps asleep → **57.0 fps awake** |
+| `xset q` | "DPMS is Enabled / **Monitor is Off**" (600 s timers) |
+
+**The split: ~96 % of the 1 s frame was the main-thread render/submit step
+blocked in a DPMS-powered-off monitor's present path.** The scene tree was
+never the box's problem — the same CPU runs the whole live game headless at
+~140 fps through the zone burst (worst headless frame 129 ms ≈ 7.7 fps, not
+1). glxinfo said hardware GL the whole time because the CONTEXT was
+hardware GL; the swaps landed in a sleeping panel. The T-213-era 56 fps
+autoplay ran while the box was in use; the 1 fps era began when the idle
+timers slept the display. DRI2/DRI3-disabled A/Bs and pipeline-compilation
+monitors all read flat — the driver path and shader compile were never
+implicated.
+
+### The dev-side storm split (the T-214 lead evidence, attributed)
+
+The storm bisect (storm_probe, pre-fix tree, dev desktop, opengl3): the
+zone burst costs `phys` 53.1 avg / 345.3 max ms (10 s window; a second run
+168.4 / 271.4) with **cars off → 3.6 / 9.0** and **spawner-off (cars still
+driving) → 4.8 / 2.8** — the recycle machinery's placement churn owns it;
+tourists/player/blocks don't (`blocks=0` killed the `_refresh_block`
+hypothesis outright: the graph populate passes an empty block-centers
+cache). The bench inside the same probe found the engine: **one
+`nearest_runs(lxz, 12)` call = 10,513 µs** — the traffic graph's
+brute-force walk over all 2,044 runs × every segment, paid per placement
+attempt per far car per 0.5 s scan ≈ the T-209 audit's `phys µs 330–530
+ms`. (`park_spots_near` measured 26 µs and one recycle scan 15 µs — cheap;
+the audit's other pointer is exonerated with numbers.)
+
+### The avenues, re-ranked by the split and closed
+
+- **B · the submit path — ROOT-CAUSED BOX-SIDE, fixed in the gate, not in
+  the renderer.** The Mesa/driver levers the ticket spec'd are moot: the
+  driver was fine, the monitor was asleep. The fix is the canary's own
+  honesty: `tools/gate-box.sh` Gate 2 now **wakes the display first**
+  (`xset dpms force on` + `xset -dpms` on :98) and **enforces the 30 fps
+  floor** on the autoplay DONE line (`GATE2 FAIL fps=F below floor=30`;
+  `GATE2_FPS_MIN=<n>` overrides for testing the FAIL path). Measured
+  delta: the box's probe table went from fps=1 at every pose to 51–60 at
+  every pose (no render-side code changed — that IS the delta).
+- **A · the traffic physics cost — the storm's root cause, fixed.**
+  `AmesTrafficGraph` indexes its runs into a uniform 64 m cell grid (bbox
+  bucketing at build, ring-by-ring queries with provable termination
+  bounds, an outside-the-bbox ring jump for streetless anchors);
+  `nearest_run` / `edges_in_band` / `nearest_runs` keep their contracts
+  byte-identically. Measured deltas: the bench 10,513 µs → **79 µs** per
+  `nearest_runs(12)` call; the placement window (100+20 calls at the zone
+  anchor) **1.3 s-equivalent → 7.1 ms dev / 11.9 ms box**; the zone burst
+  53.1/345.3 → **10.0/10.6 ms** at 93–120 fps on dev. No interval-tick or
+  shape-diet lever was needed — the queries were the whole storm.
+- **C · quality tier — not warranted at the measured tier.** The box
+  passes 51–60 fps at FULL quality (msaa_3d on, shadows on) at every
+  probe pose; the tier system stays a future ticket, with this box as its
+  reference hardware and these tables as its reference numbers.
+- **D · the warm-up pass — re-diagnosed, already covered structurally.**
+  The first-pose stall (spawn_ground fps=1 as the FIRST pose on BOTH
+  platforms, every later pose full speed) is the one-time pipeline-compile
+  cost of the world's first rendered frame (pipeline-compilation monitors
+  flat thereafter). In the GAME path the stepped boot's
+  paint-between-phases (T-129) renders the world during the boot behind
+  the menu handoff, so the compile is paid before the player's first
+  in-game frame — the stall as measured is the probe's own first render.
+  Recorded, no code.
+- **E · the draw ceiling — re-derived against the canary.** The box's
+  awake table holds 51–60 fps at 239–947 draws per pose — the ≈1800 pose
+  budget has ~2–3× headroom on the canary at the SAME draw counts the dev
+  table shows; the ceiling constants stand re-validated (the
+  `ames_world_render_budget` scenario's assertions untouched; the
+  re-derivation is recorded here and in the perf pack).
+
+### The re-pinned Gate 1b row
+
+`traffic_placement_budget` (new scenario): equivalence — the indexed
+queries answer the brute-force walk byte-identically at six anchors across
+the map (the tailgate zone, downtown, the spawn corridor, the origin, and
+two streetless points past every run: same run ids, same exact float
+distances, same band sets, same tie-breaks); budget — 100
+`nearest_runs(…, 12)` + 20 `edges_in_band(60, 140)` calls at the zone
+anchor under **60 ms**, the constant the box measured (11.9 ms box-side,
+7.1 ms dev on the landed tree; the pre-fix walk would read ~1.3 s). The
+dev-hardware numbers this ticket supersedes (T-209's dev-desktop budget
+rows) are carried in the perf pack.
+
+### The cpu_probe anomaly (the ticket's flag) — resolved
+
+The committed `cpu_probe.gd` referenced `Performance.PHYSICS_3D_STATS`, a
+member Godot 4.7 does not have: the script failed to LOAD, the probe scene
+ran scriptless forever and never reached its `quit()` — the "hangs or
+crawls past 5 min" was the probe, not the headless frame path. Fixed to
+the real monitors (`PHYSICS_3D_ACTIVE_OBJECTS` / `PHYSICS_3D_COLLISION_
+PAIRS`); the headless path measures clean on both machines (dev 128.6
+fps_eq, box 144.9). No follow-up ticket owed.
+
+### The box gate run (the ticket's §4, executed on the branch tip)
+
+`tools/gate-box.sh 7438ecbd` (this branch's final tree, bundle-fetched into
+the box's checkout — no push anywhere), the NEW script with the preflight
+and the floor:
+
+```
+GATE1 PASS
+GATE1B PASS checks=165
+GATE2 FAIL rc=1 (AUTOPLAY DONE ok=true; log: …gate2.log)
+GATE-BOX RESULT: FAIL ref=7438ecbd…
+```
+
+The DONE line: `AUTOPLAY DONE ok=true world=ames … fps=30 … eaten=0
+splats=42 loop_ok=false` — **the fps floor arm HELD** (30 ≥ 30, the
+owner's bar reading exactly the DONE line's fps); the FAIL came from the
+AUTOPLAY'S OWN loop gate (`loop_ok=false` because `eaten=0` → the
+autoplay exits 1), not from the floor. Follow-ups that pinned it:
+
+- vsync OFF (`--disable-vsync`): fps=31, the same failure — the box's
+  spawn-view render rate is genuinely ~31, not a vsync half-rate lock.
+- **headless** (no GL at all, fps_eq 141): the same failure, the same
+  final position to a decimetre — the AI divergence is not render-coupled.
+- **the branch BASE (483e6de — before any T-215 work), headless: the same
+  failure byte-for-byte** (eaten=0, splats=42, player=(386.9, 0.3,
+  −296.6)).
+
+So: the box's autoplay eat loop (waddle-to-crumb → peck) does not close
+on Linux — a **platform-deterministic divergence that PREDATES this
+ticket** (present at the base, absent on dev Windows where eaten=4 at the
+same seed). It blocks `GATE-BOX RESULT: PASS` at this tree REGARDLESS of
+the fps floor, and it is not a perf defect: the simulation completes at
+140+ fps headless.
+
+### Round 1 — the divergence root-caused and the eat loop fixed
+
+The review round sent the ticket back on exactly this, and the AMESDBG
+diagnostic (added to the autoplay, env-gated, off by default) pinned it:
+
+- Both platforms' runs are **identical through t=17** (player y 0.962 /
+  vy −1.578, three decimals — boot, world build, crumb seed and the AI's
+  cruise legs are platform-stable).
+- They diverge at **t≈20–25** on the FINAL FLARE: Windows descends into
+  its landing (t=25: y 1.561, vy −1.076) while the box climbs off the
+  same glide (t=25: y 2.068, vy +0.751). The flare held the nose at
+  −0.02 — a level coast — and let residual drift make the plate contact;
+  the dev build always resolved it, the box's Linux build coasted at
+  plate height (y≈0, vy≈0, grounded=false) for seconds at a stretch, the
+  crumb's `body.is_grounded` eat arm never fired, and the loop starved.
+- **The fix is in the pilot, not the game**: `tests/autoplay.gd`'s
+  descent leg now treats the last 1.5 m over the landing ring as a
+  DELIBERATE settle press (`target_nose = -0.35` below 1.5 m; the
+  hot-arrival speed-bleed cap applies above the settle band only) — the
+  pilot lands on purpose and lets the game's own touchdown skid eat the
+  speed, on every platform. Landing is the pilot's job.
+- Measured: the box's autoplay now reads **`loop_ok=true, eaten=8,
+  rc=0`** headless (was eaten=0, rc=1) and Windows stays green with the
+  same fix (loop_ok=true, eaten=8 — up from 4, the deliberate landings
+  close more loops); the platforms nearly converge (box splats 21 vs
+  Windows 20). The residual citizen-level divergence (the platforms'
+  contact chains still part ways after t≈20 — the pigeons' own
+  trajectories still end within a decimetre) is minted as its own
+  follow-up, [T-216](T-216-cross-platform-autoplay-determinism.md),
+  with the AMESDBG line as its instrument.
+
+### One more defect caught in passing (the T-214 flag)
+
+The T-214 ticket's "respawn ejection" reproduced on the FIRST try: a pilot
+teleport into the zone (1192, 61.6, 300) ejected the pigeon to the spawn
+corridor within ~27 ms — off_world_resets stayed 0 and no city regen ran,
+so neither known reset site fired; the state stream caught the arrival
+(3 samples at the target) and the home position one sample later. The
+T-209/T-214 sessions saw it "one of two teleports, ~0.6 s after arrival".
+NOT fixed in this ticket (its own reproduction rig needs the storm's
+churn quiet first, and this ticket's scope is the perf budget); the
+reproduction is recorded in the perf pack's Windows file and the flag
+stays live for a follow-up.
+
+## Review sign-off
+
+Review round 1 sent the ticket back on the one open criterion — the box
+gate's PASS, blocked by the Linux autoplay eat-loop starvation — and the
+round-1 fix (the pilot's settle press) plus the re-run closed it with a
+real `GATE-BOX RESULT: PASS ref=7b871677` (GATE1 PASS, GATE1B PASS
+checks=165, GATE2 PASS ok=true fps=31 floor=30). The reviewer then played
+the game and read the code, and signed the ticket off (2026-11-22). The
+residual citizen-level platform divergence rides
+[T-216](T-216-cross-platform-autoplay-determinism.md) (proposed); the
+deferred T-214 flags (the respawn ejection, the follow-up's own rig) stay
+live there and in the perf pack.

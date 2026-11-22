@@ -320,6 +320,7 @@ func _run_scenarios() -> void:
 	await _scenario_dev_call_verb() ## T-169 — the call verb: one-hop invocation through _execute_dev — resolution arms, THE coercion rule, error/denylist events, the gate seam.
 	await _scenario_pilot_window_hide_math() ## T-170 — the hidden-launch math: the pure hide position across three monitor layouts, the size input, and the headless guard leg.
 	await _scenario_density_cpu_budget()
+	await _scenario_traffic_placement_budget() ## T-215 — the storm fix: indexed placement queries stay brute-force-identical and box-budget cheap.
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
 	print("SIM SUMMARY: %d failure(s)" % _failures)
@@ -22860,6 +22861,161 @@ func _scenario_density_cpu_budget() -> void:
 	Game.reset_run()
 	main_game.free()
 	_main_game = null
+
+
+## --- scenario (T-215 the traffic placement budget) ---------------------------
+
+
+## The T-209/T-214 tailgate storm's fix, machine-checked. The storm's root
+## cause was the traffic graph's brute-force placement queries — every
+## `nearest_run` / `edges_in_band` / `nearest_runs` call walked ALL 2,044
+## runs' EVERY segment (~10.5 ms per call in GDScript), paid per placement
+## attempt inside the recycle machinery: 26 far cars re-seating in the
+## tailgate lot sea re-walked the whole graph per 0.5 s scan and ate
+## 0.3–0.5 s of script physics time per wall second (measured by
+## `tests/tools/storm_probe.gd` on the dev desktop: phys_us 168–345 ms in
+## the zone, fps 59; the box headless the same shape). The fix indexes the
+## runs into a uniform cell grid and scopes the queries to the cells the
+## query square overlaps. This scenario pins BOTH halves:
+##
+## EQUIVALENCE — the indexed queries must answer byte-identically to the
+## brute-force walk they replaced: at anchors across the whole map (the
+## tailgate zone, downtown, the spawn corridor, the origin, and two points
+## beyond every street) the scenario recomputes the reference answers with
+## the graph's own segment math and demands the same run ids, the same
+## distances (exact float ==), the same order and the same tie-breaks.
+##
+## BUDGET — the placement reads stay box-measured cheap: 100 calls of
+## `nearest_runs(…, 12)` plus 20 calls of `edges_in_band(…, 60, 140)` at the
+## zone anchor under PLACE_BUDGET_MS, the constant measured on the gate box
+## (the entry-hardware canary), not on dev.
+func _scenario_traffic_placement_budget() -> void:
+	const S := "traffic_placement_budget"
+	const EQUIV_ANCHOR_COUNT := 6
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = Vector3(0.0, 0.0, -8000.0) ## Own space: clear of every other instanced world here.
+	add_child(world)
+	await get_tree().physics_frame
+	var bad: PackedStringArray = PackedStringArray()
+	var graph: AmesTrafficGraph = world.traffic_graph
+	if graph == null or graph.run_count() == 0:
+		_check(S, false, "no traffic graph on the resident world")
+		world.queue_free()
+		return
+	## The anchors, in the graph's own pack-local frame: the named world poses
+	## are GAME coordinates (the world node sits offset in the harness), so
+	## each point enters to_local WITH the offset — the pack-local anchor is
+	## exactly the named coordinate, whatever offset the rig carries.
+	var zone := world.to_local(world.position + Vector3(1500.0, 0.0, 900.0))
+	var downtown := world.to_local(world.position + Vector3(2705.0, 0.0, -256.0))
+	var spawn := world.to_local(world.position + Vector3(380.17, 0.0, -294.45))
+	var anchors: Array[Vector2] = [
+		Vector2(zone.x, zone.z),
+		Vector2(downtown.x, downtown.z),
+		Vector2(spawn.x, spawn.z),
+		Vector2(0.0, 0.0),
+		Vector2(zone.x - 9500.0, zone.z),
+		Vector2(zone.x, zone.z + 9000.0),
+	]
+	for a: int in mini(EQUIV_ANCHOR_COUNT, anchors.size()):
+		var p := anchors[a]
+		var best_d2 := INF
+		var best_run := -1
+		var d2_all: Array[float] = []
+		for r: int in graph.run_count():
+			var pts := graph.run_points(r)
+			var run_best := INF
+			for i: int in pts.size() - 1:
+				var seg_a := pts[i]
+				var seg_b := pts[i + 1]
+				var dx := seg_b.x - seg_a.x
+				var dz := seg_b.y - seg_a.y
+				var l2 := dx * dx + dz * dz
+				var t := 0.0
+				if l2 > 1e-12:
+					t = clampf(((p.x - seg_a.x) * dx + (p.y - seg_a.y) * dz) / l2,
+							0.0, 1.0)
+				var px := seg_a.x + t * dx
+				var pz := seg_a.y + t * dz
+				run_best = minf(run_best, (p.x - px) * (p.x - px) + (p.y - pz) * (p.y - pz))
+			d2_all.append(run_best)
+			if run_best < best_d2:
+				best_d2 = run_best
+				best_run = r
+		## nearest_run — same id, same float.
+		var hit := graph.nearest_run(p.x, p.y)
+		if best_run < 0:
+			if not hit.is_empty():
+				bad.append("anchor %d nearest_run expected empty got %d" % [a, int(hit.get("run", -1))])
+		else:
+			if hit.is_empty() or int(hit["run"]) != best_run \
+					or float(hit["dist"]) != sqrt(best_d2):
+				bad.append("anchor %d nearest_run got run=%s dist=%s want run=%d dist=%s" % [
+						a, str(hit.get("run", "?")), str(hit.get("dist", "?")),
+						best_run, str(sqrt(best_d2))])
+		## edges_in_band — the spawn band, exactly the brute-force set in order.
+		var want_band := PackedInt32Array()
+		for r: int in graph.run_count():
+			var d := sqrt(d2_all[r])
+			if d >= 60.0 and d <= 140.0:
+				want_band.append(r * 2)
+				want_band.append(r * 2 + 1)
+		var got_band := graph.edges_in_band(p.x, p.y, 60.0, 140.0)
+		if got_band != want_band:
+			bad.append("anchor %d edges_in_band got %d edges want %d" % [
+					a, got_band.size(), want_band.size()])
+		## nearest_runs — the count-th nearest in the walk's own tie-break.
+		var want_sorted: Array[Dictionary] = []
+		for r: int in graph.run_count():
+			want_sorted.append({"run": r, "dist": sqrt(d2_all[r]), "i": r})
+		want_sorted.sort_custom(func(x: Dictionary, y: Dictionary) -> bool:
+			if float(x["dist"]) != float(y["dist"]):
+				return float(x["dist"]) < float(y["dist"])
+			return int(x["i"]) < int(y["i"]))
+		want_sorted.resize(mini(12, want_sorted.size()))
+		var got_sorted := graph.nearest_runs(p.x, p.y, 12)
+		if got_sorted.size() != want_sorted.size():
+			bad.append("anchor %d nearest_runs size %d want %d" % [
+					a, got_sorted.size(), want_sorted.size()])
+		else:
+			for k: int in got_sorted.size():
+				if int(got_sorted[k]["run"]) != int(want_sorted[k]["run"]) \
+						or float(got_sorted[k]["dist"]) != float(want_sorted[k]["dist"]):
+					bad.append("anchor %d nearest_runs[%d] got run=%s dist=%s want run=%d dist=%s" % [
+							a, k, str(got_sorted[k]["run"]), str(got_sorted[k]["dist"]),
+							int(want_sorted[k]["run"]), str(want_sorted[k]["dist"])])
+			## The `i` field rides the walk's ascending run-id append order.
+			var ids := PackedInt32Array()
+			for entry: Dictionary in got_sorted:
+				ids.append(int(entry["run"]))
+			if ids != ids.duplicate():
+				bad.append("anchor %d nearest_runs duplicate run ids" % a)
+	## The box-measured placement budget: 100 nearest_runs(12) + 20
+	## edges_in_band(60,140) calls at the zone anchor, one wall-clock window.
+	var zone_anchor := anchors[0]
+	var t0 := Time.get_ticks_usec()
+	for i: int in 100:
+		graph.nearest_runs(zone_anchor.x, zone_anchor.y, 12)
+	for i: int in 20:
+		graph.edges_in_band(zone_anchor.x, zone_anchor.y, 60.0, 140.0)
+	var place_ms := float(Time.get_ticks_usec() - t0) / 1000.0
+	print("SIM DATA %s: placement %d nearest_runs(12) + %d edges_in_band(60,140) calls in %.1f ms at the zone anchor (budget %.1f), runs %d" % [
+			S, 100, 20, place_ms, PLACE_BUDGET_MS, graph.run_count()])
+	if place_ms > PLACE_BUDGET_MS:
+		bad.append("placement window %.1f ms > budget %.1f" % [place_ms, PLACE_BUDGET_MS])
+	_check(S, bad.is_empty(), "; ".join(bad))
+	world.queue_free()
+
+
+## The T-215 placement budget (ms) — the traffic graph's scoped placement
+## queries' cost ceiling, measured on the gate box (i7-6700, the entry-hardware
+## canary this ticket re-derives every budget against): 100 nearest_runs +
+## 20 edges_in_band calls at the tailgate anchor took 11.9 ms box-side (the
+## SIM DATA line of the box Gate 1b run, 2026-11-18; dev-side the same window
+## is 7.1 ms); the pin is ~5x the box read, so only a gross regression (the
+## unindexed walk again — 10.5 ms PER CALL, ~1.3 s for the same window) trips
+## it. The gate box is the bar.
+const PLACE_BUDGET_MS := 60.0
 
 
 ## --- scenario (T-036 off-world fall guard) ----------------------------------
