@@ -130,7 +130,44 @@ graph 2,044 runs / 1,003 stops; the blades 99 → 130 over the north
 spine corners — the unreached-spine ledger stays [Mortensen Road,
 Stange Road], corner-driven), the text ledger 162 → 194, and the bake
 grew 251 → 552 tiles / 8.26 MB (the draw ceiling scales with the tile
-set: 800 × 551/251 ≈ 1800).
+set: 800 × 551/251 ≈ 1800). Since the **R5 ring the town gained its
+weight and its cover, then the cutover said "complete"** — all R5 work
+lives default-on, no flags: **T-206** dressed the anonymous buildings
+(the 10,101 procedural massings carry per-district roof variants —
+9,163 gable prisms + 7,223 dressing boxes: porch deck+canopy pairs and
+ridge chimneys on the house-scale stock, cornices downtown, the scruff
+parapet/flat/penthouse mix in Campustown, rooftop mechanical screens on
+the campus big blocks — footprints machine-pinned identical, the bake
+schema `ames_chunks/v5`); **T-207** planted the canopy (all 6,753
+mapped `natural=tree` nodes — oak 4,587 / boulevard 2,050 / shore 116 —
+one MultiMesh per archetype present per tree-bearing tile (172), a
+deterministic sway hint, NO collision: the pigeon brushes through; bake
+`ames_chunks/v6`, 553 tiles / 12.84 MB, the whole-world draw ceiling
+2100); **T-208** dressed the game-day lots (a STATIC Friday-afternoon
+read on the stadium-adjacent census lots — 191 tents / 47 RVs / 107
+table clusters / 29 flags in three distance tiers off the bake's own
+Jack Trice pitch anchor (near 9 / mid 4 / far 13, far car-only), the
+tent-canopy mix 73 cardinal / 55 gold / 63 white — colors carry the
+joke, no marks, no NPCs, nothing interactive); **T-209** ran the perf
+audit (the memory ledger: 2,001 MultiMeshes / 60,186 instances /
+9.83 MB resident buffers, cruise 841 / hover 81 pose draws vs the 1800
+pose budget; the one budget miss — the tailgate-zone traffic storm —
+escalated as T-214); **T-215** then FIXED that storm (the traffic
+graph's brute-force placement queries now indexed, machine-pinned by
+the `traffic_placement_budget` row) and gave the entry-hardware gate
+box a real 30 fps floor. **T-210 is the R5 CUTOVER — the campaign's
+last scheduled default-flip: the whole town at every boot** — the five
+rings' work (the base bake, the living citizens, the landmarks, the
+names, the edges + weight) joined and machine-pinned by the
+`r5_cutover_ledger` Gate 1b row (the ring report table + the bake
+identity + the v4 bbox consts + the variant/canopy/dressing joins +
+the T-209 audit numbers re-measured on the default boot); its Gate 3 is
+the owner's GRAND TOUR — spawn → Central Campus → stadium → S Duff →
+Reiman → Ada Hayden → downtown, the whole town in one flight, with the
+perf pass's build under his hands; sign-off closes the ring. After
+T-210: ROADMAP.md refresh (the M4 campaign section) is the campaign's
+closing doc pass, and R6 begins only with owner picks from master plan
+§9.
 
 ## Stack & tooling
 

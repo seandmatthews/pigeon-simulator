@@ -217,6 +217,7 @@ func _run_scenarios() -> void:
 	await _scenario_street_blades_pins() ## T-200 — the spine street-name blades at the pinned corners: the corner list + text pins, re-derived from the graph + pack.
 	await _scenario_campus_plaques_pins() ## T-201 — the campus + civic name plaques: the building list + text pins, re-derived from the hero records.
 	await _scenario_r4_cutover_text_ledger() ## T-202 — the R4 cutover: the four text tickets joined into ONE ledger — every family live at its pinned count on the default boot, the legibility law re-run over all 162 texts (T-204's re-pin: the blades 99 ring + the placed Reiman plaque), the visual-only guard over the joined roots, the one staged spec + both honest ledgers still closed.
+	await _scenario_r5_cutover_ledger() ## T-210 — the R5 cutover: the WHOLE TOWN joined into ONE ledger on the resident default boot — the five rings' report keys live at their pinned counts, the bake identity (v6/553/sha), the v4 bbox consts + the three strip stamps, the canopy at its pinned archetype mix over its 172 chunk MultiMeshes, the tailgate dress at its pinned tiers + canopy mix, and the T-209 audit numbers (mm_nodes 2001 / instances 60186 / buffer 10303472 / max 8 per chunk / 841 cruise + 81 hover pose draws) re-measured on the default boot under the 2100/1800/400 MB budgets.
 	await _scenario_takeoff()
 	await _scenario_flap_speed_envelope()
 	await _scenario_sustained_flap_ceiling()
@@ -15483,6 +15484,365 @@ func _scenario_r4_cutover_text_ledger() -> void:
 		world.venue_signs.size(), world.venue_signs_t23.size(),
 		world.ghost_plaques.size(), world.street_blades.size(),
 		world.campus_plaques.size()])
+	_check(S, bad.is_empty(), "; ".join(bad) if not bad.is_empty() else "-")
+
+
+## (T-210) The R5 cutover: the WHOLE TOWN at ONE default boot — the five
+## rings' work joined into ONE ledger on the resident world. The cutover
+## PROVES the flip rather than performing it (the T-202 law): every R5
+## builder already runs unconditionally — the extensions ride the committed
+## pack, the filler variants + the canopy bake into the committed chunks,
+## the tailgate dress builds in `generate_step_finish` — so the named,
+## dressed, living town boots with no flag anywhere, and this row walks the
+## plain default boot's own numbers to say so. The per-ticket rows stay the
+## byte-exact mount authorities (the census row's convention: a re-pin lands
+## here AND in the owning row); the cutover's claim is the JOIN:
+## THE FLIP LAW — `Game.world` pinned `"ames"` (the only legal value since
+##     the T-184 cutover) and every ring's systems live under the world;
+## R1 THE BASE (T-171/T-172/T-173) — the resident bake manifest at its
+##     pinned identity (schema v6, 553 tiles, the exact committed sha, the
+##     pack totals), the survival re-base's spot supply, the world's chunk
+##     set built 1:1 with the manifest;
+## R2 THE LIFE (T-178..T-183) — the traffic graph at its v4 shape (9,726
+##     nodes / 2,044 runs / 261.26 km), the T-180 corner set (114 pinned /
+##     34 signals), the T-181 zones (5 zones, 10 bench seats), the T-182
+##     parking system (105 kept lots / 92 curb runs / 8,798 dressed cars),
+##     the T-185 swan pair, the T-194 rail (14 crossbuck crossings, the
+##     32-box coal drag);
+## R3 THE LANDMARKS (T-185..T-195, T-204) — every hero record live at its
+##     landed part count (campanile 60 / campus row 75 / MU+Parks 92 /
+##     Marston 62 / stadium 78 / Hilton 17 / bandshell 65 / civic 12 /
+##     depot 28 / elevators 24 / gardens 13), the campus lawn (105 slab
+##     tris / 169 ribbons / 10 fountain parts), the downtown fabric (126),
+##     the tailgate flats + stall markings, the gardens' 8 butterflies, the
+##     LaVerne shore dress;
+## R4 THE NAMES (T-198..T-201) — the five text families 14/27/11/130/12
+##     = 194 placed texts (the r4 row's own re-pin) under their roots;
+## R5 THE EDGES + THE WEIGHT (T-203..T-205, T-206..T-208, T-209) — the v4
+##     bbox consts with all three strip stamps (the east 200–300 m band
+##     re-derived through the pack transform), the variant/canopy joins
+##     off the manifest (roofs 9,163 / dress 7,223 over the pinned district
+##     distribution, trees 6,753, the T-205 trail family 788), the canopy
+##     live at its pinned archetype mix (4,587 oak / 2,050 boulevard /
+##     116 shore over 172 chunk MultiMeshes — one per archetype present per
+##     tree-bearing tile), the tailgate dress live at its pinned tiers
+##     (9 near / 4 mid / 13 far, every far lot car-only) and canopy mix
+##     (73 cardinal / 55 gold / 63 white against the world's own pinned
+##     hexes), and THE AUDIT NUMBERS — the T-209 memory ledger re-measured
+##     on the default boot: mm_nodes 2001 / instances 60186 /
+##     buffer_bytes 10303472 / 553 chunks / max 8 MultiMeshes per chunk /
+##     the two pose ceilings measured 841 cruise / 81 hover against the
+##     1800 pose budget, everything under the whole-world 2100 ceiling and
+##     the 400 MB buffer budget.
+func _scenario_r5_cutover_ledger() -> void:
+	const S := "r5_cutover_ledger"
+	## The ring report table (report key → pinned count; re-pinned per
+	## re-bake like the census row's 8798 — the owning row stays the
+	## derivation authority).
+	const RING_REPORT := {
+		## R1 — the base bake + the survival re-base (T-171/T-172/T-173/T-176).
+		"buildings": 10783,
+		"crumb_spots": 31572,
+		"cafe_tables": 7,
+		## R2 — the living town (T-178..T-183 + the rail corridor).
+		"traffic_nodes": 9726,
+		"traffic_runs": 2044,
+		"intersections_pinned": 114,
+		"intersections_signals": 34,
+		"ped_zones": 5,
+		"ped_benches": 10,
+		"parking_lots": 105,
+		"parking_curb_runs": 92,
+		"parking_dressed": 8798,
+		"swans": 2,
+		"crossbuck_crossings": 14,
+		"train_boxes": 32,
+		## R3 — the landmarks (T-185..T-195, T-204).
+		"campanile_parts": 60,
+		"campus_row_parts": 75,
+		"mu_parks_parts": 92,
+		"marston_parts": 62,
+		"stadium_parts": 78,
+		"hilton_parts": 17,
+		"bandshell_parts": 65,
+		"civic_parts": 12,
+		"depot_parts": 28,
+		"elevator_parts": 24,
+		"gardens_parts": 13,
+		"fountain_parts": 10,
+		"campus_ribbons": 169,
+		"campus_slab_tris": 105,
+		"campus_plaza_tris": 17,
+		"fabric_parts": 126,
+		"lot_flat_tris": 396,
+		"lot_markings": 6360,
+		"butterflies": 8,
+		"lake_pale_quads": 117,
+		"lake_reeds": 63,
+		## R4 — the names (T-198..T-201; the r4 row is the legibility
+		## authority — these pins carry the JOIN).
+		"venue_signs": 14,
+		"venue_signs_t23": 27,
+		"ghost_plaques": 11,
+		"street_blades": 130,
+		"campus_plaques": 12,
+		## R5 — the edges + the life (T-208's dress; the rest walked below).
+		"tailgate_tents": 191,
+		"tailgate_rvs": 47,
+		"tailgate_tables": 107,
+		"tailgate_flags": 29,
+	}
+	const RING_ROOTS := ["Chunks", "Intersections", "PedZones", "Parking",
+			"Lake", "Swans", "RailCorridor", "CampusLawn", "StadiumLots",
+			"DowntownFabric", "ReimanButterflies", "VenueSigns",
+			"VenueSignsTiers", "GhostPlaques", "StreetBlades", "CampusPlaques"]
+	## The bake identity (re-pinned per re-bake; the hash pins the EXACT
+	## committed tree — the T-207 v6 bake).
+	const BAKE_SCHEMA := "ames_chunks/v6"
+	const BAKE_SHA256 := "8f93295957b29fa6f1746392efb95b748e405121ec2362326c5357c64d040175"
+	const BAKE_TILES := 553
+	const MANIFEST_TOTALS := {
+		"massing": 10783, "roofs": 9163, "dress": 7223, "trees": 6753,
+		"trail_quads": 788, "lawn_tris": 4647, "water_tris": 375,
+		"placeholders": 106,
+	}
+	const DISTRICT_TOTALS := {
+		"residential": 9480, "lincolnway": 622, "campus": 292,
+		"downtown": 272, "campustown": 117,
+	}
+	## The bbox consts (the pack meta carries them; `ames_bbox_east` /
+	## `ames_extension_north` stay the derivation authorities).
+	const BBOX_WSEN := [-93.659, 42.003, -93.607, 42.078]
+	const V1_EAST := -93.61
+	const V2_SOUTH := 42.012
+	const V3_NORTH := 42.0355
+	## The canopy join (T-207's pins, walked off the live tree MultiMeshes).
+	const TREE_MM_NODES := 172
+	const TREE_ARCHETYPES := {
+		"TreesOak": 4587, "TreesBoulevard": 2050, "TreesShore": 116,
+	}
+	## The tailgate join (T-208's pins, walked off the live dress records).
+	const TG_TIERS := [9, 4, 13]
+	const TG_CANOPY := [73, 55, 63]
+	## The T-209 audit numbers (the memory ledger, re-measured per run — a
+	## moved byte of world cost re-pins here AND in the owning row).
+	const AUDIT_MM_NODES := 2001
+	const AUDIT_INSTANCES := 60186
+	const AUDIT_BUFFER_BYTES := 10303472
+	const AUDIT_MAX_MM_PER_CHUNK := 8
+	const AUDIT_CRUISE_DRAWS := 841
+	const AUDIT_HOVER_DRAWS := 81
+	## The T-173 budgets, re-stated (the budget row's own consts — its
+	## re-pins re-pin here).
+	const DRAW_BUDGET := 2100
+	const POSE_DRAW_BUDGET := 1800
+	const MEMORY_BUDGET_BYTES := 400 * 1024 * 1024
+	var bad: PackedStringArray = PackedStringArray()
+	var world := _city as AmesWorld
+	if world == null:
+		_check(S, false, "the harness world is not the Ames world")
+		return
+
+	## --- the default-boot flip law: ONE world, no flag anywhere ------------
+	if Game.world != AmesWorld.WORLD_ID:
+		bad.append("Game.world '%s' want '%s' — the cutover law is ONE world"
+				% [Game.world, AmesWorld.WORLD_ID])
+	var report: Dictionary = world.last_report
+
+	## --- the ring walk: every system live at its pinned count --------------
+	for key: String in RING_REPORT:
+		if int(report.get(key, -1)) != int(RING_REPORT[key]):
+			bad.append("report %s=%s want %d — a ring moved, re-pin"
+					% [key, str(report.get(key, "MISSING")),
+					int(RING_REPORT[key])])
+	## The one float report key rides the graph's own band (the routes row's).
+	if absf(float(report.get("traffic_km", -1.0)) - 261.26) > 0.3:
+		bad.append("report traffic_km=%s want 261.26 ±0.3 (the v4 pin)"
+				% str(report.get("traffic_km", "MISSING")))
+	## The systems themselves (a null graph/zones/parking would already have
+	## zeroed the keys above — the roots make the failure name the ring).
+	for root_name: String in RING_ROOTS:
+		if world.get_node_or_null(root_name) == null:
+			bad.append("ring root '%s' missing on the default boot" % root_name)
+
+	## --- R1/R5: the bake identity the town boots from ----------------------
+	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	if manifest.is_empty():
+		bad.append("no committed bake at %s" % AMES_CHUNKS_DIR)
+	else:
+		if str(manifest.get("schema", "")) != BAKE_SCHEMA:
+			bad.append("bake schema %s want %s" % [manifest.get("schema"),
+					BAKE_SCHEMA])
+		if str(manifest.get("total_sha256", "")) != BAKE_SHA256:
+			bad.append("bake total_sha256 moved — the committed tree is not "
+					+ "the audited bake (re-pin the cutover row with it)")
+		var tiles := (manifest.get("chunks", []) as Array).size()
+		if tiles != BAKE_TILES:
+			bad.append("bake tiles %d want %d" % [tiles, BAKE_TILES])
+		var totals: Dictionary = manifest.get("totals", {})
+		for key: String in MANIFEST_TOTALS:
+			if int(totals.get(key, -1)) != int(MANIFEST_TOTALS[key]):
+				bad.append("manifest totals %s=%s want %d"
+						% [key, str(totals.get(key, "MISSING")),
+						int(MANIFEST_TOTALS[key])])
+		var districts: Dictionary = totals.get("districts", {})
+		for key: String in DISTRICT_TOTALS:
+			if int(districts.get(key, -1)) != int(DISTRICT_TOTALS[key]):
+				bad.append("district %s=%s want %d — the dressing "
+						+ "regenerated buildings?" % [key,
+						str(districts.get(key, "MISSING")),
+						int(DISTRICT_TOTALS[key])])
+
+	## --- R5: the bbox consts (the three-strip box) --------------------------
+	var meta: Dictionary = AmesDataPack.meta()
+	if int(meta.get("version", 0)) != 4 \
+			or str(meta.get("schema", "")) != "ames_core/v4":
+		bad.append("pack version/schema %s/%s want 4/ames_core/v4"
+				% [meta.get("version"), meta.get("schema")])
+	var bbox: Array = meta.get("core_bbox_wsen", [])
+	if bbox.size() < 4 or [float(bbox[0]), float(bbox[1]), float(bbox[2]),
+			float(bbox[3])] != BBOX_WSEN:
+		bad.append("core_bbox_wsen=%s want %s" % [str(bbox), str(BBOX_WSEN)])
+	if not is_equal_approx(float(meta.get("core_bbox_east_v1", 0.0)), V1_EAST):
+		bad.append("core_bbox_east_v1=%s want %s"
+				% [meta.get("core_bbox_east_v1"), V1_EAST])
+	if not is_equal_approx(float(meta.get("core_bbox_south_v2", 0.0)), V2_SOUTH):
+		bad.append("core_bbox_south_v2=%s want %s"
+				% [meta.get("core_bbox_south_v2"), V2_SOUTH])
+	if not is_equal_approx(float(meta.get("core_bbox_north_v3", 0.0)), V3_NORTH):
+		bad.append("core_bbox_north_v3=%s want %s"
+				% [meta.get("core_bbox_north_v3"), V3_NORTH])
+	var m_per_deg_lon := 111320.0 * cos(deg_to_rad(42.02))
+	var grown_m := (float(BBOX_WSEN[2]) - V1_EAST) * m_per_deg_lon
+	if grown_m < 200.0 or grown_m > 300.0:
+		bad.append("eastward growth %.1f m outside the ticket's 200–300 m band"
+				% grown_m)
+
+	## --- R5: the canopy join (the live archetype mix over its MMs) ---------
+	var chunks_root := world.get_node_or_null("Chunks")
+	var tree_mm := 0
+	var tree_inst := 0
+	var mm_per_chunk := 0
+	if chunks_root == null:
+		bad.append("no Chunks root — the world did not build")
+	else:
+		var arch_inst: Dictionary = {}
+		for key: String in TREE_ARCHETYPES:
+			arch_inst[key] = 0
+		for c: Node in chunks_root.get_children():
+			var chunk_mms := c.find_children("*", "MultiMeshInstance3D",
+					true, false)
+			mm_per_chunk = maxi(mm_per_chunk, chunk_mms.size())
+			for mm: Node in chunk_mms:
+				var mmi := mm as MultiMeshInstance3D
+				var nm := str(mmi.name)
+				if not nm.begins_with("Trees"):
+					continue
+				tree_mm += 1
+				var count := mmi.multimesh.instance_count
+				tree_inst += count
+				if arch_inst.has(nm):
+					arch_inst[nm] = int(arch_inst[nm]) + count
+		if tree_mm != TREE_MM_NODES:
+			bad.append("tree MultiMeshes %d want %d — one per archetype "
+					+ "present per tree-bearing tile" % [tree_mm,
+					TREE_MM_NODES])
+		if tree_inst != int(MANIFEST_TOTALS["trees"]):
+			bad.append("tree instances %d want %d (every mapped node lands)"
+					% [tree_inst, int(MANIFEST_TOTALS["trees"])])
+		for key: String in TREE_ARCHETYPES:
+			if int(arch_inst[key]) != int(TREE_ARCHETYPES[key]):
+				bad.append("tree mix %s=%d want %d" % [key,
+						int(arch_inst[key]), int(TREE_ARCHETYPES[key])])
+		if AmesDataPack.trees().size() != int(MANIFEST_TOTALS["trees"]):
+			bad.append("pack trees %d want %d" % [AmesDataPack.trees().size(),
+					int(MANIFEST_TOTALS["trees"])])
+
+	## --- R5: the tailgate join (the live tiers + the pinned canopy mix) ----
+	var tiers := [0, 0, 0]
+	for rec: Dictionary in world.tailgate_dress_lots.values():
+		tiers[int(rec["tier"])] += 1
+		if int(rec["tier"]) == 2 and int(rec["tents"]) + int(rec["rvs"]) \
+				+ int(rec["tables"]) + int(rec["flags"]) != 0:
+			bad.append("far lot %s grew a prop — the outlying sea stays "
+					+ "car-only" % str(rec.get("id", "?")))
+	for i in 3:
+		if tiers[i] != int(TG_TIERS[i]):
+			bad.append("tailgate tier %d=%d want %d" % [i, tiers[i],
+					int(TG_TIERS[i])])
+	var canopy := [0, 0, 0]
+	for col: Color in world.tailgate_tent_colors:
+		if col.is_equal_approx(AmesWorld.TG_COLOR_CARDINAL):
+			canopy[0] += 1
+		elif col.is_equal_approx(AmesWorld.TG_COLOR_GOLD):
+			canopy[1] += 1
+		elif col.is_equal_approx(AmesWorld.TG_COLOR_CANOPY_WHITE):
+			canopy[2] += 1
+		else:
+			bad.append("a tent canopy off the pinned three-hex palette")
+	for i in 3:
+		if canopy[i] != int(TG_CANOPY[i]):
+			bad.append("tent canopy mix %d=%d want %d" % [i, canopy[i],
+					int(TG_CANOPY[i])])
+
+	## --- the T-209 audit numbers, re-measured on the default boot ----------
+	var m: Dictionary = world.render_metrics()
+	if int(m.mm_nodes) != AUDIT_MM_NODES:
+		bad.append("audit mm_nodes %d want %d — the world's draw cost moved "
+				+ "(re-pin with the audit)" % [int(m.mm_nodes),
+				AUDIT_MM_NODES])
+	if int(m.mm_nodes) > DRAW_BUDGET:
+		bad.append("whole-world draw ceiling %d > %d" % [int(m.mm_nodes),
+				DRAW_BUDGET])
+	if int(m.instances) != AUDIT_INSTANCES:
+		bad.append("audit instances %d want %d" % [int(m.instances),
+				AUDIT_INSTANCES])
+	if int(m.buffer_bytes) != AUDIT_BUFFER_BYTES:
+		bad.append("audit buffer_bytes %d want %d" % [int(m.buffer_bytes),
+				AUDIT_BUFFER_BYTES])
+	if int(m.buffer_bytes) > MEMORY_BUDGET_BYTES:
+		bad.append("buffer bytes %d > %d" % [int(m.buffer_bytes),
+				MEMORY_BUDGET_BYTES])
+	if int(m.chunk_count) != BAKE_TILES:
+		bad.append("chunk nodes %d want the manifest's %d" % [int(m.chunk_count),
+				BAKE_TILES])
+	if chunks_root != null and mm_per_chunk != AUDIT_MAX_MM_PER_CHUNK:
+		bad.append("max MultiMeshes per chunk %d want %d" % [mm_per_chunk,
+				AUDIT_MAX_MM_PER_CHUNK])
+	## The two audit poses (the budget row's own probes, on the resident
+	## world): measured values pinned, the pose budget asserted.
+	var cam := Camera3D.new()
+	cam.fov = 75.0
+	add_child(cam)
+	cam.global_transform = _look_xf(world.to_global(
+			Vector3(-300.0, 60.0, 60.0)), -90.0, -20.0)
+	var cruise_draws := _frustum_draw_ceiling(world, cam)
+	cam.global_transform = _look_xf(world.to_global(
+			Vector3(2700.0, 20.0, -256.0)), -90.0, -10.0)
+	var hover_draws := _frustum_draw_ceiling(world, cam)
+	cam.queue_free()
+	if cruise_draws != AUDIT_CRUISE_DRAWS:
+		bad.append("audit cruise draws %d want %d" % [cruise_draws,
+				AUDIT_CRUISE_DRAWS])
+	if cruise_draws > POSE_DRAW_BUDGET:
+		bad.append("cruise-over-Campustown draws %d > %d" % [cruise_draws,
+				POSE_DRAW_BUDGET])
+	if hover_draws != AUDIT_HOVER_DRAWS:
+		bad.append("audit hover draws %d want %d" % [hover_draws,
+				AUDIT_HOVER_DRAWS])
+	if hover_draws > POSE_DRAW_BUDGET:
+		bad.append("low-hover-over-downtown draws %d > %d" % [hover_draws,
+				POSE_DRAW_BUDGET])
+
+	print("SIM DATA %s: report_keys=%d bake=%s tiles=%d trees=%d tree_mm=%d arch=4587/2050/116 tailgate=%d/%d/%d/%d tiers=%d/%d/%d canopy=%d/%d/%d audit mm_nodes=%d instances=%d buffer_bytes=%d max_mm=%d cruise=%d hover=%d" % [
+			S, RING_REPORT.size() + 1, BAKE_SCHEMA, BAKE_TILES, tree_inst,
+			tree_mm, int(report.get("tailgate_tents", -1)),
+			int(report.get("tailgate_rvs", -1)),
+			int(report.get("tailgate_tables", -1)),
+			int(report.get("tailgate_flags", -1)),
+			tiers[0], tiers[1], tiers[2], canopy[0], canopy[1], canopy[2],
+			int(m.mm_nodes), int(m.instances), int(m.buffer_bytes),
+			mm_per_chunk, cruise_draws, hover_draws])
 	_check(S, bad.is_empty(), "; ".join(bad) if not bad.is_empty() else "-")
 
 
