@@ -126,15 +126,17 @@ machine-checked property instead of a dev-hardware assumption.
       profiling made load-bearing) + the row in VERIFICATION.md; the PASS
       arm proven live (fps=30 ≥ 30 held) and the FAIL arm via
       `GATE2_FPS_MIN=999`
-- [ ] The box's full gate run: `GATE-BOX RESULT: PASS` on ames/campaign —
-      **open, blocked by a pre-existing defect this ticket surfaces but
-      does not own**: the box's autoplay eat loop does not close on Linux
-      (`loop_ok=false, eaten=0`) — proven at the branch BASE (483e6de),
-      byte-identical headless (fps_eq 141) and rendered (30/31 fps), vsync
-      on and off — platform-deterministic, not perf, not this ticket's
-      avenue set. This ticket's runs prove GATE1 PASS, GATE1B PASS
-      checks=165 and the fps floor on both arms; the PASS needs the
-      cross-platform autoplay-determinism follow-up first
+- [x] The box's full gate run: `GATE-BOX RESULT: PASS` — the round-1
+      blocker (the Linux autoplay eat loop starving: loop_ok=false,
+      eaten=0) root-caused and fixed in this ticket (the pilot's descent
+      now settles on purpose — see the round-1 section), and the full
+      gate re-run on the branch tip 7b871677 (bundle-fetched into the
+      box's checkout; the ames/campaign-literal run is this same tree at
+      the merge, the branch being the campaign's tip plus this ticket):
+      `GATE1 PASS` / `GATE1B PASS checks=165` /
+      `GATE2 PASS AUTOPLAY DONE ok=true fps=31 floor=30` /
+      **`GATE-BOX RESULT: PASS ref=7b871677`** — the floor enforced at 30,
+      the autoplay's loop closed, all three gates green in one run
 - [x] *(Gate 1/2)* clean on Windows (Gate 1b 165 PASS / exit 0; Gate 1
       import+boot rc=0, zero hard error lines; Gate 2 `AUTOPLAY DONE
       ok=true world=ames fps=123 restart=true` exit 0)
