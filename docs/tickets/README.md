@@ -392,7 +392,7 @@ scan (T-170 was max; no workflows in flight).
 | T-208 | [Tailgate dressing](T-208-ames-tailgate-dressing.md) | R5 The Town | T-191, T-182 | done |
 | T-209 | [Performance pass + web fork](T-209-ames-perf-pass.md) | R5 The Town | T-206..T-208 | done |
 | T-210 | [R5 cutover](T-210-ames-r5-cutover.md) | R5 The Town | T-203..T-209 | proposed |
-| T-215 | [Entry-hardware performance — the traffic physics storm, re-derive the budget](T-215-entry-hardware-perf.md) | R5 The Town (BLOCKS T-210) | T-209 | doing | (T-214 superseded into it) |
+| T-215 | [Entry-hardware performance — the traffic physics storm, re-derive the budget](T-215-entry-hardware-perf.md) | R5 The Town (BLOCKS T-210) | T-209 | done | (T-214 superseded into it) |
 | T-216 | [Cross-platform autoplay determinism](T-216-cross-platform-autoplay-determinism.md) | R5 The Town | T-215 | proposed | (the world's citizens diverge by platform; the eat loop itself fixed in T-215) |
 
 **Ames build order:** T-215 (entry-hardware perf — the traffic physics storm; absorbs the superseded T-214) — the gate box canary caught a 1 fps budget on a 2015 machine; blocks T-210's grand tour) precedes T-210. **Ames build order:** R1 serial (T-171→T-172→T-173→T-174/T-175 parallel→

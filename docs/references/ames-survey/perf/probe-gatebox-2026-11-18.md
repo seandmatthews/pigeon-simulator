@@ -84,6 +84,7 @@ scene processing was never the 1 fps driver; the storm's shape
 | autoplay, `--disable-vsync` | fps=31, same loop failure — the box's spawn-view render rate is genuinely ~31, not a vsync half-rate lock |
 | autoplay, HEADLESS | fps_eq 141, same failure byte-for-byte — not render-coupled |
 | autoplay HEADLESS at the branch BASE (483e6de) | same failure byte-for-byte (eaten=0, splats=42, player=(386.9, 0.3, −296.6)) — **the Linux autoplay eat-loop divergence PREDATES T-215** |
+| **round 1 — after the settle-press fix** (branch tip 7b871677) | **full gate: `GATE1 PASS` / `GATE1B PASS checks=165` / `GATE2 PASS AUTOPLAY DONE ok=true fps=31 floor=30` / `GATE-BOX RESULT: PASS ref=7b871677`** — the pilot's descent now settles on purpose (tests/autoplay.gd), the box's loop closes (headless eaten=8 rc=0, was eaten=0 rc=1; Windows eaten=8, splats 21 vs 20 — near-converged; the residual divergence is T-216) |
 
 The placement window on this box (the `traffic_placement_budget` SIM DATA
 line, the box Gate 1b runs): **11.9 ms** for 100 `nearest_runs(…, 12)` +

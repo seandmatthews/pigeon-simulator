@@ -3,7 +3,7 @@
 *(Absorbs T-214 — the tailgate-zone traffic storm — as its lead evidence; that
 ticket's diagnosis is this ticket's Avenue A, unified by the gate-box canary.)*
 
-- **Status:** doing · **Category:** code-optimization ·
+- **Status:** done · **Category:** code-optimization ·
   **Value (1-5):** 5 · **Risk (1-5):** 4
 - **Depends on:** the T-209 perf ledger it supersedes' numbers (its budgets were
   dev-hardware numbers); blocks T-210 (the grand tour's box gate cannot pass
@@ -126,15 +126,17 @@ machine-checked property instead of a dev-hardware assumption.
       profiling made load-bearing) + the row in VERIFICATION.md; the PASS
       arm proven live (fps=30 ≥ 30 held) and the FAIL arm via
       `GATE2_FPS_MIN=999`
-- [ ] The box's full gate run: `GATE-BOX RESULT: PASS` on ames/campaign —
-      **open, blocked by a pre-existing defect this ticket surfaces but
-      does not own**: the box's autoplay eat loop does not close on Linux
-      (`loop_ok=false, eaten=0`) — proven at the branch BASE (483e6de),
-      byte-identical headless (fps_eq 141) and rendered (30/31 fps), vsync
-      on and off — platform-deterministic, not perf, not this ticket's
-      avenue set. This ticket's runs prove GATE1 PASS, GATE1B PASS
-      checks=165 and the fps floor on both arms; the PASS needs the
-      cross-platform autoplay-determinism follow-up first
+- [x] The box's full gate run: `GATE-BOX RESULT: PASS` — the round-1
+      blocker (the Linux autoplay eat loop starving: loop_ok=false,
+      eaten=0) root-caused and fixed in this ticket (the pilot's descent
+      now settles on purpose — see the round-1 section), and the full
+      gate re-run on the branch tip 7b871677 (bundle-fetched into the
+      box's checkout; the ames/campaign-literal run is this same tree at
+      the merge, the branch being the campaign's tip plus this ticket):
+      `GATE1 PASS` / `GATE1B PASS checks=165` /
+      `GATE2 PASS AUTOPLAY DONE ok=true fps=31 floor=30` /
+      **`GATE-BOX RESULT: PASS ref=7b871677`** — the floor enforced at 30,
+      the autoplay's loop closed, all three gates green in one run
 - [x] *(Gate 1/2)* clean on Windows (Gate 1b 165 PASS / exit 0; Gate 1
       import+boot rc=0, zero hard error lines; Gate 2 `AUTOPLAY DONE
       ok=true world=ames fps=123 restart=true` exit 0)
@@ -145,6 +147,29 @@ machine-checked property instead of a dev-hardware assumption.
       monitor failed the script load; the scene ran scriptless forever
       without its quit) and fixed; the headless frame path measures clean
       on both machines
+
+## Tuned values (recorded at landing)
+
+No gameplay feel constant moved — the storm's fix was structural and the
+pilot's fix is harness-side:
+
+- `AmesTrafficGraph.RUN_INDEX_CELL := 64.0` — the run index's uniform cell
+  size (m). The placement queries' cost drops from the 10.5 ms brute-force
+  walk to 79 µs per `nearest_runs(…, 12)` call; answers byte-identical
+  (the `traffic_placement_budget` equivalence arm).
+- `PLACE_BUDGET_MS := 60.0` (`tests/sim_test.gd`) — the Gate 1b placement
+  window ceiling, measured on the gate box (11.9 ms box-side / 7.1–9.4 ms
+  dev on the landed tree; ~5× the box read, so only a gross regression
+  trips it).
+- `GATE2_FPS_MIN` default **30** (`tools/gate-box.sh`, env-overridable) —
+  the entry-hardware floor, the owner's half-of-60 Hz pick; enforced on
+  the autoplay DONE line's fps, read independently of the autoplay's exit
+  code.
+- The autoplay settle press (`tests/autoplay.gd`): below **1.5 m** over
+  the landing ring the descent holds `target_nose = −0.35` (deliberate
+  plate contact; the hot-arrival speed-bleed cap applies above the settle
+  band only, 2.0–25.0 m) — the box's Linux eat loop closes (eaten 0 → 8)
+  and Windows stays green (eaten 4 → 8).
 
 ## Verification (proposed)
 
@@ -358,3 +383,16 @@ NOT fixed in this ticket (its own reproduction rig needs the storm's
 churn quiet first, and this ticket's scope is the perf budget); the
 reproduction is recorded in the perf pack's Windows file and the flag
 stays live for a follow-up.
+
+## Review sign-off
+
+Review round 1 sent the ticket back on the one open criterion — the box
+gate's PASS, blocked by the Linux autoplay eat-loop starvation — and the
+round-1 fix (the pilot's settle press) plus the re-run closed it with a
+real `GATE-BOX RESULT: PASS ref=7b871677` (GATE1 PASS, GATE1B PASS
+checks=165, GATE2 PASS ok=true fps=31 floor=30). The reviewer then played
+the game and read the code, and signed the ticket off (2026-11-22). The
+residual citizen-level platform divergence rides
+[T-216](T-216-cross-platform-autoplay-determinism.md) (proposed); the
+deferred T-214 flags (the respawn ejection, the follow-up's own rig) stay
+live there and in the perf pack.

@@ -521,13 +521,15 @@ own exit code (a below-floor fps is the perf signal; the autoplay's loop
 gate reports separately). The floor is the campaign's machine-checked perf
 budget on 2015 mid-range hardware forever; `GATE2_FPS_MIN=<n>` overrides it
 for testing the FAIL path itself (the T-215 run at floor=999 logged
-`GATE2 FAIL fps=31 below floor=999`). **Honest status on the current tree:
-the fps floor HOLDS on the box (the T-215 gate run's autoplay read fps=30 ≥
-30) but GATE2 still fails rc=1 — the autoplay's own eat loop does not close
-on Linux (`loop_ok=false, eaten=0`), a platform-deterministic divergence
-proven pre-existing at the branch base (byte-identical at the base, headless
-fps_eq 141, rendered 30/31, vsync on and off) — a cross-platform autoplay
-determinism follow-up owns it, not the perf budget.**
+`GATE2 FAIL fps=31 below floor=999`). **Status at the T-215 landing: all
+three gates PASS in one box run — `GATE1 PASS` / `GATE1B PASS checks=165`
+/ `GATE2 PASS AUTOPLAY DONE ok=true fps=31 floor=30` /
+`GATE-BOX RESULT: PASS ref=7b871677`. The round-1 blocker (the autoplay's
+eat loop starving on Linux: loop_ok=false, eaten=0 — a platform divergence
+present at the branch base 483e6de) was root-caused to the pilot's final
+flare coasting level at plate height instead of forcing the landing, and
+fixed in the pilot (the descent's settle press, tests/autoplay.gd); the
+residual citizen-level platform divergence is minted as T-216.**
 
 **One-time setup** (per machine / fresh checkout):
 
