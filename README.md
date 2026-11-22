@@ -3,17 +3,20 @@
 A third-person pigeon flight sim built with Godot 4. Wander the city, eat bread to
 survive, and earn points by pooping on tourists and their cars.
 
-> **Status:** pre-alpha scaffold. A realistic Blender-modeled pigeon flies over a procedural
-> gray-box city, lands on roofs, sidewalks and the spawn plaza, waddles around,
-> runs on a hunger clock fed by breadcrumbs — land and walk into a crumb to eat —
-> and lobs poop splats over the city with **F** while flying, past the tourists
-> strolling the sidewalks (a direct hit triggers a panic) and the cars parked at
-> the curbs and looping the blocks (a direct hit earns a honk). Every splat
-> scores: tourists 100, cars 30, consecutive hits without landing multiply
-> (×1 → ×2 → ×3…), fast low dive hits pay +50%, and the high score persists
-> between runs. The game boots to a title screen (Space to fly), pauses on Esc,
-> and starvation ends the run on a score screen — restart regenerates the same
-> city so scores stay comparable.
+> **Status:** the resident **Ames, Iowa** world (the R5 cutover) — a realistic
+> Blender-modeled pigeon flies over the whole baked town: the real street grid
+> with a live car fleet and pedestrians, the campus and downtown landmarks, the
+> named venues and street blades, the gabled neighborhoods under their tree
+> canopy, and the game-day lot sea by the stadium. Lands on roofs, sidewalks and
+> the spawn lawn, waddles around, runs on a hunger clock fed by breadcrumbs —
+> land and walk into a crumb to eat — and lobs poop splats over the town with
+> **F** while flying, past the tourists strolling their zones (a direct hit
+> triggers a panic) and the cars parked at the curbs and driving the blocks
+> (a direct hit earns a honk). Every splat scores: tourists 100, cars 30,
+> consecutive hits without landing multiply (×1 → ×2 → ×3…), fast low dive hits
+> pay +50%, and the high score persists between runs. The game boots to a title
+> screen (Space to fly), pauses on Esc, and starvation ends the run on a score
+> screen — restart regenerates the same town so scores stay comparable.
 > The roadmap lives in [`docs/tickets/`](docs/tickets/README.md).
 
 ## Play online
