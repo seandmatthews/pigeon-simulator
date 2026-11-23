@@ -323,6 +323,8 @@ func _run_scenarios() -> void:
 	await _scenario_pilot_window_hide_math() ## T-170 — the hidden-launch math: the pure hide position across three monitor layouts, the size input, and the headless guard leg.
 	await _scenario_density_cpu_budget()
 	await _scenario_traffic_placement_budget() ## T-215 — the storm fix: indexed placement queries stay brute-force-identical and box-budget cheap.
+	await _scenario_audio_players_hear_the_game() ## T-219 — the sound rule: an export boots audible, a run from source boots silent, the opt-ins ordered on both branches.
+	await _scenario_audio_mute_setting_key() ## T-219 — the stored mute is the player's own choice under `audio/mute`; the T-101-era default is ignored.
 	await _scenario_off_world_fall_returns_home() ## T-036 — last: bends _player.respawn_point for its own window.
 	await _scenario_off_world_return_beat() ## T-087 — after its bare-harness sibling: owns one instanced Main in its own space.
 	print("SIM SUMMARY: %d failure(s)" % _failures)
@@ -19006,7 +19008,7 @@ func _scenario_settings_persist_and_invert() -> void:
 	var round_trip := check.load(SIM_SETTINGS_PATH) == OK \
 			and bool(check.get_value("controls", "invert_pitch", true)) \
 			and is_equal_approx(float(check.get_value("audio", "sfx", 1.0)), 0.5) \
-			and not bool(check.get_value("audio", "muted", true))
+			and not bool(check.get_value("audio", "mute", true)) ## (T-219) the player's-own-mute key.
 	Game.invert_pitch = false
 	Game.volume_sfx = 1.0
 	Game.settings_muted = true
@@ -23393,7 +23395,9 @@ func _scenario_audio_buses() -> void:
 ## process (this scenario runs under no opt-in, so Game._ready decided "mute"),
 ## and the opt-in contract holds as documented: PIGEON_SOUND=1 opts in, the
 ## pilot's PIGEON_MUTE=1 wins over everything, the `--sound` user arg opts in,
-## and no opt-in stays silent. The truth table switches the process env and
+## and no opt-in stays silent — the run-FROM-SOURCE branch, which this editor
+## binary is (T-219); the export branch, where players hear the game, is
+## `audio_players_hear_the_game`. The truth table switches the process env and
 ## restores it, so the game boot itself is only ever sampled, never re-run.
 func _scenario_audio_boots_muted() -> void:
 	var master := AudioServer.get_bus_index("Master")
@@ -23412,6 +23416,107 @@ func _scenario_audio_boots_muted() -> void:
 			muted_at_boot and env_opts_in and pilot_mute_wins and arg_opts_in and silent_by_default,
 			"muted_at_boot=%s env_opts_in=%s pilot_mute_wins=%s arg_opts_in=%s silent_by_default=%s" % [
 					muted_at_boot, env_opts_in, pilot_mute_wins, arg_opts_in, silent_by_default])
+
+
+## T-219 — the sound rule: PLAYERS HEAR THE GAME, AGENTS NEVER MAKE IT AUDIBLE.
+## An exported game boots audible; a run from source (the editor binary this
+## harness is) boots silent; the opt-ins keep their order on both branches. The
+## seam forces each branch of the engine read the harness cannot reach from
+## inside the editor binary, and the UNFORCED read is pinned to agree with the
+## engine's own answer. The applier half runs the real boot pair
+## (`boot_muted` → `apply_audio_settings`) per branch and reads Master.
+func _scenario_audio_players_hear_the_game() -> void:
+	var master := AudioServer.get_bus_index("Master")
+	var saved_sound := OS.get_environment("PIGEON_SOUND")
+	var saved_mute := OS.get_environment("PIGEON_MUTE")
+	var saved_settings_muted := Game.settings_muted
+	OS.set_environment("PIGEON_SOUND", "")
+	OS.set_environment("PIGEON_MUTE", "")
+	Game.source_run_override = 0 ## An EXPORT — the player's build.
+	var export_audible: bool = not Game.boot_muted(PackedStringArray())
+	Game.settings_muted = Game.boot_muted(PackedStringArray()) ## The export boot, applied for real.
+	Game.apply_audio_settings()
+	var export_bus_open: bool = not AudioServer.is_bus_mute(master)
+	OS.set_environment("PIGEON_MUTE", "1")
+	var export_pilot_mutes: bool = Game.boot_muted(PackedStringArray(["--sound"]))
+	OS.set_environment("PIGEON_MUTE", "")
+	Game.source_run_override = 1 ## A run FROM SOURCE — every agent and gate launch.
+	var source_silent: bool = Game.boot_muted(PackedStringArray())
+	Game.settings_muted = Game.boot_muted(PackedStringArray()) ## The source boot, applied for real.
+	Game.apply_audio_settings()
+	var source_bus_muted: bool = AudioServer.is_bus_mute(master)
+	OS.set_environment("PIGEON_SOUND", "1")
+	var source_env_opts_in: bool = not Game.boot_muted(PackedStringArray())
+	OS.set_environment("PIGEON_SOUND", "")
+	var source_arg_opts_in: bool = not Game.boot_muted(PackedStringArray(["--sound"]))
+	Game.source_run_override = -1
+	var seam_agrees: bool = Game.is_source_run() == OS.has_feature("editor")
+	var harness_is_source: bool = Game.is_source_run()
+	## Restore the harness audio state exactly (env back, the saved mute re-applied).
+	OS.set_environment("PIGEON_MUTE", saved_mute)
+	OS.set_environment("PIGEON_SOUND", saved_sound)
+	Game.settings_muted = saved_settings_muted
+	Game.apply_audio_settings()
+	_check("audio_players_hear_the_game",
+			export_audible and export_pilot_mutes and export_bus_open \
+					and source_silent and source_bus_muted \
+					and source_env_opts_in and source_arg_opts_in \
+					and seam_agrees and harness_is_source,
+			"export_audible=%s export_pilot_mutes=%s export_bus_open=%s source_silent=%s source_bus_muted=%s source_env_opts_in=%s source_arg_opts_in=%s seam_agrees=%s harness_is_source=%s" % [
+					export_audible, export_pilot_mutes, export_bus_open, source_silent,
+					source_bus_muted, source_env_opts_in, source_arg_opts_in,
+					seam_agrees, harness_is_source])
+
+
+## T-219 — the stored mute is the player's OWN choice, under `audio/mute`. A
+## pre-T-219 file's `audio/muted = true` was the T-101 boot DEFAULT, not a
+## decision: read today it would pin every player who ever opened Settings to
+## silence, so it is ignored. An explicit mute saved by today's game survives
+## `load_settings()` onto the live state AND the bus, and `save_settings()`
+## writes no `muted` key. With no file the boot policy stands on both branches.
+func _scenario_audio_mute_setting_key() -> void:
+	if FileAccess.file_exists(SIM_SETTINGS_PATH):
+		DirAccess.remove_absolute(SIM_SETTINGS_PATH)
+	var master := AudioServer.get_bus_index("Master")
+	var saved_settings_muted := Game.settings_muted
+	## (1) An old-era file: `muted = true`, no `mute` key — an export boot stays audible.
+	var legacy := ConfigFile.new()
+	legacy.set_value("audio", "muted", true)
+	legacy.save(SIM_SETTINGS_PATH)
+	Game.source_run_override = 0
+	Game.settings_muted = Game.boot_muted(PackedStringArray()) ## An export boot: audible.
+	Game.load_settings()
+	var legacy_ignored: bool = not Game.settings_muted \
+			and not AudioServer.is_bus_mute(master)
+	## (2) An explicit mute saved today survives the reload.
+	Game.settings_muted = true
+	Game.save_settings()
+	Game.settings_muted = false
+	Game.load_settings()
+	var explicit_kept: bool = Game.settings_muted and AudioServer.is_bus_mute(master)
+	var on_disk := ConfigFile.new()
+	var key_moved: bool = on_disk.load(SIM_SETTINGS_PATH) == OK \
+			and bool(on_disk.get_value("audio", "mute", false)) \
+			and not on_disk.has_section_key("audio", "muted")
+	## (3) No file at all: the boot policy stands on both branches.
+	DirAccess.remove_absolute(SIM_SETTINGS_PATH)
+	Game.settings_muted = Game.boot_muted(PackedStringArray())
+	Game.load_settings()
+	var export_still_audible: bool = not Game.settings_muted
+	Game.source_run_override = 1
+	Game.settings_muted = Game.boot_muted(PackedStringArray())
+	Game.load_settings()
+	var source_still_silent: bool = Game.settings_muted
+	## Restore the harness audio state exactly (source run, the saved mute re-applied).
+	Game.source_run_override = -1
+	Game.settings_muted = saved_settings_muted
+	Game.apply_audio_settings()
+	_check("audio_mute_setting_key",
+			legacy_ignored and explicit_kept and key_moved \
+					and export_still_audible and source_still_silent,
+			"legacy_ignored=%s explicit_kept=%s key_moved=%s export_still_audible=%s source_still_silent=%s" % [
+					legacy_ignored, explicit_kept, key_moved, export_still_audible,
+					source_still_silent])
 
 
 ## The wing sounds ride the real flap impulses: a grounded takeoff flap whooshes

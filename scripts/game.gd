@@ -68,10 +68,17 @@ var volume_master: float = 1.0
 var volume_sfx: float = 1.0
 var volume_ambience: float = 1.0
 
-## (T-122) The settings' own Master mute. The T-101 boot policy seeds it at
-## boot; a saved settings file overrides — a stored unmute IS the standing
-## opt-in. With no file this never leaves the boot value.
+## (T-122) The settings' own Master mute. The boot policy seeds it at boot
+## (T-219: audible in an export, silent from source unless opted in); a saved
+## settings file overrides under the `audio/mute` key — the player's own choice,
+## either way. With no file (or no key) this never leaves the boot value.
 var settings_muted: bool = true
+
+## (T-219) The source-run seam behind the sound rule: -1 = ask the engine
+## (`is_source_run()`), 0/1 force "export"/"source" — the T-126 `web_override`
+## pattern, so the sim scenarios can pin BOTH boot branches from inside the
+## editor binary they run under.
+var source_run_override: int = -1
 
 ## (T-126) The web seam: every quit affordance gates on `is_web()` — a browser
 ## tab cannot close itself, so the desktop quit paths are silent no-ops on the
@@ -128,17 +135,32 @@ func boot_world(user_args: PackedStringArray) -> String:
 ## concurrent agent-driven runs never fight over (or wipe) the real record.
 var _persistence_enabled: bool = OS.get_environment("PIGEON_NO_PERSIST") != "1"
 
-## Boot audio policy (T-101): the game starts MUTED — a normal launch or editor
-## run is silent so nobody gets ambushed by audio, and a sound-design session
-## opts in explicitly. Priority order: the pilot's PIGEON_MUTE=1 always mutes;
+## (T-219) True when this process is a run FROM SOURCE — the editor binary:
+## every editor/F5 session, every direct `godot --path .`, every pilot session,
+## gate and probe an agent launches. False in an exported game, which is the
+## only thing a player ever runs. `OS.has_feature("editor")` is a compile-time
+## fact of the binary, so no launch flag a player could pass flips it.
+func is_source_run() -> bool:
+	if source_run_override >= 0:
+		return source_run_override == 1
+	return OS.has_feature("editor")
+
+
+## Boot audio policy — the sound rule (owner, 2026-11-23; re-scopes T-101):
+## PLAYERS HEAR THE GAME, AGENTS NEVER MAKE IT AUDIBLE. An exported game boots
+## audible; a run from source boots silent unless the owner opts in for a
+## sound-design session. Priority order: the pilot's PIGEON_MUTE=1 always mutes;
 ## PIGEON_SOUND=1 or a `--sound` user arg (after `--` on the CLI, or the
-## editor's Main Run Args) opts in; anything else mutes. Applied once in _ready.
+## editor's Main Run Args) opts in; anything else follows the binary. Applied
+## once in _ready.
 func boot_muted(user_args: PackedStringArray) -> bool:
 	if OS.get_environment("PIGEON_MUTE") == "1":
 		return true
 	if OS.get_environment("PIGEON_SOUND") == "1":
 		return false
-	return not user_args.has("--sound")
+	if user_args.has("--sound"):
+		return false
+	return is_source_run()
 
 ## Agent slow-mo (T-132): the pilot's `--time-scale=<v>` user arg (or the
 ## PIGEON_TIME_SCALE env, which the arg beats) scales the whole simulation
@@ -270,7 +292,13 @@ func load_settings() -> void:
 	volume_master = clampf(float(cfg.get_value("audio", "master", 1.0)), 0.0, 1.0)
 	volume_sfx = clampf(float(cfg.get_value("audio", "sfx", 1.0)), 0.0, 1.0)
 	volume_ambience = clampf(float(cfg.get_value("audio", "ambience", 1.0)), 0.0, 1.0)
-	settings_muted = bool(cfg.get_value("audio", "muted", true))
+	## (T-219) The stored mute is the player's OWN choice, read under `mute`. The
+	## T-101-era key `muted` is deliberately NOT read: it stored the old boot
+	## DEFAULT (true), not a decision, and would pin every player who ever opened
+	## Settings to silence now that exports boot audible. No key = the boot
+	## policy stands.
+	if cfg.has_section_key("audio", "mute"):
+		settings_muted = bool(cfg.get_value("audio", "mute"))
 	if not _world_boot_forced: ## (T-173/T-177) an explicit boot flag outranks the file.
 		var saved_world := str(cfg.get_value("game", "world", "ames"))
 		if saved_world in WORLDS:
@@ -288,7 +316,7 @@ func save_settings() -> void:
 	cfg.set_value("audio", "master", volume_master)
 	cfg.set_value("audio", "sfx", volume_sfx)
 	cfg.set_value("audio", "ambience", volume_ambience)
-	cfg.set_value("audio", "muted", settings_muted)
+	cfg.set_value("audio", "mute", settings_muted) ## (T-219) The player's own mute — see load_settings.
 	cfg.set_value("game", "world", world) ## (T-173) the world setting persists with the rest.
 	cfg.save(settings_path)
 

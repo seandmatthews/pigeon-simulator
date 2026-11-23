@@ -30,7 +30,7 @@ Added since the lock:
 
 | Topic | Decision |
 | ----- | -------- |
-| Audio | Boots muted; sound opts in per session (T-101) |
+| Audio | Players hear the game: an exported game is audible from boot (T-219). A run from source boots silent — the owner opts in per session for sound design (T-101); agents never opt in |
 | Run structure | "Endless score attack" above is re-opened for M2 — game-day arc proposal, see Milestone 2 |
 | Setting | A real US city with US street conventions — crosswalks, road signs, right-hand traffic (confirmed 2026-10-01); which city stays open, see Milestone 2 |
 

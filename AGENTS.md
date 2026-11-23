@@ -224,6 +224,30 @@ docs/           DESIGN.md and tickets/
   do rotations in `_ready()`/scripts (the Sun in `main.gd` shows the pattern) so
   scene files stay free of hand-computed basis matrices.
 
+## The sound rule (owner, 2026-11-23 — read before launching anything)
+
+**Players hear the game. Agents never make it audible.** An exported game boots
+with sound on (T-219). Every launch an AGENT makes is a run from source, and a run
+from source boots silent — the engine tells the two apart (`OS.has_feature("editor")`),
+so the default already protects the owner's ears on every path: the editor bridge,
+`godot --path .`, the pilot harness, every gate and probe. Do not defeat it:
+
+- **Never opt a session in.** `--sound`, `PIGEON_SOUND=1` and `pilot.py --sound`
+  are the OWNER's opt-in for a sound-design session. An agent passes them only
+  when the owner asks for that specific session.
+- **The owner's opt-in leaks through the editor.** A bridge play session runs
+  with the editor's Main Run Args — if those carry `--sound`, that session is
+  audible. Before any `godot_runtime_play_scene`, make sure Debug → Customize
+  Run Instances → Main Run Args is clear; otherwise play through the pilot
+  harness, which is silent by construction.
+- **Redundant guards stay.** `pilot.py` sets `PIGEON_MUTE=1` and the windowed
+  Gate 2 passes `--audio-driver Dummy`. They are belt-and-braces, not the rule —
+  keep them.
+- **Verify audio logically** — `Sfx.played_counts`, bus flags, stream state —
+  never "I listened". A check that seems to need ears is a Gate 3 line for the
+  owner.
+- `--headless` runs have no audio device at all.
+
 ## Agent play: godot-mcp (eyes-on verification)
 
 An MCP server lets agents launch the game, inject input, and capture screenshots.
@@ -310,8 +334,9 @@ python tests/tools/pilot.py list / clean                       # fleet overview 
   `.captures/session_<id>/` (state/events JSONL + frame PNGs + the command
   queue); nobody else's commands can reach your instance. `start` refuses an id
   owned by a live process — pick a fresh one rather than reusing.
-- **Session defaults are safe for fleets:** muted audio, high-score persistence
-  OFF (`--sound` / `--persist` to opt in), frame PNGs every 0.2 s (`--images
+- **Session defaults are safe for fleets:** muted audio (for an agent it stays
+  that way — The sound rule above; `--sound` is the owner's opt-in), high-score
+  persistence OFF (`--persist` to opt in), frame PNGs every 0.2 s (`--images
   off|N`; they run 10–20 MB/s per session, so `clean` once reviewed). The title
   screen to run transition is `{"key":"Space"}` — real key events reach menus,
   action commands (`flap`, `poop`, …) only reach gameplay.
