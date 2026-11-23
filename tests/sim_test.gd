@@ -174,6 +174,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_data_integrity() ## T-171 — FIRST: pure data over the committed Ames pack; touches no rig and no city.
 	await _scenario_ames_bake_census() ## T-172 — pure data over the committed chunk bake; still no rig and no city.
 	await _scenario_ames_bake_determinism() ## T-172 — re-bake in-scenario must reproduce the committed manifest hash.
+	await _scenario_ames_chunk_bounds_cover_flats() ## T-220 — every flat primitive a chunk draws lies inside the bounds the renderer culls it by (the trail-cull invariant).
 	await _scenario_ames_filler_variants() ## T-206 — the district-variant set: the §3 roof/setback/porch law over the committed bake, per-district distribution pinned, footprints identical, determinism re-manifested.
 	await _scenario_ames_tree_canopy() ## T-207 — the mapped canopy: all 6,753 pack tree nodes at their mapped positions (±0 m), the archetype law over the four placements, the per-chunk MultiMesh discipline, the foliage convention.
 	await _scenario_ames_tree_collision() ## T-217 — the canopy is solid to the BIRD: one flora-layer body per tree-bearing chunk (trunk + crown cylinders off the archetype table), rays answer at the cap/trunk faces, bird-class flight probes are HELD at the cylinders, the citizen class walks through, and only the player's mask rides the flora bit.
@@ -972,6 +973,54 @@ func _pack_split_rings(list: Array) -> Array[PackedVector2Array]:
 	if cur.size() >= 3:
 		loops.append(cur)
 	return loops
+
+
+## T-220: the chunk bounds must cover what the chunk draws. The renderer folds
+## every flat family of a chunk into ONE MultiMesh and culls it by the bounds
+## recorded in the manifest (`_add_chunk_mm` → `custom_aabb`), so a primitive
+## outside those bounds vanishes whenever the chunk's other geometry leaves the
+## frustum — the T-205 trail stripes did exactly that in 10 committed chunks
+## (131 quads, up to 203 m out) because `_chunk_aabb` skipped their family.
+## This reads the geometry straight off the committed documents — never through
+## `_chunk_aabb`, the function under test — and demands every vertex of every
+## flat quad and water/lawn triangle of every chunk sit inside that chunk's
+## recorded x/z bounds. A family added to `AmesWorld.FLAT_FAMILIES` without
+## joining the bounds fails here the same night.
+func _scenario_ames_chunk_bounds_cover_flats() -> void:
+	const S := "ames_chunk_bounds_cover_flats"
+	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	if manifest.is_empty():
+		_check(S, false, "no committed bake at %s" % AMES_CHUNKS_DIR)
+		return
+	const EPS := 0.01 ## The bounds are written at 3 decimals; so is every quad.
+	var families: Array[String] = []
+	families.append_array(AmesWorld.FLAT_FAMILIES)
+	families.append_array(["water_tris", "lawn_tris"])
+	var bad: Array[String] = []
+	var prims := 0
+	for entry: Dictionary in manifest.get("chunks", []):
+		var chunk: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		if chunk.is_empty():
+			bad.append("%s unreadable" % str(entry["file"]))
+			continue
+		var lo: Array = (entry["aabb"] as Dictionary)["min"]
+		var hi: Array = (entry["aabb"] as Dictionary)["max"]
+		var outside := 0
+		for family: String in families:
+			for prim: Dictionary in chunk.get(family, []):
+				prims += 1
+				var flat: Array = prim["q"] if prim.has("q") else prim["v"]
+				for i: int in range(0, flat.size(), 3):
+					var x := float(flat[i])
+					var z := float(flat[i + 2])
+					if x < float(lo[0]) - EPS or x > float(hi[0]) + EPS \
+							or z < float(lo[2]) - EPS or z > float(hi[2]) + EPS:
+						outside += 1
+						break
+		if outside > 0:
+			bad.append("%s: %d flat prims outside its bounds" % [str(entry["file"]), outside])
+	_check(S, prims > 20000 and bad.is_empty(),
+			"prims=%d chunks_with_prims_outside=%d %s" % [prims, bad.size(), "; ".join(bad)])
 
 
 ## T-172: the bake is a pure function of the pack — re-bake IN-SCENARIO into
@@ -15979,7 +16028,7 @@ func _scenario_r5_cutover_ledger() -> void:
 	## The bake identity (re-pinned per re-bake; the hash pins the EXACT
 	## committed tree — the T-207 v6 bake).
 	const BAKE_SCHEMA := "ames_chunks/v6"
-	const BAKE_SHA256 := "8f93295957b29fa6f1746392efb95b748e405121ec2362326c5357c64d040175"
+	const BAKE_SHA256 := "663cdea24241a04edfa393457608e8364ff91d212816216a0b6709ba1f34d1f5" ## (T-220 re-pin: trail_quads joined the chunk bounds — 17 chunks' `aabb` moved, nothing else.)
 	const BAKE_TILES := 553
 	const MANIFEST_TOTALS := {
 		"massing": 10783, "roofs": 9163, "dress": 7223, "trees": 6753,

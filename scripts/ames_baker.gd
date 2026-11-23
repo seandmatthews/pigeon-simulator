@@ -1975,8 +1975,13 @@ static func _chunk_aabb(chunk: Dictionary) -> Dictionary:
 		_aabb_grow(acc, Vector3(float(dp[0]) + float(ds[0]) * 0.5,
 				float(dp[1]) + float(ds[1]) * 0.5,
 				float(dp[2]) + float(ds[2]) * 0.5))
+	## (T-220) T-205's trail stripes join the bounds: they ride the chunk's flats
+	## MultiMesh, which the renderer culls by THIS box — a bounds that skipped
+	## them culled 131 trail quads in 10 chunks whenever the chunk's houses left
+	## the frustum (held by `ames_chunk_bounds_cover_flats`).
 	for quad_key: String in ["ribbons", "lane_quads", "shore_quads",
-			"creek_quads", "ballast_quads", "tie_quads", "ground_quads"]:
+			"creek_quads", "ballast_quads", "tie_quads", "ground_quads",
+			"trail_quads"]:
 		for q: Dictionary in chunk[quad_key]:
 			_aabb_flat(acc, q["q"])
 	for tri_key: String in ["water_tris", "lawn_tris"]:

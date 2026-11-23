@@ -397,6 +397,7 @@ scan (T-170 was max; no workflows in flight).
 | T-217 | [Tree collision — the canopy is solid to the bird](T-217-tree-collision.md) | R6 (owner pick) | T-207, T-175 | done |
 | T-218 | [Buildings intersect when they shouldn't — 1,239 interpenetrating massing pairs, one duplicate entry](T-218-building-intersections.md) | R6 (owner pick) | T-172, T-175, T-206 | proposed | (probe: `tests/tools/building_intersect_probe.py`; truth pass: real footprints clean in 1,237/1,239 — AABB render + one z-fighting duplicate church) |
 | T-219 | [Players hear the game — exports boot audible, runs from source stay silent](T-219-players-hear-the-game.md) | R6 (owner pick) | T-101, T-122 | done | (the sound rule, owner 2026-11-23) |
+| T-220 | [Trails vanish with their chunk's houses — trail_quads join the chunk bounds](T-220-trail-quads-chunk-bounds.md) | R6 (owner pick) | T-172, T-205 | done | (10 chunks / 131 trail quads culled outside their bounds; fixed + re-baked, found by the 2026-11-23 review) |
 
 **Ames build order:** T-215 (entry-hardware perf — the traffic physics storm; absorbs the superseded T-214) — the gate box canary caught a 1 fps budget on a 2015 machine; blocks T-210's grand tour) precedes T-210. **Ames build order:** R1 serial (T-171→T-172→T-173→T-174/T-175 parallel→
 T-176→T-177); R2 mostly parallel after T-178; R3 heroes fully parallel after
