@@ -214,7 +214,9 @@ docs/           DESIGN.md and tickets/
 ### Physics
 - Use the named collision layers from `project.godot` and set **layer and mask**
   deliberately on every physics body:
-  1 `world` · 2 `player` · 3 `npc` · 4 `vehicle` · 5 `pickup` · 6 `projectile`
+  1 `world` · 2 `player` · 3 `npc` · 4 `vehicle` · 5 `pickup` · 6 `projectile` ·
+  7 `flora` (T-217 tree collision — trunks/crowns are solid to the bird only;
+  no citizen mask carries it)
 
 ### Scenes
 - New entity → new scene + its script (`scenes/tourist.tscn` + `scripts/tourist.gd`).

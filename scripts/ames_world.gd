@@ -34,7 +34,11 @@ extends City
 ## `a` flag), the hero silhouette parts (true-dim stand-ins for the R3 hero
 ## scenes — the campanile cap's top face is the landable pad, crumb spot at
 ## `ANCHOR_CRUMB_LIFT`) and the venue fixups. Procedural filler stays
-## visual-only.
+## visual-only. Since T-217 the mapped canopy is solid to the BIRD only: one
+## flora-layer (7) StaticBody per tree-bearing chunk carrying trunk + crown
+## cylinders off the same `TREE_ARCHETYPES` table the meshes use — no citizen
+## class rides the flora mask, so traffic, the favor loop and the splat read
+## behave exactly as before.
 ##
 ## Boot cost discipline: each chunk file is read once, its SHA-256 checked
 ## against the bake manifest (a corrupted bake refuses the chunk, loudly), the
@@ -81,6 +85,12 @@ const GROUND_MARGIN := 250.0
 const FLAT_THICKNESS := 0.02
 ## Plate visual/physics thickness (m) — top face at y 0.
 const PLATE_THICKNESS := 1.0
+## (T-217) The tree-flora physics layer — project.godot's `layer_7="flora"`
+## (bit 7 = 64). The canopy's trunks and crowns ride ONLY this layer, so the
+## bird's mask (player.tscn: world + npc + flora) is the sole colliding class;
+## no citizen body (cars mask world+vehicle, elders/tourists mask world, poop
+## masks world+npc+vehicle) or ground record touches it.
+const FLORA_LAYER := 64
 ## (T-173 first values, tuned on measurement) Massing fades out between
 ## MASSING_RANGE_END − MASSING_RANGE_FADE and MASSING_RANGE_END from the
 ## camera, dithered. Ribbons/tri patches never fade — the ground read is the
@@ -1877,6 +1887,7 @@ func _build_chunk(entry: Dictionary) -> void:
 				MASSING_RANGE_END, MASSING_RANGE_FADE)
 
 	_build_trees(chunk, chunk_root, center, aabb) ## (T-207) the mapped canopy.
+	_build_tree_colliders(chunk, chunk_root, center) ## (T-217) solid to the bird only.
 
 	var flats := _flats_multimesh(chunk, center)
 	if flats != null:
@@ -2040,8 +2051,9 @@ func _dress_multimesh(chunk: Dictionary, center: Vector3) -> MultiMesh:
 ## — and the baked variation tint in `c` (the engine's multimesh multiply
 ## puts instance color × the mesh's vertex colors, so the survey crown hexes
 ## in `TREE_ARCHETYPES` survive the tint). Fades WITH the massing (a tree
-## beyond its houses' fade band would float, the T-206 roofs law). Visual
-## only: no collider, no occluder, no ground record — the canopy is soft.
+## beyond its houses' fade band would float, the T-206 roofs law). Render
+## only: no occluder, no ground record — the canopy's COLLISION rides
+## `_build_tree_colliders` (T-217), filed on the same walk's data.
 func _build_trees(chunk: Dictionary, chunk_root: Node3D, center: Vector3,
 		aabb: AABB) -> void:
 	var trees: Array = chunk.get("trees", [])
@@ -2072,6 +2084,53 @@ func _build_trees(chunk: Dictionary, chunk_root: Node3D, center: Vector3,
 			mm.set_instance_color(k, Color(float(c[0]), float(c[1]), float(c[2])))
 		_add_chunk_mm(chunk_root, "Trees%s" % arch.capitalize(), mm, aabb,
 				MASSING_RANGE_END, MASSING_RANGE_FADE)
+
+
+## (T-217) The canopy's collision — ONE layer-7 `flora` StaticBody3D per
+## tree-bearing chunk (chunk lifecycle owns it, the `Placeholders` body's
+## sibling), carrying two YAW-INVARIANT shapes per tree, both read from the
+## SAME `TREE_ARCHETYPES` table the meshes build from: a trunk cylinder up
+## through the crown bottom and a crown cylinder wrapping the ellipsoid blob
+## (radius `crown_rxz`, height `2 · crown_ry` centered on `crown_cy` — its
+## bottom face IS the visual crown bottom, so under-canopy flight stays open
+## and the cylinder's top face is a landable crown). Per-instance scale rides
+## the same `s` array the render basis composes — heights on s[1], radii on
+## the wider x/z arm. THE CLASS LAW: the body rides FLORA_LAYER alone, and no
+## citizen mask carries the flora bit (player.tscn is the only body that
+## masks 7 — cars 9, elders/tourists 1, poop 13), so the traffic fleet, the
+## favor loop and the splat read behave exactly as the T-207 soft-canopy
+## world did; only the bird finds the trees solid.
+func _build_tree_colliders(chunk: Dictionary, chunk_root: Node3D,
+		center: Vector3) -> void:
+	var trees: Array = chunk.get("trees", [])
+	if trees.is_empty():
+		return
+	var body := StaticBody3D.new()
+	body.name = "Trees"
+	body.collision_layer = FLORA_LAYER ## flora
+	body.collision_mask = 0
+	chunk_root.add_child(body)
+	for tr: Dictionary in trees:
+		var spec: Dictionary = AmesBaker.TREE_ARCHETYPES[str(tr["t"])]
+		var p: Array = tr["p"]
+		var s: Array = tr["s"]
+		var base := Vector3(float(p[0]), 0.0, float(p[2])) - center
+		var radial := maxf(float(s[0]), float(s[2]))
+		var trunk := CollisionShape3D.new()
+		var trunk_cyl := CylinderShape3D.new()
+		trunk_cyl.radius = float(spec["trunk_r"]) * radial
+		trunk_cyl.height = float(spec["trunk_h"]) * float(s[1])
+		trunk.shape = trunk_cyl
+		trunk.position = base + Vector3(0.0, trunk_cyl.height * 0.5, 0.0)
+		body.add_child(trunk)
+		var crown := CollisionShape3D.new()
+		var crown_cyl := CylinderShape3D.new()
+		crown_cyl.radius = float(spec["crown_rxz"]) * radial
+		crown_cyl.height = float(spec["crown_ry"]) * 2.0 * float(s[1])
+		crown.shape = crown_cyl
+		crown.position = base \
+				+ Vector3(0.0, float(spec["crown_cy"]) * float(s[1]), 0.0)
+		body.add_child(crown)
 
 
 ## One vertex-color unit-box MultiMesh of every baked ground rectangle —

@@ -124,6 +124,7 @@ quit={
 3d_physics/layer_4="vehicle"
 3d_physics/layer_5="pickup"
 3d_physics/layer_6="projectile"
+3d_physics/layer_7="flora"
 
 [rendering]
 

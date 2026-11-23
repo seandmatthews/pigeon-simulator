@@ -394,6 +394,8 @@ scan (T-170 was max; no workflows in flight).
 | T-210 | [R5 cutover](T-210-ames-r5-cutover.md) | R5 The Town | T-203..T-209 | done |
 | T-215 | [Entry-hardware performance — the traffic physics storm, re-derive the budget](T-215-entry-hardware-perf.md) | R5 The Town (BLOCKS T-210) | T-209 | done | (T-214 superseded into it) |
 | T-216 | [Cross-platform autoplay determinism](T-216-cross-platform-autoplay-determinism.md) | R5 The Town | T-215 | proposed | (the world's citizens diverge by platform; the eat loop itself fixed in T-215) |
+| T-217 | [Tree collision — the canopy is solid to the bird](T-217-tree-collision.md) | R6 (owner pick) | T-207, T-175 | done |
+| T-218 | [Buildings intersect when they shouldn't — 1,239 interpenetrating massing pairs, one duplicate entry](T-218-building-intersections.md) | R6 (owner pick) | T-172, T-175, T-206 | proposed | (probe: `tests/tools/building_intersect_probe.py`; truth pass: real footprints clean in 1,237/1,239 — AABB render + one z-fighting duplicate church) |
 
 **Ames build order:** T-215 (entry-hardware perf — the traffic physics storm; absorbs the superseded T-214) — the gate box canary caught a 1 fps budget on a 2015 machine; blocks T-210's grand tour) precedes T-210. **Ames build order:** R1 serial (T-171→T-172→T-173→T-174/T-175 parallel→
 T-176→T-177); R2 mostly parallel after T-178; R3 heroes fully parallel after

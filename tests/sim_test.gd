@@ -176,6 +176,7 @@ func _run_scenarios() -> void:
 	await _scenario_ames_bake_determinism() ## T-172 — re-bake in-scenario must reproduce the committed manifest hash.
 	await _scenario_ames_filler_variants() ## T-206 — the district-variant set: the §3 roof/setback/porch law over the committed bake, per-district distribution pinned, footprints identical, determinism re-manifested.
 	await _scenario_ames_tree_canopy() ## T-207 — the mapped canopy: all 6,753 pack tree nodes at their mapped positions (±0 m), the archetype law over the four placements, the per-chunk MultiMesh discipline, the foliage convention.
+	await _scenario_ames_tree_collision() ## T-217 — the canopy is solid to the BIRD: one flora-layer body per tree-bearing chunk (trunk + crown cylinders off the archetype table), rays answer at the cap/trunk faces, bird-class flight probes are HELD at the cylinders, the citizen class walks through, and only the player's mask rides the flora bit.
 	await _scenario_ames_bbox_east() ## T-203 — the v2 bbox east: the new consts, Bandshell Park playable inside the core (ground, hero supersede, bread reach), the census re-pins diff-proven against the recorded v1 pins.
 	await _scenario_ames_extension_north() ## T-205 — the v4 bbox north: the consts, Ada Hayden's twin quarry lakes at data geometry (the twin-lobed ring, the quarry shore), the trail ring walkable-adjacent, The Cafe placed at its true Northridge position, the north parks per data.
 	await _scenario_ames_world_render_budget() ## T-173 — the resident bake inside the draw/memory budget.
@@ -1619,6 +1620,327 @@ func _scenario_ames_tree_canopy() -> void:
 	print("SIM DATA %s: trees=%d mm_nodes=%d tree_mm=%d tree_instances=%d ground_probes=%d skipped_covered=%d gh_worst=%f" % [
 			S, tree_nodes, int(m.mm_nodes), found_tree_mm, found_tree_instances,
 			probed, skipped_covered, gh_worst])
+	_check(S, bad.is_empty(), "; ".join(bad))
+	world.queue_free()
+
+
+## (T-217) The canopy is solid to the BIRD only. The class law: one flora-layer
+## (7, bit 64) StaticBody3D per tree-bearing chunk carrying trunk + crown
+## cylinders read from the same `TREE_ARCHETYPES` table the meshes build from
+## (2 shapes per tree, 13,506 over the bake); rays through the REAL physics
+## space answer at the crown cap and trunk-flank faces on the flora class and
+## NEVER answer tree geometry on the world class; bird-class flight probes
+## (the player's exact mask 69) are HELD at the cylinders while a citizen-class
+## probe (mask 1) walks straight through; and the scene files pin the class
+## masks — the player is the ONLY body riding the flora bit (supersedes the
+## T-207 soft-canopy law "no collision, the pigeon brushes through" — the
+## foliage convention itself, no ground record, still holds).
+func _scenario_ames_tree_collision() -> void:
+	const S := "ames_tree_collision"
+	## The bake pin (the canopy row's own) and the flora bit (project.godot
+	## `layer_7="flora"` — bit 7).
+	const PACK_TREES := 6753
+	const FLORA_BIT := 64
+	## The class masks, pinned exact off the scene files (the flora law: the
+	## player is the ONLY body that rides the flora bit).
+	const SCENE_MASKS := {
+		"res://scenes/player.tscn": 69, ## world + npc + flora (T-217).
+		"res://scenes/tourist.tscn": 1, ## world.
+		"res://scenes/elder.tscn": 1, ## world.
+		"res://scenes/car.tscn": 9, ## world + vehicle.
+		"res://scenes/poop.tscn": 13, ## world + npc + vehicle.
+	}
+	const TILE := 256.0
+	var bad: PackedStringArray = PackedStringArray()
+	var manifest: Dictionary = AmesBaker.read_manifest(AMES_CHUNKS_DIR)
+	if manifest.is_empty():
+		_check(S, false, "no committed bake at %s" % AMES_CHUNKS_DIR)
+		return
+
+	# --- 1. the mount: one flora body per tree-bearing chunk, 2 shapes/tree --
+	var world := AMES_WORLD_SCENE.instantiate() as AmesWorld
+	world.position = AMES_WORLD_OFFSET
+	add_child(world)
+	await get_tree().physics_frame
+	var tree_chunks := 0
+	var tree_shapes := 0
+	var chunks_root := world.get_node_or_null("Chunks") as Node3D
+	if chunks_root == null:
+		bad.append("no Chunks root — the world did not build")
+	else:
+		for entry: Dictionary in manifest.get("chunks", []):
+			var chunk: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+					str(entry["file"]))
+			var want := (chunk.get("trees", []) as Array).size()
+			if want == 0:
+				continue
+			tree_chunks += 1
+			var tile := Vector2i(int(entry["cx"]), int(entry["cz"]))
+			var body := chunks_root.get_node_or_null(
+					"Chunk_%d_%d/Trees" % [tile.x, tile.y]) as StaticBody3D
+			if body == null:
+				bad.append("chunk %d_%d missing the Trees flora body"
+						% [tile.x, tile.y])
+				continue
+			if body.collision_layer != FLORA_BIT:
+				bad.append("flora body layer %d (want %d) at %d_%d"
+						% [body.collision_layer, FLORA_BIT, tile.x, tile.y])
+			if body.collision_mask != 0:
+				bad.append("flora body mask %d (want 0) at %d_%d"
+						% [body.collision_mask, tile.x, tile.y])
+			var shapes := 0
+			for c: Node in body.get_children():
+				if c is CollisionShape3D \
+						and (c as CollisionShape3D).shape != null:
+					shapes += 1
+			if shapes != want * 2:
+				bad.append("chunk %d_%d shapes %d (want %d — trunk+crown per tree)"
+						% [tile.x, tile.y, shapes, want * 2])
+			tree_shapes += shapes
+	if tree_shapes != PACK_TREES * 2:
+		bad.append("total flora shapes %d (want %d)"
+				% [tree_shapes, PACK_TREES * 2])
+
+	# --- the sample walk: isolated interior trees (the 3×3 near-doc cache ----
+	## the canopy row uses — a neighbor crown cylinder within 7 m would eat a
+	## cap ray aimed down another tree's axis; ≥ 10 m inside the tile keeps
+	## the probes' ≤ 8 m travel inside cleared chunks).
+	var near_cache: Dictionary = {}
+	var near_doc := func(tile_v: Vector2i) -> Dictionary:
+		if not near_cache.has(tile_v):
+			near_cache[tile_v] = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+					"chunk_%d_%d.json" % [tile_v.x, tile_v.y])
+		return near_cache[tile_v]
+	var samples: Array[Dictionary] = []
+	var open_sample := {}
+	for entry2: Dictionary in manifest.get("chunks", []):
+		## Keep walking until BOTH legs are fed — one dense grove must not
+		## exhaust the sample budget before an open chunk is ever reached
+		## (the first run's flight probes starved exactly that way).
+		if samples.size() >= 24 and not open_sample.is_empty():
+			break
+		var chunk2: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+				str(entry2["file"]))
+		var trees2: Array = chunk2.get("trees", [])
+		if trees2.is_empty():
+			continue
+		var tile2 := Vector2i(int(entry2["cx"]), int(entry2["cz"]))
+		var chunk_open := (chunk2.get("massing", []) as Array).is_empty() \
+				and (chunk2.get("placeholders", []) as Array).is_empty()
+		for tr2: Dictionary in trees2:
+			if samples.size() >= 24 and not open_sample.is_empty():
+				break
+			var p2: Array = tr2["p"]
+			var px := float(p2[0])
+			var pz := float(p2[2])
+			var lx := px - float(tile2.x) * TILE
+			var lz := pz - float(tile2.y) * TILE
+			if lx < 10.0 or lz < 10.0 or lx > TILE - 10.0 \
+					or lz > TILE - 10.0:
+				continue
+			var isolated := true
+			for nx: int in range(tile2.x - 1, tile2.x + 2):
+				if not isolated:
+					break
+				for nz: int in range(tile2.y - 1, tile2.y + 2):
+					if not isolated:
+						break
+					var nd: Dictionary = near_doc.call(Vector2i(nx, nz))
+					if nd.is_empty():
+						continue
+					for ot: Dictionary in nd.get("trees", []):
+						var op: Array = ot["p"]
+						var d := Vector2(float(op[0]) - px,
+								float(op[2]) - pz).length()
+						if d > 0.001 and d < 7.0:
+							isolated = false
+							break
+			if not isolated:
+				continue
+			var rec := {"tr": tr2, "tile": tile2, "chunk": chunk2}
+			if chunk_open and open_sample.is_empty():
+				open_sample = rec
+			if samples.size() < 24:
+				samples.append(rec)
+	if samples.size() < 8:
+		bad.append("only %d isolated interior trees sampled (want ≥ 8)"
+				% samples.size())
+	if open_sample.is_empty():
+		bad.append("no isolated tree in an open chunk for the flight probes")
+
+	# --- 2. physics truth: crown cap, trunk flank, and the world-class miss --
+	var space := get_world_3d().direct_space_state
+	var cap_worst := 0.0
+	var trunk_worst := 0.0
+	for rec2: Dictionary in samples:
+		var tr3: Dictionary = rec2["tr"]
+		var spec: Dictionary = AmesBaker.TREE_ARCHETYPES[str(tr3["t"])]
+		var p3: Array = tr3["p"]
+		var s3: Array = tr3["s"]
+		var radial := maxf(float(s3[0]), float(s3[2]))
+		var axis := Vector3(float(p3[0]), 0.0, float(p3[2]))
+		var crown_top := (float(spec["crown_cy"]) + float(spec["crown_ry"])) \
+				* float(s3[1])
+		# Down the crown axis: the cap face answers at crown_top, flora class.
+		var cap_from := world.to_global(axis + Vector3(0.0, crown_top + 30.0, 0.0))
+		var cap_to := world.to_global(axis + Vector3(0.0, 0.5, 0.0))
+		var cap_ray := PhysicsRayQueryParameters3D.create(cap_from, cap_to)
+		cap_ray.collision_mask = FLORA_BIT
+		var cap_hit := space.intersect_ray(cap_ray)
+		if cap_hit.is_empty():
+			bad.append("crown cap ray missed at %s" % str(p3))
+		else:
+			var hy: float = world.to_local(cap_hit["position"]).y
+			cap_worst = maxf(cap_worst, absf(hy - crown_top))
+			if absf(hy - crown_top) > 0.05:
+				bad.append("crown cap hit y %.2f != %.2f at %s"
+						% [hy, crown_top, str(p3)])
+			var hit_layer := int((cap_hit["collider"]
+					as CollisionObject3D).collision_layer)
+			if hit_layer & FLORA_BIT == 0:
+				bad.append("crown cap hit a non-flora body (layer %d) at %s"
+						% [hit_layer, str(p3)])
+		# Into the trunk flank at y 2 (below every crown bottom — shore's is
+		# (6.8 − 2.0) × 0.82 ≈ 3.9): the radial ray answers at the cylinder's
+		# surface, exactly `trunk_r` out from the axis.
+		var trunk_from := world.to_global(
+				axis + Vector3(3.0, 2.0, 0.0))
+		var trunk_to := world.to_global(axis + Vector3(0.0, 2.0, 0.0))
+		var trunk_ray := PhysicsRayQueryParameters3D.create(trunk_from, trunk_to)
+		trunk_ray.collision_mask = FLORA_BIT
+		var trunk_hit := space.intersect_ray(trunk_ray)
+		if trunk_hit.is_empty():
+			bad.append("trunk flank ray missed at %s" % str(p3))
+		else:
+			var hx: float = world.to_local(trunk_hit["position"]).x
+			var want_x := float(p3[0]) + float(spec["trunk_r"]) * radial
+			trunk_worst = maxf(trunk_worst, absf(hx - want_x))
+			if absf(hx - want_x) > 0.1:
+				bad.append("trunk flank hit x %.2f != %.2f (r from axis) at %s"
+						% [hx, want_x, str(p3)])
+		# The world class (mask 1) must NEVER answer tree geometry: the same
+		# crown-axis ray rides PAST the plate top (y 0 — the segment ends at
+		# y −2 so the plate's top face is inside it; the first run ended at
+		# y 0.5 and missed the plate everywhere) to the plate (or a covering
+		# building's own top — the api_seam law) — any hit wears no flora bit.
+		var world_ray := PhysicsRayQueryParameters3D.create(cap_from,
+				world.to_global(axis + Vector3(0.0, -2.0, 0.0)))
+		world_ray.collision_mask = 1
+		var world_hit := space.intersect_ray(world_ray)
+		if world_hit.is_empty():
+			bad.append("world-class crown ray hit NOTHING at %s — the plate is gone?"
+					% str(p3))
+		else:
+			var wlayer := int((world_hit["collider"]
+					as CollisionObject3D).collision_layer)
+			if wlayer & FLORA_BIT != 0:
+				bad.append("world-class ray answered a flora body (layer %d) at %s"
+						% [wlayer, str(p3)])
+
+	# --- 3. the flight probes: the bird class is HELD, the citizen passes ----
+	var probe_offs: Array[float] = []
+	if not open_sample.is_empty():
+		var tr4: Dictionary = open_sample["tr"]
+		var spec4: Dictionary = AmesBaker.TREE_ARCHETYPES[str(tr4["t"])]
+		var p4: Array = tr4["p"]
+		var s4: Array = tr4["s"]
+		var radial4 := maxf(float(s4[0]), float(s4[2]))
+		var axis4 := Vector3(float(p4[0]), 0.0, float(p4[2]))
+		var trunk_r4 := float(spec4["trunk_r"]) * radial4
+		var crown_r4 := float(spec4["crown_rxz"]) * radial4
+		var crown_mid4 := float(spec4["crown_cy"]) * float(s4[1])
+		## Any radial approach — both cylinders are yaw-invariant.
+		var dir4 := Vector3(1.0, 0.0, 0.0)
+		## The bird class (player.tscn's exact mask): a 0.3 m sphere flying
+		## straight at the tree at pigeon-cruise speed is HELD outside the
+		## trunk cylinder (y 2, below every crown bottom) and outside the
+		## crown cylinder (at crown mid-height).
+		for probe_def: Array in [[2.0, trunk_r4 + 0.3, 6.0],
+				[crown_mid4, crown_r4 + 0.3, 8.0]]:
+			var y4 := float(probe_def[0])
+			var min_hold := float(probe_def[1])
+			var start4 := float(probe_def[2])
+			var bird := CharacterBody3D.new()
+			var bird_shape := CollisionShape3D.new()
+			var sphere := SphereShape3D.new()
+			sphere.radius = 0.3
+			bird_shape.shape = sphere
+			bird.add_child(bird_shape)
+			bird.collision_layer = 2
+			bird.collision_mask = 69 ## world + npc + flora — the player class.
+			add_child(bird)
+			bird.global_position = world.to_global(
+					axis4 + dir4 * start4 + Vector3(0.0, y4, 0.0))
+			for _i in 120: ## 2 s at 60 Hz — 8 m/s covers the start distance 4×.
+				bird.velocity = -dir4 * 8.0
+				bird.move_and_slide()
+			var off4 := bird.global_position - world.to_global(axis4)
+			var radial_off := Vector2(off4.x, off4.z).length()
+			var along4 := off4.dot(dir4)
+			probe_offs.append(radial_off)
+			if radial_off < min_hold - 0.2:
+				bad.append("bird probe at y %.1f reached %.2f m from the axis (hold ≥ %.2f — it flew through)"
+						% [y4, radial_off, min_hold])
+			if radial_off > start4:
+				bad.append("bird probe at y %.1f never approached (%.2f m out)"
+						% [y4, radial_off])
+			if along4 < 0.0:
+				bad.append("bird probe at y %.1f tunneled to the far side (along %.2f)"
+						% [y4, along4])
+			bird.queue_free()
+		## The citizen class (tourist.tscn's exact mask): the SAME trunk-band
+		## approach walks straight through — the flora layer is not in its
+		## mask, the T-207 soft-world behavior the citizens keep.
+		var walker := CharacterBody3D.new()
+		var walker_shape := CollisionShape3D.new()
+		var wsphere := SphereShape3D.new()
+		wsphere.radius = 0.3
+		walker_shape.shape = wsphere
+		walker.add_child(walker_shape)
+		walker.collision_layer = 4 ## npc
+		walker.collision_mask = 1 ## world — the citizen class.
+		add_child(walker)
+		walker.global_position = world.to_global(
+				axis4 + dir4 * 6.0 + Vector3(0.0, 2.0, 0.0))
+		for _j in 120:
+			walker.velocity = -dir4 * 8.0
+			walker.move_and_slide()
+		var woff := walker.global_position - world.to_global(axis4)
+		var along := woff.dot(dir4)
+		## "Walks straight through" = the walker CROSSED the axis to the far
+		## side (the first run measured |offset| and caught it 10 m PAST the
+		## tree — pass-through proven, the assert read backwards).
+		if along > 0.5:
+			bad.append("citizen probe stopped %.2f m short of the axis (mask 1 must walk straight through)"
+					% along)
+		walker.queue_free()
+
+	# --- 4. the class law over the scene files -------------------------------
+	for scene_path: String in SCENE_MASKS:
+		var packed: PackedScene = load(scene_path) as PackedScene
+		if packed == null:
+			bad.append("scene missing: %s" % scene_path)
+			continue
+		var inst := packed.instantiate() as CollisionObject3D
+		if inst == null:
+			bad.append("scene root is not a physics body: %s" % scene_path)
+			continue
+		var want_mask := int(SCENE_MASKS[scene_path])
+		if inst.collision_mask != want_mask:
+			bad.append("%s mask %d (want %d — the flora law moved?)"
+					% [scene_path.get_file(), inst.collision_mask, want_mask])
+		if scene_path.contains("player") \
+				and inst.collision_mask & FLORA_BIT == 0:
+			bad.append("player lost the flora bit")
+		if not scene_path.contains("player") \
+				and inst.collision_mask & FLORA_BIT != 0:
+			bad.append("%s rides the flora bit (citizens must pass through)"
+					% scene_path.get_file())
+		inst.free()
+
+	print("SIM DATA %s: chunks=%d shapes=%d rays=%d cap_worst=%f trunk_worst=%f probe_offs=%s" % [
+			S, tree_chunks, tree_shapes, samples.size(), cap_worst,
+			trunk_worst, str(probe_offs)])
 	_check(S, bad.is_empty(), "; ".join(bad))
 	world.queue_free()
 
@@ -4035,6 +4357,8 @@ func _scenario_ames_street_flyover() -> void:
 ## INDEPENDENTLY from the committed bake: the authored (`a`-flagged) massing
 ## box nearest the spawn corridor whose top stands in [4, 20] m (a modest
 ## roof, the retired scenario's own band) and at least 20 m from the spawn —
+## since T-217 the pick also requires a TREE-FREE rise column (the canopy is
+## solid to the bird; a crown over the roof would catch the takeoff flap) —
 ## the walk + takeoff legs then run exactly as T-003 wrote them: settle
 ## grounded at the box top, waddle (> 0.15 m), one flap returns to flight.
 func _scenario_ames_roof() -> void:
@@ -4046,8 +4370,45 @@ func _scenario_ames_roof() -> void:
 	var spawn_local := world.to_local(world.spawn_point)
 	var roof: Dictionary = {}
 	var best_dist := INF
+	var covered_roofs := 0
+	## (T-217) the canopy is solid now — the T-003 takeoff contract needs a
+	## roof whose RISE COLUMN is tree-free: no crown cylinder may overlap the
+	## box footprint grown 2 m between the roof top and top + 6 m (the flap
+	## rise band — the canopy row's skipped-covered convention, applied to
+	## the pick; the first five nearest roofs all ride under a crown).
+	var roof_docs: Dictionary = {}
+	var near_roof_doc := func(tile_v: Vector2i) -> Dictionary:
+		if not roof_docs.has(tile_v):
+			roof_docs[tile_v] = AmesBaker.read_chunk(AMES_CHUNKS_DIR,
+					"chunk_%d_%d.json" % [tile_v.x, tile_v.y])
+		return roof_docs[tile_v]
+	var column_clear := func(tile_v: Vector2i, b: Dictionary, top: float) -> bool:
+		for nx: int in range(tile_v.x - 1, tile_v.x + 2):
+			for nz: int in range(tile_v.y - 1, tile_v.y + 2):
+				var nd: Dictionary = near_roof_doc.call(Vector2i(nx, nz))
+				if nd.is_empty():
+					continue
+				for tr: Dictionary in nd.get("trees", []):
+					var spec: Dictionary = AmesBaker.TREE_ARCHETYPES[str(tr["t"])]
+					var s: Array = tr["s"]
+					var lo := (float(spec["crown_cy"]) - float(spec["crown_ry"])) \
+							* float(s[1])
+					var hi := (float(spec["crown_cy"]) + float(spec["crown_ry"])) \
+							* float(s[1])
+					if hi < top or lo > top + 6.0:
+						continue
+					var r := float(spec["crown_rxz"]) \
+							* maxf(float(s[0]), float(s[2]))
+					var dx := maxf(absf(float(tr["p"][0]) - float(b["p"][0]))
+							- (float(b["s"][0]) * 0.5 + 2.0), 0.0)
+					var dz := maxf(absf(float(tr["p"][2]) - float(b["p"][2]))
+							- (float(b["s"][2]) * 0.5 + 2.0), 0.0)
+					if dx * dx + dz * dz < r * r:
+						return false
+		return true
 	for entry: Dictionary in AmesBaker.read_manifest(AMES_CHUNKS_DIR).get("chunks", []):
 		var doc: Dictionary = AmesBaker.read_chunk(AMES_CHUNKS_DIR, str(entry["file"]))
+		var tile: Vector2i = Vector2i(int(entry["cx"]), int(entry["cz"]))
 		for b: Dictionary in doc.get("massing", []):
 			if not bool(b.get("a", false)):
 				continue
@@ -4057,8 +4418,14 @@ func _scenario_ames_roof() -> void:
 			var c := Vector3(float(b["p"][0]), top, float(b["p"][2]))
 			var dist := Vector2(c.x - spawn_local.x, c.z - spawn_local.z).length()
 			if dist > 20.0 and dist < best_dist:
+				if not column_clear.call(tile, b, top):
+					covered_roofs += 1
+					continue
 				best_dist = dist
 				roof = {"center": c, "top": top}
+	if covered_roofs > 0:
+		print("SIM DATA ames_roof: %d nearer roofs skipped — a crown sits in the takeoff column (T-217)"
+				% covered_roofs)
 	var roof_ok := not roof.is_empty()
 	## --- landable + walkable + takeoff (the T-003 legs, byte-for-byte) --------
 	var landed_ok := false
@@ -6566,22 +6933,28 @@ func _scenario_ames_economy_pins() -> void:
 		else:
 			cluster_ok = cluster_ok and int(elder_counts.get(zone.id, 0)) == zone.cap \
 					and int(tourist_counts.get(zone.id, 0)) == 0
-	## And the re-populate is deterministic: byte-equal elder seats across
-	## the regenerated (the favor benches are a pure function of the pack).
+	## And the re-populate is deterministic: elder seats across the
+	## regenerated (the favor benches are a pure function of the pack).
 	## The re-populate determinism: the crowd re-derives to its populate
 	## placements across the regenerated — the walkers within the 0.05 m
-	## placement band (their resting y settles with the physics timing, the
-	## placement law is the XZ fraction), the seated favor elders to the
-	## same band (the byte-exact seat read is the bench leg's ≤ 0.05).
+	## placement band, the seated favor elders to the same band (the
+	## byte-exact seat read is the bench leg's ≤ 0.05). The placement law
+	## is the XZ fraction — the resting y settles with the physics timing
+	## (T-217: the 13,506 flora shapes shift contact recovery, the y term
+	## moved 0.047 between re-populates and pushed the 3D distance a hair
+	## past the band) so y is pinned as the settle term (±0.5) and the
+	## XZ band stays exactly 0.05.
 	var det_ok: bool = before_crowd.size() == spawner.living_elders().size()
 	if det_ok:
 		var after_elders := spawner.living_elders()
 		for i in before_crowd.size():
-			if before_crowd[i].distance_to(after_elders[i].global_position) > 0.05:
+			var bpos := before_crowd[i]
+			var apos := after_elders[i].global_position
+			var xz := Vector2(bpos.x - apos.x, bpos.z - apos.z).length()
+			if xz > 0.05 or absf(bpos.y - apos.y) > 0.5:
 				det_ok = false
-				print("SIM DATA %s: det mismatch %d before=%s after=%s delta=%.3f zone=%s state=%d bench=%d" % [
-						S, i, before_crowd[i], after_elders[i].global_position,
-						before_crowd[i].distance_to(after_elders[i].global_position),
+				print("SIM DATA %s: det mismatch %d before=%s after=%s xz=%.3f dy=%.3f zone=%s state=%d bench=%d" % [
+						S, i, bpos, apos, xz, bpos.y - apos.y,
 						after_elders[i].zone_id, after_elders[i]._state,
 						after_elders[i].zone_bench])
 				break
@@ -7502,6 +7875,11 @@ func _scenario_campanile_hero_dims() -> void:
 		if bodies.is_empty():
 			bad.append("chunk carries no static bodies — the collision class moved")
 		for b: StaticBody3D in bodies:
+			## (T-217) the canopy's flora body rides layer 7 beside the world
+			## body in tree-bearing chunks — the only legal second class
+			## (bird-only collision, mask 0).
+			if b.collision_layer == 64:
+				continue
 			if b.collision_layer != 1:
 				bad.append("body %s layer %d != 1 (world)" % [b.name, b.collision_layer])
 	## --- C. the open arcades, live ------------------------------------------
