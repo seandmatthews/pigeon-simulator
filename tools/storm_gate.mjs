@@ -47,7 +47,7 @@ if (imp.status !== 0) {
   process.exit(1)
 }
 
-const r = spawnSync(GODOT, ['--headless', '--path', '.', 'res://tests/tools/storm_probe.tscn'], {
+const r = spawnSync(GODOT, ['--headless', '--fixed-fps', '60', '--path', '.', 'res://tests/tools/storm_probe.tscn'], {
   encoding: 'utf8', windowsHide: true, timeout: PROBE_TIMEOUT_MS,
 })
 const out = r.stdout || ''
