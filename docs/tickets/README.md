@@ -399,6 +399,7 @@ scan (T-170 was max; no workflows in flight).
 | T-219 | [Players hear the game — exports boot audible, runs from source stay silent](T-219-players-hear-the-game.md) | R6 (owner pick) | T-101, T-122 | done | (the sound rule, owner 2026-11-23) |
 | T-220 | [Trails vanish with their chunk's houses — trail_quads join the chunk bounds](T-220-trail-quads-chunk-bounds.md) | R6 (owner pick) | T-172, T-205 | done | (10 chunks / 131 trail quads culled outside their bounds; fixed + re-baked, found by the 2026-11-23 review) |
 | T-221 | [The pigeon's map — points of interest and the elder parks](T-221-pigeon-map.md) | R6 (owner pick) | T-198, T-183 | proposed | (owner pick 2026-11-24 — the long-term answer to "where are the elders?"; near-term: one sharing elder on a bench in plain sight at spawn) |
+| T-222 | [Breadcrumbs at benches — lunch benches with seated eaters](T-222-crumbs-at-benches.md) | R6 (owner pick) | the bread pointer's Ames fix (unticketed) | proposed | (owner pick 2026-11-24; suggested build order: before T-221 — it is the near-term food fix) |
 
 **Ames build order:** T-215 (entry-hardware perf — the traffic physics storm; absorbs the superseded T-214) — the gate box canary caught a 1 fps budget on a 2015 machine; blocks T-210's grand tour) precedes T-210. **Ames build order:** R1 serial (T-171→T-172→T-173→T-174/T-175 parallel→
 T-176→T-177); R2 mostly parallel after T-178; R3 heroes fully parallel after
