@@ -235,6 +235,12 @@ so the default already protects the owner's ears on every path: the editor bridg
 - **Never opt a session in.** `--sound`, `PIGEON_SOUND=1` and `pilot.py --sound`
   are the OWNER's opt-in for a sound-design session. An agent passes them only
   when the owner asks for that specific session.
+- **The hosted build is an export — it boots AUDIBLE.** To check a deployed build in
+  a browser, never start a run before muting the game through its own Settings →
+  Muted on the title screen (the title screen is silent; only a run plays ambience).
+  That checkbox is saved in that browser's copy of the game: untick it again
+  afterwards, or reset the saved data, so the owner does not inherit a silent game.
+  An embedded browser with no tab-mute has no other safe way to run the game.
 - **The owner's opt-in leaks through the editor.** A bridge play session runs
   with the editor's Main Run Args — if those carry `--sound`, that session is
   audible. Before any `godot_runtime_play_scene`, make sure Debug → Customize
